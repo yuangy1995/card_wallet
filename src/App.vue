@@ -29,6 +29,42 @@
         </el-table-column>
       </el-table>
     </el-scrollbar>
+
+    <!-- 添加信用卡 -->
+    <el-dialog v-model="creditCardData.dialogFormVisible" title="新增信用卡">
+      <el-form :model="phoneNumberData.data">
+        <el-form-item label="手机号">
+          <el-input v-model="phoneNumberData.data.number" autocomplete="off" clearable />
+        </el-form-item>
+        <el-form-item label="运营商">
+          <el-input v-model="phoneNumberData.data.provider" autocomplete="off" clearable />
+        </el-form-item>
+        <el-form-item label="国家">
+          <el-input v-model="phoneNumberData.data.country" autocomplete="off" clearable />
+        </el-form-item>
+        <el-form-item label="月租">
+          <el-input v-model="phoneNumberData.data.rent" autocomplete="off" clearable />
+        </el-form-item>
+        <el-form-item label="最后保号日期">
+          <el-input v-model="phoneNumberData.data.rentTime" autocomplete="off" clearable />
+        </el-form-item>
+        <el-form-item label="实名信息">
+          <el-input v-model="phoneNumberData.data.realName" autocomplete="off" clearable />
+        </el-form-item>
+        <el-form-item label="摘要">
+          <el-input v-model="phoneNumberData.data.digest" autocomplete="off" clearable />
+        </el-form-item>
+        <el-form-item label="备注">
+          <el-input v-model="phoneNumberData.data.remark" autocomplete="off" clearable />
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="phoneNumberData.dialogFormVisible = false">取消</el-button>
+          <el-button type="primary" @click="confirmAddPhoneNumber(phoneNumberData.data)">确认</el-button>
+        </span>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -52,7 +88,23 @@ export default {
           lastTime: "",//距离上次提额多少天了
           remark: "",//备注
         }]
-      }
+      },
+      creditCardData: {
+        dialogFormVisible: false,
+        data: {
+          country: "",//国家
+          bank: "",//银行
+          cardNumber: "",//卡号
+          level: "",//等级
+          limit: "",//额度
+          cvv: "",//cvv码
+          valid: "",//有效期
+          annualFee: "",//年费
+          NextAnnualFeeCollectionTime: "",//下次年费收取时间
+          lastTime: "",//距离上次提额多少天了
+          remark: "",//备注
+        }
+      },
     }
   },
   methods: {
