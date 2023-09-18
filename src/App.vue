@@ -22,15 +22,15 @@
     <el-scrollbar height="1000px">
       <el-table :data="tableData" border height="1000px" style="width: 100%">
         <el-table-column type="index" label="序号" width="60" align="center" />
-        <el-table-column prop="country" label="国家" width="80" align="center" />
-        <el-table-column prop="bank" label="银行" width="100" align="center" />
+        <el-table-column prop="country" label="国家" width="100" align="center" />
+        <el-table-column prop="bank" label="银行" width="150" align="center" />
+        <el-table-column prop="level" label="等级" width="110" align="center" />
+        <el-table-column prop="cardNumber" label="卡号" width="180" align="center" />
+        <el-table-column prop="limit" label="额度" width="70" align="center" />
         <el-table-column prop="type" label="币种" width="150" align="center" />
-        <el-table-column prop="cardNumber" label="卡号" width="150" align="center" />
-        <el-table-column prop="level" label="等级" width="100" align="center" />
-        <el-table-column prop="limit" label="额度" width="100" align="center" />
         <el-table-column prop="cvv" label="cvv码" width="100" align="center" />
-        <el-table-column prop="valid" label="有效期" width="100" align="center" />
-        <el-table-column prop="annualFee" label="年费" width="100" align="center" />
+        <el-table-column prop="valid" label="有效期" width="80" align="center" />
+        <el-table-column prop="annualFee" label="年费" width="90" align="center" />
         <el-table-column prop="nextAnnualFeeCollectionTime" label="下次年费收取时间" width="150" align="center" />
         <el-table-column prop="lastTime" label="上次提额日期" width="170" align="center" />
         <el-table-column prop="equity" label="权益" min-width="50%" align="center" show-overflow-tooltip />
@@ -762,12 +762,28 @@ export default {
       })
     },
     //清空所有数据
-    deleteAllData(){
+    deleteAllData() {
       this.cardData = [];
       this.notic('Success', '数据已全部清空！', 'success');
     },
     //添加卡片
     addCreditCard() {
+      this.creditCardData.data = {
+        id: "",
+        country: "",//国家
+        bank: "",//银行
+        cardNumber: "",//卡号
+        level: "",//等级
+        limit: "",//额度
+        type: "",//币种
+        cvv: "",//cvv码
+        valid: "",//有效期
+        annualFee: "",//年费
+        nextAnnualFeeCollectionTime: "",//下次年费收取时间
+        lastTime: "",//距离上次提额多少天了
+        equity: "",//权益
+        remark: "",//备注
+      };
       let id = Math.random().toString(16).slice(2);
       this.creditCardData.data.id = id;
       this.status = 'add';
@@ -796,7 +812,7 @@ export default {
     },
     //导出数据
     exportData() {
-      let val = Object.assign({}, this.cardData);
+      let val = Object.assign([], this.cardData);
       val = JSON.stringify(val);
       const blob = new Blob([val], { type: 'text/plain;charset=utf-8' });
       saveAs(blob, '信用卡管理数据.json');
