@@ -22,20 +22,27 @@
     <el-scrollbar height="1000px">
       <el-table :data="tableData" border height="1000px" style="width: 100%">
         <el-table-column type="index" label="序号" width="60" align="center" />
-        <el-table-column prop="country" label="国家" width="100" align="center" />
+        <el-table-column prop="country" label="国家" width="130" align="center" />
         <el-table-column prop="bank" label="银行" width="150" align="center" />
         <el-table-column prop="level" label="等级" width="110" align="center" />
+        <el-table-column v-if="true" prop="alias" label="卡片别名" width="200" align="center" />
         <el-table-column prop="cardNumber" label="卡号" width="180" align="center" />
         <el-table-column prop="limit" label="额度" width="70" align="center" />
-        <el-table-column prop="type" label="币种" width="150" align="center" />
+        <el-table-column prop="type" label="币种" width="130" align="center" />
         <el-table-column prop="cvv" label="cvv码" width="100" align="center" />
         <el-table-column prop="valid" label="有效期" width="80" align="center" />
         <el-table-column prop="annualFee" label="年费" width="90" align="center" />
+        <el-table-column prop="isQualified" label="本年度年费是否达标" width="160" align="center">
+          <template #default="scope">
+            <el-tag v-if="scope.row.isQualified" type="success">已达标</el-tag>
+            <el-tag v-else type="danger">未达标</el-tag>
+          </template>
+        </el-table-column>
         <el-table-column prop="nextAnnualFeeCollectionTime" label="下次年费收取时间" width="150" align="center" />
         <el-table-column prop="lastTime" label="上次提额日期" width="170" align="center" />
-        <el-table-column prop="equity" label="权益" min-width="50%" align="center" show-overflow-tooltip />
-        <el-table-column prop="remark" label="备注" min-width="50%" align="center" show-overflow-tooltip />
-        <el-table-column label="操作" width="150" align="center">
+        <el-table-column prop="equity" label="权益" width="350" align="center" show-overflow-tooltip />
+        <el-table-column prop="remark" label="备注" width="350" align="center" show-overflow-tooltip />
+        <el-table-column label="操作" width="150" align="center" fixed="right">
           <template #default="scope">
             <el-button size="small" @click="cardEdit(scope.$index, scope.row)">编辑</el-button>
             <el-popconfirm title="你确定要删除?" @confirm="deleteData(scope.$index, scope.row)">
@@ -73,6 +80,9 @@
                 :value="item.chineseName" />
             </el-select>
           </el-form-item>
+          <el-form-item label="卡片别名">
+            <el-input v-model="creditCardData.data.alias" autocomplete="off" clearable />
+          </el-form-item>
           <el-form-item label="额度">
             <el-input v-model="creditCardData.data.limit" autocomplete="off" clearable />
           </el-form-item>
@@ -91,6 +101,12 @@
           </el-form-item>
           <el-form-item label="年费">
             <el-input v-model="creditCardData.data.annualFee" autocomplete="off" clearable />
+          </el-form-item>
+          <el-form-item label="本年度消费是否达标">
+            <el-radio-group v-model="creditCardData.data.isQualified">
+              <el-radio :label="false" size="large">未达标</el-radio>
+              <el-radio :label="true" size="large">已达标</el-radio>
+            </el-radio-group>
           </el-form-item>
           <el-form-item label="下次年费收取时间">
             <el-date-picker v-model="creditCardData.data.nextAnnualFeeCollectionTime" type="date" placeholder="选择下次年费收取时间"
@@ -151,11 +167,13 @@ export default {
           bank: "",//银行
           cardNumber: "",//卡号
           level: "",//等级
+          alias: "",//卡片别名
           limit: "",//额度
           type: "",//币种
           cvv: "",//cvv码
           valid: "",//有效期
           annualFee: "",//年费
+          isQualified: false,//本年度年费是否达标
           nextAnnualFeeCollectionTime: "",//下次年费收取时间
           lastTime: "",//距离上次提额多少天了
           equity: "",//权益
@@ -620,6 +638,10 @@ export default {
             { name: "银联-白金卡", chineseName: "银联-白金卡" },
             { name: "银联-钻石卡", chineseName: "银联-钻石卡" },
             { name: "银联-黑钻卡", chineseName: "银联-黑钻卡" },
+            { name: "银联 + VISA", chineseName: "银联 + VISA" },
+            { name: "银联 + MasterCard", chineseName: "银联 + MasterCard" },
+            { name: "银联 + JCB", chineseName: "银联 + JCB" },
+            { name: "银联 + AE", chineseName: "银联 + AE" },
             { name: "VISA-普卡", chineseName: "VISA-普卡" },
             { name: "VISA-金卡", chineseName: "VISA-金卡" },
             { name: "VISA-白金卡", chineseName: "VISA-白金卡" },
@@ -635,10 +657,20 @@ export default {
             { name: "JCB-金卡", chineseName: "JCB-金卡" },
             { name: "JCB-白金卡", chineseName: "JCB-白金卡" },
             { name: "JCB-御尊卡", chineseName: "JCB-御尊卡" },
-            { name: "AE-绿卡", chineseName: "AE-绿卡" },
-            { name: "AE-金卡", chineseName: "AE-金卡" },
-            { name: "AE-白金卡", chineseName: "AE-白金卡" },
-            { name: "AE-黑卡", chineseName: "AE-黑卡" },
+            { name: "AE-经典-绿卡", chineseName: "AE-经典-绿卡" },
+            { name: "AE-经典-红卡", chineseName: "AE-经典-红卡" },
+            { name: "AE-经典-金卡", chineseName: "AE-经典-金卡" },
+            { name: "AE-经典-蓝卡", chineseName: "AE-经典-蓝卡" },
+            { name: "AE-经典-新贵白金卡", chineseName: "AE-经典-新贵白金卡" },
+            { name: "AE-经典-clear卡", chineseName: "AE-经典-clear卡" },
+            { name: "AE-经典-Explorer卡", chineseName: "AE-经典-Explorer卡" },
+            { name: "AE-经典-Cash Magnet卡", chineseName: "AE-经典-Cash Magnet卡" },
+            { name: "AE-经典-百夫长白金卡", chineseName: "AE-经典-百夫长白金卡" },
+            { name: "AE-经典-百夫长黑金卡", chineseName: "AE-经典-百夫长黑金卡" },
+            { name: "AE-蓝盒子-MEMBER卡", chineseName: "AE-蓝盒子-MEMBER卡" },
+            { name: "AE-蓝盒子-SELECT卡", chineseName: "AE-蓝盒子-SELECT卡" },
+            { name: "AE-蓝盒子-MAX卡", chineseName: "AE-蓝盒子-MAX卡" },
+            { name: "AE-蓝盒子-ICON卡", chineseName: "AE-蓝盒子-ICON卡" },
           ],
           //列出世界上的几乎所有币种
           currencyList: [
@@ -773,6 +805,7 @@ export default {
         country: "",//国家
         bank: "",//银行
         cardNumber: "",//卡号
+        alias: "",//卡片别名
         level: "",//等级
         limit: "",//额度
         type: "",//币种
@@ -780,6 +813,7 @@ export default {
         valid: "",//有效期
         annualFee: "",//年费
         nextAnnualFeeCollectionTime: "",//下次年费收取时间
+        isQualified: false,//本年度年费是否达标
         lastTime: "",//距离上次提额多少天了
         equity: "",//权益
         remark: "",//备注
@@ -885,7 +919,16 @@ export default {
         localStorage.setItem('cardData', JSON.stringify(val));
       },
       deep: true
-    }
+    },
+    //监听creditCardData.data.cardNumber的变化，每新增4个字符就在后面加一个空格
+    'creditCardData.data.cardNumber': {
+      handler: function (val, oldVal) {
+        if (val.length == 4 || val.length == 9 || val.length == 14 || val.length == 19) {
+          this.creditCardData.data.cardNumber = val + ' ';
+        }
+      },
+      deep: true
+    },
 
   },
 }
