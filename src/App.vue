@@ -1,12 +1,60 @@
 <template>
   <div class="main_body">
     <div class="headers">
-      <el-form :inline="true" :model="formSearch">
-
+      <el-form :inline="true" :model="formSearch" label-width="80px">
+        <el-row>
+          <el-form-item label="国家">
+            <el-select v-model="formSearch.country" placeholder="请选择国家" filterable allow-create clearable>
+              <el-option v-for="(item, index) in creditCardData.options.countryData" :key="index"
+                :label="`${item.chineseName}(${item.name})`" :value="item.chineseName" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="银行">
+            <el-select v-model="formSearch.bank" placeholder="请选择银行" filterable allow-create clearable>
+              <el-option v-for="item in creditCardData.options.bankList" :key="item.name" :label="item.name"
+                :value="item.chineseName" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="卡号">
+            <el-input v-model="formSearch.cardNumber" autocomplete="off" clearable />
+          </el-form-item>
+          <el-form-item label="等级">
+            <el-select v-model="formSearch.level" placeholder="请选择等级" filterable clearable>
+              <el-option v-for="item in creditCardData.options.cardLevel" :key="item.name" :label="item.name"
+                :value="item.chineseName" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="额度">
+            <el-input v-model="formSearch.limit" autocomplete="off" clearable />
+          </el-form-item>
+        </el-row>
+        <el-row>
+          <el-form-item label="币种">
+            <el-select v-model="formSearch.type" placeholder="请选择币种" filterable clearable>
+              <el-option v-for="item in creditCardData.options.currencyList" :key="item.name" :label="item.name"
+                :value="item.chineseName" />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="cvv码">
+            <el-input v-model="formSearch.cvv" autocomplete="off" clearable />
+          </el-form-item>
+          <el-form-item label="卡片别名">
+            <el-input v-model="formSearch.alias" autocomplete="off" clearable />
+          </el-form-item>
+          <el-form-item label="权益">
+            <el-input v-model="formSearch.equity" autocomplete="off" clearable />
+          </el-form-item>
+          <el-form-item label="备注">
+            <el-input v-model="formSearch.remark" autocomplete="off" clearable />
+          </el-form-item>
+        </el-row>
       </el-form>
     </div>
     <div class="buttons">
       <el-button type="primary" @click="addCreditCard">新增信用卡</el-button>
+      <el-button type="primary" @click="oneKeySort">一键排序</el-button>
+      <el-button type="primary" @click="oneCheck">一键检测</el-button>
+      <el-button type="primary" @click="tableCustoms">表格自定义</el-button>
       <el-button type="primary" @click="exportData">导出数据</el-button>
       <el-button type="primary" style="width: 70px;" @click="importData2">导入数据</el-button>
       <input v-show="false" type="file" name="upfile" id="importFile" accept=".json" style="width: 0px;"
@@ -22,26 +70,33 @@
     <el-scrollbar height="1000px">
       <el-table :data="tableData" border height="1000px" style="width: 100%">
         <el-table-column type="index" label="序号" width="60" align="center" />
-        <el-table-column prop="country" label="国家" width="130" align="center" />
-        <el-table-column prop="bank" label="银行" width="150" align="center" />
-        <el-table-column prop="level" label="等级" width="110" align="center" />
-        <el-table-column v-if="true" prop="alias" label="卡片别名" width="200" align="center" />
-        <el-table-column prop="cardNumber" label="卡号" width="180" align="center" />
-        <el-table-column prop="limit" label="额度" width="70" align="center" />
-        <el-table-column prop="type" label="币种" width="130" align="center" />
-        <el-table-column prop="cvv" label="cvv码" width="100" align="center" />
-        <el-table-column prop="valid" label="有效期" width="80" align="center" />
-        <el-table-column prop="annualFee" label="年费" width="90" align="center" />
-        <el-table-column prop="isQualified" label="本年度年费是否达标" width="160" align="center">
+        <el-table-column v-if="userData.tableCustom.country" prop="country" label="国家" width="130" align="center" />
+        <el-table-column v-if="userData.tableCustom.bank" prop="bank" label="银行" width="150" align="center" />
+        <el-table-column v-if="userData.tableCustom.level" prop="level" label="等级" width="110" align="center" />
+        <el-table-column v-if="userData.tableCustom.alias" prop="alias" label="卡片别名" width="200" align="center" />
+        <el-table-column v-if="userData.tableCustom.cardNumber" prop="cardNumber" label="卡号" width="180" align="center" />
+        <el-table-column v-if="userData.tableCustom.limit" prop="limit" label="额度" width="70" align="center" />
+        <el-table-column v-if="userData.tableCustom.type" prop="type" label="币种" width="130" align="center" />
+        <el-table-column v-if="userData.tableCustom.cvv" prop="cvv" label="cvv码" width="100" align="center" />
+        <el-table-column v-if="userData.tableCustom.valid" prop="valid" label="有效期" width="80" align="center" />
+        <el-table-column v-if="userData.tableCustom.annualFee" prop="annualFee" label="年费" width="90" align="center" />
+        <el-table-column v-if="userData.tableCustom.isQualified" prop="isQualified" label="本年度年费是否达标" width="160" align="center">
           <template #default="scope">
             <el-tag v-if="scope.row.isQualified" type="success">已达标</el-tag>
             <el-tag v-else type="danger">未达标</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="nextAnnualFeeCollectionTime" label="下次年费收取时间" width="150" align="center" />
-        <el-table-column prop="lastTime" label="上次提额日期" width="170" align="center" />
-        <el-table-column prop="equity" label="权益" width="350" align="center" show-overflow-tooltip />
-        <el-table-column prop="remark" label="备注" width="350" align="center" show-overflow-tooltip />
+        <el-table-column v-if="userData.tableCustom.nextAnnualFeeCollectionTime" prop="nextAnnualFeeCollectionTime" label="下次年费收取时间" width="150" align="center" />
+        <el-table-column v-if="userData.tableCustom.lastTime" prop="lastTime" label="上次提额日期" width="170" align="center" />
+        <el-table-column v-if="userData.tableCustom.lastDays" prop="lastTime" label="距离上次提额多少天" width="170" align="center">
+          <template #default="scope">
+            <span v-if="scope.row.lastTime">
+              {{ getDays(scope.row.lastTime, new Date()) + '天' }}
+            </span>
+          </template>
+        </el-table-column>
+        <el-table-column v-if="userData.tableCustom.equity" prop="equity" label="权益" width="350" align="center" show-overflow-tooltip />
+        <el-table-column v-if="userData.tableCustom.remark" prop="remark" label="备注" width="350" align="center" show-overflow-tooltip />
         <el-table-column label="操作" width="150" align="center" fixed="right">
           <template #default="scope">
             <el-button size="small" @click="cardEdit(scope.$index, scope.row)">编辑</el-button>
@@ -135,6 +190,20 @@
         </span>
       </template>
     </el-dialog>
+    <!-- 排序框框 -->
+    <el-dialog v-model="sortData.dialogFormVisible" title="选择排序方式" width="30%" draggable>
+      <el-radio-group v-model="sortData.value">
+        <el-radio v-for="item in sortData.options" :label="item" size="large">{{ item }}</el-radio>
+      </el-radio-group>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="sortData.dialogFormVisible = false">取消</el-button>
+          <el-button type="primary" @click="oneKeySortConfirm">
+            确定
+          </el-button>
+        </span>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
@@ -143,6 +212,26 @@ export default {
   data() {
     return {
       cardData: [],
+      userData:{
+        tableCustom:{
+          country: true,
+          bank: true,
+          cardNumber: true,
+          level: true,
+          alias: true,
+          limit: true,
+          type: true,
+          cvv: true,
+          valid: true,
+          annualFee: true,
+          isQualified: true,
+          nextAnnualFeeCollectionTime: true,
+          lastTime: true,
+          lastDays: true,
+          equity: true,
+          remark: true,
+        }//表格自定义数据
+      } ,
       formSearch: {
         country: "",
         bank: "",
@@ -152,6 +241,7 @@ export default {
         limit: "",
         cvv: "",
         valid: "",
+        alias: "",
         annualFee: "",
         nextAnnualFeeCollectionTime: "",
         lastTime: "",
@@ -749,6 +839,11 @@ export default {
           ]
         }
       },
+      sortData: {
+        dialogFormVisible: false,
+        value: '银行',
+        options: ["国家", "银行", "等级", "币种", "本年度年费是否达标"]
+      }
     }
   },
   created() {
@@ -757,6 +852,10 @@ export default {
       this.cardData = JSON.parse(localStorage.getItem("cardData"));
       this.notic('Success', '浏览器数据加载成功！', 'success');
     }
+    //5秒后执行oneCheck函数
+    setTimeout(() => {
+      this.oneCheck();
+    }, 3000);
   },
   computed: {
     // 计算过滤条件后的表格数据
@@ -769,16 +868,17 @@ export default {
         } else {
           //如果formsearch中的参数不为空，就返回符合条件的数据
           return (item.bank.indexOf(this.formSearch.bank) != -1) &&
-            (item.cardName.indexOf(this.formSearch.country) != -1) &&
-            (item.cardLevel.indexOf(this.formSearch.type) != -1) &&
-            (item.currency.indexOf(this.formSearch.cardNumber) != -1) &&
-            (item.cardType.indexOf(this.formSearch.level) != -1) &&
-            (item.cardType.indexOf(this.formSearch.limit) != -1) &&
-            (item.cardType.indexOf(this.formSearch.cvv) != -1) &&
-            (item.cardType.indexOf(this.formSearch.valid) != -1) &&
-            (item.cardType.indexOf(this.formSearch.annualFee) != -1) &&
-            (item.cardType.indexOf(this.formSearch.equity) != -1) &&
-            (item.cardType.indexOf(this.formSearch.remark) != -1);
+            (item.country.indexOf(this.formSearch.country) != -1) &&
+            (item.type.indexOf(this.formSearch.type) != -1) &&
+            (item.cardNumber.indexOf(this.formSearch.cardNumber) != -1) &&
+            (item.level.indexOf(this.formSearch.level) != -1) &&
+            (item.limit.indexOf(this.formSearch.limit) != -1) &&
+            (item.cvv.indexOf(this.formSearch.cvv) != -1) &&
+            (item.valid.indexOf(this.formSearch.valid) != -1) &&
+            (item.alias.indexOf(this.formSearch.alias) != -1) &&
+            (item.annualFee.indexOf(this.formSearch.annualFee) != -1) &&
+            (item.equity.indexOf(this.formSearch.equity) != -1) &&
+            (item.remark.indexOf(this.formSearch.remark) != -1);
         }
       })
     },
@@ -863,7 +963,6 @@ export default {
       reader.readAsText(file);
       reader.onload = (e) => {
         let val = JSON.parse(e.target.result);
-        console.log(val);
         //判断导入的数据是否符合要求
         if (val instanceof Array) {
           this.cardData = val;
@@ -882,7 +981,6 @@ export default {
       let h = date.getHours();
       let m = date.getMinutes();
       let s = date.getSeconds();
-      console.log(Y + M + D + h + m + s)
       if (format == 'Y-M-D h:m:s') {
         return Y + '-' + M + '-' + D + ' ' + h + ':' + m + ':' + s;
       } else if (format == 'Y-M-D') {
@@ -911,6 +1009,82 @@ export default {
         return s;
       }
     },
+    //计算两个日期之间相差的天数
+    getDays(dateString1, dateString2) {
+      var startDate = Date.parse(dateString1);
+      var endDate = Date.parse(dateString2);
+      var days = (endDate - startDate) / (1 * 24 * 60 * 60 * 1000);
+      //将天数向上取整
+      days = Math.ceil(days);
+      return days;
+    },
+    //一键排序，点击按钮后，弹出一个对话框
+    oneKeySort() {
+      this.sortData.dialogFormVisible = true;
+    },
+    //一键排序确认
+    oneKeySortConfirm() {
+      //根据sortData.value的值来判断按照哪个字段排序
+      if (this.sortData.value == '国家') {
+        this.cardData.sort((a, b) => {
+          return a.country.localeCompare(b.country);
+        })
+      } else if (this.sortData.value == '银行') {
+        this.cardData.sort((a, b) => {
+          return a.bank.localeCompare(b.bank);
+        })
+      } else if (this.sortData.value == '等级') {
+        this.cardData.sort((a, b) => {
+          return a.level.localeCompare(b.level);
+        })
+      } else if (this.sortData.value == '币种') {
+        this.cardData.sort((a, b) => {
+          return a.type.localeCompare(b.type);
+        })
+      } else if (this.sortData.value == '本年度年费是否达标') {
+        this.cardData.sort((a, b) => {
+          return a.isQualified - b.isQualified;
+        })
+      }
+      this.sortData.dialogFormVisible = false;
+    },
+    //根据本年度年费是否达标，不达标的每张卡弹出提示
+    oneCheck() {
+      let notQualified = this.cardData.filter(item => item.isQualified == false);
+      let str = '';
+      notQualified.forEach(item => {
+        str += item.alias + '、';
+      })
+      str = str.slice(0, str.length - 1);
+      this.notic('本年度年费未达标', str + '的年费未达标，请及时处理！', 'warning', 9999999999);
+      //3秒后执行twoCheck函数
+      setTimeout(() => {
+        this.twoCheck();
+      }, 3000);
+    },
+    //根据填写的下次年费收取时间，跟当前的时间进行比对，如果时间差小于等于60天，则弹出提示
+    twoCheck() {
+      let nowTime = new Date().getTime();
+      let nextAnnualFeeCollectionTime = this.cardData.filter(item => {
+        let time = new Date(item.nextAnnualFeeCollectionTime).getTime();
+        let days = this.getDays(nowTime, time);
+        if (days <= 60) {
+          return true;
+        }
+      });
+      let str = '';
+      nextAnnualFeeCollectionTime.forEach(item => {
+        str += item.alias + '、';
+      })
+      str = str.slice(0, str.length - 1);
+      if(str.length > 0){
+        this.notic('下次年费收取时间', str + '的下次年费收取时间距离现在不足60天，请及时处理！', 'warning', 9999999999);
+      }
+    },
+    //表格自定义
+    tableCustoms(){
+
+    }
   },
   watch: {
     //监听cardData的变化，如果变化了，就把cardData存到localStorage里面
@@ -929,7 +1103,15 @@ export default {
       },
       deep: true
     },
-
+    //监听formSearch.cardNumber的变化，每新增4个字符就在后面加一个空格
+    'formSearch.cardNumber': {
+      handler: function (val, oldVal) {
+        if (val.length == 4 || val.length == 9 || val.length == 14 || val.length == 19) {
+          this.formSearch.cardNumber = val + ' ';
+        }
+      },
+      deep: true
+    },
   },
 }
 </script>
@@ -951,7 +1133,21 @@ export default {
   }
 
   .headers {
+    .el-form-item__content {
+      width: 200px;
+    }
+
     margin-bottom: 20px;
+    /* 将查询条件加上边框，使其看起来更像一个表单，里面的项目都对齐 */
+    border: 1px solid #ebeef5;
+    padding: 20px;
+    border-radius: 5px;
+    background-color: #fff;
+
+    .el-form-item {
+      margin-bottom: 10px;
+    }
+
   }
 }
 </style>
