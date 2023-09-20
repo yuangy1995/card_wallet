@@ -863,8 +863,21 @@ export default {
       //返回formsearch中所有参数查询条件过滤后的数据
       return this.cardData.filter(item => {
         //如果formsearch中的参数为空，就返回所有数据
-        if (this.formSearch.bank == '' && this.formSearch.country == '' && this.formSearch.type == '' && this.formSearch.cardNumber == '' && this.formSearch.level == '' && this.formSearch.limit == '' && this.formSearch.cvv == '' && this.formSearch.valid == '' && this.formSearch.alias == '' && this.formSearch.annualFee == '' && this.formSearch.nextAnnualFeeCollectionTime == '' && this.formSearch.equity == '' && this.formSearch.remark == '' && this.formSearch.lastTime == '') {
-          return true;
+        if (this.formSearch.bank == '' && 
+            this.formSearch.country == '' && 
+            this.formSearch.type == '' && 
+            this.formSearch.cardNumber == '' && 
+            this.formSearch.level == '' && 
+            this.formSearch.limit == '' && 
+            this.formSearch.cvv == '' && 
+            this.formSearch.alias == '' && 
+            this.formSearch.valid == '' && 
+            this.formSearch.annualFee == '' && 
+            this.formSearch.nextAnnualFeeCollectionTime == '' && 
+            this.formSearch.equity == '' && 
+            this.formSearch.remark == '' && 
+            this.formSearch.lastTime == '') {
+            return true;
         } else {
           //如果formsearch中的参数不为空，就返回符合条件的数据
           return (item.bank.indexOf(this.formSearch.bank) != -1) &&
