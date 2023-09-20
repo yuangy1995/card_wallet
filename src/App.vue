@@ -53,8 +53,9 @@
     <div class="buttons">
       <el-button type="primary" @click="addCreditCard">新增信用卡</el-button>
       <el-button type="primary" @click="oneKeySort">一键排序</el-button>
-      <el-button type="primary" @click="oneCheck">一键检测</el-button>
+      <el-button type="primary" @click="oneCheck">一键检测年费达标情况</el-button>
       <el-button type="primary" @click="tableCustoms">表格自定义</el-button>
+      <el-button type="primary" @click="creditCardStatistics">信用卡数据统计</el-button>
       <el-button type="primary" @click="exportData">导出数据</el-button>
       <el-button type="primary" @click="importData2">导入数据</el-button>
       <input v-show="false" type="file" name="upfile" id="importFile" accept=".json" style="width: 0px;"
@@ -80,23 +81,28 @@
         <el-table-column v-if="userData.tableCustom.cvv" prop="cvv" label="cvv码" width="100" align="center" />
         <el-table-column v-if="userData.tableCustom.valid" prop="valid" label="有效期" width="80" align="center" />
         <el-table-column v-if="userData.tableCustom.annualFee" prop="annualFee" label="年费" width="90" align="center" />
-        <el-table-column v-if="userData.tableCustom.isQualified" prop="isQualified" label="本年度年费是否达标" width="160" align="center">
+        <el-table-column v-if="userData.tableCustom.isQualified" prop="isQualified" label="本年度年费是否达标" width="160"
+          align="center">
           <template #default="scope">
             <el-tag v-if="scope.row.isQualified" type="success">已达标</el-tag>
             <el-tag v-else type="danger">未达标</el-tag>
           </template>
         </el-table-column>
-        <el-table-column v-if="userData.tableCustom.nextAnnualFeeCollectionTime" prop="nextAnnualFeeCollectionTime" label="下次年费收取时间" width="150" align="center" />
+        <el-table-column v-if="userData.tableCustom.nextAnnualFeeCollectionTime" prop="nextAnnualFeeCollectionTime"
+          label="下次年费收取时间" width="150" align="center" />
         <el-table-column v-if="userData.tableCustom.lastTime" prop="lastTime" label="上次提额日期" width="170" align="center" />
-        <el-table-column v-if="userData.tableCustom.lastDays" prop="lastTime" label="距离上次提额多少天" width="170" align="center">
+        <el-table-column v-if="userData.tableCustom.lastDays" prop="lastTime" label="距离上次提额多少天" width="170"
+          align="center">
           <template #default="scope">
             <span v-if="scope.row.lastTime">
               {{ getDays(scope.row.lastTime, new Date()) + '天' }}
             </span>
           </template>
         </el-table-column>
-        <el-table-column v-if="userData.tableCustom.equity" prop="equity" label="权益" width="350" align="center" show-overflow-tooltip />
-        <el-table-column v-if="userData.tableCustom.remark" prop="remark" label="备注" width="350" align="center" show-overflow-tooltip />
+        <el-table-column v-if="userData.tableCustom.equity" prop="equity" label="权益" width="350" align="center"
+          show-overflow-tooltip />
+        <el-table-column v-if="userData.tableCustom.remark" prop="remark" label="备注" width="350" align="center"
+          show-overflow-tooltip />
         <el-table-column label="操作" width="150" align="center" fixed="right">
           <template #default="scope">
             <el-button size="small" @click="cardEdit(scope.$index, scope.row)">编辑</el-button>
@@ -204,16 +210,33 @@
         </span>
       </template>
     </el-dialog>
+    <!-- 表格自定义框 -->
+    <el-dialog v-model="tableCustom.dialogFormVisible" title="选择表格显示内容" width="30%" draggable>
+      <el-checkbox v-for="(item, index) in creditCardData.options.tableCustomData" v-model="item.checked"
+        :label="item.checked" :key="index" size="large">
+        {{ item.label }}
+      </el-checkbox>
+      <template #footer>
+        <span class="dialog-footer">
+          <el-button @click="tableCustom.dialogFormVisible = false">取消</el-button>
+          <el-button type="primary" @click="tableCustomConfirm">
+            确定
+          </el-button>
+        </span>
+      </template>
+    </el-dialog>
   </div>
 </template>
 
 <script>
+import { ElNotification } from 'element-plus';
+
 export default {
   data() {
     return {
       cardData: [],
-      userData:{
-        tableCustom:{
+      userData: {
+        tableCustom: {
           country: true,
           bank: true,
           cardNumber: true,
@@ -230,8 +253,8 @@ export default {
           lastDays: true,
           equity: true,
           remark: true,
-        }//表格自定义数据
-      } ,
+        }
+      },
       formSearch: {
         country: "",
         bank: "",
@@ -836,6 +859,24 @@ export default {
               value: "7",
               label: "积分兑换",
             },
+          ],
+          //表格自定义数据
+          tableCustomData: [
+            { label: "国家", value: "country", checked: true },
+            { label: "银行", value: "bank", checked: true },
+            { label: "卡号", value: "cardNumber", checked: true },
+            { label: "等级", value: "level", checked: true },
+            { label: "别名", value: "alias", checked: true },
+            { label: "额度", value: "limit", checked: true },
+            { label: "币种", value: "type", checked: true },
+            { label: "CVV", value: "cvv", checked: true },
+            { label: "有效期", value: "valid", checked: true },
+            { label: "年费", value: "annualFee", checked: true },
+            { label: "年费是否达标", value: "isQualified", checked: true },
+            { label: "下次年费收取时间", value: "nextAnnualFeeCollectionTime", checked: true },
+            { label: "距离上次提额多少天了", value: "lastTime", checked: true },
+            { label: "权益", value: "equity", checked: true },
+            { label: "备注", value: "remark", checked: true },
           ]
         }
       },
@@ -843,6 +884,9 @@ export default {
         dialogFormVisible: false,
         value: '银行',
         options: ["国家", "银行", "等级", "币种", "本年度年费是否达标"]
+      },
+      tableCustom: {
+        dialogFormVisible: false,
       }
     }
   },
@@ -863,21 +907,21 @@ export default {
       //返回formsearch中所有参数查询条件过滤后的数据
       return this.cardData.filter(item => {
         //如果formsearch中的参数为空，就返回所有数据
-        if (this.formSearch.bank == '' && 
-            this.formSearch.country == '' && 
-            this.formSearch.type == '' && 
-            this.formSearch.cardNumber == '' && 
-            this.formSearch.level == '' && 
-            this.formSearch.limit == '' && 
-            this.formSearch.cvv == '' && 
-            this.formSearch.alias == '' && 
-            this.formSearch.valid == '' && 
-            this.formSearch.annualFee == '' && 
-            this.formSearch.nextAnnualFeeCollectionTime == '' && 
-            this.formSearch.equity == '' && 
-            this.formSearch.remark == '' && 
-            this.formSearch.lastTime == '') {
-            return true;
+        if (this.formSearch.bank == '' &&
+          this.formSearch.country == '' &&
+          this.formSearch.type == '' &&
+          this.formSearch.cardNumber == '' &&
+          this.formSearch.level == '' &&
+          this.formSearch.limit == '' &&
+          this.formSearch.cvv == '' &&
+          this.formSearch.alias == '' &&
+          this.formSearch.valid == '' &&
+          this.formSearch.annualFee == '' &&
+          this.formSearch.nextAnnualFeeCollectionTime == '' &&
+          this.formSearch.equity == '' &&
+          this.formSearch.remark == '' &&
+          this.formSearch.lastTime == '') {
+          return true;
         } else {
           //如果formsearch中的参数不为空，就返回符合条件的数据
           return (item.bank.indexOf(this.formSearch.bank) != -1) &&
@@ -898,10 +942,11 @@ export default {
   },
   methods: {
     //通知程序
-    notic(title, message, type, duration) {
+    notic(title, message, type, duration,html) {
       ElNotification({
         title: title,
         message: message,
+        dangerouslyUseHTMLString: html ? html : false,
         duration: duration ? duration : 2500,
         type: type,
       })
@@ -1069,7 +1114,9 @@ export default {
         str += item.alias + '、';
       })
       str = str.slice(0, str.length - 1);
-      this.notic('本年度年费未达标', str + '的年费未达标，请及时处理！', 'warning', 9999999999);
+      if (str.length > 0) {
+        this.notic('本年度年费未达标', str + '的年费未达标，请及时处理！', 'warning', 9999999999);
+      }
       //3秒后执行twoCheck函数
       setTimeout(() => {
         this.twoCheck();
@@ -1090,13 +1137,66 @@ export default {
         str += item.alias + '、';
       })
       str = str.slice(0, str.length - 1);
-      if(str.length > 0){
+      if (str.length > 0) {
         this.notic('下次年费收取时间', str + '的下次年费收取时间距离现在不足60天，请及时处理！', 'warning', 9999999999);
       }
     },
     //表格自定义
-    tableCustoms(){
+    tableCustoms() {
+      this.tableCustom.dialogFormVisible = true;
+    },
+    //表格自定义确认
+    tableCustomConfirm() {
+      //遍历tableCustomData，生成userData.tableCustom的数据格式为{country: true, ...}
+      this.creditCardData.options.tableCustomData.forEach(item => {
+        this.userData.tableCustom[item.value] = item.checked;
+      })
+      this.tableCustom.dialogFormVisible = false;
+    },
+    //信用卡统计
+    creditCardStatistics(){
+      //展示所有卡片数量，国家类型有几个，各个级别的卡片有多少张，各个币种的卡片有多少张，有多少种银行类别
+      let allCardNumber = this.cardData.length;
+      let countryType = [];
+      let levelType = [];
+      let currencyType = [];
+      let bankType = [];
+      this.cardData.forEach(item=>{
+        if(countryType.indexOf(item.country) == -1){
+          countryType.push(item.country);
+        }
+        if(levelType.indexOf(item.level) == -1){
+          levelType.push(item.level);
+        }
+        if(currencyType.indexOf(item.type) == -1){
+          currencyType.push(item.type);
+        }
+        if(bankType.indexOf(item.bank) == -1){
+          bankType.push(item.bank);
+        }
+      })
+      //统计人民币总额度，每个银行的人民币额度只计算一次
+      let totalLimitCNY = 0;
+      let bankList = [];
+      this.cardData.forEach(item=>{
+        if(item.type == '人民币(CNY)' && bankList.indexOf(item.bank) == -1){
+          totalLimitCNY += item.limit?Number(item.limit):0;
+          bankList.push(item.bank);
+        }
+      })
+      
 
+      //对统计结果进行展示，每个类型换行展示
+      this.notic('信用卡统计', 
+      `所有卡片数量：${allCardNumber}张<br/>
+        国家类型有：${countryType.length}种<br/>
+          卡等级有：${levelType.length}种<br/>
+            币种有：${currencyType.length}种<br/>
+        银行类别有：${bankType.length}种<br/>
+        人民币总额度：${totalLimitCNY}元<br/>`, 
+        'success', 
+        9999999999,
+        true);
     }
   },
   watch: {
