@@ -56,7 +56,7 @@
       <el-button type="primary" @click="oneCheck">一键检测</el-button>
       <el-button type="primary" @click="tableCustoms">表格自定义</el-button>
       <el-button type="primary" @click="exportData">导出数据</el-button>
-      <el-button type="primary" style="width: 70px;" @click="importData2">导入数据</el-button>
+      <el-button type="primary" @click="importData2">导入数据</el-button>
       <input v-show="false" type="file" name="upfile" id="importFile" accept=".json" style="width: 0px;"
         @change="importData" />
 
