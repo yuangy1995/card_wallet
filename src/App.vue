@@ -113,6 +113,16 @@
             </span>
           </template>
         </el-table-column>
+        <el-table-column v-if="userData.tableCustom.interestFreePeriod" prop="dueDate" label="本期免息期" width="110"
+          align="center">
+          <!-- 根据账单日和还款日计算本期免息期 -->
+          <template #default="scope">
+            <span v-if="scope.row.accountBillDate && scope.row.dueDate">
+              {{ interestFreePeriodCalculation(scope.row.accountBillDate, scope.row.dueDate) + '天' }}
+            </span>
+            <span v-else></span>
+          </template>
+        </el-table-column>
 
         <el-table-column v-if="userData.tableCustom.nextAccountBillDate" prop="accountBillDate" label="下期账单日" width="110"
           align="center">
@@ -123,19 +133,7 @@
             </span>
             <span v-else></span>
           </template>
-        </el-table-column>
-        
-
-        <el-table-column v-if="userData.tableCustom.interestFreePeriod" prop="dueDate" label="免息期" width="90"
-          align="center">
-          <!-- 根据账单日和还款日计算免息期 -->
-          <template #default="scope">
-            <span v-if="scope.row.accountBillDate && scope.row.dueDate">
-              {{ interestFreePeriodCalculation(scope.row.accountBillDate, scope.row.dueDate) + '天' }}
-            </span>
-            <span v-else></span>
-          </template>
-        </el-table-column>
+        </el-table-column>     
         <el-table-column v-if="userData.tableCustom.isQualified" prop="isQualified" label="本年度年费是否达标" width="160"
           align="center">
           <template #default="scope">
@@ -947,7 +945,7 @@ export default {
             { label: "本期账单日", value: "nowAccountBillDate", checked: true },
             { label: "本期还款日", value: "nextDueDate", checked: true },
             { label: "下期账单日", value: "nextAccountBillDate", checked: true },
-            { label: "免息期", value: "interestFreePeriod", checked: true },
+            { label: "本期免息期", value: "interestFreePeriod", checked: true },
             { label: "年费是否达标", value: "isQualified", checked: true },
             { label: "下次年费收取时间", value: "nextAnnualFeeCollectionTime", checked: true },
             { label: "距离上次提额多少天了", value: "lastTime", checked: true },
@@ -1319,7 +1317,7 @@ export default {
         let y = date.getFullYear();
         let m = (date.getMonth() + 1 < 10 ? '0' + (date.getMonth() + 1) : date.getMonth() + 1);
         let dueDate = "";
-        //免息期计算公式：通常情况下，信用卡的免息期是从今天开始计算，1.如果今天是账单日或者没有过这个月的账单日，那么免息期是从今天到这期账单的还款日，2.如果今天过了这个月的账单日，那么免息期是从今天到下期账单的还款日
+        //本期免息期计算公式：通常情况下，信用卡的本期免息期是从今天开始计算，1.如果今天是账单日或者没有过这个月的账单日，那么本期免息期是从今天到这期账单的还款日，2.如果今天过了这个月的账单日，那么本期免息期是从今天到下期账单的还款日
         if (date.getDate() < _accountBillDate) {
           if (dateType == "now") {
             dueDate = `${y}-${m}-${_dueDate}`;//上期还款日
@@ -1340,9 +1338,9 @@ export default {
         }
       }
     },
-    //免息期计算
+    //本期免息期计算
     interestFreePeriodCalculation(_accountBillDate, _dueDate) {
-      //如果两个参数任意一个为空，就返回空，否则就计算免息期
+      //如果两个参数任意一个为空，就返回空，否则就计算本期免息期
       if (!_accountBillDate || !_dueDate) {
         return '';
       } else {
@@ -1352,10 +1350,10 @@ export default {
         let d = date.getDate();
         let accountBillDate = `${y}-${m}-${d}`;
         let dueDate = "";
-        //免息期计算公式：通常情况下，信用卡的免息期是从今天开始计算，1.如果今天是账单日或者没有过这个月的账单日，那么免息期是从今天到这期账单的还款日，2.如果今天过了这个月的账单日，那么免息期是从今天到下期账单的还款日
+        //本期免息期计算公式：通常情况下，信用卡的本期免息期是从今天开始计算，1.如果今天是账单日或者没有过这个月的账单日，那么本期免息期是从今天到这期账单的还款日，2.如果今天过了这个月的账单日，那么本期免息期是从今天到下期账单的还款日
         if (date.getDate() < _accountBillDate) {
           dueDate = `${y}-${m}-${_dueDate}`;
-          //用dueDate和accountBillDate计算免息期
+          //用dueDate和accountBillDate计算本期免息期
           let days = this.getDays(accountBillDate, dueDate);
           return days;
         } else {
@@ -1363,7 +1361,7 @@ export default {
           let y = date.getFullYear();
           let m = (date.getMonth() + 2 < 10 ? '0' + (date.getMonth() + 2) : date.getMonth() + 2);
           dueDate = `${y}-${m}-${_dueDate}`;
-          //用dueDate和accountBillDate计算免息期
+          //用dueDate和accountBillDate计算本期免息期
           let days = this.getDays(accountBillDate, dueDate);
           return days;
         }
