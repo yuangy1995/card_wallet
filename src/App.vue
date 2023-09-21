@@ -743,6 +743,9 @@ export default {
             { name: "摩根士丹利国际银行(Morgan Stanley International Bank)", chineseName: "摩根士丹利国际银行(Morgan Stanley International Bank)" },
             { name: "美国富国银行(State Street Bank and Trust Company)", chineseName: "美国富国银行(State Street Bank and Trust Company)" },
             { name: "美国银行(Bank of America)", chineseName: "美国银行(Bank of America)" },
+            { name: "华侨银行(OCBC)", chineseName: "华侨银行(OCBC)" },
+            { name: "众安银行(ZA Bank)", chineseName: "众安银行(ZA Bank)" },
+            { name: "招商永隆银行(CMB Wing Lung Bank Limited)", chineseName: "招商永隆银行(CMB Wing Lung Bank Limited)" }
           ],
           //列出卡片的等级
           cardLevel: [
@@ -1116,11 +1119,13 @@ export default {
       str = str.slice(0, str.length - 1);
       if (str.length > 0) {
         this.notic('本年度年费未达标', str + '的年费未达标，请及时处理！', 'warning', 9999999999);
+      }else{
+        this.notic('本年度年费未达标', '本年度卡片年费已经全部达标！', 'success', 9999999999);
       }
       //3秒后执行twoCheck函数
       setTimeout(() => {
         this.twoCheck();
-      }, 3000);
+      }, 1000);
     },
     //根据填写的下次年费收取时间，跟当前的时间进行比对，如果时间差小于等于60天，则弹出提示
     twoCheck() {
@@ -1139,6 +1144,8 @@ export default {
       str = str.slice(0, str.length - 1);
       if (str.length > 0) {
         this.notic('下次年费收取时间', str + '的下次年费收取时间距离现在不足60天，请及时处理！', 'warning', 9999999999);
+      }else{
+        this.notic('下次年费收取时间', '暂无不到60天内即将收取年费的卡片！', 'success', 9999999999);
       }
     },
     //表格自定义
