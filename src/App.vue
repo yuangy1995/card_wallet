@@ -70,14 +70,14 @@
     </div>
     <el-scrollbar height="1000px">
       <el-table :data="tableData" border height="1000px" style="width: 100%">
-        <el-table-column type="index" label="序号" width="60" align="center" />
-        <el-table-column v-if="userData.tableCustom.country" prop="country" label="国家" width="130" align="center" />
-        <el-table-column v-if="userData.tableCustom.bank" prop="bank" label="银行" width="150" align="center" />
+        <el-table-column type="index" label="序号" width="60" align="center" fixed />
+        <el-table-column v-if="userData.tableCustom.country" prop="country" label="国家" width="130" align="center" fixed/>
+        <el-table-column v-if="userData.tableCustom.bank" prop="bank" label="银行" width="150" align="center" fixed />
+        <el-table-column v-if="userData.tableCustom.alias" prop="alias" label="卡片别名" width="200" align="center" fixed/>
         <el-table-column v-if="userData.tableCustom.level" prop="level" label="等级" width="110" align="center" />
         <el-table-column v-if="userData.tableCustom.type" prop="type" label="币种" width="130" align="center" />
         <el-table-column v-if="userData.tableCustom.annualFee" prop="annualFee" label="年费" width="90" align="center" />
-        <el-table-column v-if="userData.tableCustom.alias" prop="alias" label="卡片别名" width="200" align="center" />
-        <el-table-column v-if="userData.tableCustom.cardNumber" prop="cardNumber" label="卡号" width="180" align="center" />
+        <el-table-column v-if="userData.tableCustom.cardNumber" prop="cardNumber" label="卡号" width="180" align="center" fixed/>
         <el-table-column v-if="userData.tableCustom.valid" prop="valid" label="有效期" width="80" align="center" />
         <el-table-column v-if="userData.tableCustom.cvv" prop="cvv" label="cvv码" width="100" align="center" />
         <el-table-column v-if="userData.tableCustom.limit" prop="limit" label="额度" width="70" align="center" />
@@ -90,6 +90,16 @@
             <span v-if="!scope.row.accountBillDate && scope.row.dueDate">
               {{ scope.row.dueDate }}
             </span>
+          </template>
+        </el-table-column>
+        <el-table-column v-if="userData.tableCustom.preDueDateDay" prop="limit" label="上期账单还款剩余天数" width="200"
+          align="center">
+          <!-- 根据上期账单还款日期和上期还款日计算上期账单还款剩余天数 -->
+          <template #default="scope">
+            <span v-if="scope.row.dueDate">
+              {{ preDueDateDayCalculation(scope.row.accountBillDate, scope.row.dueDate) }}
+            </span>
+            <span v-else></span>
           </template>
         </el-table-column>
         <el-table-column v-if="userData.tableCustom.nowAccountBillDate" prop="accountBillDate" label="本期账单日" width="110"
@@ -133,7 +143,7 @@
             </span>
             <span v-else></span>
           </template>
-        </el-table-column>     
+        </el-table-column>
         <el-table-column v-if="userData.tableCustom.isQualified" prop="isQualified" label="本年度年费是否达标" width="160"
           align="center">
           <template #default="scope">
@@ -307,6 +317,7 @@ export default {
           valid: true,
           annualFee: true,
           nowDueDate: true,
+          preDueDateDay: true,
           nowAccountBillDate: true,
           nextDueDate: true,
           nextAccountBillDate: true,
@@ -942,6 +953,7 @@ export default {
             { label: "有效期", value: "valid", checked: true },
             { label: "年费", value: "annualFee", checked: true },
             { label: "上期还款日", value: "nowDueDate", checked: true },
+            { label: "上期账单还款剩余天数", value: "preDueDateDay", checked: true },
             { label: "本期账单日", value: "nowAccountBillDate", checked: true },
             { label: "本期还款日", value: "nextDueDate", checked: true },
             { label: "下期账单日", value: "nextAccountBillDate", checked: true },
@@ -968,8 +980,15 @@ export default {
     //如果本地存储中有数据，就用本地存储中的数据
     if (localStorage.getItem("cardData")) {
       this.cardData = JSON.parse(localStorage.getItem("cardData"));
-      this.notic('Success', '浏览器数据加载成功！', 'success');
+      this.notic('Success', '浏览器数据加载成功！', 'success', 3000);
     }
+    setTimeout(() => {
+      if (localStorage.getItem("tableCustom")) {
+        this.userData.tableCustom = JSON.parse(localStorage.getItem("tableCustom"));
+        this.notic('Success', '用户配置加载成功！', 'success', 4000);
+      }
+    }, 300);
+
     //5秒后执行oneCheck函数
     setTimeout(() => {
       this.oneCheck();
@@ -1028,6 +1047,9 @@ export default {
     //清空所有数据
     deleteAllData() {
       this.cardData = [];
+      //清除localStorage的存储数据
+      localStorage.removeItem("cardData");
+      localStorage.removeItem("tableCustom");
       this.notic('Success', '数据已全部清空！', 'success');
     },
     //添加卡片
@@ -1075,7 +1097,7 @@ export default {
       }
     },
     deleteData(index, row) {
-      this.cardData.splice(index, 1);
+      this.cardData.splice(this.cardData.findIndex(item => item.id == row.id), 1);
       this.notic('删除成功', '该卡片已被删除！', 'success');
     },
     //导出数据
@@ -1226,7 +1248,7 @@ export default {
       if (str.length > 0) {
         this.notic('下次年费收取时间', str + '的下次年费收取时间距离现在不足60天，请及时处理！', 'warning', 9999999999);
       } else {
-        this.notic('下次年费收取时间', '暂无不到60天内即将收取年费的卡片！', 'success', 9999999999);
+        this.notic('下次年费收取时间', '暂无不到60天内即将收取年费的卡片！', 'success', 5000);
       }
     },
     //表格自定义
@@ -1301,7 +1323,6 @@ export default {
         let y = date.getFullYear();
         let m = (date.getMonth() + 2 < 10 ? '0' + (date.getMonth() + 2) : date.getMonth() + 2);
         if (dateType == "now") {
-
           return `${y}-${m}-${_accountBillDate}`;//本期账单日
         } else {
           return `${y}-${(Number(m) + 1) < 10 ? '0' + (Number(m) + 1) : (Number(m) + 1)}-${_accountBillDate}`;//下期账单日
@@ -1320,9 +1341,18 @@ export default {
         //本期免息期计算公式：通常情况下，信用卡的本期免息期是从今天开始计算，1.如果今天是账单日或者没有过这个月的账单日，那么本期免息期是从今天到这期账单的还款日，2.如果今天过了这个月的账单日，那么本期免息期是从今天到下期账单的还款日
         if (date.getDate() < _accountBillDate) {
           if (dateType == "now") {
-            dueDate = `${y}-${m}-${_dueDate}`;//上期还款日
+            //如果账单日大于还款日，上期还款日月份需要加1
+            if (_accountBillDate > _dueDate) {
+              dueDate = `${y}-${Number(m) + 1}-${_dueDate}`;//上期还款日
+            } else {
+              dueDate = `${y}-${m}-${_dueDate}`;//上期还款日
+            }
           } else {
-            dueDate = `${y}-${(Number(m) + 1) < 10 ? '0' + (Number(m) + 1) : (Number(m) + 1)}-${_dueDate}`;//本期还款日
+            if (_accountBillDate > _dueDate) {
+              dueDate = `${y}-${(Number(m) + 2) < 10 ? '0' + (Number(m) + 2) : (Number(m) + 2)}-${_dueDate}`;//本期还款日
+            } else {
+              dueDate = `${y}-${(Number(m) + 1) < 10 ? '0' + (Number(m) + 1) : (Number(m) + 1)}-${_dueDate}`;//本期还款日
+            }
           }
           return dueDate;
         } else {
@@ -1330,9 +1360,17 @@ export default {
           let y = date.getFullYear();
           let m = (date.getMonth() + 2 < 10 ? '0' + (date.getMonth() + 2) : date.getMonth() + 2);
           if (dateType == "now") {
-            dueDate = `${y}-${(Number(m) - 1) < 10 ? '0' + (Number(m) - 1) : (Number(m) - 1)}-${_dueDate}`;//上期还款日
+            if (_accountBillDate > _dueDate) {
+              dueDate = `${y}-${m}-${_dueDate}`;//上期还款日
+            } else {
+              dueDate = `${y}-${(Number(m) - 1) < 10 ? '0' + (Number(m) - 1) : (Number(m) - 1)}-${_dueDate}`;//上期还款日
+            }
           } else {
-            dueDate = `${y}-${m}-${_dueDate}`;//本期还款日
+            if (_accountBillDate > _dueDate) {
+              dueDate = `${y}-${Number(m) + 1}-${_dueDate}`;//本期还款日
+            } else {
+              dueDate = `${y}-${m}-${_dueDate}`;//本期还款日
+            }
           }
           return dueDate;
         }
@@ -1352,7 +1390,11 @@ export default {
         let dueDate = "";
         //本期免息期计算公式：通常情况下，信用卡的本期免息期是从今天开始计算，1.如果今天是账单日或者没有过这个月的账单日，那么本期免息期是从今天到这期账单的还款日，2.如果今天过了这个月的账单日，那么本期免息期是从今天到下期账单的还款日
         if (date.getDate() < _accountBillDate) {
-          dueDate = `${y}-${m}-${_dueDate}`;
+          if (_accountBillDate > _dueDate) {
+            dueDate = `${y}-${Number(m) + 1}-${_dueDate}`;
+          } else {
+            dueDate = `${y}-${m}-${_dueDate}`;
+          }
           //用dueDate和accountBillDate计算本期免息期
           let days = this.getDays(accountBillDate, dueDate);
           return days;
@@ -1360,13 +1402,32 @@ export default {
           let date = new Date();
           let y = date.getFullYear();
           let m = (date.getMonth() + 2 < 10 ? '0' + (date.getMonth() + 2) : date.getMonth() + 2);
-          dueDate = `${y}-${m}-${_dueDate}`;
+          if (_accountBillDate > _dueDate) {
+            dueDate = `${y}-${Number(m) + 1}-${_dueDate}`;
+          } else {
+            dueDate = `${y}-${m}-${_dueDate}`;
+          }
           //用dueDate和accountBillDate计算本期免息期
           let days = this.getDays(accountBillDate, dueDate);
           return days;
         }
       }
     },
+    //上期账单还款剩余日计算
+    preDueDateDayCalculation(_accountBillDate, _dueDate) {
+      //如果两个参数任意一个为空，就返回空，否则就计算上期账单还款剩余日
+      let preDueDateDay = this.dueDateCompletion(_accountBillDate, _dueDate, 'now');
+      let date = this.timestampToTime(new Date(), 'Y-M-D');
+      console.log(date);
+      let days = this.getDays(date, preDueDateDay);
+      if (days > 0) {
+        return days + "天";
+      } else if (days == 0) {
+        return '今天到期！';
+      } else if (days < 0) {
+        return "已过最后还款期限，请注意是否逾期！";
+      }
+    }
   },
   watch: {
     //监听cardData的变化，如果变化了，就把cardData存到localStorage里面
@@ -1394,6 +1455,13 @@ export default {
       },
       deep: true
     },
+    //监听表格自定义数据的变化，有变化就存储到localStorage里面
+    "userData.tableCustom": {
+      handler: function (val, oldVal) {
+        localStorage.setItem('tableCustom', JSON.stringify(val));
+      },
+      deep: true
+    }
   },
 }
 </script>
