@@ -75,7 +75,7 @@
         <el-table-column v-if="userData.tableCustom.bank" prop="bank" label="银行" width="150" align="center" fixed />
         <el-table-column v-if="userData.tableCustom.alias" prop="alias" label="卡片别名" width="200" align="center" fixed/>
         <el-table-column v-if="userData.tableCustom.level" prop="level" label="等级" width="110" align="center" />
-        <el-table-column v-if="userData.tableCustom.type" prop="type" label="币种" width="130" align="center" />
+        <el-table-column v-if="userData.tableCustom.type" prop="type" label="币种" width="150" align="center" />
         <el-table-column v-if="userData.tableCustom.annualFee" prop="annualFee" label="年费" width="90" align="center" />
         <el-table-column v-if="userData.tableCustom.cardNumber" prop="cardNumber" label="卡号" width="180" align="center" fixed/>
         <el-table-column v-if="userData.tableCustom.valid" prop="valid" label="有效期" width="80" align="center" />
@@ -1418,7 +1418,6 @@ export default {
       //如果两个参数任意一个为空，就返回空，否则就计算上期账单还款剩余日
       let preDueDateDay = this.dueDateCompletion(_accountBillDate, _dueDate, 'now');
       let date = this.timestampToTime(new Date(), 'Y-M-D');
-      console.log(date);
       let days = this.getDays(date, preDueDateDay);
       if (days > 0) {
         return days + "天";
