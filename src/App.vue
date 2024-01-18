@@ -147,8 +147,9 @@
         <el-table-column v-if="userData.tableCustom.isQualified" prop="isQualified" label="本年度年费是否达标" width="160"
           align="center">
           <template #default="scope">
-            <el-tag v-if="scope.row.isQualified" type="success">已达标</el-tag>
-            <el-tag v-else type="danger">未达标</el-tag>
+            <el-tag v-if="scope.row.isQualified === true" type="success">已达标</el-tag>
+            <el-tag v-if="scope.row.isQualified === false" type="danger">未达标</el-tag>
+            <el-tag v-if="scope.row.isQualified === 3" type="info">终免年费</el-tag>
           </template>
         </el-table-column>
         <el-table-column v-if="userData.tableCustom.nextAnnualFeeCollectionTime" prop="nextAnnualFeeCollectionTime"
@@ -236,6 +237,7 @@
             <el-radio-group v-model="creditCardData.data.isQualified">
               <el-radio :label="false" size="large">未达标</el-radio>
               <el-radio :label="true" size="large">已达标</el-radio>
+              <el-radio :label="3" size="large">终免年费</el-radio>
             </el-radio-group>
           </el-form-item>
           <el-form-item label="下次年费收取时间">
