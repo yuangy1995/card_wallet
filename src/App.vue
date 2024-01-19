@@ -1086,7 +1086,7 @@ export default {
         accountBillDate: "",//账单日
         dueDate: "",//还款日
         nextAnnualFeeCollectionTime: "",//下次年费收取时间
-        isQualified: false,//本年度年费是否达标
+        isQualified: '2',//本年度年费是否达标
         lastTime: "",//距离上次提额多少天了
         equity: "",//权益
         remark: "",//备注
