@@ -27,6 +27,12 @@
           <el-form-item label="额度">
             <el-input v-model="formSearch.limit" autocomplete="off" clearable />
           </el-form-item>
+          <el-form-item label="年费达标">
+            <el-select v-model="formSearch.isQualified" placeholder="请选择" filterable clearable>
+              <el-option v-for="item in creditCardData.options.isQualified" :key="item.name" :label="item.name"
+                :value="item.value" />
+            </el-select>
+          </el-form-item>
         </el-row>
         <el-row>
           <el-form-item label="币种">
@@ -79,8 +85,27 @@
         <el-table-column v-if="userData.tableCustom.annualFee" prop="annualFee" label="年费" width="90" align="center" />
         <el-table-column v-if="userData.tableCustom.cardNumber" prop="cardNumber" label="卡号" width="180" align="center" fixed/>
         <el-table-column v-if="userData.tableCustom.valid" prop="valid" label="有效期" width="80" align="center" />
-        <el-table-column v-if="userData.tableCustom.cvv" prop="cvv" label="cvv码" width="100" align="center" />
-        <el-table-column v-if="userData.tableCustom.limit" prop="limit" label="额度" width="70" align="center" />
+        <el-table-column v-if="userData.tableCustom.cvv" prop="cvv" label="cvv码" width="70" align="center" />
+        <el-table-column v-if="userData.tableCustom.limit" prop="limit" label="额度" width="100" align="center" />
+        <el-table-column v-if="userData.tableCustom.isQualified" prop="isQualified" label="本年度年费是否达标" width="160"
+          align="center">
+          <template #default="scope">
+            <el-tag v-if="scope.row.isQualified === '1'" type="success">已达标</el-tag>
+            <el-tag v-if="scope.row.isQualified === '2'" type="danger">未达标</el-tag>
+            <el-tag v-if="scope.row.isQualified === '3'" type="info">终免年费</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column v-if="userData.tableCustom.nextAnnualFeeCollectionTime" prop="nextAnnualFeeCollectionTime"
+          label="下次年费收取时间" width="150" align="center" />
+        <el-table-column v-if="userData.tableCustom.lastTime" prop="lastTime" label="上次提额日期" width="170" align="center" />
+        <el-table-column v-if="userData.tableCustom.lastDays" prop="lastTime" label="距离上次提额多少天" width="170"
+          align="center">
+          <template #default="scope">
+            <span v-if="scope.row.lastTime">
+              {{ getDays(scope.row.lastTime, new Date()) + '天' }}
+            </span>
+          </template>
+        </el-table-column>
         <el-table-column v-if="userData.tableCustom.nowDueDate" prop="dueDate" label="上期还款日" width="110" align="center">
           <!-- 补全上期还款日 -->
           <template #default="scope">
@@ -133,7 +158,6 @@
             <span v-else></span>
           </template>
         </el-table-column>
-
         <el-table-column v-if="userData.tableCustom.nextAccountBillDate" prop="accountBillDate" label="下期账单日" width="110"
           align="center">
           <!-- 补全下期账单日 -->
@@ -142,25 +166,6 @@
               {{ accountBillDateCompletion(scope.row.accountBillDate) }}
             </span>
             <span v-else></span>
-          </template>
-        </el-table-column>
-        <el-table-column v-if="userData.tableCustom.isQualified" prop="isQualified" label="本年度年费是否达标" width="160"
-          align="center">
-          <template #default="scope">
-            <el-tag v-if="scope.row.isQualified === true" type="success">已达标</el-tag>
-            <el-tag v-if="scope.row.isQualified === false" type="danger">未达标</el-tag>
-            <el-tag v-if="scope.row.isQualified === 3" type="info">终免年费</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column v-if="userData.tableCustom.nextAnnualFeeCollectionTime" prop="nextAnnualFeeCollectionTime"
-          label="下次年费收取时间" width="150" align="center" />
-        <el-table-column v-if="userData.tableCustom.lastTime" prop="lastTime" label="上次提额日期" width="170" align="center" />
-        <el-table-column v-if="userData.tableCustom.lastDays" prop="lastTime" label="距离上次提额多少天" width="170"
-          align="center">
-          <template #default="scope">
-            <span v-if="scope.row.lastTime">
-              {{ getDays(scope.row.lastTime, new Date()) + '天' }}
-            </span>
           </template>
         </el-table-column>
         <el-table-column v-if="userData.tableCustom.equity" prop="equity" label="权益" width="350" align="center"
@@ -235,9 +240,9 @@
           </el-form-item>
           <el-form-item label="本年度消费是否达标">
             <el-radio-group v-model="creditCardData.data.isQualified">
-              <el-radio :label="false" size="large">未达标</el-radio>
-              <el-radio :label="true" size="large">已达标</el-radio>
-              <el-radio :label="3" size="large">终免年费</el-radio>
+              <el-radio :label="'2'" size="large">未达标</el-radio>
+              <el-radio :label="'1'" size="large">已达标</el-radio>
+              <el-radio :label="'3'" size="large">终免年费</el-radio>
             </el-radio-group>
           </el-form-item>
           <el-form-item label="下次年费收取时间">
@@ -347,6 +352,7 @@ export default {
         lastTime: "",
         equity: "",
         remark: "",
+        isQualified:"",
       },
       status: "add",
       creditCardData: {
@@ -965,6 +971,12 @@ export default {
             { label: "距离上次提额多少天了", value: "lastTime", checked: true },
             { label: "权益", value: "equity", checked: true },
             { label: "备注", value: "remark", checked: true },
+          ],
+          //年费达标情况
+          isQualified:[
+            {name:"已达标",value:"1"},
+            {name:"未达标",value:"2"},
+            {name:"终免年费",value:"3"},
           ]
         }
       },
@@ -1001,6 +1013,7 @@ export default {
     tableData() {
       //返回formsearch中所有参数查询条件过滤后的数据
       return this.cardData.filter(item => {
+        console.table(item)
         //如果formsearch中的参数为空，就返回所有数据
         if (this.formSearch.bank == '' &&
           this.formSearch.country == '' &&
@@ -1015,7 +1028,8 @@ export default {
           this.formSearch.nextAnnualFeeCollectionTime == '' &&
           this.formSearch.equity == '' &&
           this.formSearch.remark == '' &&
-          this.formSearch.lastTime == '') {
+          this.formSearch.lastTime == '' &&
+          this.formSearch.isQualified == '') {
           return true;
         } else {
           //如果formsearch中的参数不为空，就返回符合条件的数据
@@ -1030,7 +1044,8 @@ export default {
             (item.alias.indexOf(this.formSearch.alias) != -1) &&
             (item.annualFee.indexOf(this.formSearch.annualFee) != -1) &&
             (item.equity.indexOf(this.formSearch.equity) != -1) &&
-            (item.remark.indexOf(this.formSearch.remark) != -1);
+            (item.remark.indexOf(this.formSearch.remark) != -1) &&
+            (item.isQualified.indexOf(this.formSearch.isQualified) != -1);
         }
       })
     },
