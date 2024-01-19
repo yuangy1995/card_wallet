@@ -1231,7 +1231,7 @@ export default {
     },
     //根据本年度年费是否达标，不达标的每张卡弹出提示
     oneCheck() {
-      let notQualified = this.cardData.filter(item => item.isQualified == false);
+      let notQualified = this.cardData.filter(item => item.isQualified == '2');
       let str = '';
       notQualified.forEach(item => {
         str += item.alias + '、';
