@@ -25,7 +25,7 @@
     <CreditCardTable
       :table-data="tableData"
       @edit="editCreditCard"
-      @delete="deleteCreditCard"
+      @delete="handleDelete"
       @card-number-visibility="handleCardNumberVisibility"
       @cvv-visibility="handleCvvVisibility"
     />
@@ -49,6 +49,12 @@
       :is-import="isImportMode"
       :data="cardData"
       @import="handleImportData"
+    />
+
+    <delete-confirm-dialog
+      v-model:visible="deleteDialogVisible"
+      :card-info="cardToDelete"
+      @confirm="confirmDelete"
     />
 
     <!-- 排序框 -->
@@ -184,6 +190,7 @@ import CreditCardTable from './components/table/CreditCardTable.vue'
 import CreditCardDialog from './components/dialog/CreditCardDialog.vue'
 import SortDialog from './components/dialog/SortDialog.vue'
 import ImportExportDialog from './components/dialog/ImportExportDialog.vue'
+import DeleteConfirmDialog from './components/dialog/DeleteConfirmDialog.vue'
 import { Plus, Download, Upload, Sort, Share, FolderOpened } from '@element-plus/icons-vue'
 
 export default {
@@ -197,6 +204,7 @@ export default {
     CreditCardDialog,
     SortDialog,
     ImportExportDialog,
+    DeleteConfirmDialog,
   },
   data() {
     return {
@@ -284,6 +292,8 @@ export default {
       sortValue: '1',
       importExportDialogVisible: false,
       isImportMode: false,
+      deleteDialogVisible: false,
+      cardToDelete: null,
     }
   },
   created() {
@@ -395,9 +405,16 @@ export default {
         this.creditCardData.dialogFormVisible = false;
       }
     },
-    deleteData(index, row) {
-      this.cardData.splice(this.cardData.findIndex(item => item.id == row.id), 1);
-      this.notic('删除成功', '该卡片已被删除！', 'success');
+    handleDelete(row) {
+      this.cardToDelete = row;
+      this.deleteDialogVisible = true;
+    },
+    confirmDelete() {
+      if (this.cardToDelete) {
+        this.cardData = this.cardData.filter(card => card.id !== this.cardToDelete.id);
+        ElNotification.success('删除成功');
+        this.cardToDelete = null;
+      }
     },
     //导出数据
     exportData() {
