@@ -1,29 +1,71 @@
-# credit_card
+# Credit Card Manager
 
-This template should help get you started developing with Vue 3 in Vite.
+一个功能强大的信用卡管理系统，基于 Vue 3 + Vite + Element Plus 开发。
 
-## Recommended IDE Setup
+## 功能特点
 
-[VSCode](https://code.visualstudio.com/) + [Volar](https://marketplace.visualstudio.com/items?itemName=Vue.volar) (and disable Vetur) + [TypeScript Vue Plugin (Volar)](https://marketplace.visualstudio.com/items?itemName=Vue.vscode-typescript-vue-plugin).
+### 信用卡信息管理
+- 新增、编辑、删除信用卡信息
+- 支持 JSON 格式数据导入导出
+- 记录卡片详细信息：
+  - 基本信息（国家、银行、卡号、等级、币种等）
+  - 额度信息
+  - 费用信息（年费、年费达标状态）
+  - 时间信息（有效期、提额日期）
+  - 账单信息（账单日、还款日）
+  - 权益说明和备注
 
-## Customize configuration
+### 高级功能
+- 一键排序：支持多种排序方式
+- 年费达标检测：自动检测提醒
+- 表格自定义：可自定义显示/隐藏列
+- 数据统计：统计卡片总数、总额度等信息
 
-See [Vite Configuration Reference](https://vitejs.dev/config/).
+### 智能计算
+- 自动计算提额间隔天数
+- 智能计算账单日和还款日
+- 免息期计算
+- 还款剩余天数提醒
 
-## Project Setup
+### 搜索筛选
+- 支持多条件组合搜索
+- 多维度筛选（国家、银行、卡号等）
 
-```sh
+## 技术栈
+
+- Vue 3
+- Vite
+- Element Plus
+- File Saver
+
+## 开发环境设置
+
+### 推荐的 IDE 配置
+- VSCode
+- Volar 插件
+- TypeScript Vue Plugin (Volar)
+- 禁用 Vetur
+
+### 项目设置
+
+```bash
+# 安装依赖
 npm install
-```
 
-### Compile and Hot-Reload for Development
-
-```sh
+# 开发环境运行
 npm run dev
-```
 
-### Compile and Minify for Production
-
-```sh
+# 生产环境构建
 npm run build
 ```
+
+## 数据存储
+- 使用 localStorage 进行本地数据持久化
+- 支持数据导入导出，方便备份和迁移
+
+## 使用说明
+1. 首次使用时可以导入示例数据或手动添加信用卡信息
+2. 使用搜索栏进行信息筛选
+3. 可以自定义表格显示列
+4. 定期检查年费达标情况
+5. 注意查看账单和还款提醒
