@@ -74,9 +74,36 @@
           <el-table-column v-if="userData.tableCustom.level" prop="level" label="等级" width="110" align="center" />
           <el-table-column v-if="userData.tableCustom.type" prop="type" label="币种" width="150" align="center" />
           <el-table-column v-if="userData.tableCustom.annualFee" prop="annualFee" label="年费" width="90" align="center" />
-          <el-table-column v-if="userData.tableCustom.cardNumber" prop="cardNumber" label="卡号" width="180" align="center" fixed />
+          <el-table-column v-if="userData.tableCustom.cardNumber" prop="cardNumber" label="卡号" width="220" align="center" fixed>
+            <template #default="scope">
+              <div class="secure-container">
+                <span class="card-number-text">
+                  {{ formatCardNumber(scope.row.cardNumber, cardNumberVisibility[scope.row.id]) }}
+                </span>
+                <el-icon 
+                  class="secure-icon" 
+                  @click="showCardNumber(scope.row)"
+                >
+                  <component :is="cardNumberVisibility[scope.row.id] ? 'Hide' : 'View'" />
+                </el-icon>
+              </div>
+            </template>
+          </el-table-column>
           <el-table-column v-if="userData.tableCustom.valid" prop="valid" label="有效期" width="80" align="center" />
-          <el-table-column v-if="userData.tableCustom.cvv" prop="cvv" label="cvv码" width="70" align="center" />
+          <el-table-column v-if="userData.tableCustom.cvv" prop="cvv" label="CVV" width="100" align="center">
+            <template #default="scope">
+              <div class="cvv-container">
+                <span v-if="cvvVisibility[scope.row.id]" class="cvv-text">{{ scope.row.cvv }}</span>
+                <span v-else class="cvv-text">•••</span>
+                <el-icon 
+                  class="cvv-icon" 
+                  @click="showCvv(scope.row)"
+                >
+                  <component :is="cvvVisibility[scope.row.id] ? 'Hide' : 'View'" />
+                </el-icon>
+              </div>
+            </template>
+          </el-table-column>
           <el-table-column v-if="userData.tableCustom.limit" prop="limit" label="额度" width="100" align="center" />
           <el-table-column v-if="userData.tableCustom.isQualified" prop="isQualified" label="本年度年费是否达标" width="160"
             align="center">
@@ -163,11 +190,10 @@
             show-overflow-tooltip />
           <el-table-column v-if="userData.tableCustom.remark" prop="remark" label="备注" width="350" align="center"
             show-overflow-tooltip />
-          <el-table-column label="操作" width="220" align="center" fixed="right">
+          <el-table-column label="操作" width="200" align="center" fixed="right">
             <template #default="scope">
-              <el-button size="small" @click="viewDetails(scope.row)">详情</el-button>
               <el-button size="small" @click="cardEdit(scope.$index, scope.row)">编辑</el-button>
-              <el-popconfirm title="你确定要删除?" @confirm="deleteData(scope.$index, scope.row)">
+              <el-popconfirm title="确定删除吗？" @confirm="deleteData(scope.$index, scope.row)">
                 <template #reference>
                   <el-button size="small" type="danger">删除</el-button>
                 </template>
@@ -393,11 +419,17 @@
 <script>
 import { creditCardOptions } from '@/config/creditCardOptions'
 import { ElNotification } from 'element-plus'
+import { View, Hide } from '@element-plus/icons-vue'
 
 export default {
+  components: {
+    View,
+    Hide,
+  },
   data() {
     return {
       cardData: [],
+      labelWidth: '80px',
       userData: {
         tableCustom: {
           country: true,
@@ -431,7 +463,6 @@ export default {
         level: "",
         limit: "",
         cvv: "",
-        valid: "",
         alias: "",
         annualFee: "",
         nextAnnualFeeCollectionTime: "",
@@ -475,6 +506,10 @@ export default {
       },
       detailsVisible: false,
       currentCard: {},
+      cvvVisibility: {}, // CVV显示控制
+      cvvTimer: null, // CVV显示定时器
+      cardNumberVisibility: {}, // 卡号显示控制
+      cardNumberTimer: null, // 卡号显示定时器
     }
   },
   created() {
@@ -510,7 +545,6 @@ export default {
           this.formSearch.limit == '' &&
           this.formSearch.cvv == '' &&
           this.formSearch.alias == '' &&
-          this.formSearch.valid == '' &&
           this.formSearch.annualFee == '' &&
           this.formSearch.nextAnnualFeeCollectionTime == '' &&
           this.formSearch.equity == '' &&
@@ -934,7 +968,66 @@ export default {
     viewDetails(row) {
       this.currentCard = { ...row };
       this.detailsVisible = true;
-    }
+    },
+    //显示CVV
+    showCvv(row) {
+      // 如果已经有定时器，先清除
+      if (this.cvvTimer) {
+        clearTimeout(this.cvvTimer);
+      }
+      
+      // 切换显示状态
+      this.cvvVisibility[row.id] = !this.cvvVisibility[row.id];
+      
+      if (this.cvvVisibility[row.id]) {
+        // 显示提示
+        this.notic('CVV 已显示', 'CVV 将在 30 秒后自动隐藏', 'info', 3000);
+        
+        // 设置 30 秒后自动隐藏
+        this.cvvTimer = setTimeout(() => {
+          this.cvvVisibility[row.id] = false;
+          this.notic('CVV 已隐藏', 'CVV 已自动隐藏', 'info', 2000);
+        }, 30000);
+      }
+    },
+    //显示卡号
+    showCardNumber(row) {
+      // 如果已经有定时器，先清除
+      if (this.cardNumberTimer) {
+        clearTimeout(this.cardNumberTimer);
+      }
+      
+      // 切换显示状态
+      this.cardNumberVisibility[row.id] = !this.cardNumberVisibility[row.id];
+      
+      if (this.cardNumberVisibility[row.id]) {
+        // 显示提示
+        this.notic('卡号已显示', '卡号将在 30 秒后自动隐藏', 'info', 3000);
+        
+        // 设置 30 秒后自动隐藏
+        this.cardNumberTimer = setTimeout(() => {
+          this.cardNumberVisibility[row.id] = false;
+          this.notic('卡号已隐藏', '卡号已自动隐藏', 'info', 2000);
+        }, 30000);
+      }
+    },
+    
+    // 格式化卡号显示
+    formatCardNumber(cardNumber, isVisible) {
+      if (!cardNumber) return '';
+      
+      // 移除空格
+      const number = cardNumber.replace(/\s/g, '');
+      
+      if (isVisible) {
+        // 显示完整卡号，每4位加一个空格
+        return number.replace(/(.{4})/g, '$1 ').trim();
+      } else {
+        // 遮蔽第4-12位，其他位正常显示，每4位加一个空格
+        const masked = number.slice(0, 3) + '*********' + number.slice(12);
+        return masked.replace(/(.{4})/g, '$1 ').trim();
+      }
+    },
   },
   watch: {
     //监听cardData的变化，如果变化了，就把cardData存到localStorage里面
@@ -994,20 +1087,33 @@ export default {
     flex-shrink: 0;
 
     .search-row {
-      white-space: nowrap;
-      margin: 0 !important;
-    }
+      display: flex;
+      flex-wrap: nowrap;
+      justify-content: space-between;
+      margin-bottom: 15px;
 
-    :deep(.el-form--inline .el-form-item) {
-      margin-right: 10px;
-      margin-bottom: 0;
+      &:last-child {
+        margin-bottom: 0;
+      }
+
+      .el-form-item {
+        flex: 1;
+        margin-right: 15px;
+        margin-bottom: 0;
+
+        &:last-child {
+          margin-right: 0;
+        }
+      }
     }
 
     :deep(.el-form-item__content) {
-      width: 160px;
+      width: 100%;
+      display: flex;
     }
 
-    :deep(.el-select) {
+    :deep(.el-select),
+    :deep(.el-input) {
       width: 100%;
     }
   }
@@ -1292,5 +1398,51 @@ export default {
       }
     }
   }
+}
+
+.cvv-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+
+.cvv-text {
+  font-family: monospace;
+  letter-spacing: 1px;
+}
+
+.cvv-icon {
+  cursor: pointer;
+  font-size: 16px;
+  color: #409EFF;
+  transition: color 0.3s;
+  
+  &:hover {
+    color: #66b1ff;
+  }
+}
+
+.secure-container {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+}
+
+.secure-icon {
+  cursor: pointer;
+  font-size: 16px;
+  color: #409EFF;
+  transition: color 0.3s;
+  
+  &:hover {
+    color: #66b1ff;
+  }
+}
+
+.card-number-text {
+  font-family: monospace;
+  letter-spacing: 1px;
 }
 </style>
