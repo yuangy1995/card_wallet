@@ -192,6 +192,7 @@ import SortDialog from './components/dialog/SortDialog.vue'
 import ImportExportDialog from './components/dialog/ImportExportDialog.vue'
 import DeleteConfirmDialog from './components/dialog/DeleteConfirmDialog.vue'
 import { Plus, Download, Upload, Sort, Share, FolderOpened } from '@element-plus/icons-vue'
+import { predefinedNotifications } from './utils/notification'
 
 export default {
   components: {
@@ -399,10 +400,12 @@ export default {
         this.notic('添加成功', '该卡片已被添加！', 'success');
         this.creditCardData.dialogFormVisible = false;
         this.cardData.push(Object.assign({}, data));
+        predefinedNotifications.cardAdded()
       } else if (this.status == 'edit') {
         this.cardData.splice(this.cardData.findIndex(item => item.id == data.id), 1, Object.assign({}, data));
         this.notic('修改成功', '该卡片已被修改！', 'success');
         this.creditCardData.dialogFormVisible = false;
+        predefinedNotifications.cardUpdated()
       }
     },
     handleDelete(row) {
@@ -412,7 +415,7 @@ export default {
     confirmDelete() {
       if (this.cardToDelete) {
         this.cardData = this.cardData.filter(card => card.id !== this.cardToDelete.id);
-        ElNotification.success('删除成功');
+        predefinedNotifications.cardDeleted()
         this.cardToDelete = null;
       }
     },
@@ -429,6 +432,7 @@ export default {
     handleImportData(data) {
       this.cardData = data;
       this.notic('Success', '数据导入成功！', 'success');
+      predefinedNotifications.dataImported()
     },
     //时间戳处理函数，有两个参数，第一个是时间戳，第二个是要返回的时间格式，有所有格式组合
     timestampToTime(timestamp, format) {
@@ -715,11 +719,27 @@ export default {
     //处理卡号显示状态变化
     handleCardNumberVisibility({ id, isVisible }) {
       this.cardNumberVisibility[id] = isVisible;
+      if (isVisible) {
+        predefinedNotifications.sensitiveInfoShown()
+        // 30秒后自动隐藏
+        setTimeout(() => {
+          this.cardNumberVisibility[id] = false
+          predefinedNotifications.sensitiveInfoHidden()
+        }, 30000)
+      }
     },
     
     // 处理CVV显示状态变化
     handleCvvVisibility({ id, isVisible }) {
       this.cvvVisibility[id] = isVisible;
+      if (isVisible) {
+        predefinedNotifications.sensitiveInfoShown()
+        // 30秒后自动隐藏
+        setTimeout(() => {
+          this.cvvVisibility[id] = false
+          predefinedNotifications.sensitiveInfoHidden()
+        }, 30000)
+      }
     },
     handleDialogCancel() {
       this.creditCardData.dialogFormVisible = false;
