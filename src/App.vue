@@ -76,32 +76,23 @@
           <el-table-column v-if="userData.tableCustom.annualFee" prop="annualFee" label="年费" width="90" align="center" />
           <el-table-column v-if="userData.tableCustom.cardNumber" prop="cardNumber" label="卡号" width="220" align="center" fixed>
             <template #default="scope">
-              <div class="secure-container">
-                <span class="card-number-text">
-                  {{ formatCardNumber(scope.row.cardNumber, cardNumberVisibility[scope.row.id]) }}
-                </span>
-                <el-icon 
-                  class="secure-icon" 
-                  @click="showCardNumber(scope.row)"
-                >
-                  <component :is="cardNumberVisibility[scope.row.id] ? 'Hide' : 'View'" />
-                </el-icon>
-              </div>
+              <SecureField
+                type="cardNumber"
+                :value="scope.row.cardNumber"
+                :id="scope.row.id"
+                @visibility-change="handleCardNumberVisibility"
+              />
             </template>
           </el-table-column>
           <el-table-column v-if="userData.tableCustom.valid" prop="valid" label="有效期" width="80" align="center" />
           <el-table-column v-if="userData.tableCustom.cvv" prop="cvv" label="CVV" width="100" align="center">
             <template #default="scope">
-              <div class="cvv-container">
-                <span v-if="cvvVisibility[scope.row.id]" class="cvv-text">{{ scope.row.cvv }}</span>
-                <span v-else class="cvv-text">•••</span>
-                <el-icon 
-                  class="cvv-icon" 
-                  @click="showCvv(scope.row)"
-                >
-                  <component :is="cvvVisibility[scope.row.id] ? 'Hide' : 'View'" />
-                </el-icon>
-              </div>
+              <SecureField
+                type="cvv"
+                :value="scope.row.cvv"
+                :id="scope.row.id"
+                @visibility-change="handleCvvVisibility"
+              />
             </template>
           </el-table-column>
           <el-table-column v-if="userData.tableCustom.limit" prop="limit" label="额度" width="100" align="center" />
@@ -419,12 +410,11 @@
 <script>
 import { creditCardOptions } from '@/config/creditCardOptions'
 import { ElNotification } from 'element-plus'
-import { View, Hide } from '@element-plus/icons-vue'
+import SecureField from './components/common/SecureField.vue'
 
 export default {
   components: {
-    View,
-    Hide,
+    SecureField,
   },
   data() {
     return {
@@ -969,64 +959,14 @@ export default {
       this.currentCard = { ...row };
       this.detailsVisible = true;
     },
-    //显示CVV
-    showCvv(row) {
-      // 如果已经有定时器，先清除
-      if (this.cvvTimer) {
-        clearTimeout(this.cvvTimer);
-      }
-      
-      // 切换显示状态
-      this.cvvVisibility[row.id] = !this.cvvVisibility[row.id];
-      
-      if (this.cvvVisibility[row.id]) {
-        // 显示提示
-        this.notic('CVV 已显示', 'CVV 将在 30 秒后自动隐藏', 'info', 3000);
-        
-        // 设置 30 秒后自动隐藏
-        this.cvvTimer = setTimeout(() => {
-          this.cvvVisibility[row.id] = false;
-          this.notic('CVV 已隐藏', 'CVV 已自动隐藏', 'info', 2000);
-        }, 30000);
-      }
-    },
-    //显示卡号
-    showCardNumber(row) {
-      // 如果已经有定时器，先清除
-      if (this.cardNumberTimer) {
-        clearTimeout(this.cardNumberTimer);
-      }
-      
-      // 切换显示状态
-      this.cardNumberVisibility[row.id] = !this.cardNumberVisibility[row.id];
-      
-      if (this.cardNumberVisibility[row.id]) {
-        // 显示提示
-        this.notic('卡号已显示', '卡号将在 30 秒后自动隐藏', 'info', 3000);
-        
-        // 设置 30 秒后自动隐藏
-        this.cardNumberTimer = setTimeout(() => {
-          this.cardNumberVisibility[row.id] = false;
-          this.notic('卡号已隐藏', '卡号已自动隐藏', 'info', 2000);
-        }, 30000);
-      }
+    //处理卡号显示状态变化
+    handleCardNumberVisibility({ id, isVisible }) {
+      this.cardNumberVisibility[id] = isVisible;
     },
     
-    // 格式化卡号显示
-    formatCardNumber(cardNumber, isVisible) {
-      if (!cardNumber) return '';
-      
-      // 移除空格
-      const number = cardNumber.replace(/\s/g, '');
-      
-      if (isVisible) {
-        // 显示完整卡号，每4位加一个空格
-        return number.replace(/(.{4})/g, '$1 ').trim();
-      } else {
-        // 遮蔽第4-12位，其他位正常显示，每4位加一个空格
-        const masked = number.slice(0, 3) + '*********' + number.slice(12);
-        return masked.replace(/(.{4})/g, '$1 ').trim();
-      }
+    // 处理CVV显示状态变化
+    handleCvvVisibility({ id, isVisible }) {
+      this.cvvVisibility[id] = isVisible;
     },
   },
   watch: {
@@ -1208,57 +1148,47 @@ export default {
   }
 }
 
-.card-details-dialog {
-  :deep(.el-dialog__body) {
-    padding: 0 20px 20px;
-  }
-
-  :deep(.el-tabs__header) {
-    margin-bottom: 15px;
-  }
-
-  :deep(.el-tabs__item) {
-    font-size: 14px;
-    padding: 0 15px;
-    height: 40px;
-    line-height: 40px;
-  }
-
-  :deep(.el-descriptions) {
-    padding: 0;
-    margin-bottom: 10px;
-    
-    .el-descriptions__header {
-      margin-bottom: 15px;
-    }
-
-    .el-descriptions__label {
-      width: 120px;
-      font-weight: bold;
-      background-color: #f5f7fa;
-    }
-
-    .el-descriptions__content {
-      color: #333;
-      line-height: 1.6;
-    }
-
-    .el-tag {
-      font-weight: normal;
-    }
-  }
-
-  .details-content {
-    padding: 8px;
-    line-height: 1.6;
-    white-space: pre-wrap;
-    min-height: 60px;
+/* 表单验证样式 */
+:deep(.el-form-item.is-error) {
+  .el-input__wrapper,
+  .el-textarea__wrapper {
+    box-shadow: 0 0 0 1px #f56c6c;
   }
 }
 
+/* 对话框底部样式 */
 .dialog-footer {
-  text-align: center;
-  padding-top: 10px;
+  border-top: 1px solid #ebeef5;
+  padding: 15px 20px;
+  text-align: right;
+  margin: 0 -20px -20px;
+  
+  .el-button {
+    padding: 9px 20px;
+    font-size: 14px;
+    border-radius: 4px;
+    margin-left: 10px;
+    
+    &--default {
+      border-color: #dcdfe6;
+      
+      &:hover {
+        border-color: #c6e2ff;
+        color: #5672be;
+        background-color: #ecf5ff;
+      }
+    }
+    
+    &--primary {
+      background-color: #5672be;
+      border-color: #5672be;
+      
+      &:hover {
+        background-color: #4a63a8;
+        border-color: #4a63a8;
+      }
+    }
+  }
 }
 
 /* 新增信用卡对话框样式 */
@@ -1357,92 +1287,62 @@ export default {
   }
 }
 
-/* 表单验证样式 */
-:deep(.el-form-item.is-error) {
-  .el-input__wrapper,
-  .el-textarea__wrapper {
-    box-shadow: 0 0 0 1px #f56c6c;
-  }
+/* 表格自定义框样式 */
+:deep(.el-checkbox) {
+  margin-bottom: 10px;
 }
 
-/* 对话框底部样式 */
-.dialog-footer {
-  border-top: 1px solid #ebeef5;
-  padding: 15px 20px;
-  text-align: right;
-  margin: 0 -20px -20px;
-  
-  .el-button {
-    padding: 9px 20px;
+/* 查看详情弹窗样式 */
+.card-details-dialog {
+  :deep(.el-dialog__body) {
+    padding: 0 20px 20px;
+  }
+
+  :deep(.el-tabs__header) {
+    margin-bottom: 15px;
+  }
+
+  :deep(.el-tabs__item) {
     font-size: 14px;
-    border-radius: 4px;
-    margin-left: 10px;
+    padding: 0 15px;
+    height: 40px;
+    line-height: 40px;
+  }
+
+  :deep(.el-descriptions) {
+    padding: 0;
+    margin-bottom: 10px;
     
-    &--default {
-      border-color: #dcdfe6;
-      
-      &:hover {
-        border-color: #c6e2ff;
-        color: #5672be;
-        background-color: #ecf5ff;
-      }
+    .el-descriptions__header {
+      margin-bottom: 15px;
     }
-    
-    &--primary {
-      background-color: #5672be;
-      border-color: #5672be;
-      
-      &:hover {
-        background-color: #4a63a8;
-        border-color: #4a63a8;
-      }
+
+    .el-descriptions__label {
+      width: 120px;
+      font-weight: bold;
+      background-color: #f5f7fa;
+    }
+
+    .el-descriptions__content {
+      color: #333;
+      line-height: 1.6;
+    }
+
+    .el-tag {
+      font-weight: normal;
     }
   }
-}
 
-.cvv-container {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-}
-
-.cvv-text {
-  font-family: monospace;
-  letter-spacing: 1px;
-}
-
-.cvv-icon {
-  cursor: pointer;
-  font-size: 16px;
-  color: #409EFF;
-  transition: color 0.3s;
-  
-  &:hover {
-    color: #66b1ff;
+  .details-content {
+    padding: 8px;
+    line-height: 1.6;
+    white-space: pre-wrap;
+    min-height: 60px;
   }
 }
 
-.secure-container {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-}
-
-.secure-icon {
-  cursor: pointer;
-  font-size: 16px;
-  color: #409EFF;
-  transition: color 0.3s;
-  
-  &:hover {
-    color: #66b1ff;
-  }
-}
-
-.card-number-text {
-  font-family: monospace;
-  letter-spacing: 1px;
+.dialog-footer {
+  text-align: center;
+  padding-top: 10px;
 }
 </style>
