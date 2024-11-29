@@ -178,89 +178,91 @@
       </el-scrollbar>
     </div>
     <!-- 添加信用卡 -->
-    <el-dialog v-model="creditCardData.dialogFormVisible" title="新增信用卡" center width="600px">
-      <el-scrollbar height="700px">
-        <el-form :model="creditCardData.data">
-          <el-form-item label="国家">
-            <el-select v-model="creditCardData.data.country" placeholder="请选择国家" filterable allow-create>
-              <el-option v-for="(item, index) in creditCardData.options.countryData" :key="index"
-                :label="`${item.chineseName}(${item.name})`" :value="item.chineseName" />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="银行">
-            <el-select v-model="creditCardData.data.bank" placeholder="请选择银行" filterable allow-create>
-              <el-option v-for="item in creditCardData.options.bankList" :key="item.name" :label="item.name"
-                :value="item.chineseName" />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="卡号">
-            <el-input v-model="creditCardData.data.cardNumber" autocomplete="off" clearable />
-          </el-form-item>
-          <el-form-item label="等级">
-            <el-select v-model="creditCardData.data.level" placeholder="请选择等级" filterable>
-              <el-option v-for="item in creditCardData.options.cardLevel" :key="item.name" :label="item.name"
-                :value="item.chineseName" />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="卡片别名">
-            <el-input v-model="creditCardData.data.alias" autocomplete="off" clearable />
-          </el-form-item>
-          <el-form-item label="额度">
-            <el-input type="number" v-model="creditCardData.data.limit" autocomplete="off" clearable />
-          </el-form-item>
-          <el-form-item label="币种">
-            <el-select v-model="creditCardData.data.type" placeholder="请选择币种" filterable>
-              <el-option v-for="item in creditCardData.options.currencyList" :key="item.name" :label="item.name"
-                :value="item.chineseName" />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="cvv码">
-            <el-input v-model="creditCardData.data.cvv" autocomplete="off" clearable />
-          </el-form-item>
-          <el-form-item label="有效期">
-            <el-date-picker v-model="creditCardData.data.valid" type="month" placeholder="选择卡片到期时间"
-              value-format="YYYY-MM" />
-          </el-form-item>
-          <el-form-item label="年费">
-            <el-input type="number" v-model="creditCardData.data.annualFee" autocomplete="off" clearable />
-          </el-form-item>
-          <el-form-item label="账单日">
-            <el-input type="number" v-model="creditCardData.data.accountBillDate" autocomplete="off" clearable />
-          </el-form-item>
-          <el-form-item label="还款日">
-            <el-input type="number" v-model="creditCardData.data.dueDate" autocomplete="off" clearable />
-          </el-form-item>
-          <el-form-item label="本年度消费是否达标">
-            <el-radio-group v-model="creditCardData.data.isQualified">
-              <el-radio :label="'2'" size="large">未达标</el-radio>
-              <el-radio :label="'1'" size="large">已达标</el-radio>
-              <el-radio :label="'3'" size="large">终免年费</el-radio>
-            </el-radio-group>
-          </el-form-item>
-          <el-form-item label="下次年费收取时间">
-            <el-date-picker v-model="creditCardData.data.nextAnnualFeeCollectionTime" type="date" placeholder="选择下次年费收取时间"
-              format="YYYY-MM-DD" value-format="YYYY-MM-DD" />
-          </el-form-item>
-          <el-form-item label="上次提额日期">
-            <el-date-picker v-model="creditCardData.data.lastTime" type="date" placeholder="选择上次提额日期" format="YYYY-MM-DD"
-              value-format="YYYY-MM-DD" />
-          </el-form-item>
-          <el-form-item label="备注">
-            <el-input v-model="creditCardData.data.remark" autocomplete="off" clearable />
-          </el-form-item>
-          <el-form-item label="权益">
-            <!-- <el-tree-select v-model="creditCardData.data.equity" :data="creditCardData.options.cardType" multiple
-              :render-after-expand="false" show-checkbox filterable /> -->
-            <el-input v-model="creditCardData.data.equity" autocomplete="off" clearable :rows="3" type="textarea"
-              show-word-limit />
-          </el-form-item>
-        </el-form>
-      </el-scrollbar>
+    <el-dialog v-model="creditCardData.dialogFormVisible" title="新增信用卡" center width="800px" class="card-details-dialog">
+      <el-descriptions :column="2" border>
+        <!-- 基本信息 -->
+        <el-descriptions-item label="🌏 国家">
+          <el-select v-model="creditCardData.data.country" placeholder="请选择国家" filterable allow-create>
+            <el-option v-for="(item, index) in creditCardData.options.countryData" :key="index"
+              :label="`${item.chineseName}(${item.name})`" :value="item.chineseName" />
+          </el-select>
+        </el-descriptions-item>
+        <el-descriptions-item label="🏦 银行">
+          <el-select v-model="creditCardData.data.bank" placeholder="请选择银行" filterable allow-create>
+            <el-option v-for="item in creditCardData.options.bankList" :key="item.name" :label="item.name"
+              :value="item.chineseName" />
+          </el-select>
+        </el-descriptions-item>
+        <el-descriptions-item label="📝 卡片别名">
+          <el-input v-model="creditCardData.data.alias" autocomplete="off" clearable />
+        </el-descriptions-item>
+        <el-descriptions-item label="⭐️ 等级">
+          <el-select v-model="creditCardData.data.level" placeholder="请选择等级" filterable>
+            <el-option v-for="item in creditCardData.options.cardLevel" :key="item.name" :label="item.name"
+              :value="item.chineseName" />
+          </el-select>
+        </el-descriptions-item>
+        <el-descriptions-item label="💰 币种">
+          <el-select v-model="creditCardData.data.type" placeholder="请选择币种" filterable>
+            <el-option v-for="item in creditCardData.options.currencyList" :key="item.name" :label="item.name"
+              :value="item.chineseName" />
+          </el-select>
+        </el-descriptions-item>
+        <el-descriptions-item label="💳 额度">
+          <el-input type="number" v-model="creditCardData.data.limit" autocomplete="off" clearable />
+        </el-descriptions-item>
+
+        <!-- 卡片信息 -->
+        <el-descriptions-item label="🔢 卡号">
+          <el-input v-model="creditCardData.data.cardNumber" autocomplete="off" clearable />
+        </el-descriptions-item>
+        <el-descriptions-item label="📅 有效期">
+          <el-date-picker v-model="creditCardData.data.valid" type="month" placeholder="选择卡片到期时间"
+            value-format="YYYY-MM" style="width: 100%" />
+        </el-descriptions-item>
+        <el-descriptions-item label="🔐 CVV码">
+          <el-input v-model="creditCardData.data.cvv" autocomplete="off" clearable />
+        </el-descriptions-item>
+        <el-descriptions-item label="📊 账单日">
+          <el-input type="number" v-model="creditCardData.data.accountBillDate" autocomplete="off" clearable />
+        </el-descriptions-item>
+        <el-descriptions-item label="💸 还款日">
+          <el-input type="number" v-model="creditCardData.data.dueDate" autocomplete="off" clearable />
+        </el-descriptions-item>
+        <el-descriptions-item label="💵 年费">
+          <el-input type="number" v-model="creditCardData.data.annualFee" autocomplete="off" clearable />
+        </el-descriptions-item>
+
+        <!-- 年费信息 -->
+        <el-descriptions-item label="✅ 年费达标状态" :span="2">
+          <el-radio-group v-model="creditCardData.data.isQualified">
+            <el-radio :label="'2'" size="large">未达标</el-radio>
+            <el-radio :label="'1'" size="large">已达标</el-radio>
+            <el-radio :label="'3'" size="large">终免年费</el-radio>
+          </el-radio-group>
+        </el-descriptions-item>
+        <el-descriptions-item label="⏰ 下次年费收取时间" :span="2">
+          <el-date-picker v-model="creditCardData.data.nextAnnualFeeCollectionTime" type="date" placeholder="选择下次年费收取时间"
+            format="YYYY-MM-DD" value-format="YYYY-MM-DD" style="width: 100%" />
+        </el-descriptions-item>
+        <el-descriptions-item label="📈 上次提额日期" :span="2">
+          <el-date-picker v-model="creditCardData.data.lastTime" type="date" placeholder="选择上次提额日期" format="YYYY-MM-DD"
+            value-format="YYYY-MM-DD" style="width: 100%" />
+        </el-descriptions-item>
+
+        <!-- 其他信息 -->
+        <el-descriptions-item label="🎁 权益" :span="2">
+          <el-input v-model="creditCardData.data.equity" type="textarea" :rows="3" placeholder="请输入权益信息" />
+        </el-descriptions-item>
+        <el-descriptions-item label="📌 备注" :span="2">
+          <el-input v-model="creditCardData.data.remark" type="textarea" :rows="3" placeholder="请输入备注信息" />
+        </el-descriptions-item>
+      </el-descriptions>
 
       <template #footer>
         <span class="dialog-footer">
           <el-button @click="creditCardData.dialogFormVisible = false">取消</el-button>
-          <el-button type="primary" @click="confirmAdd(this.creditCardData.data)">确认</el-button>
+          <el-button type="primary" @click="confirmAdd(creditCardData.data)">确认</el-button>
         </span>
       </template>
     </el-dialog>
@@ -1151,5 +1153,144 @@ export default {
 .dialog-footer {
   text-align: center;
   padding-top: 10px;
+}
+
+/* 新增信用卡对话框样式 */
+:deep(.el-dialog) {
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  
+  .el-dialog__header {
+    margin: 0;
+    padding: 20px;
+    border-bottom: 1px solid #ebeef5;
+    
+    .el-dialog__title {
+      font-size: 18px;
+      font-weight: 600;
+      color: #303133;
+    }
+  }
+  
+  .el-dialog__body {
+    padding: 20px;
+  }
+}
+
+/* 描述列表样式 */
+:deep(.el-descriptions) {
+  padding: 0;
+  margin-bottom: 10px;
+  
+  .el-descriptions__header {
+    margin-bottom: 15px;
+  }
+
+  .el-descriptions__label {
+    width: 120px;
+    font-weight: bold;
+    background-color: #f5f7fa;
+    padding: 12px 15px;
+  }
+
+  .el-descriptions__content {
+    padding: 8px 12px;
+    
+    .el-input,
+    .el-select,
+    .el-date-picker {
+      width: 100%;
+    }
+
+    .el-input__wrapper,
+    .el-select__wrapper {
+      box-shadow: none;
+      border: 1px solid #dcdfe6;
+      border-radius: 4px;
+      
+      &:hover {
+        border-color: #5672be;
+      }
+      
+      &.is-focus {
+        border-color: #5672be;
+        box-shadow: 0 0 0 1px #5672be;
+      }
+    }
+
+    .el-textarea__inner {
+      min-height: 80px;
+      resize: vertical;
+      border: 1px solid #dcdfe6;
+      border-radius: 4px;
+      padding: 8px 12px;
+      
+      &:hover {
+        border-color: #5672be;
+      }
+      
+      &:focus {
+        border-color: #5672be;
+        box-shadow: 0 0 0 1px #5672be;
+      }
+    }
+
+    .el-radio-group {
+      display: flex;
+      gap: 15px;
+      padding: 4px 0;
+      
+      .el-radio {
+        margin-right: 0;
+        
+        .el-radio__label {
+          color: #606266;
+        }
+      }
+    }
+  }
+}
+
+/* 表单验证样式 */
+:deep(.el-form-item.is-error) {
+  .el-input__wrapper,
+  .el-textarea__wrapper {
+    box-shadow: 0 0 0 1px #f56c6c;
+  }
+}
+
+/* 对话框底部样式 */
+.dialog-footer {
+  border-top: 1px solid #ebeef5;
+  padding: 15px 20px;
+  text-align: right;
+  margin: 0 -20px -20px;
+  
+  .el-button {
+    padding: 9px 20px;
+    font-size: 14px;
+    border-radius: 4px;
+    margin-left: 10px;
+    
+    &--default {
+      border-color: #dcdfe6;
+      
+      &:hover {
+        border-color: #c6e2ff;
+        color: #5672be;
+        background-color: #ecf5ff;
+      }
+    }
+    
+    &--primary {
+      background-color: #5672be;
+      border-color: #5672be;
+      
+      &:hover {
+        background-color: #4a63a8;
+        border-color: #4a63a8;
+      }
+    }
+  }
 }
 </style>
