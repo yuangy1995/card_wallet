@@ -1,61 +1,49 @@
 <template>
   <div class="main_body">
     <div class="headers">
-      <SearchForm
-        v-model="formSearch"
-        :options="creditCardData.options"
-        :label-width="labelWidth"
-      />
+      <SearchForm v-model="formSearch" :options="creditCardData.options" :label-width="labelWidth" />
     </div>
     <div class="button-container">
       <el-button type="primary" @click="addCreditCard">
-        <el-icon><Plus /></el-icon>新增信用卡
+        <el-icon>
+          <Plus />
+        </el-icon>新增信用卡
       </el-button>
       <el-button type="success" @click="exportData">
-        <el-icon><Share /></el-icon>导出数据
+        <el-icon>
+          <Share />
+        </el-icon>导出数据
       </el-button>
       <el-button type="warning" @click="importData">
-        <el-icon><FolderOpened /></el-icon>导入数据
+        <el-icon>
+          <FolderOpened />
+        </el-icon>导入数据
       </el-button>
       <el-button @click="handleSort">
-        <el-icon><Sort /></el-icon>排序
+        <el-icon>
+          <Sort />
+        </el-icon>排序
       </el-button>
     </div>
 
-    <CreditCardTable
-      :table-data="tableData"
-      @edit="editCreditCard"
+    <CreditCardTable 
+      :table-data="tableData" 
+      @edit="editCreditCard" 
       @delete="handleDelete"
-      @card-number-visibility="handleCardNumberVisibility"
+      @card-number-visibility="handleCardNumberVisibility" 
       @cvv-visibility="handleCvvVisibility"
+      @view-details="viewDetails"
     />
 
-    <credit-card-dialog
-      v-model:visible="creditCardData.dialogFormVisible"
-      :mode="status"
-      :initial-data="creditCardData.data"
-      @submit="confirmAdd"
-      @cancel="handleDialogCancel"
-    />
+    <credit-card-dialog v-model:visible="creditCardData.dialogFormVisible" :mode="status"
+      :initial-data="creditCardData.data" @submit="confirmAdd" @cancel="handleDialogCancel" />
 
-    <sort-dialog
-      v-model:visible="sortDialogVisible"
-      v-model="sortValue"
-      @confirm="handleSortConfirm"
-    />
+    <sort-dialog v-model:visible="sortDialogVisible" v-model="sortValue" @confirm="handleSortConfirm" />
 
-    <import-export-dialog
-      v-model:visible="importExportDialogVisible"
-      :is-import="isImportMode"
-      :data="cardData"
-      @import="handleImportData"
-    />
+    <import-export-dialog v-model:visible="importExportDialogVisible" :is-import="isImportMode" :data="cardData"
+      @import="handleImportData" />
 
-    <delete-confirm-dialog
-      v-model:visible="deleteDialogVisible"
-      :card-info="cardToDelete"
-      @confirm="confirmDelete"
-    />
+    <delete-confirm-dialog v-model:visible="deleteDialogVisible" :card-info="cardToDelete" @confirm="confirmDelete" />
 
     <!-- 排序框 -->
     <el-dialog v-model="sortData.dialogFormVisible" title="选择排序方式" width="30%" draggable>
@@ -72,112 +60,13 @@
       </template>
     </el-dialog>
     <!-- 表格自定义框 -->
-    <el-dialog v-model="tableCustom.dialogFormVisible" title="选择表格显示内容" width="30%" draggable>
-      <el-checkbox v-for="(item, index) in creditCardData.options.tableCustomData" v-model="item.checked"
-        :label="item.checked" :key="index" size="large">
-        {{ item.label }}
-      </el-checkbox>
-      <template #footer>
-        <span class="dialog-footer">
-          <el-button @click="tableCustom.dialogFormVisible = false">取消</el-button>
-          <el-button type="primary" @click="tableCustomConfirm">
-            确定
-          </el-button>
-        </span>
-      </template>
-    </el-dialog>
+    <table-custom-dialog v-model:visible="tableCustom.dialogFormVisible"
+      :columns="creditCardData.options.tableCustomData" :initial-selection="selectedTableColumns"
+      @confirm="handleTableCustomConfirm" />
+    <!-- 统计信息 -->
+    <credit-card-statistics :card-data="cardData" @statistics-updated="handleStatisticsUpdated" />
     <!-- 查看详情弹窗 -->
-    <el-dialog v-model="detailsVisible" title="信用卡详情" center width="800px" class="card-details-dialog">
-      <el-tabs>
-        <el-tab-pane label="总览">
-          <el-descriptions :column="2" border>
-            <!-- 基本信息 -->
-            <el-descriptions-item label="国家">{{ currentCard.country }}</el-descriptions-item>
-            <el-descriptions-item label="银行">{{ currentCard.bank }}</el-descriptions-item>
-            <el-descriptions-item label="卡片别名">{{ currentCard.alias }}</el-descriptions-item>
-            <el-descriptions-item label="等级">{{ currentCard.level }}</el-descriptions-item>
-            <el-descriptions-item label="币种">{{ currentCard.type }}</el-descriptions-item>
-            <el-descriptions-item label="额度">{{ currentCard.limit }}</el-descriptions-item>
-            
-            <!-- 卡片信息 -->
-            <el-descriptions-item label="卡号">{{ currentCard.cardNumber }}</el-descriptions-item>
-            <el-descriptions-item label="有效期">{{ currentCard.valid }}</el-descriptions-item>
-            <el-descriptions-item label="CVV码">{{ currentCard.cvv }}</el-descriptions-item>
-            <el-descriptions-item label="账单日">{{ currentCard.accountBillDate }}</el-descriptions-item>
-            <el-descriptions-item label="还款日">{{ currentCard.dueDate }}</el-descriptions-item>
-            <el-descriptions-item label="年费">{{ currentCard.annualFee }}</el-descriptions-item>
-
-            <!-- 年费信息 -->
-            <el-descriptions-item label="年费达标状态" :span="2">
-              <el-tag v-if="currentCard.isQualified === '1'" type="success">已达标</el-tag>
-              <el-tag v-if="currentCard.isQualified === '2'" type="danger">未达标</el-tag>
-              <el-tag v-if="currentCard.isQualified === '3'" type="info">终免年费</el-tag>
-            </el-descriptions-item>
-            <el-descriptions-item label="下次年费收取时间" :span="2">{{ currentCard.nextAnnualFeeCollectionTime }}</el-descriptions-item>
-            <el-descriptions-item label="上次提额日期" :span="2">{{ currentCard.lastTime }}</el-descriptions-item>
-
-            <!-- 其他信息 -->
-            <el-descriptions-item label="权益" :span="2">
-              <div class="details-content">{{ currentCard.equity || '暂无权益信息' }}</div>
-            </el-descriptions-item>
-            <el-descriptions-item label="备注" :span="2">
-              <div class="details-content">{{ currentCard.remark || '暂无备注信息' }}</div>
-            </el-descriptions-item>
-          </el-descriptions>
-        </el-tab-pane>
-
-        <el-tab-pane label="基本信息">
-          <el-descriptions :column="2" border>
-            <el-descriptions-item label="国家">{{ currentCard.country }}</el-descriptions-item>
-            <el-descriptions-item label="银行">{{ currentCard.bank }}</el-descriptions-item>
-            <el-descriptions-item label="卡片别名">{{ currentCard.alias }}</el-descriptions-item>
-            <el-descriptions-item label="等级">{{ currentCard.level }}</el-descriptions-item>
-            <el-descriptions-item label="币种">{{ currentCard.type }}</el-descriptions-item>
-            <el-descriptions-item label="额度">{{ currentCard.limit }}</el-descriptions-item>
-          </el-descriptions>
-        </el-tab-pane>
-        
-        <el-tab-pane label="卡片信息">
-          <el-descriptions :column="2" border>
-            <el-descriptions-item label="卡号">{{ currentCard.cardNumber }}</el-descriptions-item>
-            <el-descriptions-item label="有效期">{{ currentCard.valid }}</el-descriptions-item>
-            <el-descriptions-item label="CVV码">{{ currentCard.cvv }}</el-descriptions-item>
-            <el-descriptions-item label="账单日">{{ currentCard.accountBillDate }}</el-descriptions-item>
-            <el-descriptions-item label="还款日">{{ currentCard.dueDate }}</el-descriptions-item>
-            <el-descriptions-item label="年费">{{ currentCard.annualFee }}</el-descriptions-item>
-          </el-descriptions>
-        </el-tab-pane>
-
-        <el-tab-pane label="年费信息">
-          <el-descriptions :column="1" border>
-            <el-descriptions-item label="年费达标状态">
-              <el-tag v-if="currentCard.isQualified === '1'" type="success">已达标</el-tag>
-              <el-tag v-if="currentCard.isQualified === '2'" type="danger">未达标</el-tag>
-              <el-tag v-if="currentCard.isQualified === '3'" type="info">终免年费</el-tag>
-            </el-descriptions-item>
-            <el-descriptions-item label="下次年费收取时间">{{ currentCard.nextAnnualFeeCollectionTime }}</el-descriptions-item>
-            <el-descriptions-item label="上次提额日期">{{ currentCard.lastTime }}</el-descriptions-item>
-          </el-descriptions>
-        </el-tab-pane>
-
-        <el-tab-pane label="其他信息">
-          <el-descriptions :column="1" border>
-            <el-descriptions-item label="权益">
-              <div class="details-content">{{ currentCard.equity || '暂无权益信息' }}</div>
-            </el-descriptions-item>
-            <el-descriptions-item label="备注">
-              <div class="details-content">{{ currentCard.remark || '暂无备注信息' }}</div>
-            </el-descriptions-item>
-          </el-descriptions>
-        </el-tab-pane>
-      </el-tabs>
-
-      <template #footer>
-        <div class="dialog-footer">
-          <el-button @click="detailsVisible = false">关闭</el-button>
-        </div>
-      </template>
-    </el-dialog>
+    <card-details-dialog v-model:visible="detailsVisible" :card-info="currentCard" />
   </div>
 </template>
 
@@ -193,6 +82,18 @@ import ImportExportDialog from './components/dialog/ImportExportDialog.vue'
 import DeleteConfirmDialog from './components/dialog/DeleteConfirmDialog.vue'
 import { Plus, Download, Upload, Sort, Share, FolderOpened } from '@element-plus/icons-vue'
 import { predefinedNotifications } from './utils/notification'
+import CreditCardStatistics from './components/statistics/CreditCardStatistics.vue'
+import {
+  timestampToTime,
+  getDaysDifference,
+  completeAccountBillDate,
+  completeDueDate,
+  calculateInterestFreePeriod,
+  calculateRemainingDaysForPreviousBill,
+  isNearAnnualFeeDate
+} from './utils/dateCalculator'
+import CardDetailsDialog from './components/dialog/CardDetailsDialog.vue'
+import TableCustomDialog from './components/dialog/TableCustomDialog.vue'
 
 export default {
   components: {
@@ -200,17 +101,23 @@ export default {
     FolderOpened,
     Share,
     Sort,
+    SecureField,
     SearchForm,
     CreditCardTable,
     CreditCardDialog,
     SortDialog,
     ImportExportDialog,
     DeleteConfirmDialog,
+    CardDetailsDialog,
+    TableCustomDialog,
+    CreditCardStatistics
   },
   data() {
     return {
       cardData: [],
       labelWidth: '80px',
+      detailsVisible: false,
+      currentCard: null,
       userData: {
         tableCustom: {
           country: true,
@@ -248,7 +155,7 @@ export default {
         annualFee: "",
         equity: "",
         remark: "",
-        isQualified:"",
+        isQualified: "",
       },
       status: "add",
       creditCardData: {
@@ -283,8 +190,6 @@ export default {
       tableCustom: {
         dialogFormVisible: false,
       },
-      detailsVisible: false,
-      currentCard: {},
       cvvVisibility: {}, // CVV显示控制
       cvvTimer: null, // CVV显示定时器
       cardNumberVisibility: {}, // 卡号显示控制
@@ -295,6 +200,7 @@ export default {
       isImportMode: false,
       deleteDialogVisible: false,
       cardToDelete: null,
+      selectedTableColumns: [],
     }
   },
   created() {
@@ -338,7 +244,7 @@ export default {
         // 只检查非空的搜索条件
         return Object.entries(conditions).every(([key, value]) => {
           if (!value) return true; // 如果搜索条件为空，返回 true（不过滤）
-          
+
           const itemValue = item[key]?.toString().toLowerCase() || '';
           const searchValue = value.toString().toLowerCase();
           return itemValue.includes(searchValue);
@@ -356,6 +262,11 @@ export default {
         duration: duration ? duration : 2500,
         type: type,
       })
+    },
+    // 处理统计信息更新
+    handleStatisticsUpdated(statistics) {
+      console.log('统计信息已更新:', statistics)
+      // 这里可以添加其他处理逻辑，比如保存到本地存储或更新其他组件
     },
     //清空所有数据
     deleteAllData() {
@@ -434,51 +345,39 @@ export default {
       this.notic('Success', '数据导入成功！', 'success');
       predefinedNotifications.dataImported()
     },
-    //时间戳处理函数，有两个参数，第一个是时间戳，第二个是要返回的时间格式，有所有格式组合
+    //时间戳处理函数
     timestampToTime(timestamp, format) {
-      let date = new Date(timestamp);
-      let Y = date.getFullYear();
-      let M = (date.getMonth() + 1 < 10 ? '0' + (date.getMonth() + 1) : date.getMonth() + 1);
-      let D = date.getDate() + ' ';
-      let h = date.getHours();
-      let m = date.getMinutes();
-      let s = date.getSeconds();
-      if (format == 'Y-M-D h:m:s') {
-        return Y + '-' + M + '-' + D + ' ' + h + ':' + m + ':' + s;
-      } else if (format == 'Y-M-D') {
-        return Y + '-' + M + '-' + D;
-      } else if (format == 'h:m:s') {
-        return h + ':' + m + ':' + s;
-      } else if (format == 'Y-M') {
-        return Y + '-' + M;
-      } else if (format == 'M-D') {
-        return M + '-' + D;
-      } else if (format == 'h:m') {
-        return h + ':' + m;
-      } else if (format == 'm:s') {
-        return m + ':' + s;
-      } else if (format == 'Y') {
-        return Y;
-      } else if (format == 'M') {
-        return M;
-      } else if (format == 'D') {
-        return D;
-      } else if (format == 'h') {
-        return h;
-      } else if (format == 'm') {
-        return m;
-      } else if (format == 's') {
-        return s;
-      }
+      return timestampToTime(timestamp, format)
     },
+
     //计算两个日期之间相差的天数
     getDays(dateString1, dateString2) {
-      var startDate = Date.parse(dateString1);
-      var endDate = Date.parse(dateString2);
-      var days = (endDate - startDate) / (1 * 24 * 60 * 60 * 1000);
-      //将天数向上取整
-      days = Math.ceil(days);
-      return days;
+      return getDaysDifference(dateString1, dateString2)
+    },
+
+    //账单日补全
+    accountBillDateCompletion(accountBillDate, dateType) {
+      return completeAccountBillDate(accountBillDate, dateType)
+    },
+
+    //还款日补全
+    dueDateCompletion(accountBillDate, dueDate, dateType) {
+      return completeDueDate(accountBillDate, dueDate, dateType)
+    },
+
+    //本期免息期计算
+    interestFreePeriodCalculation(accountBillDate, dueDate) {
+      return calculateInterestFreePeriod(accountBillDate, dueDate)
+    },
+
+    //上期账单还款剩余日计算
+    preDueDateDayCalculation(accountBillDate, dueDate) {
+      return calculateRemainingDaysForPreviousBill(accountBillDate, dueDate)
+    },
+
+    //检查年费收取时间
+    checkAnnualFeeDate(nextAnnualFeeDate) {
+      return isNearAnnualFeeDate(nextAnnualFeeDate)
     },
     //一键排序，点击按钮后，弹出一个对话框
     oneKeySort() {
@@ -549,17 +448,14 @@ export default {
         this.notic('下次年费收取时间', '暂无不到60天内即将收取年费的卡片！', 'success', 5000);
       }
     },
-    //表格自定义
-    tableCustoms() {
-      this.tableCustom.dialogFormVisible = true;
-    },
-    //表格自定义确认
-    tableCustomConfirm() {
-      //遍历tableCustomData，生成userData.tableCustom的数据格式为{country: true, ...}
+    // 表格自定义确认
+    handleTableCustomConfirm(selectedColumns) {
+      this.selectedTableColumns = selectedColumns
       this.creditCardData.options.tableCustomData.forEach(item => {
-        this.userData.tableCustom[item.value] = item.checked;
+        item.checked = selectedColumns.includes(item.prop)
       })
-      this.tableCustom.dialogFormVisible = false;
+      // 保存到本地存储
+      localStorage.setItem('tableCustom', JSON.stringify(this.creditCardData.options.tableCustomData))
     },
     //信用卡统计
     creditCardStatistics() {
@@ -604,113 +500,6 @@ export default {
         9999999999,
         true);
     },
-    //账单日补全
-    accountBillDateCompletion(_accountBillDate, dateType) {
-      let date = new Date();
-      let y = date.getFullYear();
-      let m = (date.getMonth() + 1 < 10 ? '0' + (date.getMonth() + 1) : date.getMonth() + 1);
-      // return `${y}-${m}-${_accountBillDate}`;
-      if (date.getDate() < _accountBillDate) {
-        if (dateType == "now") {
-          return `${y}-${m}-${_accountBillDate}`;//本期账单日
-        } else {
-          return `${y}-${(Number(m) + 1) < 10 ? '0' + (Number(m) + 1) : (Number(m) + 1)}-${_accountBillDate}`;//下期账单日
-        }
-      } else {
-        let date = new Date();
-        let y = date.getFullYear();
-        let m = (date.getMonth() + 2 < 10 ? '0' + (date.getMonth() + 2) : date.getMonth() + 2);
-        if (dateType == "now") {
-          return `${y}-${m}-${_accountBillDate}`;//本期账单日
-        } else {
-          return `${y}-${(Number(m) + 1) < 10 ? '0' + (Number(m) + 1) : (Number(m) + 1)}-${_accountBillDate}`;//下期账单日
-        }
-      }
-    },
-    //还款日补全
-    dueDateCompletion(_accountBillDate, _dueDate, dateType) {
-      if (!_accountBillDate || !_dueDate) {
-        return '';
-      } else {
-        let date = new Date();
-        let y = date.getFullYear();
-        let m = (date.getMonth() + 1 < 10 ? '0' + (date.getMonth() + 1) : date.getMonth() + 1);
-        let dueDate = "";
-        //本期免息期计算公式：通常情况下，信用卡的本期免息期是从今天开始计算，1.如果今天是账单日或者没有过这个月的账单日，那么本期免息期是从今天到这期账单的还款日，2.如果今天过了这个月的账单日，那么本期免息期是从今天到下期账单的还款日
-        if (date.getDate() < _accountBillDate) {
-          if (_accountBillDate > _dueDate) {
-            dueDate = `${y}-${Number(m) + 1}-${_dueDate}`;
-          } else {
-            dueDate = `${y}-${m}-${_dueDate}`;
-          }
-          //用dueDate和accountBillDate计算本期免息期
-          let days = this.getDays(accountBillDate, dueDate);
-          return days;
-        } else {
-          let date = new Date();
-          let y = date.getFullYear();
-          let m = (date.getMonth() + 2 < 10 ? '0' + (date.getMonth() + 2) : date.getMonth() + 2);
-          if (_accountBillDate > _dueDate) {
-            dueDate = `${y}-${Number(m) + 1}-${_dueDate}`;
-          } else {
-            dueDate = `${y}-${m}-${_dueDate}`;
-          }
-          //用dueDate和accountBillDate计算本期免息期
-          let days = this.getDays(accountBillDate, dueDate);
-          return days;
-        }
-      }
-    },
-    //本期免息期计算
-    interestFreePeriodCalculation(_accountBillDate, _dueDate) {
-      //如果两个参数任意一个为空，就返回空，否则就计算本期免息期
-      if (!_accountBillDate || !_dueDate) {
-        return '';
-      } else {
-        let date = new Date();
-        let y = date.getFullYear();
-        let m = (date.getMonth() + 1 < 10 ? '0' + (date.getMonth() + 1) : date.getMonth() + 1);
-        let accountBillDate = `${y}-${m}-${date.getDate()}`;
-        let dueDate = "";
-        //本期免息期计算公式：通常情况下，信用卡的本期免息期是从今天开始计算，1.如果今天是账单日或者没有过这个月的账单日，那么本期免息期是从今天到这期账单的还款日，2.如果今天过了这个月的账单日，那么本期免息期是从今天到下期账单的还款日
-        if (date.getDate() < _accountBillDate) {
-          if (_accountBillDate > _dueDate) {
-            dueDate = `${y}-${Number(m) + 1}-${_dueDate}`;
-          } else {
-            dueDate = `${y}-${m}-${_dueDate}`;
-          }
-          //用dueDate和accountBillDate计算本期免息期
-          let days = this.getDays(accountBillDate, dueDate);
-          return days;
-        } else {
-          let date = new Date();
-          let y = date.getFullYear();
-          let m = (date.getMonth() + 2 < 10 ? '0' + (date.getMonth() + 2) : date.getMonth() + 2);
-          if (_accountBillDate > _dueDate) {
-            dueDate = `${y}-${Number(m) + 1}-${_dueDate}`;
-          } else {
-            dueDate = `${y}-${m}-${_dueDate}`;
-          }
-          //用dueDate和accountBillDate计算本期免息期
-          let days = this.getDays(accountBillDate, dueDate);
-          return days;
-        }
-      }
-    },
-    //上期账单还款剩余日计算
-    preDueDateDayCalculation(_accountBillDate, _dueDate) {
-      //如果两个参数任意一个为空，就返回空，否则就计算上期账单还款剩余日
-      let preDueDateDay = this.dueDateCompletion(_accountBillDate, _dueDate, 'now');
-      let date = this.timestampToTime(new Date(), 'Y-M-D');
-      let days = this.getDays(date, preDueDateDay);
-      if (days > 0) {
-        return days + "天";
-      } else if (days == 0) {
-        return '今天到期！';
-      } else if (days < 0) {
-        return "已过最后还款期限，请注意是否逾期！";
-      }
-    },
     //查看详情
     viewDetails(row) {
       this.currentCard = { ...row };
@@ -718,27 +507,25 @@ export default {
     },
     //处理卡号显示状态变化
     handleCardNumberVisibility({ id, isVisible }) {
-      this.cardNumberVisibility[id] = isVisible;
-      if (isVisible) {
-        predefinedNotifications.sensitiveInfoShown()
-        // 30秒后自动隐藏
-        setTimeout(() => {
-          this.cardNumberVisibility[id] = false
-          predefinedNotifications.sensitiveInfoHidden()
-        }, 30000)
+      const card = this.cardData.find(card => card.id === id)
+      if (card) {
+        if (isVisible) {
+          this.notic('已显示卡号', '30秒后将自动隐藏', 'info', 3000)
+        } else {
+          this.notic('已隐藏卡号', '', 'info', 3000)
+        }
       }
     },
-    
+
     // 处理CVV显示状态变化
     handleCvvVisibility({ id, isVisible }) {
-      this.cvvVisibility[id] = isVisible;
-      if (isVisible) {
-        predefinedNotifications.sensitiveInfoShown()
-        // 30秒后自动隐藏
-        setTimeout(() => {
-          this.cvvVisibility[id] = false
-          predefinedNotifications.sensitiveInfoHidden()
-        }, 30000)
+      const card = this.cardData.find(card => card.id === id)
+      if (card) {
+        if (isVisible) {
+          this.notic('已显示CVV', '30秒后将自动隐藏', 'info', 3000)
+        } else {
+          this.notic('已隐藏CVV', '', 'info', 3000)
+        }
       }
     },
     handleDialogCancel() {
@@ -889,7 +676,7 @@ export default {
 @media screen and (min-width: 3840px) {
   .main_body {
     padding: 30px;
-    
+
     .headers {
       padding: 20px;
     }
@@ -903,7 +690,7 @@ export default {
 @media screen and (max-width: 1920px) {
   .main_body {
     padding: 15px;
-    
+
     .headers {
       padding: 12px;
     }
@@ -920,7 +707,7 @@ export default {
 
 :deep(.el-descriptions) {
   padding: 10px;
-  
+
   .el-descriptions__header {
     margin-bottom: 15px;
   }
@@ -942,6 +729,7 @@ export default {
 
 /* 表单验证样式 */
 :deep(.el-form-item.is-error) {
+
   .el-input__wrapper,
   .el-textarea__wrapper {
     box-shadow: 0 0 0 1px #f56c6c;
@@ -954,27 +742,27 @@ export default {
   padding: 15px 20px;
   text-align: right;
   margin: 0 -20px -20px;
-  
+
   .el-button {
     padding: 9px 20px;
     font-size: 14px;
     border-radius: 4px;
     margin-left: 10px;
-    
+
     &--default {
       border-color: #dcdfe6;
-      
+
       &:hover {
         border-color: #c6e2ff;
         color: #5672be;
         background-color: #ecf5ff;
       }
     }
-    
+
     &--primary {
       background-color: #5672be;
       border-color: #5672be;
-      
+
       &:hover {
         background-color: #4a63a8;
         border-color: #4a63a8;
@@ -987,19 +775,19 @@ export default {
 :deep(.el-dialog) {
   border-radius: 8px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-  
+
   .el-dialog__header {
     margin: 0;
     padding: 20px;
     border-bottom: 1px solid #ebeef5;
-    
+
     .el-dialog__title {
       font-size: 18px;
       font-weight: 600;
       color: #303133;
     }
   }
-  
+
   .el-dialog__body {
     padding: 20px;
   }
@@ -1009,7 +797,7 @@ export default {
 :deep(.el-descriptions) {
   padding: 0;
   margin-bottom: 10px;
-  
+
   .el-descriptions__header {
     margin-bottom: 15px;
   }
@@ -1023,7 +811,7 @@ export default {
 
   .el-descriptions__content {
     padding: 8px 12px;
-    
+
     .el-input,
     .el-select,
     .el-date-picker {
@@ -1035,11 +823,11 @@ export default {
       box-shadow: none;
       border: 1px solid #dcdfe6;
       border-radius: 4px;
-      
+
       &:hover {
         border-color: #5672be;
       }
-      
+
       &.is-focus {
         border-color: #5672be;
         box-shadow: 0 0 0 1px #5672be;
@@ -1052,11 +840,11 @@ export default {
       border: 1px solid #dcdfe6;
       border-radius: 4px;
       padding: 8px 12px;
-      
+
       &:hover {
         border-color: #5672be;
       }
-      
+
       &:focus {
         border-color: #5672be;
         box-shadow: 0 0 0 1px #5672be;
@@ -1067,10 +855,10 @@ export default {
       display: flex;
       gap: 15px;
       padding: 4px 0;
-      
+
       .el-radio {
         margin-right: 0;
-        
+
         .el-radio__label {
           color: #606266;
         }
@@ -1104,7 +892,7 @@ export default {
   :deep(.el-descriptions) {
     padding: 0;
     margin-bottom: 10px;
-    
+
     .el-descriptions__header {
       margin-bottom: 15px;
     }

@@ -139,7 +139,7 @@
 </template>
 
 <script>
-import { ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 
 export default {
@@ -191,6 +191,45 @@ export default {
       remark: ''
     })
 
+    // 监听初始数据变化
+    watch(
+      () => props.initialData,
+      (newVal) => {
+        if (props.mode === 'edit' && newVal) {
+          formData.value = { ...newVal }
+        }
+      },
+      { immediate: true, deep: true }
+    )
+
+    // 监听 visible 变化，当对话框关闭时重置表单
+    watch(
+      () => props.visible,
+      (newVal) => {
+        if (!newVal) {
+          formData.value = {
+            country: '',
+            bank: '',
+            cardNumber: '',
+            alias: '',
+            level: '',
+            limit: '',
+            type: '',
+            cvv: '',
+            valid: '',
+            annualFee: '',
+            accountBillDate: '',
+            dueDate: '',
+            nextAnnualFeeCollectionTime: '',
+            isQualified: '2',
+            lastTime: '',
+            equity: '',
+            remark: ''
+          }
+        }
+      }
+    )
+
     // 选项数据
     const options = {
       countryData: [
@@ -229,11 +268,6 @@ export default {
       }
       emit('submit', { ...formData.value })
       dialogVisible.value = false
-    }
-
-    // 监听初始数据变化
-    if (props.mode === 'edit' && props.initialData) {
-      Object.assign(formData.value, props.initialData)
     }
 
     return {

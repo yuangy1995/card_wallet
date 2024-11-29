@@ -5,6 +5,7 @@
       style="width: 100%" 
       border
       height="calc(100vh - 250px)"
+      @row-contextmenu="handleContextMenu"
     >
       <el-table-column type="index" label="序号" width="60" align="center" fixed />
       <el-table-column prop="country" label="国家" width="130" align="center" fixed />
@@ -19,6 +20,8 @@
             :value="row.cardNumber"
             :mask-start="4"
             :mask-end="12"
+            type="cardNumber"
+            :id="row.id"
             @visibility-change="handleVisibilityChange"
           />
         </template>
@@ -29,6 +32,8 @@
           <secure-field 
             :value="row.cvv"
             :mask-all="true"
+            type="cvv"
+            :id="row.id"
             @visibility-change="handleVisibilityChange"
           />
         </template>
@@ -45,111 +50,179 @@
       </el-table-column>
       <el-table-column prop="equity" label="🎁 权益" width="200" align="center" show-overflow-tooltip />
       <el-table-column prop="remark" label="📌 备注" width="200" align="center" show-overflow-tooltip />
-      <el-table-column fixed="right" label="操作" min-width="150" align="center">
-        <template #default="{ row }">
-          <el-button type="primary" size="small" @click="handleEdit(row)">编辑</el-button>
-          <el-button type="danger" size="small" @click="handleDelete(row)">删除</el-button>
-        </template>
-      </el-table-column>
     </el-table>
+
+    <!-- 右键菜单 -->
+    <div 
+      v-show="contextMenuVisible"
+      class="context-menu"
+      :style="{ left: contextMenuX + 'px', top: contextMenuY + 'px' }"
+    >
+      <el-menu>
+        <el-menu-item @click="handleContextMenuAction('edit')">
+          <el-icon><Edit /></el-icon>
+          <span>编辑</span>
+        </el-menu-item>
+        <el-menu-item @click="handleContextMenuAction('details')">
+          <el-icon><View /></el-icon>
+          <span>详情</span>
+        </el-menu-item>
+        <el-menu-item @click="handleContextMenuAction('delete')">
+          <el-icon><Delete /></el-icon>
+          <span>删除</span>
+        </el-menu-item>
+      </el-menu>
+    </div>
   </div>
 </template>
 
 <script>
 import SecureField from '../common/SecureField.vue'
 import { ElMessageBox } from 'element-plus'
+import { Edit, View, Delete } from '@element-plus/icons-vue'
+import { ref } from 'vue'
 
 export default {
   name: 'CreditCardTable',
   components: {
-    SecureField
+    SecureField,
+    Edit,
+    View,
+    Delete
   },
   props: {
-    // 表格数据
     tableData: {
       type: Array,
       required: true
     }
   },
-  emits: ['edit', 'delete', 'visibility-change'],
-  methods: {
-    // 处理编辑按钮点击
-    handleEdit(row) {
-      this.$emit('edit', row)
-    },
-    // 处理删除按钮点击
-    handleDelete(row) {
-      ElMessageBox.confirm(
-        '确定要删除这张信用卡吗？',
-        '警告',
-        {
-          confirmButtonText: '确定',
-          cancelButtonText: '取消',
-          type: 'warning',
-        }
-      )
-        .then(() => {
-          this.$emit('delete', row)
-        })
-        .catch(() => {})
-    },
+  emits: ['edit', 'delete', 'card-number-visibility', 'cvv-visibility', 'view-details'],
+  setup(props, { emit }) {
+    const contextMenuVisible = ref(false)
+    const contextMenuX = ref(0)
+    const contextMenuY = ref(0)
+    const selectedRow = ref(null)
+
+    // 处理右键菜单显示
+    const handleContextMenu = (row, column, event) => {
+      event.preventDefault()
+      selectedRow.value = row
+      contextMenuX.value = event.clientX
+      contextMenuY.value = event.clientY
+      contextMenuVisible.value = true
+
+      // 点击其他地方时关闭菜单
+      const closeMenu = () => {
+        contextMenuVisible.value = false
+        document.removeEventListener('click', closeMenu)
+      }
+      document.addEventListener('click', closeMenu)
+    }
+
+    // 处理右键菜单动作
+    const handleContextMenuAction = (action) => {
+      if (!selectedRow.value) return
+
+      switch (action) {
+        case 'edit':
+          emit('edit', selectedRow.value)
+          break
+        case 'details':
+          emit('view-details', selectedRow.value)
+          break
+        case 'delete':
+          ElMessageBox.confirm(
+            '确定要删除这张信用卡吗？',
+            '警告',
+            {
+              confirmButtonText: '确定',
+              cancelButtonText: '取消',
+              type: 'warning',
+            }
+          )
+            .then(() => {
+              emit('delete', selectedRow.value)
+            })
+            .catch(() => {})
+          break
+      }
+      
+      contextMenuVisible.value = false
+    }
+
     // 处理可见性变化
-    handleVisibilityChange(visible) {
-      this.$emit('visibility-change', visible)
+    const handleVisibilityChange = ({ id, isVisible, type }) => {
+      if (type === 'cardNumber') {
+        emit('card-number-visibility', { id, isVisible })
+      } else if (type === 'cvv') {
+        emit('cvv-visibility', { id, isVisible })
+      }
+    }
+
+    return {
+      handleContextMenu,
+      handleContextMenuAction,
+      handleVisibilityChange,
+      contextMenuVisible,
+      contextMenuX,
+      contextMenuY
     }
   }
 }
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
 .credit-card-table {
-  margin-top: 20px;
+  width: 100%;
+  position: relative;
+}
+
+.context-menu {
+  position: fixed;
+  z-index: 3000;
+  background: white;
+  border-radius: 4px;
+  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
+  
+  .el-menu {
+    border: none;
+    padding: 4px 0;
+    min-width: 120px;
+  }
+
+  .el-menu-item {
+    height: 36px;
+    line-height: 36px;
+    padding: 0 16px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    
+    &:hover {
+      background-color: var(--el-menu-hover-bg-color);
+    }
+
+    .el-icon {
+      margin-right: 4px;
+      font-size: 16px;
+    }
+  }
 }
 
 :deep(.el-table) {
   --el-table-border-color: var(--el-border-color-lighter);
   --el-table-border: 1px solid var(--el-table-border-color);
-  border-top: var(--el-table-border);
-  border-left: var(--el-table-border);
-}
-
-:deep(.el-table--border) {
-  border-right: var(--el-table-border);
-  border-bottom: var(--el-table-border);
-}
-
-:deep(.el-table .cell) {
-  white-space: nowrap;
-}
-
-:deep(.el-table__body-wrapper) {
-  overflow-x: auto !important;
-}
-
-:deep(.el-table__fixed-right) {
-  height: 100% !important;
-  bottom: 0 !important;
-}
-
-:deep(.el-table__fixed-right-patch) {
-  background-color: var(--el-table-row-hover-bg-color);
-}
-
-/* 加粗滚动条 */
-:deep(.el-table__body-wrapper::-webkit-scrollbar) {
-  width: 12px;
-  height: 12px;
-}
-
-:deep(.el-table__body-wrapper::-webkit-scrollbar-thumb) {
-  background-color: var(--el-border-color);
-  border-radius: 6px;
-  border: 2px solid transparent;
-  background-clip: padding-box;
-}
-
-:deep(.el-table__body-wrapper::-webkit-scrollbar-track) {
-  background-color: var(--el-fill-color-light);
-  border-radius: 6px;
+  --el-table-text-color: var(--el-text-color-regular);
+  --el-table-header-text-color: var(--el-text-color-secondary);
+  --el-table-row-hover-bg-color: var(--el-fill-color-light);
+  
+  th {
+    background-color: var(--el-fill-color-light);
+    font-weight: bold;
+  }
+  
+  td {
+    padding: 8px 0;
+  }
 }
 </style>

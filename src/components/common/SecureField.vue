@@ -38,6 +38,16 @@ export default {
     maskAll: {
       type: Boolean,
       default: false
+    },
+    // 字段类型
+    type: {
+      type: String,
+      required: true
+    },
+    // 记录ID
+    id: {
+      type: [String, Number],
+      required: true
     }
   },
   emits: ['visibility-change'],
@@ -49,54 +59,52 @@ export default {
     const displayValue = computed(() => {
       if (!props.value) return ''
       
-      if (visible.value) {
-        return props.value
+      if (!visible.value) {
+        if (props.maskAll) {
+          return '*'.repeat(props.value.length)
+        }
+        
+        const start = props.maskStart
+        const end = props.maskEnd || props.value.length
+        return props.value.slice(0, start) + 
+               '*'.repeat(end - start) + 
+               props.value.slice(end)
       }
       
-      if (props.maskAll) {
-        return '*'.repeat(props.value.length)
-      }
-      
-      const valueArray = props.value.split('')
-      for (let i = props.maskStart; i < props.maskEnd && i < valueArray.length; i++) {
-        valueArray[i] = '*'
-      }
-      return valueArray.join('')
+      return props.value
     })
 
     // 切换可见性
     const toggleVisibility = () => {
       visible.value = !visible.value
-      emit('visibility-change', visible.value)
-      
-      // 显示提示
-      ElNotification({
-        title: visible.value ? '已显示' : '已隐藏',
-        message: visible.value ? '30秒后将自动隐藏' : '',
-        type: 'info',
-        duration: 3000
+      emit('visibility-change', { 
+        id: props.id,
+        type: props.type,
+        isVisible: visible.value 
       })
-      
-      // 如果显示，30秒后自动隐藏
+
       if (visible.value) {
-        clearTimeout(timer)
+        // 30秒后自动隐藏
         timer = setTimeout(() => {
           visible.value = false
-          emit('visibility-change', false)
-          ElNotification({
-            title: '已自动隐藏',
-            type: 'info',
-            duration: 3000
+          emit('visibility-change', { 
+            id: props.id,
+            type: props.type,
+            isVisible: false 
           })
         }, 30000)
-      } else {
+      } else if (timer) {
         clearTimeout(timer)
+        timer = null
       }
     }
 
-    // 组件卸载时清除定时器
+    // 组件销毁时清除定时器
     onUnmounted(() => {
-      clearTimeout(timer)
+      if (timer) {
+        clearTimeout(timer)
+        timer = null
+      }
     })
 
     return {
