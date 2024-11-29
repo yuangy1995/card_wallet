@@ -21,101 +21,14 @@
       @cvv-visibility="handleCvvVisibility"
     />
 
-    <!-- 编辑/新增信用卡对话框 -->
-    <el-dialog
-      v-model="creditCardData.dialogFormVisible"
-      title="新增信用卡"
-      center
-      width="800px"
-      class="card-details-dialog"
-    >
-      <el-descriptions :column="2" border>
-        <!-- 基本信息 -->
-        <el-descriptions-item label="🌏 国家">
-          <el-select v-model="creditCardData.data.country" placeholder="请选择国家" filterable allow-create>
-            <el-option v-for="(item, index) in creditCardData.options.countryData" :key="index"
-              :label="`${item.chineseName}(${item.name})`" :value="item.chineseName" />
-          </el-select>
-        </el-descriptions-item>
-        <el-descriptions-item label="🏦 银行">
-          <el-select v-model="creditCardData.data.bank" placeholder="请选择银行" filterable allow-create>
-            <el-option v-for="item in creditCardData.options.bankList" :key="item.name" :label="item.name"
-              :value="item.chineseName" />
-          </el-select>
-        </el-descriptions-item>
-        <el-descriptions-item label="📝 卡片别名">
-          <el-input v-model="creditCardData.data.alias" autocomplete="off" clearable />
-        </el-descriptions-item>
-        <el-descriptions-item label="⭐️ 等级">
-          <el-select v-model="creditCardData.data.level" placeholder="请选择等级" filterable>
-            <el-option v-for="item in creditCardData.options.cardLevel" :key="item.name" :label="item.name"
-              :value="item.chineseName" />
-          </el-select>
-        </el-descriptions-item>
-        <el-descriptions-item label="💰 币种">
-          <el-select v-model="creditCardData.data.type" placeholder="请选择币种" filterable>
-            <el-option v-for="item in creditCardData.options.currencyList" :key="item.name" :label="item.name"
-              :value="item.chineseName" />
-          </el-select>
-        </el-descriptions-item>
-        <el-descriptions-item label="💳 额度">
-          <el-input type="number" v-model="creditCardData.data.limit" autocomplete="off" clearable />
-        </el-descriptions-item>
+    <credit-card-dialog
+      v-model:visible="creditCardData.dialogFormVisible"
+      :mode="status"
+      :initial-data="creditCardData.data"
+      @submit="confirmAdd"
+      @cancel="handleDialogCancel"
+    />
 
-        <!-- 卡片信息 -->
-        <el-descriptions-item label="🔢 卡号">
-          <el-input v-model="creditCardData.data.cardNumber" autocomplete="off" clearable />
-        </el-descriptions-item>
-        <el-descriptions-item label="📅 有效期">
-          <el-date-picker v-model="creditCardData.data.valid" type="month" placeholder="选择卡片到期时间"
-            value-format="YYYY-MM" style="width: 100%" />
-        </el-descriptions-item>
-        <el-descriptions-item label="🔐 CVV码">
-          <el-input v-model="creditCardData.data.cvv" autocomplete="off" clearable />
-        </el-descriptions-item>
-        <el-descriptions-item label="📊 账单日">
-          <el-input type="number" v-model="creditCardData.data.accountBillDate" autocomplete="off" clearable />
-        </el-descriptions-item>
-        <el-descriptions-item label="💸 还款日">
-          <el-input type="number" v-model="creditCardData.data.dueDate" autocomplete="off" clearable />
-        </el-descriptions-item>
-        <el-descriptions-item label="💵 年费">
-          <el-input type="number" v-model="creditCardData.data.annualFee" autocomplete="off" clearable />
-        </el-descriptions-item>
-
-        <!-- 年费信息 -->
-        <el-descriptions-item label="✅ 年费达标状态" :span="2">
-          <el-radio-group v-model="creditCardData.data.isQualified">
-            <el-radio :label="'2'" size="large">未达标</el-radio>
-            <el-radio :label="'1'" size="large">已达标</el-radio>
-            <el-radio :label="'3'" size="large">终免年费</el-radio>
-          </el-radio-group>
-        </el-descriptions-item>
-        <el-descriptions-item label="⏰ 下次年费收取时间" :span="2">
-          <el-date-picker v-model="creditCardData.data.nextAnnualFeeCollectionTime" type="date" placeholder="选择下次年费收取时间"
-            format="YYYY-MM-DD" value-format="YYYY-MM-DD" style="width: 100%" />
-        </el-descriptions-item>
-        <el-descriptions-item label="📈 上次提额日期" :span="2">
-          <el-date-picker v-model="creditCardData.data.lastTime" type="date" placeholder="选择上次提额日期" format="YYYY-MM-DD"
-            value-format="YYYY-MM-DD" style="width: 100%" />
-        </el-descriptions-item>
-
-        <!-- 其他信息 -->
-        <el-descriptions-item label="🎁 权益" :span="2">
-          <el-input v-model="creditCardData.data.equity" type="textarea" :rows="3" placeholder="请输入权益信息" />
-        </el-descriptions-item>
-        <el-descriptions-item label="📌 备注" :span="2">
-          <el-input v-model="creditCardData.data.remark" type="textarea" :rows="3" placeholder="请输入备注信息" />
-        </el-descriptions-item>
-      </el-descriptions>
-
-      <template #footer>
-        <span class="dialog-footer">
-          <el-button @click="creditCardData.dialogFormVisible = false">取消</el-button>
-          <el-button type="primary" @click="confirmAdd(creditCardData.data)">确认</el-button>
-        </span>
-      </template>
-    </el-dialog>
     <!-- 排序框 -->
     <el-dialog v-model="sortData.dialogFormVisible" title="选择排序方式" width="30%" draggable>
       <el-radio-group v-model="sortData.value">
@@ -246,12 +159,14 @@ import { ElNotification } from 'element-plus'
 import SecureField from './components/common/SecureField.vue'
 import SearchForm from './components/search/SearchForm.vue'
 import CreditCardTable from './components/table/CreditCardTable.vue'
+import CreditCardDialog from './components/dialog/CreditCardDialog.vue'
 
 export default {
   components: {
     SecureField,
     SearchForm,
     CreditCardTable,
+    CreditCardDialog,
   },
   data() {
     return {
@@ -777,6 +692,9 @@ export default {
     handleCvvVisibility({ id, isVisible }) {
       this.cvvVisibility[id] = isVisible;
     },
+    handleDialogCancel() {
+      this.creditCardData.dialogFormVisible = false;
+    }
   },
   watch: {
     //监听cardData的变化，如果变化了，就把cardData存到localStorage里面
