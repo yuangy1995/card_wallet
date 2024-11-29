@@ -7,10 +7,19 @@
         :label-width="labelWidth"
       />
     </div>
-    <div class="buttons">
-      <el-button type="primary" @click="addCreditCard">新增信用卡</el-button>
-      <el-button type="success" @click="exportData">导出数据</el-button>
-      <el-button type="warning" @click="importData">导入数据</el-button>
+    <div class="button-container">
+      <el-button type="primary" @click="addCreditCard">
+        <el-icon><Plus /></el-icon>新增信用卡
+      </el-button>
+      <el-button type="success" @click="exportData">
+        <el-icon><Download /></el-icon>导出数据
+      </el-button>
+      <el-button type="warning" @click="importData">
+        <el-icon><Upload /></el-icon>导入数据
+      </el-button>
+      <el-button @click="handleSort">
+        <el-icon><Sort /></el-icon>排序
+      </el-button>
     </div>
 
     <CreditCardTable
@@ -27,6 +36,12 @@
       :initial-data="creditCardData.data"
       @submit="confirmAdd"
       @cancel="handleDialogCancel"
+    />
+
+    <sort-dialog
+      v-model:visible="sortDialogVisible"
+      v-model="sortValue"
+      @confirm="handleSortConfirm"
     />
 
     <!-- 排序框 -->
@@ -160,13 +175,19 @@ import SecureField from './components/common/SecureField.vue'
 import SearchForm from './components/search/SearchForm.vue'
 import CreditCardTable from './components/table/CreditCardTable.vue'
 import CreditCardDialog from './components/dialog/CreditCardDialog.vue'
+import SortDialog from './components/dialog/SortDialog.vue'
+import { Plus, Download, Upload, Sort } from '@element-plus/icons-vue'
 
 export default {
   components: {
-    SecureField,
+    Plus,
+    Download,
+    Upload,
+    Sort,
     SearchForm,
     CreditCardTable,
     CreditCardDialog,
+    SortDialog,
   },
   data() {
     return {
@@ -250,6 +271,8 @@ export default {
       cvvTimer: null, // CVV显示定时器
       cardNumberVisibility: {}, // 卡号显示控制
       cardNumberTimer: null, // 卡号显示定时器
+      sortDialogVisible: false,
+      sortValue: '1',
     }
   },
   created() {
@@ -694,6 +717,22 @@ export default {
     },
     handleDialogCancel() {
       this.creditCardData.dialogFormVisible = false;
+    },
+    handleSort() {
+      this.sortDialogVisible = true;
+    },
+    handleSortConfirm(value) {
+      const sortFunctions = {
+        '1': (a, b) => a.creditLimit - b.creditLimit,
+        '2': (a, b) => b.creditLimit - a.creditLimit,
+        '3': (a, b) => a.annualFee - b.annualFee,
+        '4': (a, b) => b.annualFee - a.annualFee,
+        '5': (a, b) => a.billDay - b.billDay,
+        '6': (a, b) => b.billDay - a.billDay,
+        '7': (a, b) => a.repaymentDay - b.repaymentDay,
+        '8': (a, b) => b.repaymentDay - a.repaymentDay
+      }
+      this.cardData.sort(sortFunctions[value])
     }
   },
   watch: {
@@ -785,7 +824,7 @@ export default {
     }
   }
 
-  .buttons {
+  .button-container {
     background-color: #fff;
     padding: 10px;
     border-radius: 5px;
@@ -829,7 +868,7 @@ export default {
       padding: 20px;
     }
 
-    .buttons {
+    .button-container {
       padding: 15px;
     }
   }
@@ -843,7 +882,7 @@ export default {
       padding: 12px;
     }
 
-    .buttons {
+    .button-container {
       padding: 8px;
     }
   }
