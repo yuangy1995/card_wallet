@@ -65,8 +65,8 @@
       </el-popconfirm>
     </div>
     <div class="table-container">
-      <el-scrollbar height="1000px">
-        <el-table :data="tableData" border height="1000px" style="width: 100%">
+      <el-scrollbar>
+        <el-table :data="tableData" border style="width: 100%">
           <el-table-column type="index" label="序号" width="60" align="center" fixed />
           <el-table-column v-if="userData.tableCustom.country" prop="country" label="国家" width="130" align="center" fixed />
           <el-table-column v-if="userData.tableCustom.bank" prop="bank" label="银行" width="150" align="center" fixed />
