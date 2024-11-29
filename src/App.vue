@@ -1,52 +1,11 @@
 <template>
   <div class="main_body">
     <div class="headers">
-      <el-form :inline="true" :model="formSearch" :label-width="labelWidth">
-        <el-row :gutter="10" class="search-row">
-          <el-form-item label="国家">
-            <el-select v-model="formSearch.country" placeholder="请选择国家" filterable allow-create clearable>
-              <el-option v-for="(item, index) in creditCardData.options.countryData" :key="index"
-                :label="`${item.chineseName}(${item.name})`" :value="item.chineseName" />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="银行">
-            <el-select v-model="formSearch.bank" placeholder="请选择银行" filterable allow-create clearable>
-              <el-option v-for="item in creditCardData.options.bankList" :key="item.name" :label="item.name"
-                :value="item.chineseName" />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="卡号">
-            <el-input v-model="formSearch.cardNumber" autocomplete="off" clearable />
-          </el-form-item>
-          <el-form-item label="等级">
-            <el-select v-model="formSearch.level" placeholder="请选择等级" filterable clearable>
-              <el-option v-for="item in creditCardData.options.cardLevel" :key="item.name" :label="item.name"
-                :value="item.chineseName" />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="额度">
-            <el-input v-model="formSearch.limit" autocomplete="off" clearable />
-          </el-form-item>
-          <el-form-item label="币种">
-            <el-select v-model="formSearch.type" placeholder="请选择币种" filterable clearable>
-              <el-option v-for="item in creditCardData.options.currencyList" :key="item.name" :label="item.name"
-                :value="item.chineseName" />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="年费达标">
-            <el-select v-model="formSearch.isQualified" placeholder="请选择" filterable clearable>
-              <el-option v-for="item in creditCardData.options.isQualified" :key="item.name" :label="item.name"
-                :value="item.value" />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="权益">
-            <el-input v-model="formSearch.equity" autocomplete="off" clearable />
-          </el-form-item>
-          <el-form-item label="备注">
-            <el-input v-model="formSearch.remark" autocomplete="off" clearable />
-          </el-form-item>
-        </el-row>
-      </el-form>
+      <SearchForm
+        v-model="formSearch"
+        :options="creditCardData.options"
+        :label-width="labelWidth"
+      />
     </div>
     <div class="buttons">
       <el-button type="primary" @click="addCreditCard">新增信用卡</el-button>
@@ -411,10 +370,12 @@
 import { creditCardOptions } from '@/config/creditCardOptions'
 import { ElNotification } from 'element-plus'
 import SecureField from './components/common/SecureField.vue'
+import SearchForm from './components/search/SearchForm.vue'
 
 export default {
   components: {
     SecureField,
+    SearchForm,
   },
   data() {
     return {
@@ -523,42 +484,32 @@ export default {
   computed: {
     // 计算过滤条件后的表格数据
     tableData() {
-      //返回formsearch中所有参数查询条件过滤后的数据
       return this.cardData.filter(item => {
-        console.table(item)
-        //如果formsearch中的参数为空，就返回所有数据
-        if (this.formSearch.bank == '' &&
-          this.formSearch.country == '' &&
-          this.formSearch.type == '' &&
-          this.formSearch.cardNumber == '' &&
-          this.formSearch.level == '' &&
-          this.formSearch.limit == '' &&
-          this.formSearch.cvv == '' &&
-          this.formSearch.alias == '' &&
-          this.formSearch.annualFee == '' &&
-          this.formSearch.nextAnnualFeeCollectionTime == '' &&
-          this.formSearch.equity == '' &&
-          this.formSearch.remark == '' &&
-          this.formSearch.lastTime == '' &&
-          this.formSearch.isQualified == '') {
-          return true;
-        } else {
-          //如果formsearch中的参数不为空，就返回符合条件的数据
-          return (item.bank.indexOf(this.formSearch.bank) != -1) &&
-            (item.country.indexOf(this.formSearch.country) != -1) &&
-            (item.type.indexOf(this.formSearch.type) != -1) &&
-            (item.cardNumber.indexOf(this.formSearch.cardNumber) != -1) &&
-            (item.level.indexOf(this.formSearch.level) != -1) &&
-            (item.limit.indexOf(this.formSearch.limit) != -1) &&
-            (item.cvv.indexOf(this.formSearch.cvv) != -1) &&
-            (item.valid.indexOf(this.formSearch.valid) != -1) &&
-            (item.alias.indexOf(this.formSearch.alias) != -1) &&
-            (item.annualFee.indexOf(this.formSearch.annualFee) != -1) &&
-            (item.equity.indexOf(this.formSearch.equity) != -1) &&
-            (item.remark.indexOf(this.formSearch.remark) != -1) &&
-            (item.isQualified.indexOf(this.formSearch.isQualified) != -1);
-        }
-      })
+        // 检查每个搜索条件，如果搜索条件为空则跳过该条件
+        const conditions = {
+          bank: this.formSearch.bank,
+          country: this.formSearch.country,
+          type: this.formSearch.type,
+          cardNumber: this.formSearch.cardNumber,
+          level: this.formSearch.level,
+          limit: this.formSearch.limit,
+          cvv: this.formSearch.cvv,
+          alias: this.formSearch.alias,
+          annualFee: this.formSearch.annualFee,
+          equity: this.formSearch.equity,
+          remark: this.formSearch.remark,
+          isQualified: this.formSearch.isQualified,
+        };
+
+        // 只检查非空的搜索条件
+        return Object.entries(conditions).every(([key, value]) => {
+          if (!value) return true; // 如果搜索条件为空，返回 true（不过滤）
+          
+          const itemValue = item[key]?.toString().toLowerCase() || '';
+          const searchValue = value.toString().toLowerCase();
+          return itemValue.includes(searchValue);
+        });
+      });
     },
   },
   methods: {
