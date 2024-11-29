@@ -12,10 +12,10 @@
         <el-icon><Plus /></el-icon>新增信用卡
       </el-button>
       <el-button type="success" @click="exportData">
-        <el-icon><Download /></el-icon>导出数据
+        <el-icon><Share /></el-icon>导出数据
       </el-button>
       <el-button type="warning" @click="importData">
-        <el-icon><Upload /></el-icon>导入数据
+        <el-icon><FolderOpened /></el-icon>导入数据
       </el-button>
       <el-button @click="handleSort">
         <el-icon><Sort /></el-icon>排序
@@ -42,6 +42,13 @@
       v-model:visible="sortDialogVisible"
       v-model="sortValue"
       @confirm="handleSortConfirm"
+    />
+
+    <import-export-dialog
+      v-model:visible="importExportDialogVisible"
+      :is-import="isImportMode"
+      :data="cardData"
+      @import="handleImportData"
     />
 
     <!-- 排序框 -->
@@ -176,18 +183,20 @@ import SearchForm from './components/search/SearchForm.vue'
 import CreditCardTable from './components/table/CreditCardTable.vue'
 import CreditCardDialog from './components/dialog/CreditCardDialog.vue'
 import SortDialog from './components/dialog/SortDialog.vue'
-import { Plus, Download, Upload, Sort } from '@element-plus/icons-vue'
+import ImportExportDialog from './components/dialog/ImportExportDialog.vue'
+import { Plus, Download, Upload, Sort, Share, FolderOpened } from '@element-plus/icons-vue'
 
 export default {
   components: {
     Plus,
-    Download,
-    Upload,
+    FolderOpened,
+    Share,
     Sort,
     SearchForm,
     CreditCardTable,
     CreditCardDialog,
     SortDialog,
+    ImportExportDialog,
   },
   data() {
     return {
@@ -273,6 +282,8 @@ export default {
       cardNumberTimer: null, // 卡号显示定时器
       sortDialogVisible: false,
       sortValue: '1',
+      importExportDialogVisible: false,
+      isImportMode: false,
     }
   },
   created() {
@@ -390,39 +401,17 @@ export default {
     },
     //导出数据
     exportData() {
-      let val = Object.assign([], this.cardData);
-      val = JSON.stringify(val);
-      const blob = new Blob([val], { type: 'text/plain;charset=utf-8' });
-      saveAs(blob, '信用卡管理数据.json');
-      this.notic('Success', '数据导出成功！', 'success');
-    },
-    importData2() {
-      //模拟点击input
-      document.getElementById('importFile').click();
+      this.isImportMode = false;
+      this.importExportDialogVisible = true;
     },
     //导入数据
     importData() {
-      let file = document.getElementById('importFile').files[0];
-      let reader = new FileReader();
-      reader.readAsText(file);
-      reader.onload = (e) => {
-        let val = JSON.parse(e.target.result);
-        //根据creditCardData.data里面的key，对比val里面的key，如果creditCardData.data里面的key在val里面没有，就在val里面添加这个key，并且赋值为空
-        for (let key in this.creditCardData.data) {
-          if (!val[0].hasOwnProperty(key)) {
-            val.forEach(item => {
-              item[key] = '';
-            })
-          }
-        }
-        //判断导入的数据是否符合要求
-        if (val instanceof Array) {
-          this.cardData = val;
-          this.notic('Success', '数据导入成功！', 'success');
-        } else {
-          this.notic('Error', '数据不符合要求，导入失败！', 'error');
-        }
-      }
+      this.isImportMode = true;
+      this.importExportDialogVisible = true;
+    },
+    handleImportData(data) {
+      this.cardData = data;
+      this.notic('Success', '数据导入成功！', 'success');
     },
     //时间戳处理函数，有两个参数，第一个是时间戳，第二个是要返回的时间格式，有所有格式组合
     timestampToTime(timestamp, format) {
