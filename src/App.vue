@@ -9,152 +9,26 @@
     </div>
     <div class="buttons">
       <el-button type="primary" @click="addCreditCard">新增信用卡</el-button>
-      <el-button type="primary" @click="oneKeySort">一键排序</el-button>
-      <el-button type="primary" @click="oneCheck">一键检测年费达标情况</el-button>
-      <el-button type="primary" @click="tableCustoms">表格自定义</el-button>
-      <el-button type="primary" @click="creditCardStatistics">信用卡数据统计</el-button>
-      <el-button type="primary" @click="exportData">导出数据</el-button>
-      <el-button type="primary" @click="importData2">导入数据</el-button>
-      <input v-show="false" type="file" name="upfile" id="importFile" accept=".json" style="width: 0px;"
-        @change="importData" />
-      <el-popconfirm title="你确定要清除所有数据?" @confirm="deleteAllData">
-        <template #reference>
-          <el-button size="small" type="danger" style="margin-left: 20px;">清除所有数据</el-button>
-        </template>
-      </el-popconfirm>
+      <el-button type="success" @click="exportData">导出数据</el-button>
+      <el-button type="warning" @click="importData">导入数据</el-button>
     </div>
-    <div class="table-container">
-      <el-scrollbar>
-        <el-table :data="tableData" border style="width: 100%">
-          <el-table-column type="index" label="序号" width="60" align="center" fixed />
-          <el-table-column v-if="userData.tableCustom.country" prop="country" label="国家" width="130" align="center" fixed />
-          <el-table-column v-if="userData.tableCustom.bank" prop="bank" label="银行" width="150" align="center" fixed />
-          <el-table-column v-if="userData.tableCustom.alias" prop="alias" label="卡片别名" width="200" align="center" fixed />
-          <el-table-column v-if="userData.tableCustom.level" prop="level" label="等级" width="110" align="center" />
-          <el-table-column v-if="userData.tableCustom.type" prop="type" label="币种" width="150" align="center" />
-          <el-table-column v-if="userData.tableCustom.annualFee" prop="annualFee" label="年费" width="90" align="center" />
-          <el-table-column v-if="userData.tableCustom.cardNumber" prop="cardNumber" label="卡号" width="220" align="center" fixed>
-            <template #default="scope">
-              <SecureField
-                type="cardNumber"
-                :value="scope.row.cardNumber"
-                :id="scope.row.id"
-                @visibility-change="handleCardNumberVisibility"
-              />
-            </template>
-          </el-table-column>
-          <el-table-column v-if="userData.tableCustom.valid" prop="valid" label="有效期" width="80" align="center" />
-          <el-table-column v-if="userData.tableCustom.cvv" prop="cvv" label="CVV" width="100" align="center">
-            <template #default="scope">
-              <SecureField
-                type="cvv"
-                :value="scope.row.cvv"
-                :id="scope.row.id"
-                @visibility-change="handleCvvVisibility"
-              />
-            </template>
-          </el-table-column>
-          <el-table-column v-if="userData.tableCustom.limit" prop="limit" label="额度" width="100" align="center" />
-          <el-table-column v-if="userData.tableCustom.isQualified" prop="isQualified" label="本年度年费是否达标" width="160"
-            align="center">
-            <template #default="scope">
-              <el-tag v-if="scope.row.isQualified === '1'" type="success">已达标</el-tag>
-              <el-tag v-if="scope.row.isQualified === '2'" type="danger">未达标</el-tag>
-              <el-tag v-if="scope.row.isQualified === '3'" type="info">终免年费</el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column v-if="userData.tableCustom.nextAnnualFeeCollectionTime" prop="nextAnnualFeeCollectionTime"
-            label="下次年费收取时间" width="150" align="center" />
-          <el-table-column v-if="userData.tableCustom.lastTime" prop="lastTime" label="上次提额日期" width="170" align="center" />
-          <el-table-column v-if="userData.tableCustom.lastDays" prop="lastTime" label="距离上次提额多少天" width="170"
-            align="center">
-            <template #default="scope">
-              <span v-if="scope.row.lastTime">
-                {{ getDays(scope.row.lastTime, new Date()) + '天' }}
-              </span>
-            </template>
-          </el-table-column>
-          <el-table-column v-if="userData.tableCustom.nowDueDate" prop="dueDate" label="上期还款日" width="110" align="center">
-            <!-- 补全上期还款日 -->
-            <template #default="scope">
-              <span v-if="scope.row.accountBillDate && scope.row.dueDate">
-                {{ dueDateCompletion(scope.row.accountBillDate, scope.row.dueDate, 'now') }}
-              </span>
-              <span v-if="!scope.row.accountBillDate && scope.row.dueDate">
-                {{ scope.row.dueDate }}
-              </span>
-            </template>
-          </el-table-column>
-          <el-table-column v-if="userData.tableCustom.preDueDateDay" prop="limit" label="上期账单还款剩余天数" width="200"
-            align="center">
-            <!-- 根据上期账单还款日期和上期还款日计算上期账单还款剩余天数 -->
-            <template #default="scope">
-              <span v-if="scope.row.dueDate">
-                {{ preDueDateDayCalculation(scope.row.accountBillDate, scope.row.dueDate) }}
-              </span>
-              <span v-else></span>
-            </template>
-          </el-table-column>
-          <el-table-column v-if="userData.tableCustom.nowAccountBillDate" prop="accountBillDate" label="本期账单日" width="110"
-            align="center">
-            <!-- 补全本期账单日 -->
-            <template #default="scope">
-              <span v-if="scope.row.accountBillDate">
-                {{ accountBillDateCompletion(scope.row.accountBillDate, 'now') }}
-              </span>
-              <span v-else></span>
-            </template>
-          </el-table-column>
-          <el-table-column v-if="userData.tableCustom.nextDueDate" prop="dueDate" label="本期还款日" width="110" align="center">
-            <!-- 补全本期还款日 -->
-            <template #default="scope">
-              <span v-if="scope.row.accountBillDate && scope.row.dueDate">
-                {{ dueDateCompletion(scope.row.accountBillDate, scope.row.dueDate) }}
-              </span>
-              <span v-if="!scope.row.accountBillDate && scope.row.dueDate">
-                {{ scope.row.dueDate }}
-              </span>
-            </template>
-          </el-table-column>
-          <el-table-column v-if="userData.tableCustom.interestFreePeriod" prop="dueDate" label="本期免息期" width="110"
-            align="center">
-            <!-- 根据账单日和还款日计算本期免息期 -->
-            <template #default="scope">
-              <span v-if="scope.row.accountBillDate && scope.row.dueDate">
-                {{ interestFreePeriodCalculation(scope.row.accountBillDate, scope.row.dueDate) + '天' }}
-              </span>
-              <span v-else></span>
-            </template>
-          </el-table-column>
-          <el-table-column v-if="userData.tableCustom.nextAccountBillDate" prop="accountBillDate" label="下期账单日" width="110"
-            align="center">
-            <!-- 补全下期账单日 -->
-            <template #default="scope">
-              <span v-if="scope.row.accountBillDate">
-                {{ accountBillDateCompletion(scope.row.accountBillDate) }}
-              </span>
-              <span v-else></span>
-            </template>
-          </el-table-column>
-          <el-table-column v-if="userData.tableCustom.equity" prop="equity" label="权益" width="350" align="center"
-            show-overflow-tooltip />
-          <el-table-column v-if="userData.tableCustom.remark" prop="remark" label="备注" width="350" align="center"
-            show-overflow-tooltip />
-          <el-table-column label="操作" width="200" align="center" fixed="right">
-            <template #default="scope">
-              <el-button size="small" @click="cardEdit(scope.$index, scope.row)">编辑</el-button>
-              <el-popconfirm title="确定删除吗？" @confirm="deleteData(scope.$index, scope.row)">
-                <template #reference>
-                  <el-button size="small" type="danger">删除</el-button>
-                </template>
-              </el-popconfirm>
-            </template>
-          </el-table-column>
-        </el-table>
-      </el-scrollbar>
-    </div>
-    <!-- 添加信用卡 -->
-    <el-dialog v-model="creditCardData.dialogFormVisible" title="新增信用卡" center width="800px" class="card-details-dialog">
+
+    <CreditCardTable
+      :table-data="tableData"
+      @edit="editCreditCard"
+      @delete="deleteCreditCard"
+      @card-number-visibility="handleCardNumberVisibility"
+      @cvv-visibility="handleCvvVisibility"
+    />
+
+    <!-- 编辑/新增信用卡对话框 -->
+    <el-dialog
+      v-model="creditCardData.dialogFormVisible"
+      title="新增信用卡"
+      center
+      width="800px"
+      class="card-details-dialog"
+    >
       <el-descriptions :column="2" border>
         <!-- 基本信息 -->
         <el-descriptions-item label="🌏 国家">
@@ -371,11 +245,13 @@ import { creditCardOptions } from '@/config/creditCardOptions'
 import { ElNotification } from 'element-plus'
 import SecureField from './components/common/SecureField.vue'
 import SearchForm from './components/search/SearchForm.vue'
+import CreditCardTable from './components/table/CreditCardTable.vue'
 
 export default {
   components: {
     SecureField,
     SearchForm,
+    CreditCardTable,
   },
   data() {
     return {
@@ -416,8 +292,6 @@ export default {
         cvv: "",
         alias: "",
         annualFee: "",
-        nextAnnualFeeCollectionTime: "",
-        lastTime: "",
         equity: "",
         remark: "",
         isQualified:"",
@@ -533,33 +407,30 @@ export default {
     },
     //添加卡片
     addCreditCard() {
-      this.creditCardData.data = {
-        id: "",
-        country: "",//国家
-        bank: "",//银行
-        cardNumber: "",//卡号
-        alias: "",//卡片别名
-        level: "",//等级
-        limit: "",//额度
-        type: "",//币种
-        cvv: "",//cvv码
-        valid: "",//有效期
-        annualFee: "",//年费
-        accountBillDate: "",//账单日
-        dueDate: "",//还款日
-        nextAnnualFeeCollectionTime: "",//下次年费收取时间
-        isQualified: '2',//本年度年费是否达标
-        lastTime: "",//距离上次提额多少天了
-        equity: "",//权益
-        remark: "",//备注
-      };
-      let id = Math.random().toString(16).slice(2);
-      this.creditCardData.data.id = id;
       this.status = 'add';
       this.creditCardData.dialogFormVisible = true;
+      this.creditCardData.data = {
+        bank: "",
+        country: "",
+        type: "",
+        cardNumber: "",
+        level: "",
+        limit: "",
+        cvv: "",
+        valid: "",
+        accountBillDate: "",
+        dueDate: "",
+        alias: "",
+        annualFee: "",
+        equity: "",
+        remark: "",
+        isQualified: "",
+        nextAnnualFeeCollectionTime: "",
+        lastTime: "",
+      };
     },
     //编辑卡片
-    cardEdit(index, row) {
+    editCreditCard(row) {
       this.status = 'edit';
       this.creditCardData.dialogFormVisible = true;
       this.creditCardData.data = Object.assign({}, row);
@@ -819,39 +690,26 @@ export default {
         let dueDate = "";
         //本期免息期计算公式：通常情况下，信用卡的本期免息期是从今天开始计算，1.如果今天是账单日或者没有过这个月的账单日，那么本期免息期是从今天到这期账单的还款日，2.如果今天过了这个月的账单日，那么本期免息期是从今天到下期账单的还款日
         if (date.getDate() < _accountBillDate) {
-          if (dateType == "now") {
-            //如果账单日大于还款日，上期还款日月份需要加1
-            if (_accountBillDate > _dueDate) {
-              dueDate = `${y}-${Number(m) + 1}-${_dueDate}`;//上期还款日
-            } else {
-              dueDate = `${y}-${m}-${_dueDate}`;//上期还款日
-            }
+          if (_accountBillDate > _dueDate) {
+            dueDate = `${y}-${Number(m) + 1}-${_dueDate}`;
           } else {
-            if (_accountBillDate > _dueDate) {
-              dueDate = `${y}-${(Number(m) + 2) < 10 ? '0' + (Number(m) + 2) : (Number(m) + 2)}-${_dueDate}`;//本期还款日
-            } else {
-              dueDate = `${y}-${(Number(m) + 1) < 10 ? '0' + (Number(m) + 1) : (Number(m) + 1)}-${_dueDate}`;//本期还款日
-            }
+            dueDate = `${y}-${m}-${_dueDate}`;
           }
-          return dueDate;
+          //用dueDate和accountBillDate计算本期免息期
+          let days = this.getDays(accountBillDate, dueDate);
+          return days;
         } else {
           let date = new Date();
           let y = date.getFullYear();
           let m = (date.getMonth() + 2 < 10 ? '0' + (date.getMonth() + 2) : date.getMonth() + 2);
-          if (dateType == "now") {
-            if (_accountBillDate > _dueDate) {
-              dueDate = `${y}-${m}-${_dueDate}`;//上期还款日
-            } else {
-              dueDate = `${y}-${(Number(m) - 1) < 10 ? '0' + (Number(m) - 1) : (Number(m) - 1)}-${_dueDate}`;//上期还款日
-            }
+          if (_accountBillDate > _dueDate) {
+            dueDate = `${y}-${Number(m) + 1}-${_dueDate}`;
           } else {
-            if (_accountBillDate > _dueDate) {
-              dueDate = `${y}-${Number(m) + 1}-${_dueDate}`;//本期还款日
-            } else {
-              dueDate = `${y}-${m}-${_dueDate}`;//本期还款日
-            }
+            dueDate = `${y}-${m}-${_dueDate}`;
           }
-          return dueDate;
+          //用dueDate和accountBillDate计算本期免息期
+          let days = this.getDays(accountBillDate, dueDate);
+          return days;
         }
       }
     },

@@ -1,13 +1,8 @@
 <template>
-  <div class="secure-container">
-    <span class="secure-text">
-      {{ formattedValue }}
-    </span>
-    <el-icon 
-      class="secure-icon" 
-      @click="toggleVisibility"
-    >
-      <component :is="isVisible ? 'Hide' : 'View'" />
+  <div class="secure-field">
+    <span class="secure-text">{{ displayValue }}</span>
+    <el-icon class="secure-icon" @click="toggleVisibility">
+      <component :is="visible ? Hide : View" />
     </el-icon>
   </div>
 </template>
@@ -24,110 +19,116 @@ export default {
     Hide
   },
   props: {
+    // 要显示的值
     value: {
       type: String,
       required: true
     },
-    type: {
-      type: String,
-      required: true,
-      validator: (value) => ['cvv', 'cardNumber'].includes(value)
+    // 掩码起始位置
+    maskStart: {
+      type: Number,
+      default: 0
     },
-    id: {
-      type: String,
-      required: true
+    // 掩码结束位置
+    maskEnd: {
+      type: Number,
+      default: 0
+    },
+    // 是否全部掩码
+    maskAll: {
+      type: Boolean,
+      default: false
     }
   },
   emits: ['visibility-change'],
   setup(props, { emit }) {
-    const isVisible = ref(false)
+    const visible = ref(false)
     let timer = null
 
-    const notic = (title, message, type, duration = 3000) => {
-      ElNotification({
-        title,
-        message,
-        type,
-        duration
-      })
-    }
-
-    const toggleVisibility = () => {
-      if (timer) {
-        clearTimeout(timer)
-      }
-
-      isVisible.value = !isVisible.value
-      emit('visibility-change', { id: props.id, isVisible: isVisible.value })
-
-      if (isVisible.value) {
-        const fieldType = props.type === 'cvv' ? 'CVV' : '卡号'
-        notic(`${fieldType}已显示`, `${fieldType}将在 30 秒后自动隐藏`, 'info')
-        
-        timer = setTimeout(() => {
-          isVisible.value = false
-          emit('visibility-change', { id: props.id, isVisible: false })
-          notic(`${fieldType}已隐藏`, `${fieldType}已自动隐藏`, 'info', 2000)
-        }, 30000)
-      }
-    }
-
-    const formattedValue = computed(() => {
+    // 显示值的计算属性
+    const displayValue = computed(() => {
       if (!props.value) return ''
-
-      if (props.type === 'cvv') {
-        return isVisible.value ? props.value : '•••'
-      } else {
-        // 移除空格
-        const number = props.value.replace(/\s/g, '')
-        
-        if (isVisible.value) {
-          // 显示完整卡号，每4位加一个空格
-          return number.replace(/(.{4})/g, '$1 ').trim()
-        } else {
-          // 遮蔽第4-12位，其他位正常显示，每4位加一个空格
-          const masked = number.slice(0, 3) + '*********' + number.slice(12)
-          return masked.replace(/(.{4})/g, '$1 ').trim()
-        }
+      
+      if (visible.value) {
+        return props.value
       }
+      
+      if (props.maskAll) {
+        return '*'.repeat(props.value.length)
+      }
+      
+      const valueArray = props.value.split('')
+      for (let i = props.maskStart; i < props.maskEnd && i < valueArray.length; i++) {
+        valueArray[i] = '*'
+      }
+      return valueArray.join('')
     })
 
-    onUnmounted(() => {
-      if (timer) {
+    // 切换可见性
+    const toggleVisibility = () => {
+      visible.value = !visible.value
+      emit('visibility-change', visible.value)
+      
+      // 显示提示
+      ElNotification({
+        title: visible.value ? '已显示' : '已隐藏',
+        message: visible.value ? '30秒后将自动隐藏' : '',
+        type: 'info',
+        duration: 3000
+      })
+      
+      // 如果显示，30秒后自动隐藏
+      if (visible.value) {
+        clearTimeout(timer)
+        timer = setTimeout(() => {
+          visible.value = false
+          emit('visibility-change', false)
+          ElNotification({
+            title: '已自动隐藏',
+            type: 'info',
+            duration: 3000
+          })
+        }, 30000)
+      } else {
         clearTimeout(timer)
       }
+    }
+
+    // 组件卸载时清除定时器
+    onUnmounted(() => {
+      clearTimeout(timer)
     })
 
     return {
-      isVisible,
+      visible,
+      displayValue,
       toggleVisibility,
-      formattedValue
+      View,
+      Hide
     }
   }
 }
 </script>
 
 <style scoped>
-.secure-container {
-  display: flex;
+.secure-field {
+  display: inline-flex;
   align-items: center;
-  justify-content: center;
-  gap: 5px;
-}
-
-.secure-icon {
-  cursor: pointer;
-  font-size: 16px;
-  color: #409EFF;
-  transition: color 0.3s;
-}
-
-.secure-icon:hover {
-  color: #66b1ff;
+  gap: 8px;
 }
 
 .secure-text {
   font-family: monospace;
-  letter-spacing: 1px;
+}
+
+.secure-icon {
+  cursor: pointer;
+  color: var(--el-text-color-secondary);
+  transition: color 0.2s;
+  font-size: 16px;
+}
+
+.secure-icon:hover {
+  color: var(--el-text-color-primary);
 }
 </style>
