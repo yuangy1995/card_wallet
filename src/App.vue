@@ -437,11 +437,22 @@ export default {
         const dueDate = new Date(card.nextAnnualFeeCollectionTime)
         const diffDays = Math.ceil((dueDate - now) / (1000 * 60 * 60 * 24))
         
+        // 使用卡片别名，如果为空则生成默认别名
+        const displayName = card.alias || `${card.bank}${card.level}(${card.type})`
+        
         if (diffDays <= 60 && diffDays > 0) {
-          warningCards.push({ ...card, diffDays })
+          warningCards.push({ 
+            ...card, 
+            diffDays,
+            alias: displayName 
+          })
           this.rowClassMap.set(card.id, 'warning-row')
         } else if (diffDays <= 0 && diffDays > -60) {
-          overdueCards.push({ ...card, diffDays })
+          overdueCards.push({ 
+            ...card, 
+            diffDays,
+            alias: displayName 
+          })
           this.rowClassMap.set(card.id, 'danger-row')
         }
       }
@@ -454,9 +465,9 @@ export default {
         if (warningCards.length > 0) {
           message += '<div style="margin-bottom: 16px;">'
           message += '<h3 style="color: #E6A23C; margin-bottom: 8px;">即将到期年费提醒</h3>'
-          message += '<ul style="list-style-type: none; padding: 0; margin: 0;">'
+          message += '<ul style="list-style-type: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 16px;">'
           warningCards.sort((a, b) => a.diffDays - b.diffDays).forEach(card => {
-            message += `<li style="margin-bottom: 8px; padding: 8px; background: #FDF6EC; border-radius: 4px;">
+            message += `<li style="margin: 0; padding: 12px; background: #FDF6EC; border-radius: 4px; flex: 0 1 calc(33.33% - 12px); min-width: 200px; box-sizing: border-box;">
               <strong>${card.alias}</strong>
               <div style="color: #666; margin-top: 4px;">将在 ${card.diffDays} 天后收取年费</div>
             </li>`
@@ -467,9 +478,9 @@ export default {
         if (overdueCards.length > 0) {
           message += '<div>'
           message += '<h3 style="color: #F56C6C; margin-bottom: 8px;">已过期年费提醒</h3>'
-          message += '<ul style="list-style-type: none; padding: 0; margin: 0;">'
+          message += '<ul style="list-style-type: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 16px;">'
           overdueCards.sort((a, b) => b.diffDays - a.diffDays).forEach(card => {
-            message += `<li style="margin-bottom: 8px; padding: 8px; background: #FEF0F0; border-radius: 4px;">
+            message += `<li style="margin: 0; padding: 12px; background: #FEF0F0; border-radius: 4px; flex: 0 1 calc(33.33% - 12px); min-width: 200px; box-sizing: border-box;">
               <strong>${card.alias}</strong>
               <div style="color: #666; margin-top: 4px;">已过期 ${-card.diffDays} 天</div>
             </li>`
@@ -517,11 +528,22 @@ export default {
         const dueDate = new Date(card.nextAnnualFeeCollectionTime)
         const diffDays = Math.ceil((dueDate - now) / (1000 * 60 * 60 * 24))
         
+        // 使用卡片别名，如果为空则生成默认别名
+        const displayName = card.alias || `${card.bank}${card.level}(${card.type})`
+        
         if (diffDays <= 60 && diffDays > 0) {
-          warningCards.push({ ...card, diffDays })
+          warningCards.push({ 
+            ...card, 
+            diffDays,
+            alias: displayName 
+          })
           this.rowClassMap.set(card.id, 'warning-row')
         } else if (diffDays <= 0 && diffDays > -60) {
-          overdueCards.push({ ...card, diffDays })
+          overdueCards.push({ 
+            ...card, 
+            diffDays,
+            alias: displayName 
+          })
           this.rowClassMap.set(card.id, 'danger-row')
         }
       }
@@ -534,9 +556,9 @@ export default {
         if (warningCards.length > 0) {
           message += '<div style="margin-bottom: 16px;">'
           message += '<h3 style="color: #E6A23C; margin-bottom: 8px;">即将到期年费提醒</h3>'
-          message += '<ul style="list-style-type: none; padding: 0; margin: 0;">'
+          message += '<ul style="list-style-type: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 16px;">'
           warningCards.sort((a, b) => a.diffDays - b.diffDays).forEach(card => {
-            message += `<li style="margin-bottom: 8px; padding: 8px; background: #FDF6EC; border-radius: 4px;">
+            message += `<li style="margin: 0; padding: 12px; background: #FDF6EC; border-radius: 4px; flex: 0 1 calc(33.33% - 12px); min-width: 200px; box-sizing: border-box;">
               <strong>${card.alias}</strong>
               <div style="color: #666; margin-top: 4px;">将在 ${card.diffDays} 天后收取年费</div>
             </li>`
@@ -547,9 +569,9 @@ export default {
         if (overdueCards.length > 0) {
           message += '<div>'
           message += '<h3 style="color: #F56C6C; margin-bottom: 8px;">已过期年费提醒</h3>'
-          message += '<ul style="list-style-type: none; padding: 0; margin: 0;">'
+          message += '<ul style="list-style-type: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 16px;">'
           overdueCards.sort((a, b) => b.diffDays - a.diffDays).forEach(card => {
-            message += `<li style="margin-bottom: 8px; padding: 8px; background: #FEF0F0; border-radius: 4px;">
+            message += `<li style="margin: 0; padding: 12px; background: #FEF0F0; border-radius: 4px; flex: 0 1 calc(33.33% - 12px); min-width: 200px; box-sizing: border-box;">
               <strong>${card.alias}</strong>
               <div style="color: #666; margin-top: 4px;">已过期 ${-card.diffDays} 天</div>
             </li>`
@@ -689,4 +711,10 @@ export default {
 
 <style lang="scss">
 @import '@/styles/app.scss';
+
+// 全局弹窗需要去掉 :deep 并添加 !important
+.el-message-box {
+  width: 720px !important;
+  max-width: 95vw !important;
+}
 </style>
