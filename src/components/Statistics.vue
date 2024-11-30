@@ -49,19 +49,25 @@
       </template>
       <div class="annual-fee-stats">
         <el-row :gutter="20">
-          <el-col :span="8">
+          <el-col :span="6">
             <div class="stat-item">
               <div class="stat-title">总计年费卡片</div>
               <div class="stat-value">{{ totalAnnualFeeCards }}</div>
             </div>
           </el-col>
-          <el-col :span="8">
+          <el-col :span="6">
+            <div class="stat-item warning">
+              <div class="stat-title">未达标</div>
+              <div class="stat-value">{{ unqualifiedCards.length }}</div>
+            </div>
+          </el-col>
+          <el-col :span="6">
             <div class="stat-item warning">
               <div class="stat-title">即将到期</div>
               <div class="stat-value">{{ warningCards.length }}</div>
             </div>
           </el-col>
-          <el-col :span="8">
+          <el-col :span="6">
             <div class="stat-item danger">
               <div class="stat-title">已过期</div>
               <div class="stat-value">{{ overdueCards.length }}</div>
@@ -372,44 +378,66 @@ export default {
 
     // 计算属性
     const totalAnnualFeeCards = computed(() => {
-      return props.cardData.filter(card => card.nextAnnualFeeCollectionTime).length
+      return props.cardData.filter(card => card.nextAnnualFeeCollectionTime && card.isQualified !== '3').length
     })
     
     const warningCards = ref([])
     const overdueCards = ref([])
+    const unqualifiedCards = ref([])
     
     // 检测年费情况
     const checkAnnualFees = async () => {
       const now = new Date()
       warningCards.value = []
       overdueCards.value = []
+      unqualifiedCards.value = []
       
       // 收集需要提醒的卡片
       for (const card of props.cardData) {
-        if (!card.nextAnnualFeeCollectionTime) continue
+        if (!card.nextAnnualFeeCollectionTime || card.isQualified === '3') continue
         
         const dueDate = new Date(card.nextAnnualFeeCollectionTime)
         const diffDays = Math.ceil((dueDate - now) / (1000 * 60 * 60 * 24))
         
-        if (diffDays <= 60 && diffDays > 0) {
+        // 未达标的卡片
+        if (card.isQualified === '2' && diffDays > 0) {
+          unqualifiedCards.value.push({ ...card, diffDays })
+        }
+        // 即将到期的卡片（不包括未达标的卡片）
+        else if (diffDays <= 60 && diffDays > 0 && card.isQualified !== '2') {
           warningCards.value.push({ ...card, diffDays })
-        } else if (diffDays <= 0 && diffDays > -60) {
+        }
+        // 已过期的卡片
+        else if (diffDays <= 0 && diffDays > -60) {
           overdueCards.value.push({ ...card, diffDays })
         }
       }
       
       // 如果有需要提醒的卡片，显示汇总弹窗
-      if (warningCards.value.length > 0 || overdueCards.value.length > 0) {
+      if (warningCards.value.length > 0 || overdueCards.value.length > 0 || unqualifiedCards.value.length > 0) {
         // 构建提醒消息
         let message = '<div style="max-height: 400px; overflow-y: auto;">'
+        
+        if (unqualifiedCards.value.length > 0) {
+          message += '<div style="margin-bottom: 16px;">'
+          message += '<h3 style="color: #E6A23C; margin-bottom: 8px;">年费尚未达标</h3>'
+          message += '<ul style="list-style-type: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 16px;">'
+          unqualifiedCards.value.sort((a, b) => a.diffDays - b.diffDays).forEach(card => {
+            message += `<li style="margin: 0; padding: 12px; background: #fdf6ec; border-radius: 4px; flex: 0 1 calc(33.33% - 12px); min-width: 200px; box-sizing: border-box;">
+              <strong>${card.bank}${card.type}</strong>
+              <div style="color: #666; margin-top: 4px;">距离年费收取还有 ${card.diffDays} 天</div>
+            </li>`
+          })
+          message += '</ul></div>'
+        }
         
         if (warningCards.value.length > 0) {
           message += '<div style="margin-bottom: 16px;">'
           message += '<h3 style="color: #E6A23C; margin-bottom: 8px;">即将到期年费提醒</h3>'
-          message += '<ul style="list-style-type: none; padding: 0; margin: 0;">'
+          message += '<ul style="list-style-type: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 16px;">'
           warningCards.value.sort((a, b) => a.diffDays - b.diffDays).forEach(card => {
-            message += `<li style="margin-bottom: 8px; padding: 8px; background: #FDF6EC; border-radius: 4px;">
-              <strong>${card.alias}</strong>
+            message += `<li style="margin: 0; padding: 12px; background: #fefce8; border-radius: 4px; flex: 0 1 calc(33.33% - 12px); min-width: 200px; box-sizing: border-box;">
+              <strong>${card.bank}${card.type}</strong>
               <div style="color: #666; margin-top: 4px;">将在 ${card.diffDays} 天后收取年费</div>
             </li>`
           })
@@ -417,13 +445,13 @@ export default {
         }
         
         if (overdueCards.value.length > 0) {
-          message += '<div>'
+          message += '<div style="margin-bottom: 16px;">'
           message += '<h3 style="color: #F56C6C; margin-bottom: 8px;">已过期年费提醒</h3>'
-          message += '<ul style="list-style-type: none; padding: 0; margin: 0;">'
+          message += '<ul style="list-style-type: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 16px;">'
           overdueCards.value.sort((a, b) => b.diffDays - a.diffDays).forEach(card => {
-            message += `<li style="margin-bottom: 8px; padding: 8px; background: #FEF0F0; border-radius: 4px;">
-              <strong>${card.alias}</strong>
-              <div style="color: #666; margin-top: 4px;">已过期 ${-card.diffDays} 天</div>
+            message += `<li style="margin: 0; padding: 12px; background: #fef0f0; border-radius: 4px; flex: 0 1 calc(33.33% - 12px); min-width: 200px; box-sizing: border-box;">
+              <strong>${card.bank}${card.type}</strong>
+              <div style="color: #666; margin-top: 4px;">已过期 ${Math.abs(card.diffDays)} 天</div>
             </li>`
           })
           message += '</ul></div>'
@@ -500,6 +528,7 @@ export default {
       const now = new Date()
       let warningCount = 0
       let overdueCount = 0
+      let unqualifiedCount = 0
 
       props.cardData.forEach(card => {
         if (!card.nextAnnualFeeCollectionTime) return
@@ -507,9 +536,16 @@ export default {
         const dueDate = new Date(card.nextAnnualFeeCollectionTime)
         const diffDays = Math.ceil((dueDate - now) / (1000 * 60 * 60 * 24))
         
-        if (diffDays <= 60 && diffDays > 0) {
+        // 未达标的卡片
+        if (card.isQualified === '2' && diffDays > 0) {
+          unqualifiedCount++
+        }
+        // 即将到期的卡片（不包括未达标的卡片）
+        else if (diffDays <= 60 && diffDays > 0 && card.isQualified !== '2') {
           warningCount++
-        } else if (diffDays <= 0 && diffDays > -60) {
+        }
+        // 已过期的卡片
+        else if (diffDays <= 0 && diffDays > -60) {
           overdueCount++
         }
       })
@@ -524,6 +560,12 @@ export default {
         return {
           text: '即将到期',
           detail: `${warningCount}张卡年费即将到期`,
+          class: 'warning'
+        }
+      } else if (unqualifiedCount > 0) {
+        return {
+          text: '未达标',
+          detail: `${unqualifiedCount}张卡未达标`,
           class: 'warning'
         }
       } else {
@@ -576,6 +618,7 @@ export default {
       totalAnnualFeeCards,
       warningCards,
       overdueCards,
+      unqualifiedCards,
       checkAnnualFees,
       dialogVisible,
       bankDistributionChart,
@@ -594,6 +637,9 @@ export default {
 <style scoped>
 .statistics-container {
   padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
 }
 
 .overview-section {
@@ -606,42 +652,12 @@ export default {
   gap: 20px;
 }
 
-.stat-item {
-  text-align: center;
-  padding: 16px;
-  border-radius: 8px;
-  background-color: #f5f7fa;
-  margin-bottom: 16px;
-}
-
-.stat-title {
-  font-size: 14px;
-  color: #606266;
-  margin-bottom: 8px;
-}
-
-.stat-value {
-  font-size: 24px;
-  font-weight: bold;
-  color: #303133;
-  font-family: monospace; /* 使用等宽字体确保数字对齐 */
-}
-
-.warning .stat-value {
-  color: #E6A23C;
-}
-
-.danger .stat-value {
-  color: #F56C6C;
-}
-
 .chart-row {
   margin-bottom: 20px;
 }
 
 .chart-card {
-  margin-bottom: 20px;
-  height: 500px;
+  height: 100%;
 }
 
 .card-header {
@@ -651,12 +667,45 @@ export default {
 }
 
 .chart-container {
-  height: calc(100% - 60px);
-  padding: 10px;
+  height: 400px;
 }
 
 .annual-fee-stats {
-  margin-top: 16px;
+  padding: 10px;
+}
+
+.stat-item {
+  text-align: center;
+  padding: 20px;
+  border-radius: 8px;
+  background-color: var(--el-fill-color-light);
+  transition: all 0.3s ease;
+
+  &.warning {
+    background-color: #fefce8;
+    .stat-title {
+      color: #E6A23C;
+    }
+  }
+
+  &.danger {
+    background-color: #fef0f0;
+    .stat-title {
+      color: #F56C6C;
+    }
+  }
+
+  .stat-title {
+    font-size: 16px;
+    color: var(--el-text-color-secondary);
+    margin-bottom: 10px;
+  }
+
+  .stat-value {
+    font-size: 24px;
+    font-weight: bold;
+    color: var(--el-text-color-primary);
+  }
 }
 
 .statistics-dialog {
@@ -671,72 +720,52 @@ export default {
 
 .stat-card {
   text-align: center;
-  padding: 20px;
-}
+  transition: transform 0.3s ease;
 
-.stat-title {
-  font-size: 14px;
-  color: #606266;
-  margin-bottom: 10px;
-}
+  &:hover {
+    transform: translateY(-5px);
+  }
 
-.stat-value {
-  font-size: 24px;
-  font-weight: bold;
-  color: #303133;
-}
+  .stat-title {
+    font-size: 16px;
+    color: var(--el-text-color-secondary);
+    margin-bottom: 10px;
+  }
 
-.stat-detail {
-  font-size: 12px;
-  color: #909399;
-  margin-top: 5px;
+  .stat-value {
+    font-size: 24px;
+    font-weight: bold;
+    color: var(--el-text-color-primary);
+    margin-bottom: 5px;
+  }
+
+  .stat-detail {
+    font-size: 14px;
+    color: var(--el-text-color-secondary);
+  }
+
+  &.warning {
+    .stat-value {
+      color: var(--el-color-warning);
+    }
+  }
+
+  &.danger {
+    .stat-value {
+      color: var(--el-color-danger);
+    }
+  }
 }
 
 .chart {
   height: 400px;
-  margin: 20px 0;
+  margin-bottom: 30px;
 }
 
 .limits-detail {
-  margin-top: 30px;
-
   h3 {
-    margin-bottom: 15px;
-    font-size: 16px;
-    font-weight: bold;
-    color: #303133;
-  }
-
-  :deep(.el-table) {
-    margin-top: 15px;
-    
-    th {
-      background-color: #f5f7fa;
-      color: #606266;
-      font-weight: bold;
-    }
-    
-    td {
-      color: #606266;
-    }
-  }
-}
-
-.warning {
-  .stat-value {
-    color: #E6A23C;
-  }
-}
-
-.danger {
-  .stat-value {
-    color: #F56C6C;
-  }
-}
-
-.normal {
-  .stat-value {
-    color: #67C23A;
+    margin-bottom: 20px;
+    color: var(--el-text-color-primary);
   }
 }
 </style>

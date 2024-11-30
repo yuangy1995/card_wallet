@@ -486,7 +486,7 @@ export default {
 </script>
 
 <style lang="scss">
-@import './styles/app.scss';
+@use './styles/app.scss';
 
 // 全局弹窗样式
 .el-message-box {
