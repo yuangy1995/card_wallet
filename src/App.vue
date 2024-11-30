@@ -352,7 +352,7 @@ export default {
         try {
           await ElMessageBox.alert(
             message,
-            '年费提醒',
+            '',
             {
               confirmButtonText: '知道了',
               dangerouslyUseHTMLString: true,

@@ -246,6 +246,14 @@
   li:hover {
     transform: translateX(4px);
   }
+  
+  :deep(.el-message-box__header) {
+    display: none;
+  }
+  
+  :deep(.el-message-box__content) {
+    padding-top: 20px;
+  }
 }
 
 /* 确保样式应用到表格行 */

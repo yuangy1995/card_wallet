@@ -1,7 +1,6 @@
 <template>
   <el-dialog
     v-model="dialogVisible"
-    title="确认删除"
     width="30%"
     :close-on-click-modal="false"
     draggable
@@ -30,13 +29,13 @@
     </div>
 
     <template #footer>
-      <span class="dialog-footer">
+      <div class="dialog-footer">
         <el-button @click="handleCancel">取消</el-button>
         <el-button type="danger" @click="handleConfirm">
           <el-icon><Delete /></el-icon>
           确认删除
         </el-button>
-      </span>
+      </div>
     </template>
   </el-dialog>
 </template>
@@ -133,8 +132,9 @@ export default {
 
 .dialog-footer {
   display: flex;
-  justify-content: flex-end;
+  justify-content: center;
   gap: 12px;
+  padding-top: 20px;
 }
 
 :deep(.el-alert__title) {
@@ -143,5 +143,9 @@ export default {
 
 :deep(.el-alert__content) {
   width: 100%;
+}
+
+:deep(.el-dialog__header) {
+  display: none;
 }
 </style>
