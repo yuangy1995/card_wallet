@@ -120,7 +120,6 @@
               placeholder="请输入CVV"
               maxlength="4"
               show-password
-              clearable
             >
               <template #append>
                 <el-tooltip content="CVV通常为卡片背面的3位数字，美国运通卡为正面4位数字">

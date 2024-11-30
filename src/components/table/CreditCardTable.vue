@@ -8,13 +8,13 @@
       @row-contextmenu="handleContextMenu"
     >
       <el-table-column type="index" label="序号" width="60" align="center" fixed />
-      <el-table-column prop="country" label="国家" width="130" align="center" fixed />
+      <el-table-column prop="country" label="国家" width="100" align="center" fixed />
       <el-table-column prop="bank" label="银行" width="150" align="center" fixed />
       <el-table-column prop="alias" label="别名" width="200" align="center" fixed />
       <el-table-column prop="level" label="等级" width="110" align="center" />
       <el-table-column prop="type" label="币种" width="150" align="center" />
       <el-table-column prop="annualFee" label="年费" width="90" align="center" />
-      <el-table-column prop="cardNumber" label="💳 卡号" width="200" align="center">
+      <el-table-column prop="cardNumber" label="💳 卡号" width="250" align="center">
         <template #default="{ row }">
           <secure-field 
             :value="row.cardNumber"
@@ -26,7 +26,7 @@
           />
         </template>
       </el-table-column>
-      <el-table-column prop="valid" label="有效期" width="80" align="center" />
+      <el-table-column prop="valid" label="有效期" width="120" align="center" />
       <el-table-column prop="cvv" label="🔒 CVV" width="120" align="center">
         <template #default="{ row }">
           <secure-field 
