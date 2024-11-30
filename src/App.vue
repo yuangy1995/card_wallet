@@ -19,11 +19,6 @@
           <FolderOpened />
         </el-icon>导入数据
       </el-button>
-      <el-button @click="handleSort">
-        <el-icon>
-          <Sort />
-        </el-icon>排序
-      </el-button>
     </div>
 
     <CreditCardTable 
@@ -38,7 +33,6 @@
     <credit-card-dialog v-model:visible="creditCardData.dialogFormVisible" :mode="status"
       :initial-data="creditCardData.data" @submit="confirmAdd" @cancel="handleDialogCancel" />
 
-    <sort-dialog v-model:visible="sortDialogVisible" v-model="sortValue" @confirm="handleSortConfirm" />
 
     <import-export-dialog v-model:visible="importExportDialogVisible" :is-import="isImportMode" :data="cardData"
       @import="handleImportData" />
@@ -73,19 +67,16 @@
 <script>
 import { creditCardOptions } from '@/config/creditCardOptions'
 import { ElNotification } from 'element-plus'
-import SecureField from './components/common/SecureField.vue'
 import SearchForm from './components/search/SearchForm.vue'
 import CreditCardTable from './components/table/CreditCardTable.vue'
 import CreditCardDialog from './components/dialog/CreditCardDialog.vue'
-import SortDialog from './components/dialog/SortDialog.vue'
 import ImportExportDialog from './components/dialog/ImportExportDialog.vue'
 import DeleteConfirmDialog from './components/dialog/DeleteConfirmDialog.vue'
-import { Plus, Download, Upload, Sort, Share, FolderOpened } from '@element-plus/icons-vue'
+import { Plus, Share, FolderOpened } from '@element-plus/icons-vue'
 import { predefinedNotifications } from './utils/notification'
 import CreditCardStatistics from './components/statistics/CreditCardStatistics.vue'
 import {
   timestampToTime,
-  getDaysDifference,
   completeAccountBillDate,
   completeDueDate,
   calculateInterestFreePeriod,
@@ -100,12 +91,9 @@ export default {
     Plus,
     FolderOpened,
     Share,
-    Sort,
-    SecureField,
     SearchForm,
     CreditCardTable,
     CreditCardDialog,
-    SortDialog,
     ImportExportDialog,
     DeleteConfirmDialog,
     CardDetailsDialog,
@@ -253,30 +241,23 @@ export default {
     },
   },
   methods: {
-    //通知程序
     notic(title, message, type, duration, html) {
       ElNotification({
         title: title,
         message: message,
-        dangerouslyUseHTMLString: html ? html : false,
-        duration: duration ? duration : 2500,
         type: type,
+        duration: duration,
+        dangerouslyUseHTMLString: html
       })
     },
-    // 处理统计信息更新
     handleStatisticsUpdated(statistics) {
-      console.log('统计信息已更新:', statistics)
-      // 这里可以添加其他处理逻辑，比如保存到本地存储或更新其他组件
+      this.creditCardStatistics = statistics;
     },
-    //清空所有数据
     deleteAllData() {
+      localStorage.removeItem('cardData');
       this.cardData = [];
-      //清除localStorage的存储数据
-      localStorage.removeItem("cardData");
-      localStorage.removeItem("tableCustom");
-      this.notic('Success', '数据已全部清空！', 'success');
+      this.notic('成功', '数据已清空', 'success', 2000);
     },
-    //添加卡片
     addCreditCard() {
       this.status = 'add';
       this.creditCardData.dialogFormVisible = true;
@@ -300,7 +281,6 @@ export default {
         lastTime: "",
       };
     },
-    //编辑卡片
     editCreditCard(row) {
       this.status = 'edit';
       this.creditCardData.dialogFormVisible = true;
@@ -308,13 +288,13 @@ export default {
     },
     confirmAdd(data) {
       if (this.status == 'add') {
-        this.notic('添加成功', '该卡片已被添加！', 'success');
+        this.notic('添加成功', '该卡片已被添加！', 'success', 2000);
         this.creditCardData.dialogFormVisible = false;
         this.cardData.push(Object.assign({}, data));
         predefinedNotifications.cardAdded()
       } else if (this.status == 'edit') {
         this.cardData.splice(this.cardData.findIndex(item => item.id == data.id), 1, Object.assign({}, data));
-        this.notic('修改成功', '该卡片已被修改！', 'success');
+        this.notic('修改成功', '该卡片已被修改！', 'success', 2000);
         this.creditCardData.dialogFormVisible = false;
         predefinedNotifications.cardUpdated()
       }
@@ -330,125 +310,65 @@ export default {
         this.cardToDelete = null;
       }
     },
-    //导出数据
     exportData() {
       this.isImportMode = false;
       this.importExportDialogVisible = true;
     },
-    //导入数据
     importData() {
       this.isImportMode = true;
       this.importExportDialogVisible = true;
     },
     handleImportData(data) {
       this.cardData = data;
-      this.notic('Success', '数据导入成功！', 'success');
+      this.notic('成功', '数据导入成功！', 'success', 2000);
       predefinedNotifications.dataImported()
     },
-    //时间戳处理函数
-    timestampToTime(timestamp, format) {
-      return timestampToTime(timestamp, format)
-    },
-
-    //计算两个日期之间相差的天数
-    getDays(dateString1, dateString2) {
-      return getDaysDifference(dateString1, dateString2)
-    },
-
-    //账单日补全
-    accountBillDateCompletion(accountBillDate, dateType) {
-      return completeAccountBillDate(accountBillDate, dateType)
-    },
-
-    //还款日补全
-    dueDateCompletion(accountBillDate, dueDate, dateType) {
-      return completeDueDate(accountBillDate, dueDate, dateType)
-    },
-
-    //本期免息期计算
-    interestFreePeriodCalculation(accountBillDate, dueDate) {
-      return calculateInterestFreePeriod(accountBillDate, dueDate)
-    },
-
-    //上期账单还款剩余日计算
-    preDueDateDayCalculation(accountBillDate, dueDate) {
-      return calculateRemainingDaysForPreviousBill(accountBillDate, dueDate)
-    },
-
-    //检查年费收取时间
-    checkAnnualFeeDate(nextAnnualFeeDate) {
-      return isNearAnnualFeeDate(nextAnnualFeeDate)
-    },
-    //一键排序，点击按钮后，弹出一个对话框
     oneKeySort() {
       this.sortData.dialogFormVisible = true;
     },
-    //一键排序确认
     oneKeySortConfirm() {
-      //根据sortData.value的值来判断按照哪个字段排序
-      if (this.sortData.value == '国家') {
-        this.cardData.sort((a, b) => {
-          return a.country.localeCompare(b.country);
-        })
-      } else if (this.sortData.value == '银行') {
-        this.cardData.sort((a, b) => {
-          return a.bank.localeCompare(b.bank);
-        })
-      } else if (this.sortData.value == '等级') {
-        this.cardData.sort((a, b) => {
-          return a.level.localeCompare(b.level);
-        })
-      } else if (this.sortData.value == '币种') {
-        this.cardData.sort((a, b) => {
-          return a.type.localeCompare(b.type);
-        })
-      } else if (this.sortData.value == '本年度年费是否达标') {
-        this.cardData.sort((a, b) => {
-          return a.isQualified - b.isQualified;
-        })
-      }
+      const sortKey = {
+        '国家': 'country',
+        '银行': 'bank',
+        '等级': 'level',
+        '币种': 'type',
+        '本年度年费是否达标': 'isQualified'
+      };
+      const key = sortKey[this.sortData.value];
+      if (!key) return;
+      this.cardData.sort((a, b) => {
+        if (a[key] === b[key]) return 0;
+        return a[key] > b[key] ? 1 : -1;
+      });
       this.sortData.dialogFormVisible = false;
+      this.notic('成功', '排序完成', 'success', 2000);
     },
-    //根据本年度年费是否达标，不达标的每张卡弹出提示
     oneCheck() {
-      let notQualified = this.cardData.filter(item => item.isQualified == '2');
-      let str = '';
-      notQualified.forEach(item => {
-        str += item.alias + '、';
-      })
-      str = str.slice(0, str.length - 1);
-      if (str.length > 0) {
-        this.notic('本年度年费未达标', str + '的年费未达标，请及时处理！', 'warning', 9999999999);
-      } else {
-        this.notic('本年度年费未达标', '本年度卡片年费已经全部达标！', 'success', 9999999999);
+      const unqualifiedCards = this.cardData.filter(card => card.isQualified === '2');
+      if (unqualifiedCards.length > 0) {
+        unqualifiedCards.forEach(card => {
+          this.notic(
+            '提醒',
+            `${card.bank}的${card.alias || card.cardNumber}本年度年费未达标`,
+            'warning', 0, true
+          );
+        });
       }
-      //3秒后执行twoCheck函数
-      setTimeout(() => {
-        this.twoCheck();
-      }, 1000);
     },
-    //根据填写的下次年费收取时间，跟当前的时间进行比对，如果时间差小于等于60天，则弹出提示
     twoCheck() {
-      let nowTime = new Date().getTime();
-      let nextAnnualFeeCollectionTime = this.cardData.filter(item => {
-        let time = new Date(item.nextAnnualFeeCollectionTime).getTime();
-        let days = this.getDays(nowTime, time);
-        if (days <= 60) {
-          return true;
+      this.cardData.forEach(card => {
+        if (card.nextAnnualFeeCollectionTime) {
+          const nextAnnualFeeDate = new Date(card.nextAnnualFeeCollectionTime);
+          if (isNearAnnualFeeDate(nextAnnualFeeDate)) {
+            this.notic(
+              '提醒',
+              `${card.bank}的${card.alias || card.cardNumber}将在60天内收取年费`,
+              'warning', 0, true
+            );
+          }
         }
       });
-      let str = '';
-      nextAnnualFeeCollectionTime.forEach(item => {
-        str += item.alias + '、';
-      })
-      str = str.slice(0, str.length - 1);
-      if (str.length > 0) {
-        this.notic('下次年费收取时间', str + '的下次年费收取时间距离现在不足60天，请及时处理！', 'warning', 9999999999);
-      } else {
-        this.notic('下次年费收取时间', '暂无不到60天内即将收取年费的卡片！', 'success', 5000);
-      }
     },
-    // 表格自定义确认
     handleTableCustomConfirm(selectedColumns) {
       this.selectedTableColumns = selectedColumns
       this.creditCardData.options.tableCustomData.forEach(item => {
@@ -457,55 +377,10 @@ export default {
       // 保存到本地存储
       localStorage.setItem('tableCustom', JSON.stringify(this.creditCardData.options.tableCustomData))
     },
-    //信用卡统计
-    creditCardStatistics() {
-      //展示所有卡片数量，国家类型有几个，各个级别的卡片有多少张，各个币种的卡片有多少张，有多少种银行类别
-      let allCardNumber = this.cardData.length;
-      let countryType = [];
-      let levelType = [];
-      let currencyType = [];
-      let bankType = [];
-      this.cardData.forEach(item => {
-        if (countryType.indexOf(item.country) == -1) {
-          countryType.push(item.country);
-        }
-        if (levelType.indexOf(item.level) == -1) {
-          levelType.push(item.level);
-        }
-        if (currencyType.indexOf(item.type) == -1) {
-          currencyType.push(item.type);
-        }
-        if (bankType.indexOf(item.bank) == -1) {
-          bankType.push(item.bank);
-        }
-      })
-      //统计人民币总额度，每个银行的人民币额度只计算一次
-      let totalLimitCNY = 0;
-      let bankList = [];
-      this.cardData.forEach(item => {
-        if (item.type == '人民币(CNY)' && bankList.indexOf(item.bank) == -1) {
-          totalLimitCNY += item.limit ? Number(item.limit) : 0;
-          bankList.push(item.bank);
-        }
-      })
-      //对统计结果进行展示，每个类型换行展示
-      this.notic('信用卡统计',
-        `所有卡片数量：${allCardNumber}张<br/>
-        国家类型有：${countryType.length}种<br/>
-          卡等级有：${levelType.length}种<br/>
-            币种有：${currencyType.length}种<br/>
-        银行类别有：${bankType.length}种<br/>
-        人民币总额度：${totalLimitCNY}元<br/>`,
-        'success',
-        9999999999,
-        true);
-    },
-    //查看详情
     viewDetails(row) {
       this.currentCard = { ...row };
       this.detailsVisible = true;
     },
-    //处理卡号显示状态变化
     handleCardNumberVisibility({ id, isVisible }) {
       const card = this.cardData.find(card => card.id === id)
       if (card) {
@@ -516,8 +391,6 @@ export default {
         }
       }
     },
-
-    // 处理CVV显示状态变化
     handleCvvVisibility({ id, isVisible }) {
       const card = this.cardData.find(card => card.id === id)
       if (card) {
@@ -531,22 +404,6 @@ export default {
     handleDialogCancel() {
       this.creditCardData.dialogFormVisible = false;
     },
-    handleSort() {
-      this.sortDialogVisible = true;
-    },
-    handleSortConfirm(value) {
-      const sortFunctions = {
-        '1': (a, b) => a.creditLimit - b.creditLimit,
-        '2': (a, b) => b.creditLimit - a.creditLimit,
-        '3': (a, b) => a.annualFee - b.annualFee,
-        '4': (a, b) => b.annualFee - a.annualFee,
-        '5': (a, b) => a.billDay - b.billDay,
-        '6': (a, b) => b.billDay - a.billDay,
-        '7': (a, b) => a.repaymentDay - b.repaymentDay,
-        '8': (a, b) => b.repaymentDay - a.repaymentDay
-      }
-      this.cardData.sort(sortFunctions[value])
-    }
   },
   watch: {
     //监听cardData的变化，如果变化了，就把cardData存到localStorage里面
