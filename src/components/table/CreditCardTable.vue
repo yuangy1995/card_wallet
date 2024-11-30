@@ -40,7 +40,7 @@
       </el-table-column>
       <el-table-column prop="limit" label="额度" width="100" align="center" />
       <el-table-column prop="nextAnnualFeeCollectionTime" label="下次年费收取时间" width="150" align="center" />
-      <el-table-column prop="lastTime" label="最后更新时间" width="170" align="center" />
+      <el-table-column prop="lastTime" label="最后提额时间" width="170" align="center" />
       <el-table-column prop="isQualified" label="年费达标" width="100" align="center">
         <template #default="{ row }">
           <el-tag v-if="row.isQualified === '1'" type="success">已达标</el-tag>

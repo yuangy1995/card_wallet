@@ -161,13 +161,35 @@
 
         <!-- 卡片信息 -->
         <el-descriptions-item label="📊 账单日">
-          <el-input type="number" v-model="formData.accountBillDate" autocomplete="off" clearable />
+          <el-form-item prop="accountBillDate">
+            <el-input 
+              v-model="formData.accountBillDate" 
+              placeholder="请输入账单日"
+              type="number"
+              autocomplete="off" 
+              clearable 
+            />
+          </el-form-item>
         </el-descriptions-item>
         <el-descriptions-item label="💸 还款日">
-          <el-input type="number" v-model="formData.dueDate" autocomplete="off" clearable />
+          <el-form-item prop="dueDate">
+            <el-input 
+              v-model="formData.dueDate" 
+              placeholder="请输入还款日"
+              type="number"
+              autocomplete="off" 
+              clearable 
+            />
+          </el-form-item>
         </el-descriptions-item>
         <el-descriptions-item label="💵 年费">
-          <el-input type="number" v-model="formData.annualFee" autocomplete="off" clearable />
+          <el-input 
+            v-model="formData.annualFee" 
+            placeholder="请输入年费"
+            type="number"
+            autocomplete="off" 
+            clearable 
+          />
         </el-descriptions-item>
 
         <!-- 年费信息 -->
@@ -234,6 +256,44 @@ import { ElMessage } from 'element-plus'
 import { creditCardOptions } from '@/config/creditCardOptions'
 import { QuestionFilled } from '@element-plus/icons-vue'
 
+// 信用卡类型识别
+const CARD_TYPES = {
+  visa: {
+    pattern: /^4/,
+    name: '维萨卡'
+  },
+  mastercard: {
+    pattern: /^5[1-5]/,
+    name: '万事达卡'
+  },
+  amex: {
+    pattern: /^3[47]/,
+    name: '美国运通卡'
+  },
+  discover: {
+    pattern: /^6(?:011|5)/,
+    name: '发现卡'
+  },
+  unionpay: {
+    pattern: /^62/,
+    name: '银联卡'
+  },
+  jcb: {
+    pattern: /^35/,
+    name: 'JCB卡'
+  }
+}
+
+function getCardType(cardNumber) {
+  const cleanNumber = cardNumber.replace(/\D/g, '')
+  for (const [type, info] of Object.entries(CARD_TYPES)) {
+    if (info.pattern.test(cleanNumber)) {
+      return info.name
+    }
+  }
+  return '未知卡片'
+}
+
 // Luhn算法验证信用卡号
 function validateCardNumber(cardNumber) {
   if (!cardNumber) return false
@@ -284,6 +344,16 @@ function formatCurrency(value, currency) {
   return `${symbol}${value.toLocaleString()}`
 }
 
+// 验证日期范围（1-31）
+function validateDateRange(rule, value, callback) {
+  const num = parseInt(value)
+  if (isNaN(num) || num < 1 || num > 31) {
+    callback(new Error('请输入1-31之间的数字'))
+  } else {
+    callback()
+  }
+}
+
 export default {
   name: 'CreditCardDialog',
   components: {
@@ -307,6 +377,7 @@ export default {
   emits: ['update:visible', 'submit', 'cancel'],
   setup(props, { emit }) {
     const formRef = ref(null)
+    const cardType = ref('')
     
     // 表单验证规则
     const rules = {
@@ -338,6 +409,18 @@ export default {
       ],
       type: [
         { required: true, message: '请选择币种', trigger: 'change' }
+      ],
+      accountBillDate: [
+        { required: true, message: '请输入账单日', trigger: 'blur' },
+        { validator: validateDateRange, trigger: 'blur' }
+      ],
+      dueDate: [
+        { required: true, message: '请输入还款日', trigger: 'blur' },
+        { validator: validateDateRange, trigger: 'blur' }
+      ],
+      limit: [
+        { required: true, message: '请输入额度', trigger: 'blur' },
+        { type: 'number', min: 0, message: '额度必须大于0', trigger: 'blur' }
       ]
     }
 
@@ -346,7 +429,12 @@ export default {
       if (!value) return ''
       value = value.replace(/\D/g, '')
       const groups = value.match(/\d{1,4}/g)
-      return groups ? groups.join(' ') : value
+      const formatted = groups ? groups.join(' ') : value
+      
+      // 更新卡片类型
+      cardType.value = getCardType(value)
+      
+      return formatted
     }
 
     // 解析卡号
@@ -370,7 +458,10 @@ export default {
     }
 
     // 对话框标题
-    const title = computed(() => props.mode === 'add' ? '新增信用卡' : '编辑信用卡')
+    const title = computed(() => {
+      const baseTitle = props.mode === 'add' ? '新增信用卡' : '编辑信用卡'
+      return cardType.value ? `${baseTitle} (${cardType.value})` : baseTitle
+    })
 
     // 对话框可见性
     const dialogVisible = computed({
@@ -421,6 +512,11 @@ export default {
           
           // 更新表单数据
           formData.value = data
+          
+          // 更新卡片类型
+          if (data.cardNumber) {
+            cardType.value = getCardType(data.cardNumber)
+          }
         }
       },
       { immediate: true, deep: true }
@@ -430,7 +526,8 @@ export default {
     watch(
       () => props.visible,
       (newVal) => {
-        if (!newVal && props.mode === 'add') {
+        if (!newVal) {
+          // 重置表单数据
           formData.value = {
             country: '',
             bank: '',
@@ -449,6 +546,12 @@ export default {
             lastTime: '',
             equity: '',
             remark: ''
+          }
+          // 重置卡片类型
+          cardType.value = ''
+          // 重置表单验证
+          if (formRef.value) {
+            formRef.value.resetFields()
           }
         }
       }
@@ -508,6 +611,7 @@ export default {
       formData,
       options,
       rules,
+      cardType,
       formatCardNumber,
       parseCardNumber,
       formatCurrency,
