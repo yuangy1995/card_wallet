@@ -32,26 +32,26 @@
         sortable="custom"
         :sort-method="sortMethods.cardNumber"
       >
-        <template #default="{ row }">
-          <secure-field 
-            :value="row.cardNumber"
+        <template #default="scope">
+          <SecureField 
+            :id="`card-number-${scope.$index}`"
+            :value="scope.row.cardNumber"
             :mask-start="4"
             :mask-end="12"
             type="cardNumber"
-            :id="row.id"
-            @visibility-change="handleVisibilityChange"
+            @visibility-change="(visible) => handleVisibilityChange({ id: scope.row.id, isVisible: visible, type: 'cardNumber' })"
           />
         </template>
       </el-table-column>
       <el-table-column prop="valid" label="有效期" width="120" align="center" sortable="custom" :sort-method="sortMethods.valid" />
       <el-table-column prop="cvv" label="CVV" width="120" align="center">
-        <template #default="{ row }">
-          <secure-field 
-            :value="row.cvv"
+        <template #default="scope">
+          <SecureField 
+            :id="`cvv-${scope.$index}`"
+            :value="scope.row.cvv"
             :mask-all="true"
             type="cvv"
-            :id="row.id"
-            @visibility-change="handleVisibilityChange"
+            @visibility-change="(visible) => handleVisibilityChange({ id: scope.row.id, isVisible: visible, type: 'cvv' })"
           />
         </template>
       </el-table-column>

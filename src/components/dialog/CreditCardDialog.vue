@@ -293,37 +293,57 @@ function getCardType(cardNumber) {
   return '未知卡片'
 }
 
-// Luhn算法验证信用卡号
-function validateCardNumber(cardNumber) {
-  if (!cardNumber) return false
+// 验证卡号
+const validateCardNumber = (rule, value, callback) => {
+  if (!value) {
+    return callback(new Error('请输入卡号'))
+  }
   
   // 移除所有非数字字符
-  cardNumber = cardNumber.replace(/\D/g, '')
+  const cardNumber = String(value).replace(/\D/g, '')
   
-  if (cardNumber.length < 13 || cardNumber.length > 19) return false
+  // 验证长度
+  if (cardNumber.length < 13 || cardNumber.length > 19) {
+    return callback(new Error('卡号长度必须在13-19位之间'))
+  }
   
+  // Luhn 算法验证
   let sum = 0
   let isEven = false
   
   // 从右向左遍历
   for (let i = cardNumber.length - 1; i >= 0; i--) {
-    let digit = parseInt(cardNumber[i])
+    let digit = parseInt(cardNumber.charAt(i))
     
     if (isEven) {
       digit *= 2
-      if (digit > 9) digit -= 9
+      if (digit > 9) {
+        digit -= 9
+      }
     }
     
     sum += digit
     isEven = !isEven
   }
   
-  return sum % 10 === 0
+  if (sum % 10 !== 0) {
+    return callback(new Error('请输入有效的信用卡号'))
+  }
+  
+  callback()
 }
 
-function validateCVV(rule, value, callback) {
-  if (!value) return callback(new Error('请输入CVV'))
-  if (!/^\d{3,4}$/.test(value)) return callback(new Error('CVV必须为3-4位数字'))
+// 验证CVV
+const validateCVV = (rule, value, callback) => {
+  if (!value) {
+    return callback(new Error('请输入CVV'))
+  }
+  
+  const cvv = String(value).replace(/\D/g, '')
+  if (!/^\d{3,4}$/.test(cvv)) {
+    return callback(new Error('CVV必须为3-4位数字'))
+  }
+  
   callback()
 }
 
@@ -411,7 +431,7 @@ export default {
     // 格式化卡号
     const formatCardNumber = (value) => {
       if (!value) return ''
-      value = value.replace(/\D/g, '')
+      value = String(value).replace(/\D/g, '')
       const groups = value.match(/\d{1,4}/g)
       const formatted = groups ? groups.join(' ') : value
       
@@ -423,7 +443,7 @@ export default {
 
     // 解析卡号
     const parseCardNumber = (value) => {
-      return value.replace(/\s/g, '')
+      return String(value).replace(/\s/g, '')
     }
 
     // 解析货币

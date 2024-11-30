@@ -34,6 +34,11 @@
           <Delete />
         </el-icon>清除所有数据
       </el-button>
+      <el-button type="warning" @click="generateRandomData">
+        <el-icon>
+          <Star />
+        </el-icon>生成随机数据
+      </el-button>
     </div>
 
     <CreditCardTable 
@@ -80,7 +85,7 @@ import CreditCardTable from './components/table/CreditCardTable.vue'
 import CreditCardDialog from './components/dialog/CreditCardDialog.vue'
 import ImportExportDialog from './components/dialog/ImportExportDialog.vue'
 import DeleteConfirmDialog from './components/dialog/DeleteConfirmDialog.vue'
-import { Plus, Share, FolderOpened, TrendCharts, Calendar, Delete } from '@element-plus/icons-vue'
+import { Plus, Share, FolderOpened, TrendCharts, Calendar, Delete, Star } from '@element-plus/icons-vue'
 import { predefinedNotifications } from './utils/notification'
 import {
   timestampToTime,
@@ -93,6 +98,7 @@ import {
 import CardDetailsDialog from './components/dialog/CardDetailsDialog.vue'
 import TableCustomDialog from './components/dialog/TableCustomDialog.vue'
 import Statistics from './components/Statistics.vue'
+import { generateMockData } from './utils/mockData'
 
 export default {
   components: {
@@ -102,6 +108,7 @@ export default {
     TrendCharts,
     Calendar,
     Delete,
+    Star,
     SearchForm,
     CreditCardTable,
     CreditCardDialog,
@@ -635,6 +642,12 @@ export default {
         message: '所有数据已清除',
         duration: 2000
       })
+    },
+    // 生成随机数据
+    generateRandomData() {
+      const mockData = generateMockData(15)
+      this.cardData = [...this.cardData, ...mockData]
+      ElMessage.success('已生成15条随机信用卡数据')
     },
   },
   watch: {
