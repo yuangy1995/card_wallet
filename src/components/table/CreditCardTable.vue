@@ -6,15 +6,31 @@
       border
       height="calc(100vh - 250px)"
       @row-contextmenu="handleContextMenu"
+      @sort-change="handleSortChange"
+      :default-sort="{ prop: sortState.key, order: sortState.order }"
     >
       <el-table-column type="index" label="序号" width="60" align="center" fixed />
-      <el-table-column prop="country" label="国家" width="100" align="center" fixed />
-      <el-table-column prop="bank" label="银行" width="150" align="center" fixed />
-      <el-table-column prop="alias" label="别名" width="200" align="center" fixed />
-      <el-table-column prop="level" label="等级" width="110" align="center" />
-      <el-table-column prop="type" label="币种" width="150" align="center" />
-      <el-table-column prop="annualFee" label="年费" width="90" align="center" />
-      <el-table-column prop="cardNumber" label="💳 卡号" width="250" align="center">
+      <el-table-column prop="country" label="国家" width="100" align="center" fixed sortable />
+      <el-table-column prop="bank" label="银行" width="150" align="center" fixed sortable />
+      <el-table-column prop="alias" label="别名" width="200" align="center" fixed sortable />
+      <el-table-column prop="level" label="等级" width="110" align="center" sortable />
+      <el-table-column prop="type" label="币种" width="150" align="center" sortable />
+      <el-table-column 
+        prop="annualFee" 
+        label="年费" 
+        width="90" 
+        align="center" 
+        sortable="custom" 
+        :sort-method="sortMethods.annualFee"
+      />
+      <el-table-column 
+        prop="cardNumber" 
+        label="💳 卡号" 
+        width="250" 
+        align="center" 
+        sortable="custom"
+        :sort-method="sortMethods.cardNumber"
+      >
         <template #default="{ row }">
           <secure-field 
             :value="row.cardNumber"
@@ -26,7 +42,7 @@
           />
         </template>
       </el-table-column>
-      <el-table-column prop="valid" label="有效期" width="120" align="center" />
+      <el-table-column prop="valid" label="有效期" width="120" align="center" sortable="custom" :sort-method="sortMethods.valid" />
       <el-table-column prop="cvv" label="🔒 CVV" width="120" align="center">
         <template #default="{ row }">
           <secure-field 
@@ -80,7 +96,43 @@
 import SecureField from '../common/SecureField.vue'
 import { ElMessageBox } from 'element-plus'
 import { Edit, View, Delete } from '@element-plus/icons-vue'
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
+
+// 获取卡片类型权重
+function getCardTypeWeight(cardNumber) {
+  const types = {
+    'visa': 1,
+    'mastercard': 2,
+    'amex': 3,
+    'discover': 4,
+    'unionpay': 5,
+    'jcb': 6
+  }
+  
+  if (!cardNumber) return 999 // 无卡号排最后
+  
+  const cleanNumber = cardNumber.replace(/\D/g, '')
+  for (const [type, pattern] of Object.entries(CARD_TYPES)) {
+    if (pattern.test(cleanNumber)) {
+      return types[type] || 999
+    }
+  }
+  return 999 // 未知类型排最后
+}
+
+// 解析有效期为日期对象
+function parseValidDate(valid) {
+  if (!valid) return new Date(0) // 无效期排最前
+  const [year, month] = valid.split('-')
+  return new Date(year, month - 1)
+}
+
+// 解析年费
+function parseAnnualFee(fee) {
+  if (!fee) return 0
+  const num = parseFloat(fee)
+  return isNaN(num) ? 0 : num
+}
 
 export default {
   name: 'CreditCardTable',
@@ -102,6 +154,30 @@ export default {
     const contextMenuX = ref(0)
     const contextMenuY = ref(0)
     const selectedRow = ref(null)
+
+    const sortState = ref({
+      key: localStorage.getItem('creditCardTableSortKey') || '',
+      order: localStorage.getItem('creditCardTableSortOrder') || ''
+    })
+
+    // 自定义排序方法
+    const sortMethods = {
+      cardNumber: (a, b) => {
+        const weightA = getCardTypeWeight(a.cardNumber)
+        const weightB = getCardTypeWeight(b.cardNumber)
+        return weightA - weightB
+      },
+      valid: (a, b) => {
+        const dateA = parseValidDate(a.valid)
+        const dateB = parseValidDate(b.valid)
+        return dateA - dateB
+      },
+      annualFee: (a, b) => {
+        const feeA = parseAnnualFee(a.annualFee)
+        const feeB = parseAnnualFee(b.annualFee)
+        return feeA - feeB
+      }
+    }
 
     // 处理右键菜单显示
     const handleContextMenu = (row, column, event) => {
@@ -159,13 +235,32 @@ export default {
       }
     }
 
+    // 处理排序变化
+    const handleSortChange = ({ prop, order }) => {
+      sortState.value = { key: prop, order }
+      // 保存排序状态
+      localStorage.setItem('creditCardTableSortKey', prop)
+      localStorage.setItem('creditCardTableSortOrder', order)
+    }
+
+    // 初始化时恢复排序状态
+    onMounted(() => {
+      if (sortState.value.key && sortState.value.order) {
+        // 这里需要获取表格实例并设置排序
+        // 如果使用 el-table ref，可以调用 sort 方法
+      }
+    })
+
     return {
       handleContextMenu,
       handleContextMenuAction,
       handleVisibilityChange,
       contextMenuVisible,
       contextMenuX,
-      contextMenuY
+      contextMenuY,
+      sortState,
+      sortMethods,
+      handleSortChange
     }
   }
 }
