@@ -215,6 +215,10 @@
   background-color: #fdf6ec !important;
 }
 
+.reminder-row {
+  background-color: #fefce8 !important;
+}
+
 .danger-row {
   background-color: #fef0f0 !important;
 }
@@ -251,6 +255,11 @@
     background-color: #fdf6ec !important;
   }
   
+  &.reminder-row > td {
+    --el-table-tr-bg-color: #fefce8;
+    background-color: #fefce8 !important;
+  }
+  
   &.danger-row > td {
     --el-table-tr-bg-color: #fef0f0;
     background-color: #fef0f0 !important;
@@ -261,6 +270,10 @@
 :deep(.el-table__row) {
   &.warning-row:hover > td {
     background-color: #fdf6ec !important;
+  }
+  
+  &.reminder-row:hover > td {
+    background-color: #fefce8 !important;
   }
   
   &.danger-row:hover > td {
@@ -276,6 +289,15 @@
     
     > td {
       background-color: #fdf6ec !important;
+    }
+  }
+  
+  .reminder-row {
+    --el-table-tr-bg-color: #fefce8;
+    background-color: #fefce8;
+    
+    > td {
+      background-color: #fefce8 !important;
     }
   }
   

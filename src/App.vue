@@ -280,30 +280,54 @@ export default {
       const now = new Date()
       const warningCards = []
       const overdueCards = []
+      const unqualifiedCards = []
 
       cardData.value.forEach(card => {
-        if (!card.nextAnnualFeeCollectionTime) return
+        // 如果是未达标的卡片
+        if (card.isQualified === '2' && card.nextAnnualFeeCollectionTime) {
+          const dueDate = new Date(card.nextAnnualFeeCollectionTime)
+          const diffDays = Math.ceil((dueDate - now) / (1000 * 60 * 60 * 24))
+          if (diffDays > 0) {  // 只显示还未到期的未达标卡片
+            unqualifiedCards.push({...card, diffDays})
+          }
+        }
+        
+        // 检查年费时间
+        if (!card.nextAnnualFeeCollectionTime || card.isQualified === '3') return
 
         const dueDate = new Date(card.nextAnnualFeeCollectionTime)
         const diffDays = Math.ceil((dueDate - now) / (1000 * 60 * 60 * 24))
 
-        if (diffDays <= 60 && diffDays > 0) {
+        if (diffDays <= 60 && diffDays > 0 && card.isQualified !== '2') {
           warningCards.push(card)
         } else if (diffDays <= 0 && diffDays > -60) {
           overdueCards.push(card)
         }
       })
 
-      if (warningCards.length > 0 || overdueCards.length > 0) {
+      if (warningCards.length > 0 || overdueCards.length > 0 || unqualifiedCards.length > 0) {
         let message = '<div style="max-height: 400px; overflow-y: auto;">'
+
+        if (unqualifiedCards.length > 0) {
+          message += '<div style="margin-bottom: 16px;">'
+          message += '<h3 style="color: #E6A23C; margin-bottom: 8px;">年费尚未达标</h3>'
+          message += '<ul style="list-style-type: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 16px;">'
+          unqualifiedCards.forEach(card => {
+            message += `<li style="margin: 0; padding: 12px; background: #fdf6ec; border-radius: 4px; flex: 0 1 calc(33.33% - 12px); min-width: 200px; box-sizing: border-box;">
+              <strong>${card.bank}${card.type}</strong>
+              <div style="color: #666; margin-top: 4px;">距离年费收取还有 ${card.diffDays} 天</div>
+            </li>`
+          })
+          message += '</ul></div>'
+        }
 
         if (warningCards.length > 0) {
           message += '<div style="margin-bottom: 16px;">'
           message += '<h3 style="color: #E6A23C; margin-bottom: 8px;">即将到期年费提醒</h3>'
           message += '<ul style="list-style-type: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 16px;">'
           warningCards.forEach(card => {
-            message += `<li style="margin: 0; padding: 12px; background: #FDF6EC; border-radius: 4px; flex: 0 1 calc(33.33% - 12px); min-width: 200px; box-sizing: border-box;">
-              <strong>${card.bank}${card.cardType}</strong>
+            message += `<li style="margin: 0; padding: 12px; background: #fefce8; border-radius: 4px; flex: 0 1 calc(33.33% - 12px); min-width: 200px; box-sizing: border-box;">
+              <strong>${card.bank}${card.type}</strong>
               <div style="color: #666; margin-top: 4px;">将在 ${Math.ceil((new Date(card.nextAnnualFeeCollectionTime) - now) / (1000 * 60 * 60 * 24))} 天后收取年费</div>
             </li>`
           })
@@ -315,8 +339,8 @@ export default {
           message += '<h3 style="color: #F56C6C; margin-bottom: 8px;">已过期年费提醒</h3>'
           message += '<ul style="list-style-type: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 16px;">'
           overdueCards.forEach(card => {
-            message += `<li style="margin: 0; padding: 12px; background: #FEF0F0; border-radius: 4px; flex: 0 1 calc(33.33% - 12px); min-width: 200px; box-sizing: border-box;">
-              <strong>${card.bank}${card.cardType}</strong>
+            message += `<li style="margin: 0; padding: 12px; background: #fef0f0; border-radius: 4px; flex: 0 1 calc(33.33% - 12px); min-width: 200px; box-sizing: border-box;">
+              <strong>${card.bank}${card.type}</strong>
               <div style="color: #666; margin-top: 4px;">已过期 ${Math.ceil((now - new Date(card.nextAnnualFeeCollectionTime)) / (1000 * 60 * 60 * 24))} 天</div>
             </li>`
           })
@@ -390,9 +414,27 @@ export default {
     }
 
     const getRowClassName = ({ row }) => {
+      // 如果未达标，显示警告样式（橙色）
       if (row.isQualified === '2') {
         return 'warning-row'
       }
+      
+      // 如果有下次年费收取时间且不是终免年费
+      if (row.nextAnnualFeeCollectionTime && row.isQualified !== '3') {
+        const now = new Date()
+        const dueDate = new Date(row.nextAnnualFeeCollectionTime)
+        const diffDays = Math.ceil((dueDate - now) / (1000 * 60 * 60 * 24))
+        
+        // 如果已超过年费收取期限，显示危险样式（红色）
+        if (diffDays <= 0) {
+          return 'danger-row'
+        }
+        // 如果即将收取年费，显示提醒样式（黄色）
+        else if (diffDays <= 60) {
+          return 'reminder-row'
+        }
+      }
+      
       return ''
     }
 
