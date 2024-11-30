@@ -8,6 +8,7 @@
       @row-contextmenu="handleContextMenu"
       @sort-change="handleSortChange"
       :default-sort="{ prop: sortState.key, order: sortState.order }"
+      :row-class-name="rowClassName"
     >
       <el-table-column type="index" label="序号" width="60" align="center" fixed />
       <el-table-column prop="country" label="国家" width="100" align="center" fixed sortable />
@@ -83,17 +84,21 @@
       :style="{ left: contextMenuX + 'px', top: contextMenuY + 'px' }"
     >
       <el-menu>
+        <el-menu-item v-if="showAnnualFeeOption" @click="handleSetAnnualFeeQualified">
+          <el-icon><Check /></el-icon>
+          <span>设置年费已达标</span>
+        </el-menu-item>
         <el-menu-item @click="handleContextMenuAction('edit')">
           <el-icon><Edit /></el-icon>
           <span>编辑</span>
         </el-menu-item>
-        <el-menu-item @click="handleContextMenuAction('details')">
-          <el-icon><View /></el-icon>
-          <span>详情</span>
-        </el-menu-item>
         <el-menu-item @click="handleContextMenuAction('delete')">
           <el-icon><Delete /></el-icon>
           <span>删除</span>
+        </el-menu-item>
+        <el-menu-item @click="handleContextMenuAction('details')">
+          <el-icon><View /></el-icon>
+          <span>查看详情</span>
         </el-menu-item>
       </el-menu>
     </div>
@@ -103,8 +108,8 @@
 <script>
 import SecureField from '../common/SecureField.vue'
 import { ElMessageBox } from 'element-plus'
-import { Edit, View, Delete } from '@element-plus/icons-vue'
-import { ref, onMounted } from 'vue'
+import { Edit, View, Delete, Check } from '@element-plus/icons-vue'
+import { ref, onMounted, computed } from 'vue'
 import { getDaysFromNow } from '../../utils/dateCalculator'
 
 // 获取卡片类型权重
@@ -149,15 +154,20 @@ export default {
     SecureField,
     Edit,
     View,
-    Delete
+    Delete,
+    Check
   },
   props: {
     tableData: {
       type: Array,
       required: true
+    },
+    rowClassName: {
+      type: Function,
+      required: true
     }
   },
-  emits: ['edit', 'delete', 'card-number-visibility', 'cvv-visibility', 'view-details'],
+  emits: ['edit', 'delete', 'card-number-visibility', 'cvv-visibility', 'view-details', 'annual-fee-qualified'],
   setup(props, { emit }) {
     const contextMenuVisible = ref(false)
     const contextMenuX = ref(0)
@@ -188,6 +198,14 @@ export default {
       }
     }
 
+    const showAnnualFeeOption = computed(() => {
+      if (!selectedRow.value || !selectedRow.value.nextAnnualFeeCollectionTime) return false
+      const now = new Date()
+      const dueDate = new Date(selectedRow.value.nextAnnualFeeCollectionTime)
+      const diffDays = Math.ceil((dueDate - now) / (1000 * 60 * 60 * 24))
+      return diffDays <= 60 && diffDays > -60
+    })
+
     // 处理右键菜单显示
     const handleContextMenu = (row, column, event) => {
       event.preventDefault()
@@ -212,9 +230,6 @@ export default {
         case 'edit':
           emit('edit', selectedRow.value)
           break
-        case 'details':
-          emit('view-details', selectedRow.value)
-          break
         case 'delete':
           ElMessageBox.confirm(
             '确定要删除这张信用卡吗？',
@@ -230,8 +245,16 @@ export default {
             })
             .catch(() => {})
           break
+        case 'details':
+          emit('view-details', selectedRow.value)
+          break
       }
       
+      contextMenuVisible.value = false
+    }
+
+    const handleSetAnnualFeeQualified = () => {
+      emit('annual-fee-qualified', selectedRow.value.id)
       contextMenuVisible.value = false
     }
 
@@ -252,6 +275,11 @@ export default {
       localStorage.setItem('creditCardTableSortOrder', order)
     }
 
+    // 行样式类名
+    const rowClassName = ({ row }) => {
+      return props.rowClassName({ row });
+    }
+
     // 初始化时恢复排序状态
     onMounted(() => {
       if (sortState.value.key && sortState.value.order) {
@@ -267,10 +295,14 @@ export default {
       contextMenuVisible,
       contextMenuX,
       contextMenuY,
+      selectedRow,
       sortState,
       sortMethods,
       handleSortChange,
-      getDaysFromNow
+      getDaysFromNow,
+      handleSetAnnualFeeQualified,
+      showAnnualFeeOption,
+      rowClassName
     }
   }
 }

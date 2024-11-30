@@ -19,20 +19,36 @@
           <FolderOpened />
         </el-icon>导入数据
       </el-button>
-      <el-button type="info" @click="showStatistics">
+      <el-button type="primary" @click="showStatistics">
         <el-icon>
           <TrendCharts />
         </el-icon>统计分析
       </el-button>
+      <el-button type="primary" @click="manualCheckAnnualFees">
+        <el-icon>
+          <Calendar />
+        </el-icon>检测年费情况
+      </el-button>
+      <el-button type="danger" @click="confirmClearData">
+        <el-icon>
+          <Delete />
+        </el-icon>清除所有数据
+      </el-button>
     </div>
 
-    <CreditCardTable :table-data="tableData" @edit="editCreditCard" @delete="handleDelete"
-      @card-number-visibility="handleCardNumberVisibility" @cvv-visibility="handleCvvVisibility"
-      @view-details="viewDetails" />
+    <CreditCardTable 
+      :table-data="tableData" 
+      @edit="editCreditCard" 
+      @delete="handleDelete"
+      @card-number-visibility="handleCardNumberVisibility" 
+      @cvv-visibility="handleCvvVisibility"
+      @view-details="viewDetails"
+      @annual-fee-qualified="setAnnualFeeQualified"
+      :row-class-name="getRowClassName"
+    />
 
     <credit-card-dialog v-model:visible="creditCardData.dialogFormVisible" :mode="status"
       :initial-data="creditCardData.data" @submit="confirmAdd" @cancel="handleDialogCancel" />
-
 
     <import-export-dialog v-model:visible="importExportDialogVisible" :is-import="isImportMode" :data="cardData"
       @import="handleImportData" />
@@ -44,8 +60,6 @@
     <table-custom-dialog v-model:visible="tableCustom.dialogFormVisible"
       :columns="creditCardData.options.tableCustomData" :initial-selection="selectedTableColumns"
       @confirm="handleTableCustomConfirm" />
-    <!-- 统计信息 -->
-    <credit-card-statistics :card-data="cardData" @statistics-updated="handleStatisticsUpdated" />
     <!-- 查看详情弹窗 -->
     <card-details-dialog v-model:visible="detailsVisible" :card-info="currentCard" />
     <!-- 统计分析弹窗 -->
@@ -60,15 +74,14 @@
 
 <script>
 import { creditCardOptions } from '@/config/creditCardOptions'
-import { ElNotification } from 'element-plus'
+import { ElNotification, ElMessage, ElMessageBox } from 'element-plus'
 import SearchForm from './components/search/SearchForm.vue'
 import CreditCardTable from './components/table/CreditCardTable.vue'
 import CreditCardDialog from './components/dialog/CreditCardDialog.vue'
 import ImportExportDialog from './components/dialog/ImportExportDialog.vue'
 import DeleteConfirmDialog from './components/dialog/DeleteConfirmDialog.vue'
-import { Plus, Share, FolderOpened, TrendCharts } from '@element-plus/icons-vue'
+import { Plus, Share, FolderOpened, TrendCharts, Calendar, Delete } from '@element-plus/icons-vue'
 import { predefinedNotifications } from './utils/notification'
-import CreditCardStatistics from './components/statistics/CreditCardStatistics.vue'
 import {
   timestampToTime,
   completeAccountBillDate,
@@ -87,6 +100,8 @@ export default {
     FolderOpened,
     Share,
     TrendCharts,
+    Calendar,
+    Delete,
     SearchForm,
     CreditCardTable,
     CreditCardDialog,
@@ -94,7 +109,6 @@ export default {
     DeleteConfirmDialog,
     CardDetailsDialog,
     TableCustomDialog,
-    CreditCardStatistics,
     Statistics
   },
   data() {
@@ -187,25 +201,31 @@ export default {
       cardToDelete: {},
       selectedTableColumns: [],
       statisticsVisible: false,
+      rowClassMap: new Map(), // 存储需要特殊标记的行的样式
     }
   },
   created() {
-    //如果本地存储中有数据，就用本地存储中的数据
-    if (localStorage.getItem("cardData")) {
-      this.cardData = JSON.parse(localStorage.getItem("cardData"));
-      this.notic('Success', '浏览器数据加载成功！', 'success', 3000);
+    // 从localStorage中获取数据
+    const storedData = localStorage.getItem('cardData')
+    if (storedData) {
+      this.cardData = JSON.parse(storedData)
     }
-    setTimeout(() => {
-      if (localStorage.getItem("tableCustom")) {
-        this.userData.tableCustom = JSON.parse(localStorage.getItem("tableCustom"));
-        this.notic('Success', '用户配置加载成功！', 'success', 4000);
-      }
-    }, 300);
+    
+    // 从localStorage中获取表格自定义数据
+    const storedTableCustom = localStorage.getItem('tableCustom')
+    if (storedTableCustom) {
+      this.userData.tableCustom = JSON.parse(storedTableCustom)
+      this.selectedTableColumns = this.userData.tableCustom
+    } else {
+      this.selectedTableColumns = creditCardOptions.tableCustomData
+    }
 
-    //5秒后执行oneCheck函数
-    setTimeout(() => {
-      this.oneCheck();
-    }, 3000);
+  },
+  mounted() {
+    // 在mounted时检查年费，确保DOM已经加载完成
+    this.$nextTick(() => {
+      this.checkAnnualFees()
+    })
   },
   computed: {
     // 计算过滤条件后的表格数据
@@ -341,18 +361,7 @@ export default {
       this.sortData.dialogFormVisible = false;
       this.notic('成功', '排序完成', 'success', 2000);
     },
-    oneCheck() {
-      const unqualifiedCards = this.cardData.filter(card => card.isQualified === '2');
-      if (unqualifiedCards.length > 0) {
-        unqualifiedCards.forEach(card => {
-          this.notic(
-            '提醒',
-            `${card.bank}的${card.alias || card.cardNumber}本年度年费未达标`,
-            'warning', 0, true
-          );
-        });
-      }
-    },
+
     twoCheck() {
       this.cardData.forEach(card => {
         if (card.nextAnnualFeeCollectionTime) {
@@ -404,6 +413,228 @@ export default {
     },
     showStatistics() {
       this.statisticsVisible = true
+    },
+    // 检查年费状态
+    async checkAnnualFees() {
+      const now = new Date()
+      const warningCards = []
+      const overdueCards = []
+      
+      // 清除之前的样式
+      this.rowClassMap.clear()
+      
+      // 收集需要提醒的卡片
+      for (const card of this.cardData) {
+        if (!card.nextAnnualFeeCollectionTime) continue
+        
+        const dueDate = new Date(card.nextAnnualFeeCollectionTime)
+        const diffDays = Math.ceil((dueDate - now) / (1000 * 60 * 60 * 24))
+        
+        if (diffDays <= 60 && diffDays > 0) {
+          warningCards.push({ ...card, diffDays })
+          this.rowClassMap.set(card.id, 'warning-row')
+        } else if (diffDays <= 0 && diffDays > -60) {
+          overdueCards.push({ ...card, diffDays })
+          this.rowClassMap.set(card.id, 'danger-row')
+        }
+      }
+      
+      // 如果有需要提醒的卡片，显示汇总弹窗
+      if (warningCards.length > 0 || overdueCards.length > 0) {
+        // 构建提醒消息
+        let message = '<div style="max-height: 400px; overflow-y: auto;">'
+        
+        if (warningCards.length > 0) {
+          message += '<div style="margin-bottom: 16px;">'
+          message += '<h3 style="color: #E6A23C; margin-bottom: 8px;">即将到期年费提醒</h3>'
+          message += '<ul style="list-style-type: none; padding: 0; margin: 0;">'
+          warningCards.sort((a, b) => a.diffDays - b.diffDays).forEach(card => {
+            message += `<li style="margin-bottom: 8px; padding: 8px; background: #FDF6EC; border-radius: 4px;">
+              <strong>${card.alias}</strong>
+              <div style="color: #666; margin-top: 4px;">将在 ${card.diffDays} 天后收取年费</div>
+            </li>`
+          })
+          message += '</ul></div>'
+        }
+        
+        if (overdueCards.length > 0) {
+          message += '<div>'
+          message += '<h3 style="color: #F56C6C; margin-bottom: 8px;">已过期年费提醒</h3>'
+          message += '<ul style="list-style-type: none; padding: 0; margin: 0;">'
+          overdueCards.sort((a, b) => b.diffDays - a.diffDays).forEach(card => {
+            message += `<li style="margin-bottom: 8px; padding: 8px; background: #FEF0F0; border-radius: 4px;">
+              <strong>${card.alias}</strong>
+              <div style="color: #666; margin-top: 4px;">已过期 ${-card.diffDays} 天</div>
+            </li>`
+          })
+          message += '</ul></div>'
+        }
+        
+        message += '</div>'
+        
+        try {
+          await ElMessageBox.alert(
+            message,
+            '年费提醒',
+            {
+              confirmButtonText: '知道了',
+              dangerouslyUseHTMLString: true,
+              customClass: 'annual-fee-dialog',
+              showClose: false
+            }
+          )
+        } catch (e) {
+          // 忽略弹窗关闭事件
+        }
+      } else {
+        ElMessage({
+          type: 'success',
+          message: '太好了！目前没有需要担心的年费问题',
+          duration: 3000
+        })
+      }
+    },
+    // 手动检测年费情况
+    async manualCheckAnnualFees() {
+      const now = new Date()
+      const warningCards = []
+      const overdueCards = []
+      
+      // 清除之前的样式
+      this.rowClassMap.clear()
+      
+      // 收集需要提醒的卡片
+      for (const card of this.cardData) {
+        if (!card.nextAnnualFeeCollectionTime) continue
+        
+        const dueDate = new Date(card.nextAnnualFeeCollectionTime)
+        const diffDays = Math.ceil((dueDate - now) / (1000 * 60 * 60 * 24))
+        
+        if (diffDays <= 60 && diffDays > 0) {
+          warningCards.push({ ...card, diffDays })
+          this.rowClassMap.set(card.id, 'warning-row')
+        } else if (diffDays <= 0 && diffDays > -60) {
+          overdueCards.push({ ...card, diffDays })
+          this.rowClassMap.set(card.id, 'danger-row')
+        }
+      }
+      
+      // 如果有需要提醒的卡片，显示汇总弹窗
+      if (warningCards.length > 0 || overdueCards.length > 0) {
+        // 构建提醒消息
+        let message = '<div style="max-height: 400px; overflow-y: auto;">'
+        
+        if (warningCards.length > 0) {
+          message += '<div style="margin-bottom: 16px;">'
+          message += '<h3 style="color: #E6A23C; margin-bottom: 8px;">即将到期年费提醒</h3>'
+          message += '<ul style="list-style-type: none; padding: 0; margin: 0;">'
+          warningCards.sort((a, b) => a.diffDays - b.diffDays).forEach(card => {
+            message += `<li style="margin-bottom: 8px; padding: 8px; background: #FDF6EC; border-radius: 4px;">
+              <strong>${card.alias}</strong>
+              <div style="color: #666; margin-top: 4px;">将在 ${card.diffDays} 天后收取年费</div>
+            </li>`
+          })
+          message += '</ul></div>'
+        }
+        
+        if (overdueCards.length > 0) {
+          message += '<div>'
+          message += '<h3 style="color: #F56C6C; margin-bottom: 8px;">已过期年费提醒</h3>'
+          message += '<ul style="list-style-type: none; padding: 0; margin: 0;">'
+          overdueCards.sort((a, b) => b.diffDays - a.diffDays).forEach(card => {
+            message += `<li style="margin-bottom: 8px; padding: 8px; background: #FEF0F0; border-radius: 4px;">
+              <strong>${card.alias}</strong>
+              <div style="color: #666; margin-top: 4px;">已过期 ${-card.diffDays} 天</div>
+            </li>`
+          })
+          message += '</ul></div>'
+        }
+        
+        message += '</div>'
+        
+        try {
+          await ElMessageBox.alert(
+            message,
+            '年费提醒',
+            {
+              confirmButtonText: '知道了',
+              dangerouslyUseHTMLString: true,
+              customClass: 'annual-fee-dialog',
+              showClose: false
+            }
+          )
+        } catch (e) {
+          // 忽略弹窗关闭事件
+        }
+      } else {
+        ElMessage({
+          type: 'success',
+          message: '太好了！目前没有需要担心的年费问题',
+          duration: 3000
+        })
+      }
+    },
+    // 设置年费已达标
+    setAnnualFeeQualified(cardId) {
+      const card = this.cardData.find(c => c.id === cardId)
+      if (card) {
+        // 更新下次年费收取时间
+        const currentDate = new Date(card.nextAnnualFeeCollectionTime)
+        currentDate.setFullYear(currentDate.getFullYear() + 1)
+        card.nextAnnualFeeCollectionTime = currentDate.toISOString().split('T')[0]
+        
+        // 设置年费达标状态
+        card.isQualified = '1' // 1表示已达标
+        
+        // 清除行样式
+        this.rowClassMap.delete(cardId)
+        
+        // 保存数据
+        this.saveData()
+        
+        ElMessage.success('年费达标状态已更新')
+        
+        // 重新检查年费状态
+        this.checkAnnualFees()
+      }
+    },
+
+    // 获取行的类名
+    getRowClassName({ row }) {
+      return this.rowClassMap.get(row.id)
+    },
+    // 确认清除数据
+    async confirmClearData() {
+      try {
+        await ElMessageBox.confirm(
+          '此操作将清除所有信用卡数据，是否继续？',
+          '警告',
+          {
+            confirmButtonText: '确定',
+            cancelButtonText: '取消',
+            type: 'warning',
+          }
+        )
+        this.clearAllData()
+      } catch {
+        // 用户取消操作
+      }
+    },
+
+    // 清除所有数据
+    clearAllData() {
+      // 清除信用卡数据
+      this.cardData = []
+      // 清除本地存储
+      localStorage.removeItem('cardData')
+      // 清除行样式映射
+      this.rowClassMap.clear()
+      
+      ElMessage({
+        type: 'success',
+        message: '所有数据已清除',
+        duration: 2000
+      })
     },
   },
   watch: {
@@ -651,136 +882,86 @@ export default {
   }
 }
 
-/* 描述列表样式 */
-:deep(.el-descriptions) {
-  padding: 0;
-  margin-bottom: 10px;
-
-  .el-descriptions__header {
-    margin-bottom: 15px;
-  }
-
-  .el-descriptions__label {
-    width: 120px;
-    font-weight: bold;
-    background-color: #f5f7fa;
-    padding: 12px 15px;
-  }
-
-  .el-descriptions__content {
-    padding: 8px 12px;
-
-    .el-input,
-    .el-select,
-    .el-date-picker {
-      width: 100%;
-    }
-
-    .el-input__wrapper,
-    .el-select__wrapper {
-      box-shadow: none;
-      border: 1px solid #dcdfe6;
-      border-radius: 4px;
-
-      &:hover {
-        border-color: #5672be;
-      }
-
-      &.is-focus {
-        border-color: #5672be;
-        box-shadow: 0 0 0 1px #5672be;
-      }
-    }
-
-    .el-textarea__inner {
-      min-height: 80px;
-      resize: vertical;
-      border: 1px solid #dcdfe6;
-      border-radius: 4px;
-      padding: 8px 12px;
-
-      &:hover {
-        border-color: #5672be;
-      }
-
-      &:focus {
-        border-color: #5672be;
-        box-shadow: 0 0 0 1px #5672be;
-      }
-    }
-
-    .el-radio-group {
-      display: flex;
-      gap: 15px;
-      padding: 4px 0;
-
-      .el-radio {
-        margin-right: 0;
-
-        .el-radio__label {
-          color: #606266;
-        }
-      }
-    }
-  }
-}
-
-/* 表格自定义框样式 */
-:deep(.el-checkbox) {
-  margin-bottom: 10px;
-}
-
-/* 查看详情弹窗样式 */
-.card-details-dialog {
-  :deep(.el-dialog__body) {
-    padding: 0 20px 20px;
-  }
-
-  :deep(.el-tabs__header) {
-    margin-bottom: 15px;
-  }
-
-  :deep(.el-tabs__item) {
-    font-size: 14px;
-    padding: 0 15px;
-    height: 40px;
-    line-height: 40px;
-  }
-
-  :deep(.el-descriptions) {
-    padding: 0;
-    margin-bottom: 10px;
-
-    .el-descriptions__header {
-      margin-bottom: 15px;
-    }
-
-    .el-descriptions__label {
-      width: 120px;
-      font-weight: bold;
-      background-color: #f5f7fa;
-    }
-
-    .el-descriptions__content {
-      color: #333;
-      line-height: 1.6;
-    }
-
-    .el-tag {
-      font-weight: normal;
-    }
-  }
-
-  .details-content {
-    padding: 8px;
-    line-height: 1.6;
-    white-space: pre-wrap;
-    min-height: 60px;
-  }
-}
-
 .dialog-footer {
   text-align: center;
   padding-top: 10px;
+}
+
+.warning-row {
+  background-color: #fdf6ec !important;
+}
+
+.danger-row {
+  background-color: #fef0f0 !important;
+}
+
+/* 年费提醒弹窗样式 */
+:deep(.annual-fee-dialog) {
+  .el-message-box__content {
+    padding: 20px;
+  }
+  
+  .el-message-box__container {
+    max-height: 500px;
+    overflow-y: auto;
+  }
+  
+  ul {
+    margin: 0;
+    padding: 0;
+  }
+  
+  li {
+    transition: all 0.3s ease;
+  }
+  
+  li:hover {
+    transform: translateX(4px);
+  }
+}
+
+/* 确保样式应用到表格行 */
+:deep(.el-table__row) {
+  &.warning-row > td {
+    --el-table-tr-bg-color: #fdf6ec;
+    background-color: #fdf6ec !important;
+  }
+  
+  &.danger-row > td {
+    --el-table-tr-bg-color: #fef0f0;
+    background-color: #fef0f0 !important;
+  }
+}
+
+/* 确保悬停时保持背景色 */
+:deep(.el-table__row) {
+  &.warning-row:hover > td {
+    background-color: #fdf6ec !important;
+  }
+  
+  &.danger-row:hover > td {
+    background-color: #fef0f0 !important;
+  }
+}
+
+/* 表格行样式 */
+:deep(.el-table) {
+  .warning-row {
+    --el-table-tr-bg-color: #fdf6ec;
+    background-color: #fdf6ec;
+    
+    > td {
+      background-color: #fdf6ec !important;
+    }
+  }
+  
+  .danger-row {
+    --el-table-tr-bg-color: #fef0f0;
+    background-color: #fef0f0;
+    
+    > td {
+      background-color: #fef0f0 !important;
+    }
+  }
 }
 </style>

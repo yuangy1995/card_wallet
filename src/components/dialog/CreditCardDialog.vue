@@ -194,9 +194,9 @@
         <!-- 年费信息 -->
         <el-descriptions-item label="✅ 年费达标状态" :span="2">
           <el-radio-group v-model="formData.isQualified">
-            <el-radio label="2" size="large">未达标</el-radio>
-            <el-radio label="1" size="large">已达标</el-radio>
-            <el-radio label="3" size="large">终免年费</el-radio>
+            <el-radio :value="'2'" size="large">未达标</el-radio>
+            <el-radio :value="'1'" size="large">已达标</el-radio>
+            <el-radio :value="'3'" size="large">终免年费</el-radio>
           </el-radio-group>
         </el-descriptions-item>
         <el-descriptions-item label="⏰ 下次年费收取时间" :span="2">
@@ -321,6 +321,12 @@ function validateCardNumber(cardNumber) {
   return sum % 10 === 0
 }
 
+function validateCVV(rule, value, callback) {
+  if (!value) return callback(new Error('请输入CVV'))
+  if (!/^\d{3,4}$/.test(value)) return callback(new Error('CVV必须为3-4位数字'))
+  callback()
+}
+
 // 格式化货币
 function formatCurrency(value, currency) {
   if (!value) return ''
@@ -380,46 +386,25 @@ export default {
     
     // 表单验证规则
     const rules = {
-      country: [
-        { required: true, message: '请选择国家', trigger: 'change' }
-      ],
-      bank: [
-        { required: true, message: '请选择银行', trigger: 'change' }
-      ],
+      country: [{ required: true, message: '请选择国家', trigger: 'change' }],
+      bank: [{ required: true, message: '请选择银行', trigger: 'change' }],
       cardNumber: [
         { required: true, message: '请输入卡号', trigger: 'blur' },
-        { 
-          validator: (rule, value, callback) => {
-            if (!validateCardNumber(value)) {
-              callback(new Error('请输入有效的信用卡号'))
-            } else {
-              callback()
-            }
-          },
-          trigger: 'blur'
-        }
+        { validator: validateCardNumber, trigger: 'blur' }
       ],
       cvv: [
         { required: true, message: '请输入CVV', trigger: 'blur' },
-        { pattern: /^\d{3,4}$/, message: 'CVV必须为3-4位数字', trigger: 'blur' }
+        { validator: validateCVV, trigger: 'blur' }
       ],
-      valid: [
-        { required: true, message: '请选择有效期', trigger: 'change' }
-      ],
-      type: [
-        { required: true, message: '请选择币种', trigger: 'change' }
-      ],
-      accountBillDate: [
-        { required: true, message: '请输入账单日', trigger: 'blur' },
-        { validator: validateDateRange, trigger: 'blur' }
-      ],
-      dueDate: [
-        { required: true, message: '请输入还款日', trigger: 'blur' },
-        { validator: validateDateRange, trigger: 'blur' }
-      ],
+      valid: [{ required: true, message: '请选择有效期', trigger: 'change' }],
       limit: [
         { required: true, message: '请输入额度', trigger: 'blur' },
-        { type: 'number', min: 0, message: '额度必须大于0', trigger: 'blur' }
+        { type: 'number', min: 0, message: '额度必须大于等于0', trigger: 'blur' }
+      ],
+      type: [{ required: true, message: '请选择币种', trigger: 'change' }],
+      annualFee: [
+        { required: true, message: '请输入年费', trigger: 'blur' },
+        { type: 'number', min: 0, message: '年费必须大于等于0', trigger: 'blur' }
       ]
     }
 
@@ -475,11 +460,11 @@ export default {
       cardNumber: '',
       alias: '',
       level: '',
-      limit: '',
-      type: '',
+      type: 'CNY',
+      limit: 0,
       cvv: '',
       valid: '',
-      annualFee: '',
+      annualFee: 0,
       accountBillDate: '',
       dueDate: '',
       nextAnnualFeeCollectionTime: '',
@@ -533,11 +518,11 @@ export default {
             cardNumber: '',
             alias: '',
             level: '',
-            limit: '',
-            type: '',
+            type: 'CNY',
+            limit: 0,
             cvv: '',
             valid: '',
-            annualFee: '',
+            annualFee: 0,
             accountBillDate: '',
             dueDate: '',
             nextAnnualFeeCollectionTime: '',
