@@ -25,7 +25,7 @@
       />
       <el-table-column 
         prop="cardNumber" 
-        label="💳 卡号" 
+        label="卡号" 
         width="250" 
         align="center" 
         sortable="custom"
@@ -43,7 +43,7 @@
         </template>
       </el-table-column>
       <el-table-column prop="valid" label="有效期" width="120" align="center" sortable="custom" :sort-method="sortMethods.valid" />
-      <el-table-column prop="cvv" label="🔒 CVV" width="120" align="center">
+      <el-table-column prop="cvv" label="CVV" width="120" align="center">
         <template #default="{ row }">
           <secure-field 
             :value="row.cvv"
@@ -56,7 +56,15 @@
       </el-table-column>
       <el-table-column prop="limit" label="额度" width="100" align="center" />
       <el-table-column prop="nextAnnualFeeCollectionTime" label="下次年费收取时间" width="150" align="center" />
-      <el-table-column prop="lastTime" label="最后提额时间" width="170" align="center" />
+      <el-table-column prop="lastTime" label="最后提额时间" width="170" align="center">
+        <template #default="{ row }">
+          <div v-if="row.lastTime" style="display: flex; flex-direction: column; align-items: center;">
+            <span>{{ row.lastTime }}</span>
+            <span style="color: #909399; font-size: 12px;">(距离上次提额{{ getDaysFromNow(row.lastTime) }}天)</span>
+          </div>
+          <span v-else>-</span>
+        </template>
+      </el-table-column>
       <el-table-column prop="isQualified" label="年费达标" width="100" align="center">
         <template #default="{ row }">
           <el-tag v-if="row.isQualified === '1'" type="success">已达标</el-tag>
@@ -64,8 +72,8 @@
           <el-tag v-if="row.isQualified === '3'" type="info">终免年费</el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="equity" label="🎁 权益" width="200" align="center" show-overflow-tooltip />
-      <el-table-column prop="remark" label="📌 备注" width="200" align="center" show-overflow-tooltip />
+      <el-table-column prop="equity" label="权益" width="200" align="center" show-overflow-tooltip />
+      <el-table-column prop="remark" label="备注" width="200" align="center" show-overflow-tooltip />
     </el-table>
 
     <!-- 右键菜单 -->
@@ -97,6 +105,7 @@ import SecureField from '../common/SecureField.vue'
 import { ElMessageBox } from 'element-plus'
 import { Edit, View, Delete } from '@element-plus/icons-vue'
 import { ref, onMounted } from 'vue'
+import { getDaysFromNow } from '../../utils/dateCalculator'
 
 // 获取卡片类型权重
 function getCardTypeWeight(cardNumber) {
@@ -260,7 +269,8 @@ export default {
       contextMenuY,
       sortState,
       sortMethods,
-      handleSortChange
+      handleSortChange,
+      getDaysFromNow
     }
   }
 }

@@ -154,3 +154,17 @@ export function isNearAnnualFeeDate(nextAnnualFeeDate, warningDays = 60) {
   const remainingDays = getDaysDifference(today, nextAnnualFeeDate)
   return remainingDays <= warningDays && remainingDays >= 0
 }
+
+/**
+ * 计算给定日期距今的天数
+ * @param {string|Date} date - 给定日期
+ * @returns {number} 天数差
+ */
+export function getDaysFromNow(date) {
+  if (!date) return 0
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  const targetDate = new Date(date)
+  targetDate.setHours(0, 0, 0, 0)
+  return Math.ceil((today - targetDate) / (1000 * 3600 * 24))
+}
