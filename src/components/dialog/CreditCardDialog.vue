@@ -5,129 +5,219 @@
     center
     width="800px"
     class="card-details-dialog"
+    :close-on-click-modal="false"
   >
-    <el-descriptions :column="2" border>
+    <el-form ref="formRef" :model="formData" :rules="rules" label-width="120px">
       <!-- 基本信息 -->
-      <el-descriptions-item label="🌏 国家">
-        <el-select v-model="formData.country" placeholder="请选择国家" filterable allow-create>
-          <el-option 
-            v-for="(item, index) in options.countryData" 
-            :key="index"
-            :label="`${item.chineseName}(${item.name})`" 
-            :value="item.chineseName" 
-          />
-        </el-select>
-      </el-descriptions-item>
-      <el-descriptions-item label="🏦 银行">
-        <el-select v-model="formData.bank" placeholder="请选择银行" filterable allow-create>
-          <el-option 
-            v-for="item in options.bankList" 
-            :key="item.name" 
-            :label="item.name"
-            :value="item.chineseName" 
-          />
-        </el-select>
-      </el-descriptions-item>
-      <el-descriptions-item label="📝 卡片别名">
-        <el-input v-model="formData.alias" autocomplete="off" clearable />
-      </el-descriptions-item>
-      <el-descriptions-item label="⭐️ 等级">
-        <el-select v-model="formData.level" placeholder="请选择等级" filterable>
-          <el-option 
-            v-for="item in options.cardLevel" 
-            :key="item.name" 
-            :label="item.name"
-            :value="item.chineseName" 
-          />
-        </el-select>
-      </el-descriptions-item>
-      <el-descriptions-item label="💰 币种">
-        <el-select v-model="formData.type" placeholder="请选择币种" filterable>
-          <el-option 
-            v-for="item in options.currencyList" 
-            :key="item.name" 
-            :label="item.name"
-            :value="item.chineseName" 
-          />
-        </el-select>
-      </el-descriptions-item>
-      <el-descriptions-item label="💳 额度">
-        <el-input type="number" v-model="formData.limit" autocomplete="off" clearable />
-      </el-descriptions-item>
+      <el-descriptions :column="2" border>
+        <el-descriptions-item label="🌏 国家">
+          <el-form-item prop="country">
+            <el-select 
+              v-model="formData.country" 
+              placeholder="请选择国家" 
+              filterable 
+              allow-create
+              clearable
+            >
+              <el-option 
+                v-for="(item, index) in options.countryData" 
+                :key="index"
+                :label="`${item.chineseName}(${item.name})`" 
+                :value="item.chineseName" 
+              />
+            </el-select>
+          </el-form-item>
+        </el-descriptions-item>
 
-      <!-- 卡片信息 -->
-      <el-descriptions-item label="🔢 卡号">
-        <el-input v-model="formData.cardNumber" autocomplete="off" clearable />
-      </el-descriptions-item>
-      <el-descriptions-item label="📅 有效期">
-        <el-date-picker 
-          v-model="formData.valid" 
-          type="month" 
-          placeholder="选择卡片到期时间"
-          value-format="YYYY-MM" 
-          style="width: 100%" 
-        />
-      </el-descriptions-item>
-      <el-descriptions-item label="🔐 CVV码">
-        <el-input v-model="formData.cvv" autocomplete="off" clearable />
-      </el-descriptions-item>
-      <el-descriptions-item label="📊 账单日">
-        <el-input type="number" v-model="formData.accountBillDate" autocomplete="off" clearable />
-      </el-descriptions-item>
-      <el-descriptions-item label="💸 还款日">
-        <el-input type="number" v-model="formData.dueDate" autocomplete="off" clearable />
-      </el-descriptions-item>
-      <el-descriptions-item label="💵 年费">
-        <el-input type="number" v-model="formData.annualFee" autocomplete="off" clearable />
-      </el-descriptions-item>
+        <el-descriptions-item label="🏦 银行">
+          <el-form-item prop="bank">
+            <el-select 
+              v-model="formData.bank" 
+              placeholder="请选择银行" 
+              filterable 
+              allow-create
+              clearable
+            >
+              <el-option 
+                v-for="item in options.bankList" 
+                :key="item.name" 
+                :label="item.name"
+                :value="item.chineseName" 
+              />
+            </el-select>
+          </el-form-item>
+        </el-descriptions-item>
 
-      <!-- 年费信息 -->
-      <el-descriptions-item label="✅ 年费达标状态" :span="2">
-        <el-radio-group v-model="formData.isQualified">
-          <el-radio label="2" size="large">未达标</el-radio>
-          <el-radio label="1" size="large">已达标</el-radio>
-          <el-radio label="3" size="large">终免年费</el-radio>
-        </el-radio-group>
-      </el-descriptions-item>
-      <el-descriptions-item label="⏰ 下次年费收取时间" :span="2">
-        <el-date-picker 
-          v-model="formData.nextAnnualFeeCollectionTime" 
-          type="date" 
-          placeholder="选择下次年费收取时间"
-          format="YYYY-MM-DD" 
-          value-format="YYYY-MM-DD" 
-          style="width: 100%" 
-        />
-      </el-descriptions-item>
-      <el-descriptions-item label="📈 上次提额日期" :span="2">
-        <el-date-picker 
-          v-model="formData.lastTime" 
-          type="date" 
-          placeholder="选择上次提额日期" 
-          format="YYYY-MM-DD"
-          value-format="YYYY-MM-DD" 
-          style="width: 100%" 
-        />
-      </el-descriptions-item>
+        <el-descriptions-item label="💳 卡号">
+          <el-form-item prop="cardNumber">
+            <el-input 
+              v-model="formData.cardNumber" 
+              placeholder="请输入卡号"
+              maxlength="19"
+              :formatter="formatCardNumber"
+              :parser="parseCardNumber"
+              clearable
+            >
+              <template #append>
+                <el-tooltip content="信用卡号通常为16位数字，某些卡可能为13-19位">
+                  <el-icon><QuestionFilled /></el-icon>
+                </el-tooltip>
+              </template>
+            </el-input>
+          </el-form-item>
+        </el-descriptions-item>
 
-      <!-- 其他信息 -->
-      <el-descriptions-item label="🎁 权益" :span="2">
-        <el-input 
-          v-model="formData.equity" 
-          type="textarea" 
-          :rows="3" 
-          placeholder="请输入权益信息" 
-        />
-      </el-descriptions-item>
-      <el-descriptions-item label="📌 备注" :span="2">
-        <el-input 
-          v-model="formData.remark" 
-          type="textarea" 
-          :rows="3" 
-          placeholder="请输入备注信息" 
-        />
-      </el-descriptions-item>
-    </el-descriptions>
+        <el-descriptions-item label="📝 卡片别名">
+          <el-form-item prop="alias">
+            <el-input 
+              v-model="formData.alias" 
+              placeholder="为卡片起个好记的名字"
+              clearable 
+            />
+          </el-form-item>
+        </el-descriptions-item>
+
+        <el-descriptions-item label="⭐️ 等级">
+          <el-form-item prop="level">
+            <el-select 
+              v-model="formData.level" 
+              placeholder="请选择等级" 
+              filterable
+              clearable
+            >
+              <el-option 
+                v-for="item in options.cardLevel" 
+                :key="item.name" 
+                :label="item.name"
+                :value="item.chineseName" 
+              />
+            </el-select>
+          </el-form-item>
+        </el-descriptions-item>
+
+        <el-descriptions-item label="💰 币种">
+          <el-form-item prop="type">
+            <el-select 
+              v-model="formData.type" 
+              placeholder="请选择币种" 
+              filterable
+              clearable
+            >
+              <el-option 
+                v-for="item in options.currencyList" 
+                :key="item.name" 
+                :label="`${item.name}(${item.chineseName})`"
+                :value="item.chineseName" 
+              />
+            </el-select>
+          </el-form-item>
+        </el-descriptions-item>
+
+        <el-descriptions-item label="🔒 CVV">
+          <el-form-item prop="cvv">
+            <el-input 
+              v-model="formData.cvv" 
+              placeholder="请输入CVV"
+              maxlength="4"
+              show-password
+              clearable
+            >
+              <template #append>
+                <el-tooltip content="CVV通常为卡片背面的3位数字，美国运通卡为正面4位数字">
+                  <el-icon><QuestionFilled /></el-icon>
+                </el-tooltip>
+              </template>
+            </el-input>
+          </el-form-item>
+        </el-descriptions-item>
+
+        <el-descriptions-item label="📅 有效期">
+          <el-form-item prop="valid">
+            <el-date-picker
+              v-model="formData.valid"
+              type="month"
+              placeholder="选择有效期"
+              format="MM/YY"
+              value-format="MM/YY"
+              :clearable="true"
+              :picker-options="validDateOptions"
+            />
+          </el-form-item>
+        </el-descriptions-item>
+
+        <el-descriptions-item label="💵 额度">
+          <el-form-item prop="limit">
+            <el-input-number
+              v-model="formData.limit"
+              :min="0"
+              :precision="2"
+              :step="1000"
+              :formatter="value => formatCurrency(value, formData.type)"
+              :parser="value => parseCurrency(value)"
+              style="width: 100%"
+            />
+          </el-form-item>
+        </el-descriptions-item>
+
+        <!-- 卡片信息 -->
+        <el-descriptions-item label="📊 账单日">
+          <el-input type="number" v-model="formData.accountBillDate" autocomplete="off" clearable />
+        </el-descriptions-item>
+        <el-descriptions-item label="💸 还款日">
+          <el-input type="number" v-model="formData.dueDate" autocomplete="off" clearable />
+        </el-descriptions-item>
+        <el-descriptions-item label="💵 年费">
+          <el-input type="number" v-model="formData.annualFee" autocomplete="off" clearable />
+        </el-descriptions-item>
+
+        <!-- 年费信息 -->
+        <el-descriptions-item label="✅ 年费达标状态" :span="2">
+          <el-radio-group v-model="formData.isQualified">
+            <el-radio label="2" size="large">未达标</el-radio>
+            <el-radio label="1" size="large">已达标</el-radio>
+            <el-radio label="3" size="large">终免年费</el-radio>
+          </el-radio-group>
+        </el-descriptions-item>
+        <el-descriptions-item label="⏰ 下次年费收取时间" :span="2">
+          <el-date-picker 
+            v-model="formData.nextAnnualFeeCollectionTime" 
+            type="date" 
+            placeholder="选择下次年费收取时间"
+            format="YYYY-MM-DD" 
+            value-format="YYYY-MM-DD" 
+            style="width: 100%" 
+          />
+        </el-descriptions-item>
+        <el-descriptions-item label="📈 上次提额日期" :span="2">
+          <el-date-picker 
+            v-model="formData.lastTime" 
+            type="date" 
+            placeholder="选择上次提额日期" 
+            format="YYYY-MM-DD"
+            value-format="YYYY-MM-DD" 
+            style="width: 100%" 
+          />
+        </el-descriptions-item>
+
+        <!-- 其他信息 -->
+        <el-descriptions-item label="🎁 权益" :span="2">
+          <el-input 
+            v-model="formData.equity" 
+            type="textarea" 
+            :rows="3" 
+            placeholder="请输入权益信息" 
+          />
+        </el-descriptions-item>
+        <el-descriptions-item label="📌 备注" :span="2">
+          <el-input 
+            v-model="formData.remark" 
+            type="textarea" 
+            :rows="3" 
+            placeholder="请输入备注信息" 
+          />
+        </el-descriptions-item>
+      </el-descriptions>
+    </el-form>
 
     <template #footer>
       <span class="dialog-footer">
@@ -142,9 +232,63 @@
 import { ref, computed, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { creditCardOptions } from '@/config/creditCardOptions'
+import { QuestionFilled } from '@element-plus/icons-vue'
+
+// Luhn算法验证信用卡号
+function validateCardNumber(cardNumber) {
+  if (!cardNumber) return false
+  
+  // 移除所有非数字字符
+  cardNumber = cardNumber.replace(/\D/g, '')
+  
+  if (cardNumber.length < 13 || cardNumber.length > 19) return false
+  
+  let sum = 0
+  let isEven = false
+  
+  // 从右向左遍历
+  for (let i = cardNumber.length - 1; i >= 0; i--) {
+    let digit = parseInt(cardNumber[i])
+    
+    if (isEven) {
+      digit *= 2
+      if (digit > 9) digit -= 9
+    }
+    
+    sum += digit
+    isEven = !isEven
+  }
+  
+  return sum % 10 === 0
+}
+
+// 格式化货币
+function formatCurrency(value, currency) {
+  if (!value) return ''
+  const currencySymbols = {
+    'CNY': '¥',
+    'USD': '$',
+    'EUR': '€',
+    'GBP': '£',
+    'JPY': '¥',
+    'HKD': 'HK$',
+    'MOP': 'MOP$',
+    'TWD': 'NT$',
+    'SGD': 'S$',
+    'AUD': 'A$',
+    'CAD': 'C$',
+    'CHF': 'CHF',
+    'THB': '฿'
+  }
+  const symbol = currencySymbols[currency] || ''
+  return `${symbol}${value.toLocaleString()}`
+}
 
 export default {
   name: 'CreditCardDialog',
+  components: {
+    QuestionFilled
+  },
   props: {
     visible: {
       type: Boolean,
@@ -162,6 +306,69 @@ export default {
   },
   emits: ['update:visible', 'submit', 'cancel'],
   setup(props, { emit }) {
+    const formRef = ref(null)
+    
+    // 表单验证规则
+    const rules = {
+      country: [
+        { required: true, message: '请选择国家', trigger: 'change' }
+      ],
+      bank: [
+        { required: true, message: '请选择银行', trigger: 'change' }
+      ],
+      cardNumber: [
+        { required: true, message: '请输入卡号', trigger: 'blur' },
+        { 
+          validator: (rule, value, callback) => {
+            if (!validateCardNumber(value)) {
+              callback(new Error('请输入有效的信用卡号'))
+            } else {
+              callback()
+            }
+          },
+          trigger: 'blur'
+        }
+      ],
+      cvv: [
+        { required: true, message: '请输入CVV', trigger: 'blur' },
+        { pattern: /^\d{3,4}$/, message: 'CVV必须为3-4位数字', trigger: 'blur' }
+      ],
+      valid: [
+        { required: true, message: '请选择有效期', trigger: 'change' }
+      ],
+      type: [
+        { required: true, message: '请选择币种', trigger: 'change' }
+      ]
+    }
+
+    // 格式化卡号
+    const formatCardNumber = (value) => {
+      if (!value) return ''
+      value = value.replace(/\D/g, '')
+      const groups = value.match(/\d{1,4}/g)
+      return groups ? groups.join(' ') : value
+    }
+
+    // 解析卡号
+    const parseCardNumber = (value) => {
+      return value.replace(/\s/g, '')
+    }
+
+    // 解析货币
+    const parseCurrency = (value) => {
+      if (typeof value === 'string') {
+        return Number(value.replace(/[^\d.-]/g, ''))
+      }
+      return value
+    }
+
+    // 有效期选项
+    const validDateOptions = {
+      disabledDate(time) {
+        return time.getTime() < Date.now()
+      }
+    }
+
     // 对话框标题
     const title = computed(() => props.mode === 'add' ? '新增信用卡' : '编辑信用卡')
 
@@ -197,7 +404,23 @@ export default {
       () => props.initialData,
       (newVal) => {
         if (props.mode === 'edit' && newVal) {
-          formData.value = { ...newVal }
+          // 深拷贝初始数据
+          const data = JSON.parse(JSON.stringify(newVal))
+          
+          // 处理特殊字段的格式转换
+          if (data.valid) {
+            const date = new Date(data.valid)
+            data.valid = `${String(date.getMonth() + 1).padStart(2, '0')}/${String(date.getFullYear() % 100).padStart(2, '0')}`
+          }
+          
+          // 确保数值类型字段正确
+          data.limit = Number(data.limit) || 0
+          data.annualFee = Number(data.annualFee) || 0
+          data.accountBillDate = Number(data.accountBillDate) || ''
+          data.dueDate = Number(data.dueDate) || ''
+          
+          // 更新表单数据
+          formData.value = data
         }
       },
       { immediate: true, deep: true }
@@ -207,7 +430,7 @@ export default {
     watch(
       () => props.visible,
       (newVal) => {
-        if (!newVal) {
+        if (!newVal && props.mode === 'add') {
           formData.value = {
             country: '',
             bank: '',
@@ -261,19 +484,35 @@ export default {
 
     // 处理提交
     const handleSubmit = () => {
-      if (!formData.value.country || !formData.value.bank || !formData.value.cardNumber) {
-        ElMessage.error('请填写必填项')
-        return
-      }
-      emit('submit', { ...formData.value })
-      dialogVisible.value = false
+      formRef.value.validate((valid) => {
+        if (!valid) return
+        
+        // 处理提交数据
+        const submitData = { ...formData.value }
+        
+        // 转换日期格式
+        if (submitData.valid) {
+          const [month, year] = submitData.valid.split('/')
+          submitData.valid = `20${year}-${month}-01`
+        }
+        
+        emit('submit', submitData)
+        dialogVisible.value = false
+      })
     }
 
     return {
+      formRef,
       title,
       dialogVisible,
       formData,
       options,
+      rules,
+      formatCardNumber,
+      parseCardNumber,
+      formatCurrency,
+      parseCurrency,
+      validDateOptions,
       handleCancel,
       handleSubmit
     }
@@ -283,88 +522,51 @@ export default {
 
 <style scoped>
 .card-details-dialog {
-  :deep(.el-select),
-  :deep(.el-date-picker) {
-    width: 100%;
-  }
-
-  :deep(.el-dialog__body) {
-    max-height: calc(90vh - 120px);
-    overflow-y: auto;
-    padding: 20px;
-  }
-
-  :deep(.el-descriptions__body) {
-    width: 100%;
-  }
-
   :deep(.el-descriptions__cell) {
-    min-width: 120px;
-  }
+    .el-form-item {
+      margin-bottom: 0;
+      width: 100%;
 
-  :deep(.el-select-dropdown) {
-    max-width: none;
+      .el-form-item__content {
+        margin-left: 0 !important;
+      }
+    }
+  }
+  
+  :deep(.el-descriptions__cell.is-left) {
+    white-space: nowrap;
+    overflow: visible;
   }
 
   :deep(.el-descriptions-item__container) {
     display: flex;
     align-items: center;
-  }
-
-  :deep(.el-descriptions-item__label) {
-    width: 140px;
-    flex-shrink: 0;
+    width: 100%;
   }
 
   :deep(.el-descriptions-item__content) {
     flex: 1;
-    position: relative;
+    min-width: 0;
+    white-space: nowrap;
+    overflow: visible;
   }
-
-  /* 修复输入框和日期选择器的抖动 */
-  :deep(.el-input) {
+  
+  .el-select,
+  .el-input,
+  .el-input-number,
+  .el-date-picker {
     width: 100%;
   }
-
-  :deep(.el-input__wrapper) {
-    padding-right: 30px !important;
-  }
-
-  :deep(.el-input__clear) {
-    position: absolute;
-    right: 8px;
-    width: 16px;
-    height: 16px;
-  }
-
-  /* 日期选择器特殊处理 */
-  :deep(.el-date-editor.el-input) {
-    width: 100%;
-
-    .el-input__wrapper {
-      padding-right: 38px !important;
-    }
-
-    .el-input__prefix {
-      display: flex;
-      align-items: center;
-    }
-
-    .el-input__suffix {
-      position: absolute;
-      right: 8px;
-      height: 100%;
-      display: flex;
-      align-items: center;
-    }
+  
+  :deep(.el-input-group__append) {
+    padding: 0 10px;
+    cursor: help;
   }
 }
 
 .dialog-footer {
-  display: flex;
-  justify-content: flex-end;
-  gap: 12px;
-  padding: 10px 20px;
+  padding: 20px;
+  text-align: right;
   background-color: var(--el-bg-color);
   border-top: 1px solid var(--el-border-color-lighter);
 }
