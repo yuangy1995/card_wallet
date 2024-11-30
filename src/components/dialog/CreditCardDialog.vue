@@ -141,6 +141,7 @@
 <script>
 import { ref, computed, watch } from 'vue'
 import { ElMessage } from 'element-plus'
+import { creditCardOptions } from '@/config/creditCardOptions'
 
 export default {
   name: 'CreditCardDialog',
@@ -232,25 +233,23 @@ export default {
 
     // 选项数据
     const options = {
-      countryData: [
-        { name: 'China', chineseName: '中国' },
-        { name: 'United States', chineseName: '美国' },
-        { name: 'Japan', chineseName: '日本' }
-      ],
-      bankList: [
-        { name: '中国工商银行', chineseName: '工商银行' },
-        { name: '中国建设银行', chineseName: '建设银行' },
-        { name: '中国农业银行', chineseName: '农业银行' }
-      ],
-      cardLevel: [
-        { name: '金卡', chineseName: '金卡' },
-        { name: '白金卡', chineseName: '白金卡' },
-        { name: '钻石卡', chineseName: '钻石卡' }
-      ],
+      countryData: creditCardOptions.countryData,
+      bankList: creditCardOptions.bankList,
+      cardLevel: creditCardOptions.cardLevel,
       currencyList: [
         { name: '人民币', chineseName: 'CNY' },
         { name: '美元', chineseName: 'USD' },
-        { name: '日元', chineseName: 'JPY' }
+        { name: '日元', chineseName: 'JPY' },
+        { name: '欧元', chineseName: 'EUR' },
+        { name: '英镑', chineseName: 'GBP' },
+        { name: '港币', chineseName: 'HKD' },
+        { name: '澳门币', chineseName: 'MOP' },
+        { name: '新台币', chineseName: 'TWD' },
+        { name: '新加坡元', chineseName: 'SGD' },
+        { name: '澳大利亚元', chineseName: 'AUD' },
+        { name: '加拿大元', chineseName: 'CAD' },
+        { name: '瑞士法郎', chineseName: 'CHF' },
+        { name: '泰铢', chineseName: 'THB' }
       ]
     }
 
