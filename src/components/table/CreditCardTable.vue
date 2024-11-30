@@ -231,19 +231,7 @@ export default {
           emit('edit', selectedRow.value)
           break
         case 'delete':
-          ElMessageBox.confirm(
-            '确定要删除这张信用卡吗？',
-            '警告',
-            {
-              confirmButtonText: '确定',
-              cancelButtonText: '取消',
-              type: 'warning',
-            }
-          )
-            .then(() => {
-              emit('delete', selectedRow.value)
-            })
-            .catch(() => {})
+          emit('delete', selectedRow.value)
           break
         case 'details':
           emit('view-details', selectedRow.value)

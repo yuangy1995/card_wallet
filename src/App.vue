@@ -44,7 +44,7 @@
     <CreditCardTable 
       :table-data="tableData" 
       @edit="editCreditCard" 
-      @delete="handleDelete"
+      @delete="deleteCard"
       @card-number-visibility="handleCardNumberVisibility" 
       @cvv-visibility="handleCvvVisibility"
       @view-details="viewDetails"
@@ -324,15 +324,63 @@ export default {
         predefinedNotifications.cardUpdated()
       }
     },
-    handleDelete(row) {
-      this.cardToDelete = row;
-      this.deleteDialogVisible = true;
-    },
-    confirmDelete() {
-      if (this.cardToDelete) {
-        this.cardData = this.cardData.filter(card => card.id !== this.cardToDelete.id);
-        predefinedNotifications.cardDeleted()
-        this.cardToDelete = {};
+    async deleteCard(row) {
+      const card = this.cardData.find(item => item.id === row.id)
+      if (!card) return
+
+      try {
+        await ElMessageBox.confirm(
+          `<div style="text-align: left;">
+            <div style="background: #fdf6ec; padding: 16px; border-radius: 8px; border: 1px solid #faecd8;">
+              <div style="font-size: 15px; color: #e6a23c; font-weight: 500; margin-bottom: 12px;">
+                ${card.alias || `${card.bank}${card.level}(${card.type})`}
+              </div>
+              <div style="background: #fff; padding: 12px; border-radius: 6px; margin-bottom: 12px;">
+                <p style="margin: 8px 0; color: #606266;">
+                  <strong style="color: #303133; display: inline-block; width: 70px;">发卡行：</strong>${card.bank}
+                </p>
+                <p style="margin: 8px 0; color: #606266;">
+                  <strong style="color: #303133; display: inline-block; width: 70px;">卡等级：</strong>${card.level}
+                </p>
+                <p style="margin: 8px 0; color: #606266;">
+                  <strong style="color: #303133; display: inline-block; width: 70px;">币种：</strong>${card.type}
+                </p>
+                ${card.cardNumber ? `
+                <p style="margin: 8px 0; color: #606266;">
+                  <strong style="color: #303133; display: inline-block; width: 70px;">卡号：</strong>${card.cardNumber}
+                </p>` : ''}
+              </div>
+            </div>
+            <div style="margin-top: 16px; padding: 12px; background: #fef0f0; border-radius: 6px; border: 1px solid #fde2e2;">
+              <span style="color: #f56c6c;">
+                <i class="el-icon-warning" style="margin-right: 8px;"></i>此操作将永久删除该信用卡，是否继续？
+              </span>
+            </div>
+          </div>`,
+          '',
+          {
+            confirmButtonText: '确定删除',
+            cancelButtonText: '取消',
+            type: 'warning',
+            dangerouslyUseHTMLString: true,
+            showClose: false,
+            customClass: 'delete-confirm-dialog'
+          }
+        )
+        
+        // 执行删除操作
+        const index = this.cardData.findIndex(item => item.id === row.id)
+        if (index > -1) {
+          this.cardData.splice(index, 1)
+          // 更新本地存储
+          localStorage.setItem('cardData', JSON.stringify(this.cardData))
+          ElMessage({
+            type: 'success',
+            message: '删除成功'
+          })
+        }
+      } catch (e) {
+        // 用户取消删除，不做任何操作
       }
     },
     exportData() {
@@ -376,7 +424,7 @@ export default {
           if (isNearAnnualFeeDate(nextAnnualFeeDate)) {
             this.notic(
               '提醒',
-              `${card.bank}的${card.alias || card.cardNumber}将在60天内收取年费`,
+              `${card.bank}的${card.alias || `${card.bank}${card.level}(${card.type})`}将在60天内收取年费`,
               'warning', 0, true
             );
           }
@@ -712,9 +760,46 @@ export default {
 <style lang="scss">
 @import '@/styles/app.scss';
 
-// 全局弹窗需要去掉 :deep 并添加 !important
+// 全局弹窗样式
 .el-message-box {
   width: 720px !important;
   max-width: 95vw !important;
+}
+
+// 删除确认框特殊样式
+.delete-confirm-dialog {
+  width: auto !important;
+  min-width: 420px !important;
+
+  .el-message-box__header {
+    display: none !important;
+  }
+
+  .el-message-box__content {
+    padding: 20px !important;
+  }
+
+  .el-message-box__btns {
+    border-top: 1px solid #ebeef5;
+    padding: 12px 20px !important;
+    display: flex !important;
+    justify-content: center !important;
+    gap: 12px !important;
+
+    button {
+      margin-left: 0 !important;
+      min-width: 100px !important;
+    }
+
+    .el-button--primary {
+      background-color: #f56c6c !important;
+      border-color: #f56c6c !important;
+      
+      &:hover {
+        background-color: #f78989 !important;
+        border-color: #f78989 !important;
+      }
+    }
+  }
 }
 </style>

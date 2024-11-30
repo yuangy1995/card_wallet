@@ -288,3 +288,8 @@
     }
   }
 }
+
+/* 移除 el-message-box 的固定宽度设置 */
+:deep(.el-message-box) {
+  max-width: 95vw !important;
+}
