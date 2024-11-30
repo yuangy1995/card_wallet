@@ -1,0 +1,290 @@
+.main_body {
+  width: 100vw;
+  height: 100vh;
+  background-color: #5672be;
+  padding: 20px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: fixed;
+  left: 0;
+  top: 0;
+
+  .headers {
+    background-color: #fff;
+    padding: 15px;
+    border-radius: 5px;
+    margin-bottom: 10px;
+    flex-shrink: 0;
+
+    .search-row {
+      display: flex;
+      flex-wrap: nowrap;
+      justify-content: space-between;
+      margin-bottom: 15px;
+
+      &:last-child {
+        margin-bottom: 0;
+      }
+
+      .el-form-item {
+        flex: 1;
+        margin-right: 15px;
+        margin-bottom: 0;
+
+        &:last-child {
+          margin-right: 0;
+        }
+      }
+    }
+
+    :deep(.el-form-item__content) {
+      width: 100%;
+      display: flex;
+    }
+
+    :deep(.el-select),
+    :deep(.el-input) {
+      width: 100%;
+    }
+  }
+
+  .button-container {
+    background-color: #fff;
+    padding: 10px;
+    border-radius: 5px;
+    margin-bottom: 10px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .table-container {
+    flex: 1;
+    overflow: hidden;
+    background-color: #fff;
+    border-radius: 5px;
+    padding: 2px;
+
+    :deep(.el-table) {
+      height: 100%;
+    }
+
+    :deep(.el-table__header) {
+      th {
+        background-color: #f5f7fa;
+      }
+    }
+
+    :deep(.el-table__body-wrapper) {
+      overflow-y: auto;
+    }
+  }
+}
+
+/* 针对不同分辨率的布局调整 */
+@media screen and (min-width: 3840px) {
+  .main_body {
+    padding: 30px;
+
+    .headers {
+      padding: 20px;
+    }
+
+    .button-container {
+      padding: 15px;
+    }
+  }
+}
+
+@media screen and (max-width: 1920px) {
+  .main_body {
+    padding: 15px;
+
+    .headers {
+      padding: 12px;
+    }
+
+    .button-container {
+      padding: 8px;
+    }
+  }
+}
+
+.dialog-footer {
+  text-align: center;
+}
+
+:deep(.el-descriptions) {
+  padding: 10px;
+
+  .el-descriptions__header {
+    margin-bottom: 15px;
+  }
+
+  .el-descriptions__label {
+    width: 120px;
+    font-weight: bold;
+    color: #606266;
+  }
+
+  .el-descriptions__content {
+    color: #333;
+  }
+
+  .el-tag {
+    font-weight: normal;
+  }
+}
+
+/* 表单验证样式 */
+:deep(.el-form-item.is-error) {
+
+  .el-input__wrapper,
+  .el-textarea__wrapper {
+    box-shadow: 0 0 0 1px #f56c6c;
+  }
+}
+
+/* 对话框底部样式 */
+.dialog-footer {
+  border-top: 1px solid #ebeef5;
+  padding: 15px 20px;
+  text-align: right;
+  margin: 0 -20px -20px;
+
+  .el-button {
+    padding: 9px 20px;
+    font-size: 14px;
+    border-radius: 4px;
+    margin-left: 10px;
+
+    &--default {
+      border-color: #dcdfe6;
+
+      &:hover {
+        border-color: #c6e2ff;
+        color: #5672be;
+        background-color: #ecf5ff;
+      }
+    }
+
+    &--primary {
+      background-color: #5672be;
+      border-color: #5672be;
+
+      &:hover {
+        background-color: #4a63a8;
+        border-color: #4a63a8;
+      }
+    }
+  }
+}
+
+/* 新增信用卡对话框样式 */
+:deep(.el-dialog) {
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+
+  .el-dialog__header {
+    margin: 0;
+    padding: 20px;
+    border-bottom: 1px solid #ebeef5;
+
+    .el-dialog__title {
+      font-size: 18px;
+      font-weight: 600;
+      color: #303133;
+    }
+  }
+
+  .el-dialog__body {
+    padding: 20px;
+  }
+}
+
+.dialog-footer {
+  text-align: center;
+  padding-top: 10px;
+}
+
+.warning-row {
+  background-color: #fdf6ec !important;
+}
+
+.danger-row {
+  background-color: #fef0f0 !important;
+}
+
+/* 年费提醒弹窗样式 */
+:deep(.annual-fee-dialog) {
+  .el-message-box__content {
+    padding: 20px;
+  }
+  
+  .el-message-box__container {
+    max-height: 500px;
+    overflow-y: auto;
+  }
+  
+  ul {
+    margin: 0;
+    padding: 0;
+  }
+  
+  li {
+    transition: all 0.3s ease;
+  }
+  
+  li:hover {
+    transform: translateX(4px);
+  }
+}
+
+/* 确保样式应用到表格行 */
+:deep(.el-table__row) {
+  &.warning-row > td {
+    --el-table-tr-bg-color: #fdf6ec;
+    background-color: #fdf6ec !important;
+  }
+  
+  &.danger-row > td {
+    --el-table-tr-bg-color: #fef0f0;
+    background-color: #fef0f0 !important;
+  }
+}
+
+/* 确保悬停时保持背景色 */
+:deep(.el-table__row) {
+  &.warning-row:hover > td {
+    background-color: #fdf6ec !important;
+  }
+  
+  &.danger-row:hover > td {
+    background-color: #fef0f0 !important;
+  }
+}
+
+/* 表格行样式 */
+:deep(.el-table) {
+  .warning-row {
+    --el-table-tr-bg-color: #fdf6ec;
+    background-color: #fdf6ec;
+    
+    > td {
+      background-color: #fdf6ec !important;
+    }
+  }
+  
+  .danger-row {
+    --el-table-tr-bg-color: #fef0f0;
+    background-color: #fef0f0;
+    
+    > td {
+      background-color: #fef0f0 !important;
+    }
+  }
+}
