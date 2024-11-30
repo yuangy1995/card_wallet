@@ -11,70 +11,50 @@
       :row-class-name="rowClassName"
     >
       <el-table-column type="index" label="序号" width="60" align="center" fixed />
-      <el-table-column prop="country" label="国家" width="100" align="center" fixed sortable />
-      <el-table-column prop="bank" label="银行" width="150" align="center" fixed sortable />
-      <el-table-column prop="alias" label="别名" width="200" align="center" fixed sortable />
-      <el-table-column prop="level" label="等级" width="110" align="center" sortable />
-      <el-table-column prop="type" label="币种" width="150" align="center" sortable />
-      <el-table-column 
-        prop="annualFee" 
-        label="年费" 
-        width="90" 
-        align="center" 
-        sortable="custom" 
-        :sort-method="sortMethods.annualFee"
-      />
-      <el-table-column 
-        prop="cardNumber" 
-        label="卡号" 
-        width="250" 
-        align="center" 
-        sortable="custom"
-        :sort-method="sortMethods.cardNumber"
-      >
-        <template #default="scope">
-          <SecureField 
-            :id="`card-number-${scope.$index}`"
-            :value="scope.row.cardNumber"
-            :mask-start="4"
-            :mask-end="12"
-            type="cardNumber"
-            @visibility-change="(visible) => handleVisibilityChange({ id: scope.row.id, isVisible: visible, type: 'cardNumber' })"
-          />
-        </template>
-      </el-table-column>
-      <el-table-column prop="valid" label="有效期" width="120" align="center" sortable="custom" :sort-method="sortMethods.valid" />
-      <el-table-column prop="cvv" label="CVV" width="120" align="center">
-        <template #default="scope">
-          <SecureField 
-            :id="`cvv-${scope.$index}`"
-            :value="scope.row.cvv"
-            :mask-all="true"
-            type="cvv"
-            @visibility-change="(visible) => handleVisibilityChange({ id: scope.row.id, isVisible: visible, type: 'cvv' })"
-          />
-        </template>
-      </el-table-column>
-      <el-table-column prop="limit" label="额度" width="100" align="center" />
-      <el-table-column prop="nextAnnualFeeCollectionTime" label="下次年费收取时间" width="150" align="center" />
-      <el-table-column prop="lastTime" label="最后提额时间" width="170" align="center">
-        <template #default="{ row }">
-          <div v-if="row.lastTime" style="display: flex; flex-direction: column; align-items: center;">
-            <span>{{ row.lastTime }}</span>
-            <span style="color: #909399; font-size: 12px;">(距离上次提额{{ getDaysFromNow(row.lastTime) }}天)</span>
-          </div>
-          <span v-else>-</span>
-        </template>
-      </el-table-column>
-      <el-table-column prop="isQualified" label="年费达标" width="100" align="center">
-        <template #default="{ row }">
-          <el-tag v-if="row.isQualified === '1'" type="success">已达标</el-tag>
-          <el-tag v-if="row.isQualified === '2'" type="danger">未达标</el-tag>
-          <el-tag v-if="row.isQualified === '3'" type="info">终免年费</el-tag>
-        </template>
-      </el-table-column>
-      <el-table-column prop="equity" label="权益" width="200" align="center" show-overflow-tooltip />
-      <el-table-column prop="remark" label="备注" width="200" align="center" show-overflow-tooltip />
+      <template v-for="column in columns" :key="column.value">
+        <el-table-column
+          v-if="isColumnVisible(column.value)"
+          :prop="column.value"
+          :label="column.label"
+          :width="getColumnWidth(column.value)"
+          align="center"
+          :fixed="isColumnFixed(column.value)"
+          :sortable="isColumnSortable(column.value)"
+          :sort-method="getSortMethod(column.value)"
+        >
+          <template v-if="column.value === 'cardNumber'" #default="scope">
+            <SecureField 
+              :id="`card-number-${scope.$index}`"
+              :value="scope.row.cardNumber"
+              :mask-start="4"
+              :mask-end="12"
+              type="cardNumber"
+              @visibility-change="(visible) => handleVisibilityChange({ id: scope.row.id, isVisible: visible, type: 'cardNumber' })"
+            />
+          </template>
+          <template v-else-if="column.value === 'cvv'" #default="scope">
+            <SecureField 
+              :id="`cvv-${scope.$index}`"
+              :value="scope.row.cvv"
+              :mask-all="true"
+              type="cvv"
+              @visibility-change="(visible) => handleVisibilityChange({ id: scope.row.id, isVisible: visible, type: 'cvv' })"
+            />
+          </template>
+          <template v-else-if="column.value === 'lastTime'" #default="{ row }">
+            <div v-if="row.lastTime" style="display: flex; flex-direction: column; align-items: center;">
+              <span>{{ row.lastTime }}</span>
+              <span style="color: #909399; font-size: 12px;">(距离上次提额{{ getDaysFromNow(row.lastTime) }}天)</span>
+            </div>
+            <span v-else>-</span>
+          </template>
+          <template v-else-if="column.value === 'isQualified'" #default="{ row }">
+            <el-tag v-if="row.isQualified === '1'" type="success">已达标</el-tag>
+            <el-tag v-if="row.isQualified === '2'" type="danger">未达标</el-tag>
+            <el-tag v-if="row.isQualified === '3'" type="info">终免年费</el-tag>
+          </template>
+        </el-table-column>
+      </template>
     </el-table>
 
     <!-- 右键菜单 -->
@@ -111,6 +91,7 @@ import { ElMessageBox } from 'element-plus'
 import { Edit, View, Delete, Check } from '@element-plus/icons-vue'
 import { ref, onMounted, computed } from 'vue'
 import { getDaysFromNow } from '../../utils/dateCalculator'
+import { creditCardOptions } from '@/config/creditCardOptions'
 
 // 获取卡片类型权重
 function getCardTypeWeight(cardNumber) {
@@ -164,7 +145,11 @@ export default {
     },
     rowClassName: {
       type: Function,
-      required: true
+      default: null
+    },
+    visibleColumns: {
+      type: Array,
+      default: () => []
     }
   },
   emits: ['edit', 'delete', 'card-number-visibility', 'cvv-visibility', 'view-details', 'annual-fee-qualified'],
@@ -178,6 +163,50 @@ export default {
       key: localStorage.getItem('creditCardTableSortKey') || '',
       order: localStorage.getItem('creditCardTableSortOrder') || ''
     })
+
+    const columns = creditCardOptions.tableCustomData
+
+    const isColumnVisible = (columnValue) => {
+      return props.visibleColumns.includes(columnValue)
+    }
+
+    const getColumnWidth = (columnValue) => {
+      switch (columnValue) {
+        case 'country': return '100'
+        case 'bank': return '150'
+        case 'alias': return '200'
+        case 'level': return '110'
+        case 'type': return '150'
+        case 'annualFee': return '90'
+        case 'cardNumber': return '250'
+        case 'valid': return '120'
+        case 'cvv': return '120'
+        case 'limit': return '100'
+        case 'nextAnnualFeeCollectionTime': return '150'
+        case 'lastTime': return '170'
+        case 'isQualified': return '100'
+        case 'equity': return '200'
+        case 'remark': return '200'
+        default: return '150'
+      }
+    }
+
+    const isColumnFixed = (columnValue) => {
+      return ['country', 'bank', 'alias'].includes(columnValue)
+    }
+
+    const isColumnSortable = (columnValue) => {
+      return ['country', 'bank', 'level', 'type', 'annualFee', 'cardNumber', 'valid'].includes(columnValue)
+    }
+
+    const getSortMethod = (columnValue) => {
+      switch (columnValue) {
+        case 'annualFee': return (a, b) => Number(a) - Number(b)
+        case 'cardNumber': return (a, b) => a.localeCompare(b)
+        case 'valid': return (a, b) => new Date(a) - new Date(b)
+        default: return undefined
+      }
+    }
 
     // 自定义排序方法
     const sortMethods = {
@@ -199,11 +228,9 @@ export default {
     }
 
     const showAnnualFeeOption = computed(() => {
-      if (!selectedRow.value || !selectedRow.value.nextAnnualFeeCollectionTime) return false
-      const now = new Date()
-      const dueDate = new Date(selectedRow.value.nextAnnualFeeCollectionTime)
-      const diffDays = Math.ceil((dueDate - now) / (1000 * 60 * 60 * 24))
-      return diffDays <= 60 && diffDays > -60
+      if (!selectedRow.value) return false
+      // 只在未达标的情况下显示
+      return selectedRow.value.isQualified === '2'
     })
 
     // 处理右键菜单显示
@@ -277,6 +304,12 @@ export default {
     })
 
     return {
+      columns,
+      isColumnVisible,
+      getColumnWidth,
+      isColumnFixed,
+      isColumnSortable,
+      getSortMethod,
       handleContextMenu,
       handleContextMenuAction,
       handleVisibilityChange,

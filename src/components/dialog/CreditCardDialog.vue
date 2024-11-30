@@ -307,29 +307,6 @@ const validateCardNumber = (rule, value, callback) => {
     return callback(new Error('卡号长度必须在13-19位之间'))
   }
   
-  // Luhn 算法验证
-  let sum = 0
-  let isEven = false
-  
-  // 从右向左遍历
-  for (let i = cardNumber.length - 1; i >= 0; i--) {
-    let digit = parseInt(cardNumber.charAt(i))
-    
-    if (isEven) {
-      digit *= 2
-      if (digit > 9) {
-        digit -= 9
-      }
-    }
-    
-    sum += digit
-    isEven = !isEven
-  }
-  
-  if (sum % 10 !== 0) {
-    return callback(new Error('请输入有效的信用卡号'))
-  }
-  
   callback()
 }
 

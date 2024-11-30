@@ -4,17 +4,25 @@
     title="选择表格显示内容"
     width="30%"
     draggable
+    destroy-on-close
   >
-    <el-checkbox-group v-model="selectedColumns">
-      <el-checkbox
-        v-for="item in columns"
-        :key="item.prop"
-        :label="item.prop"
-        size="large"
-      >
-        {{ item.label }}
-      </el-checkbox>
-    </el-checkbox-group>
+    <div class="dialog-content">
+      <div class="button-group">
+        <el-button size="small" @click="selectAll">全选</el-button>
+        <el-button size="small" @click="unselectAll">取消全选</el-button>
+        <el-button size="small" @click="resetDefault">恢复默认</el-button>
+      </div>
+      <div class="checkbox-container">
+        <el-checkbox
+          v-for="item in localColumns"
+          :key="item.value"
+          v-model="item.checked"
+          :label="item.label"
+        >
+          {{ item.label }}
+        </el-checkbox>
+      </div>
+    </div>
 
     <template #footer>
       <span class="dialog-footer">
@@ -26,9 +34,11 @@
 </template>
 
 <script>
+import { ref, computed, watch } from 'vue'
+import { creditCardOptions } from '../../config/creditCardOptions'
+
 export default {
   name: 'TableCustomDialog',
-
   props: {
     visible: {
       type: Boolean,
@@ -36,71 +46,101 @@ export default {
     },
     columns: {
       type: Array,
-      required: true,
-      default: () => []
-    },
-    initialSelection: {
-      type: Array,
-      default: () => []
+      required: true
     }
   },
-
   emits: ['update:visible', 'confirm'],
+  setup(props, { emit }) {
+    console.log('Dialog setup with columns:', props.columns)
+    
+    const dialogVisible = computed({
+      get: () => props.visible,
+      set: (value) => emit('update:visible', value)
+    })
 
-  data() {
+    const localColumns = ref([])
+
+    // 监听 visible 和 columns 属性的变化
+    watch(() => props.visible, (newValue) => {
+      console.log('Dialog visibility changed:', newValue)
+      if (newValue) {
+        // 当对话框打开时，复制传入的列配置
+        localColumns.value = JSON.parse(JSON.stringify(props.columns))
+      }
+    })
+
+    const selectAll = () => {
+      console.log('Selecting all columns')
+      localColumns.value.forEach(column => {
+        column.checked = true
+      })
+    }
+
+    const unselectAll = () => {
+      console.log('Unselecting all columns')
+      localColumns.value.forEach(column => {
+        column.checked = false
+      })
+    }
+
+    const resetDefault = () => {
+      console.log('Resetting to default')
+      localColumns.value = JSON.parse(JSON.stringify(creditCardOptions.tableCustomData))
+    }
+
+    const handleConfirm = () => {
+      console.log('Confirming with columns:', localColumns.value)
+      emit('confirm', localColumns.value)
+      dialogVisible.value = false
+    }
+
+    const handleCancel = () => {
+      console.log('Canceling dialog')
+      dialogVisible.value = false
+    }
+
     return {
-      selectedColumns: []
-    }
-  },
-
-  computed: {
-    dialogVisible: {
-      get() {
-        return this.visible
-      },
-      set(value) {
-        this.$emit('update:visible', value)
-      }
-    }
-  },
-
-  watch: {
-    visible(newVal) {
-      if (newVal) {
-        // 当对话框打开时，初始化选中的列
-        this.selectedColumns = [...this.initialSelection]
-      }
-    }
-  },
-
-  methods: {
-    handleCancel() {
-      this.dialogVisible = false
-    },
-
-    handleConfirm() {
-      this.$emit('confirm', this.selectedColumns)
-      this.dialogVisible = false
+      dialogVisible,
+      localColumns,
+      selectAll,
+      unselectAll,
+      resetDefault,
+      handleConfirm,
+      handleCancel
     }
   }
 }
 </script>
 
 <style lang="scss" scoped>
+.dialog-content {
+  max-height: 60vh;
+  overflow-y: auto;
+
+  .button-group {
+    margin-bottom: 16px;
+    display: flex;
+    gap: 8px;
+  }
+
+  .checkbox-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+    gap: 12px;
+
+    .el-checkbox {
+      margin-right: 0;
+    }
+  }
+}
+
+:deep(.el-dialog__body) {
+  padding: 20px;
+}
+
 .dialog-footer {
   display: flex;
   justify-content: flex-end;
-  gap: 12px;
-  margin-top: 20px;
-}
-
-:deep(.el-checkbox-group) {
-  display: flex;
-  flex-direction: column;
-  gap: 12px;
-
-  .el-checkbox {
-    margin-right: 0;
-  }
+  gap: 8px;
 }
 </style>
