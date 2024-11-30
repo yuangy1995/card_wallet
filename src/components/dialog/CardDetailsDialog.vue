@@ -36,7 +36,7 @@
             {{ cardInfo.nextAnnualFeeCollectionTime }}
           </el-descriptions-item>
           <el-descriptions-item label="上次提额日期" :span="2">
-            {{ cardInfo.lastTime }}
+            <div style="white-space: pre-line">{{ lastTimeDisplay }}</div>
           </el-descriptions-item>
 
           <!-- 其他信息 -->
@@ -85,7 +85,7 @@
             {{ cardInfo.nextAnnualFeeCollectionTime }}
           </el-descriptions-item>
           <el-descriptions-item label="上次提额日期">
-            {{ cardInfo.lastTime }}
+            <div style="white-space: pre-line">{{ lastTimeDisplay }}</div>
           </el-descriptions-item>
         </el-descriptions>
       </el-tab-pane>
@@ -112,6 +112,8 @@
 </template>
 
 <script>
+import { getDaysFromNow } from '../../utils/dateCalculator'
+
 export default {
   name: 'CardDetailsDialog',
   
@@ -135,6 +137,11 @@ export default {
       set(value) {
         this.$emit('update:visible', value)
       }
+    },
+    lastTimeDisplay() {
+      if (!this.cardInfo.lastTime) return '-'
+      const days = getDaysFromNow(this.cardInfo.lastTime)
+      return `${this.cardInfo.lastTime}\n(距离上次提额${days}天)`
     }
   },
 
