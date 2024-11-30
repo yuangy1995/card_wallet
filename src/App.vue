@@ -19,16 +19,16 @@
           <FolderOpened />
         </el-icon>导入数据
       </el-button>
+      <el-button type="info" @click="showStatistics">
+        <el-icon>
+          <TrendCharts />
+        </el-icon>统计分析
+      </el-button>
     </div>
 
-    <CreditCardTable 
-      :table-data="tableData" 
-      @edit="editCreditCard" 
-      @delete="handleDelete"
-      @card-number-visibility="handleCardNumberVisibility" 
-      @cvv-visibility="handleCvvVisibility"
-      @view-details="viewDetails"
-    />
+    <CreditCardTable :table-data="tableData" @edit="editCreditCard" @delete="handleDelete"
+      @card-number-visibility="handleCardNumberVisibility" @cvv-visibility="handleCvvVisibility"
+      @view-details="viewDetails" />
 
     <credit-card-dialog v-model:visible="creditCardData.dialogFormVisible" :mode="status"
       :initial-data="creditCardData.data" @submit="confirmAdd" @cancel="handleDialogCancel" />
@@ -39,20 +39,7 @@
 
     <delete-confirm-dialog v-model:visible="deleteDialogVisible" :card-info="cardToDelete" @confirm="confirmDelete" />
 
-    <!-- 排序框 -->
-    <el-dialog v-model="sortData.dialogFormVisible" title="选择排序方式" width="30%" draggable>
-      <el-radio-group v-model="sortData.value">
-        <el-radio v-for="item in sortData.options" :label="item" size="large">{{ item }}</el-radio>
-      </el-radio-group>
-      <template #footer>
-        <span class="dialog-footer">
-          <el-button @click="sortData.dialogFormVisible = false">取消</el-button>
-          <el-button type="primary" @click="oneKeySortConfirm">
-            确定
-          </el-button>
-        </span>
-      </template>
-    </el-dialog>
+
     <!-- 表格自定义框 -->
     <table-custom-dialog v-model:visible="tableCustom.dialogFormVisible"
       :columns="creditCardData.options.tableCustomData" :initial-selection="selectedTableColumns"
@@ -61,6 +48,13 @@
     <credit-card-statistics :card-data="cardData" @statistics-updated="handleStatisticsUpdated" />
     <!-- 查看详情弹窗 -->
     <card-details-dialog v-model:visible="detailsVisible" :card-info="currentCard" />
+    <!-- 统计分析弹窗 -->
+    <el-dialog v-model="statisticsVisible" title="信用卡统计分析" width="80%" :destroy-on-close="true">
+      <el-scrollbar max-height="700px">
+        <Statistics v-if="statisticsVisible" :card-data="cardData" />
+      </el-scrollbar>
+
+    </el-dialog>
   </div>
 </template>
 
@@ -72,7 +66,7 @@ import CreditCardTable from './components/table/CreditCardTable.vue'
 import CreditCardDialog from './components/dialog/CreditCardDialog.vue'
 import ImportExportDialog from './components/dialog/ImportExportDialog.vue'
 import DeleteConfirmDialog from './components/dialog/DeleteConfirmDialog.vue'
-import { Plus, Share, FolderOpened } from '@element-plus/icons-vue'
+import { Plus, Share, FolderOpened, TrendCharts } from '@element-plus/icons-vue'
 import { predefinedNotifications } from './utils/notification'
 import CreditCardStatistics from './components/statistics/CreditCardStatistics.vue'
 import {
@@ -85,12 +79,14 @@ import {
 } from './utils/dateCalculator'
 import CardDetailsDialog from './components/dialog/CardDetailsDialog.vue'
 import TableCustomDialog from './components/dialog/TableCustomDialog.vue'
+import Statistics from './components/Statistics.vue'
 
 export default {
   components: {
     Plus,
     FolderOpened,
     Share,
+    TrendCharts,
     SearchForm,
     CreditCardTable,
     CreditCardDialog,
@@ -98,14 +94,15 @@ export default {
     DeleteConfirmDialog,
     CardDetailsDialog,
     TableCustomDialog,
-    CreditCardStatistics
+    CreditCardStatistics,
+    Statistics
   },
   data() {
     return {
       cardData: [],
       labelWidth: '80px',
       detailsVisible: false,
-      currentCard: null,
+      currentCard: {},
       userData: {
         tableCustom: {
           country: true,
@@ -187,8 +184,9 @@ export default {
       importExportDialogVisible: false,
       isImportMode: false,
       deleteDialogVisible: false,
-      cardToDelete: null,
+      cardToDelete: {},
       selectedTableColumns: [],
+      statisticsVisible: false,
     }
   },
   created() {
@@ -307,7 +305,7 @@ export default {
       if (this.cardToDelete) {
         this.cardData = this.cardData.filter(card => card.id !== this.cardToDelete.id);
         predefinedNotifications.cardDeleted()
-        this.cardToDelete = null;
+        this.cardToDelete = {};
       }
     },
     exportData() {
@@ -403,6 +401,9 @@ export default {
     },
     handleDialogCancel() {
       this.creditCardData.dialogFormVisible = false;
+    },
+    showStatistics() {
+      this.statisticsVisible = true
     },
   },
   watch: {

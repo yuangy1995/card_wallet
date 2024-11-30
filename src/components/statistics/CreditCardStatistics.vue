@@ -183,13 +183,14 @@ export default {
 
     getCurrencyTagType(type) {
       const typeMap = {
-        'CNY': '',
+        'CNY': 'info',
         'USD': 'success',
         'EUR': 'warning',
         'GBP': 'danger',
+        'HKD': 'primary',
         'JPY': 'info'
       }
-      return typeMap[type] || ''
+      return typeMap[type] || 'info'
     }
   },
 
