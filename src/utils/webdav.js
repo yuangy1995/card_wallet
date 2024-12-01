@@ -25,7 +25,6 @@ export class WebDAVClient {
       }
       return originalUrl;
     } catch (error) {
-      console.error('Failed to parse URL:', error);
       return originalUrl;
     }
   }
@@ -65,10 +64,7 @@ export class WebDAVClient {
           });
 
           if (!response.ok) {
-            if (response.status === 401) {
-              throw new Error('认证失败，请检查用户名和密码');
-            }
-            throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+            throw new Error(`请求失败：${response.status} ${response.statusText}`);
           }
 
           // 如果是下载操作，处理进度
@@ -120,7 +116,6 @@ export class WebDAVClient {
 
           return response;
         } catch (error) {
-          console.error('Request error:', error);
           throw error;
         }
       };
@@ -131,8 +126,7 @@ export class WebDAVClient {
       this.config = config;
       return true;
     } catch (error) {
-      console.error('WebDAV initialization failed:', error);
-      return false;
+      throw new Error(`初始化失败：${error.message}`);
     }
   }
 
@@ -153,20 +147,7 @@ export class WebDAVClient {
         message: '连接成功'
       };
     } catch (error) {
-      console.error('WebDAV connection test failed:', error);
-      
-      // 检查是否是认证错误
-      if (error.message.includes('认证失败')) {
-        return {
-          success: false,
-          message: error.message
-        };
-      }
-      
-      return {
-        success: false,
-        message: error.message || '连接失败，请检查配置'
-      };
+      return { success: false, message: error.message };
     }
   }
 
@@ -178,8 +159,7 @@ export class WebDAVClient {
       this.config = config;
       return true;
     } catch (error) {
-      console.error('Failed to save WebDAV config:', error);
-      return false;
+      throw new Error(`保存配置失败：${error.message}`);
     }
   }
 
@@ -194,8 +174,7 @@ export class WebDAVClient {
       this.config = config;
       return config;
     } catch (error) {
-      console.error('Failed to load WebDAV config:', error);
-      return null;
+      throw new Error(`加载配置失败：${error.message}`);
     }
   }
 
@@ -212,13 +191,21 @@ export class WebDAVClient {
         await this.client.createDirectory(backupDir);
       }
 
-      // 生成备份文件名（使用时间戳）
-      const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+      // 创建备份文件名
+      const now = new Date();
+      const timestamp = now.toLocaleString('zh-CN', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit',
+        hour12: false
+      }).replace(/[\/:]/g, '-').replace(', ', '_');
+      
       const filename = `backup-${timestamp}.json`;
       const filepath = `${backupDir}/${filename}`;
 
-      console.log('Creating backup at:', filepath);
-      
       // 报告开始上传
       if (this.progressCallback) {
         this.progressCallback('upload', 0);
@@ -242,11 +229,7 @@ export class WebDAVClient {
         filename: filename
       };
     } catch (error) {
-      console.error('Backup failed:', error);
-      return {
-        success: false,
-        message: error.message || '备份失败'
-      };
+      return { success: false, message: error.message };
     }
   }
 
@@ -275,11 +258,7 @@ export class WebDAVClient {
         }))
       };
     } catch (error) {
-      console.error('Failed to get backup list:', error);
-      return {
-        success: false,
-        message: error.message || '获取备份列表失败'
-      };
+      return { success: false, message: error.message };
     }
   }
 
@@ -322,11 +301,7 @@ export class WebDAVClient {
         };
       }
     } catch (error) {
-      console.error('Failed to restore backup:', error);
-      return {
-        success: false,
-        message: error.message || '恢复失败'
-      };
+      return { success: false, message: error.message };
     }
   }
 
@@ -344,11 +319,7 @@ export class WebDAVClient {
         message: '删除成功'
       };
     } catch (error) {
-      console.error('Failed to delete backup:', error);
-      return {
-        success: false,
-        message: error.message || '删除失败'
-      };
+      return { success: false, message: error.message };
     }
   }
 }

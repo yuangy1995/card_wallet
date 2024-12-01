@@ -126,6 +126,7 @@ import WebDAVConfigDialog from '@/components/dialog/WebDAVConfigDialog.vue'
 import BackupDialog from '@/components/dialog/BackupDialog.vue'
 import { creditCardOptions } from '@/config/creditCardOptions'
 import SearchForm from '@/components/search/SearchForm.vue'
+import { generateMockData } from '@/utils/mockData'
 
 // 状态管理
 const cardData = ref([])

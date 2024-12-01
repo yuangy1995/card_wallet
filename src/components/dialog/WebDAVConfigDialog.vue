@@ -164,7 +164,7 @@ const loadSavedConfig = () => {
       form.password = config.password
       form.ignoreCert = config.ignoreCert
     } catch (error) {
-      console.error('Failed to parse saved URL:', error)
+      // 配置可能不完整或格式错误，忽略错误继续
     }
   }
 }
@@ -242,11 +242,12 @@ const saveConfig = async () => {
       ElMessage.success('配置保存成功')
       dialogVisible.value = false
     } else {
-      ElMessage.error('配置保存失败')
+      ElMessage.error('保存配置失败：' + error.message)
+      return false
     }
   } catch (error) {
-    console.error('Failed to save config:', error)
-    ElMessage.error('配置保存失败：' + (error.message || '未知错误'))
+    ElMessage.error('保存配置失败：' + error.message)
+    return false
   }
 }
 

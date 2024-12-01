@@ -9,90 +9,74 @@
     @closed="handleClosed"
   >
     <div class="backup-dialog">
-      <!-- 备份列表 -->
-      <div v-if="backupList.length > 0" class="backup-list">
-        <el-table
-          :data="backupList"
-          style="width: 100%"
-          v-loading="loading"
-          element-loading-text="正在获取备份列表..."
-          element-loading-background="rgba(255, 255, 255, 0.7)"
+      <div class="backup-header" v-if="!progressVisible">
+        <el-button
+          type="primary"
+          @click="showBackupDialog"
+          :disabled="!isConnected || loading"
         >
-          <el-table-column prop="basename" label="备份文件" min-width="200">
-            <template #default="{ row }">
-              <el-tooltip :content="row.filename" placement="top">
-                <span>{{ row.basename }}</span>
-              </el-tooltip>
-            </template>
-          </el-table-column>
-          <el-table-column prop="lastmod" label="创建时间" min-width="160">
-            <template #default="{ row }">
-              {{ formatDate(row.lastmod) }}
-            </template>
-          </el-table-column>
-          <el-table-column prop="size" label="大小" width="100">
-            <template #default="{ row }">
-              {{ formatSize(row.size) }}
-            </template>
-          </el-table-column>
-          <el-table-column label="操作" width="120" fixed="right">
-            <template #default="{ row }">
-              <el-button-group>
+          创建备份
+        </el-button>
+        <div class="connection-status">
+          <el-tag :type="isConnected ? 'success' : 'danger'" size="small">
+            {{ isConnected ? '已连接' : '未连接' }}
+          </el-tag>
+        </div>
+      </div>
+
+      <div v-if="progressVisible" class="progress-container">
+        <el-progress
+          :percentage="progress"
+          :status="progress === 100 ? 'success' : ''"
+        />
+        <div class="progress-text">{{ backingUp ? '正在备份...' : '正在恢复...' }}</div>
+      </div>
+
+      <el-scrollbar height="400px" class="backup-list-container">
+        <div v-loading="loading" class="backup-list">
+          <template v-if="backupList.length > 0">
+            <div
+              v-for="backup in backupList"
+              :key="backup.filename"
+              class="backup-item"
+            >
+              <div class="backup-info">
+                <div class="backup-name">{{ backup.filename }}</div>
+                <div class="backup-meta">
+                  <span>{{ formatDate(backup.modifiedTime) }}</span>
+                  <span>{{ formatSize(backup.size) }}</span>
+                </div>
+              </div>
+              <div class="backup-actions">
                 <el-button
-                  type="primary"
-                  :icon="Download"
+                  type="success"
                   size="small"
-                  @click="handleRestore(row)"
-                  title="恢复"
-                  :loading="row.restoring"
-                />
+                  @click="handleRestore(backup)"
+                  :loading="backup.restoring"
+                  :disabled="!isConnected"
+                >
+                  恢复
+                </el-button>
                 <el-button
                   type="danger"
-                  :icon="Delete"
                   size="small"
-                  @click="handleDelete(row)"
-                  title="删除"
-                  :loading="row.deleting"
-                />
-              </el-button-group>
-            </template>
-          </el-table-column>
-        </el-table>
-      </div>
-      <el-empty v-else description="暂无备份" />
-
-      <!-- 进度条 -->
-      <el-dialog
-        v-model="progressVisible"
-        :title="progressTitle"
-        width="400px"
-        :close-on-click-modal="false"
-        :show-close="false"
-        append-to-body
-      >
-        <div class="progress-content">
-          <el-progress
-            :percentage="progress"
-            :status="progressStatus"
-            :stroke-width="15"
-            :show-text="true"
-          />
-          <div class="progress-text">{{ progressText }}</div>
+                  @click="handleDelete(backup)"
+                  :loading="backup.deleting"
+                  :disabled="!isConnected"
+                >
+                  删除
+                </el-button>
+              </div>
+            </div>
+          </template>
+          <el-empty v-else description="暂无备份" />
         </div>
-      </el-dialog>
+      </el-scrollbar>
     </div>
 
     <template #footer>
       <span class="dialog-footer">
         <el-button @click="visible = false">关闭</el-button>
-        <el-button
-          type="primary"
-          :loading="backingUp"
-          :disabled="!isConnected"
-          @click="showBackupDialog"
-        >
-          创建备份
-        </el-button>
       </span>
     </template>
   </el-dialog>
@@ -231,7 +215,18 @@ const validatePassword = (rule, value, callback) => {
 
 // 格式化日期
 const formatDate = (date) => {
-  return new Date(date).toLocaleString()
+  if (!date) return '未知时间';
+  const d = new Date(date);
+  if (isNaN(d.getTime())) return '未知时间';
+  return d.toLocaleString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  });
 }
 
 // 格式化文件大小
@@ -259,9 +254,7 @@ const loadBackupList = async () => {
       isConnected.value = false  // 连接可能已断开
     }
   } catch (error) {
-    console.error('Failed to load backup list:', error)
-    ElMessage.error('获取备份列表失败')
-    isConnected.value = false  // 连接可能已断开
+    ElMessage.error('加载备份列表失败：' + error.message)
   } finally {
     loading.value = false
   }
@@ -356,16 +349,14 @@ const handleRestore = async (backup) => {
           handleRestoreSuccess(content)
         }
       } catch (error) {
-        console.error('Failed to process backup data:', error)
-        ElMessage.error(error.message || '数据格式错误')
+        ElMessage.error('处理备份数据失败：' + error.message)
       }
     } else {
       ElMessage.error(result.message)
     }
   } catch (error) {
     if (error !== 'cancel') {
-      console.error('Restore failed:', error)
-      ElMessage.error(error.message || '恢复失败')
+      ElMessage.error('恢复失败：' + error.message)
     }
   } finally {
     backup.restoring = false
@@ -378,20 +369,18 @@ const handleRestoreSuccess = (data) => {
   try {
     // 如果是字符串，尝试解析 JSON
     const parsedData = typeof data === 'string' ? JSON.parse(data) : data
-    console.log('Restored data:', parsedData) // 添加调试日志
     
     // 更新数据
     cardData.value = parsedData.cards || []
     emit('update', cardData.value)
-    ElMessage.success('恢复成功')
+    ElMessage.success('数据恢复成功')
     
     // 关闭所有对话框
     restoreDialogVisible.value = false
     visible.value = false
     restoreForm.value.password = ''
   } catch (error) {
-    console.error('Failed to parse backup data:', error)
-    ElMessage.error('备份数据格式错误')
+    ElMessage.error('解析备份数据失败：' + error.message)
   }
 }
 
@@ -406,8 +395,7 @@ const handleRestoreConfirm = async () => {
     const decryptedData = decryptData(currentBackup.value, restoreForm.value.password)
     handleRestoreSuccess(decryptedData)
   } catch (error) {
-    console.error('Failed to decrypt backup:', error)
-    ElMessage.error(error.message)
+    ElMessage.error('解密备份失败：' + error.message)
   }
 }
 
@@ -435,7 +423,7 @@ const handleDelete = async (backup) => {
     }
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error(error.message || '删除失败')
+      ElMessage.error(error.message)
     }
   } finally {
     backup.deleting = false
@@ -495,8 +483,7 @@ const open = async (data) => {
       visible.value = false
     }
   } catch (error) {
-    console.error('Failed to test WebDAV connection:', error)
-    ElMessage.error('连接 WebDAV 服务器失败')
+    ElMessage.error('连接 WebDAV 服务器失败：' + error.message)
     emit('showConfig')
     visible.value = false
   } finally {
@@ -537,28 +524,85 @@ defineExpose({
 })
 </script>
 
-<style lang="scss">
+<style lang="scss" scoped>
 .backup-dialog {
-  min-height: 300px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.backup-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0 0 16px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+}
+
+.backup-list-container {
+  flex: 1;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 4px;
+  background-color: var(--el-bg-color);
 }
 
 .backup-list {
-  margin-bottom: 20px;
+  padding: 16px;
+  min-height: 200px;
 }
 
-.dialog-footer {
+.backup-item {
   display: flex;
-  justify-content: flex-end;
-  gap: 10px;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px;
+  border-bottom: 1px solid var(--el-border-color-lighter);
+  transition: background-color 0.2s;
+
+  &:last-child {
+    border-bottom: none;
+  }
+
+  &:hover {
+    background-color: var(--el-fill-color-light);
+  }
 }
 
-.progress-content {
-  padding: 20px;
+.backup-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.backup-name {
+  font-weight: 500;
+  margin-bottom: 4px;
+  color: var(--el-text-color-primary);
+}
+
+.backup-meta {
+  font-size: 12px;
+  color: var(--el-text-color-secondary);
+  display: flex;
+  gap: 12px;
+}
+
+.backup-actions {
+  display: flex;
+  gap: 8px;
+  margin-left: 16px;
+}
+
+.progress-container {
+  padding: 24px 0;
   text-align: center;
 
   .progress-text {
-    margin-top: 10px;
-    color: #606266;
+    margin-top: 8px;
+    color: var(--el-text-color-secondary);
   }
+}
+
+.connection-status {
+  margin-left: 16px;
 }
 </style>
