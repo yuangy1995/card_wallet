@@ -1,9 +1,11 @@
 <template>
   <div class="app-container">
     <div class="main_body">
-      <div class="headers">
-        <SearchForm v-model="formSearch" :options="creditCardData.options" :label-width="labelWidth" />
-      </div>
+      <search-form
+        v-model="searchForm"
+        :options="creditCardOptions"
+        class="search-form"
+      />
       <div class="button-container">
         <el-button type="primary" @click="addCreditCard">
           <el-icon>
@@ -78,7 +80,7 @@
 <script>
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Setting, Plus, Share, FolderOpened, TrendCharts, Calendar, Delete, Star } from '@element-plus/icons-vue'
+import { Plus, Share, FolderOpened, TrendCharts, Calendar, Setting, Delete, Star } from '@element-plus/icons-vue'
 import { creditCardOptions } from './config/creditCardOptions'
 import SearchForm from './components/search/SearchForm.vue'
 import CreditCardTable from './components/table/CreditCardTable.vue'
@@ -101,12 +103,12 @@ export default {
     ImportExportDialog,
     DeleteConfirmDialog,
     Statistics,
-    Setting,
     Plus,
     Share,
     FolderOpened,
     TrendCharts,
     Calendar,
+    Setting,
     Delete,
     Star,
   },
@@ -149,16 +151,16 @@ export default {
       data: {},
       options: creditCardOptions,
     })
-    const formSearch = ref({
+    const searchForm = ref({
+      country: '',
       bank: '',
-      cardType: '',
       cardNumber: '',
-      cardHolder: '',
-      accountBillDate: '',
-      dueDate: '',
+      level: '',
+      limit: '',
+      type: '',
       isQualified: '',
-      nextAnnualFeeCollectionTime: '',
-      lastTime: '',
+      equity: '',
+      remark: ''
     })
     const status = ref('add')
     const labelWidth = ref('120px')
@@ -170,7 +172,22 @@ export default {
         .map(item => item.value)
     })
 
-    const tableData = computed(() => cardData.value)
+    const tableData = computed(() => {
+      return cardData.value.filter(card => {
+        const matchCountry = !searchForm.value.country || card.country === searchForm.value.country;
+        const matchBank = !searchForm.value.bank || card.bank === searchForm.value.bank;
+        const matchCardNumber = !searchForm.value.cardNumber || card.cardNumber.includes(searchForm.value.cardNumber);
+        const matchLevel = !searchForm.value.level || card.level === searchForm.value.level;
+        const matchLimit = !searchForm.value.limit || card.limit.toString().includes(searchForm.value.limit);
+        const matchType = !searchForm.value.type || card.type === searchForm.value.type;
+        const matchIsQualified = searchForm.value.isQualified === '' || card.isQualified === searchForm.value.isQualified;
+        const matchEquity = !searchForm.value.equity || card.equity.includes(searchForm.value.equity);
+        const matchRemark = !searchForm.value.remark || card.remark.includes(searchForm.value.remark);
+
+        return matchCountry && matchBank && matchCardNumber && matchLevel && 
+               matchLimit && matchType && matchIsQualified && matchEquity && matchRemark;
+      });
+    })
 
     // 初始化数据
     onMounted(() => {
@@ -455,7 +472,7 @@ export default {
       importExportDialogVisible,
       isImportMode,
       creditCardData,
-      formSearch,
+      searchForm,
       status,
       labelWidth,
       visibleColumns,
@@ -480,6 +497,7 @@ export default {
       setAnnualFeeQualified,
       getRowClassName,
       handleDialogCancel,
+      creditCardOptions,
     }
   },
 }

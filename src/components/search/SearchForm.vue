@@ -1,131 +1,221 @@
 <template>
-  <div class="search-form">
-    <el-form :inline="true" :model="formData" :label-width="labelWidth">
-      <el-row :gutter="10" class="search-row">
-        <el-form-item label="国家">
-          <el-select v-model="formData.country" placeholder="请选择国家" filterable allow-create clearable>
-            <el-option 
-              v-for="(item, index) in options.countryData" 
-              :key="index"
-              :label="`${item.chineseName}(${item.name})`" 
-              :value="item.chineseName" 
-            />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="银行">
-          <el-select v-model="formData.bank" placeholder="请选择银行" filterable allow-create clearable>
-            <el-option 
-              v-for="item in options.bankList" 
-              :key="item.name" 
-              :label="item.name"
-              :value="item.chineseName" 
-            />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="卡号">
-          <el-input v-model="formData.cardNumber" autocomplete="off" clearable />
-        </el-form-item>
-        <el-form-item label="等级">
-          <el-select v-model="formData.level" placeholder="请选择等级" filterable clearable>
-            <el-option 
-              v-for="item in options.cardLevel" 
-              :key="item.name" 
-              :label="item.name"
-              :value="item.chineseName" 
-            />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="额度">
-          <el-input v-model="formData.limit" autocomplete="off" clearable />
-        </el-form-item>
-        <el-form-item label="币种">
-          <el-select v-model="formData.type" placeholder="请选择币种" filterable clearable>
-            <el-option 
-              v-for="item in options.currencyList" 
-              :key="item.name" 
-              :label="item.name"
-              :value="item.chineseName" 
-            />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="年费达标">
-          <el-select v-model="formData.isQualified" placeholder="请选择" filterable clearable>
-            <el-option 
-              v-for="item in options.isQualified" 
-              :key="item.name" 
-              :label="item.name"
-              :value="item.value" 
-            />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="权益">
-          <el-input v-model="formData.equity" autocomplete="off" clearable />
-        </el-form-item>
-        <el-form-item label="备注">
-          <el-input v-model="formData.remark" autocomplete="off" clearable />
-        </el-form-item>
-      </el-row>
+  <el-card class="search-form" shadow="never">
+    <template #header>
+      <div class="search-header">
+        <span>查询条件</span>
+        <div class="search-actions">
+          <el-button link type="primary" @click="toggleCollapse" size="small">
+            {{ isCollapse ? '展开' : '收起' }}
+            <el-icon><ArrowDown :class="{ 'is-reverse': !isCollapse }" /></el-icon>
+          </el-button>
+          <el-button link type="danger" @click="resetForm" size="small">重置</el-button>
+        </div>
+      </div>
+    </template>
+
+    <el-form :inline="true" :model="formData" :label-width="labelWidth" size="small">
+      <div class="form-content">
+        <div class="first-row">
+          <el-form-item label="国家">
+            <el-select v-model="formData.country" placeholder="请选择国家" filterable allow-create clearable>
+              <el-option 
+                v-for="(item, index) in options.countryData" 
+                :key="index"
+                :label="`${item.chineseName}(${item.name})`" 
+                :value="item.chineseName" 
+              />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="银行">
+            <el-select v-model="formData.bank" placeholder="请选择银行" filterable allow-create clearable>
+              <el-option 
+                v-for="item in options.bankList" 
+                :key="item.name" 
+                :label="item.name"
+                :value="item.chineseName" 
+              />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="卡号">
+            <el-input v-model="formData.cardNumber" autocomplete="off" clearable />
+          </el-form-item>
+          <el-form-item label="等级">
+            <el-select v-model="formData.level" placeholder="请选择等级" filterable clearable>
+              <el-option 
+                v-for="item in options.cardLevel" 
+                :key="item.name" 
+                :label="item.name"
+                :value="item.chineseName" 
+              />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="额度">
+            <el-input v-model="formData.limit" autocomplete="off" clearable />
+          </el-form-item>
+          <el-form-item label="币种">
+            <el-select v-model="formData.type" placeholder="请选择币种" filterable clearable>
+              <el-option 
+                v-for="item in options.currencyList" 
+                :key="item.name" 
+                :label="item.name"
+                :value="item.chineseName" 
+              />
+            </el-select>
+          </el-form-item>
+        </div>
+        <div v-show="!isCollapse" class="extra-rows">
+          <el-form-item label="年费达标">
+            <el-select v-model="formData.isQualified" placeholder="请选择" filterable clearable>
+              <el-option 
+                v-for="item in options.isQualified" 
+                :key="item.name" 
+                :label="item.name"
+                :value="item.value" 
+              />
+            </el-select>
+          </el-form-item>
+          <el-form-item label="权益">
+            <el-input v-model="formData.equity" autocomplete="off" clearable />
+          </el-form-item>
+          <el-form-item label="备注">
+            <el-input v-model="formData.remark" autocomplete="off" clearable />
+          </el-form-item>
+        </div>
+      </div>
     </el-form>
-  </div>
+  </el-card>
 </template>
 
 <script>
+import { ref, computed } from 'vue'
+import { ArrowDown } from '@element-plus/icons-vue'
+
 export default {
   name: 'SearchForm',
+  components: {
+    ArrowDown
+  },
   props: {
-    // 搜索表单数据
     modelValue: {
       type: Object,
       required: true
     },
-    // 标签宽度
     labelWidth: {
       type: String,
-      default: '80px'
+      default: '70px'
     },
-    // 选项数据
     options: {
       type: Object,
       required: true
     }
   },
   emits: ['update:modelValue'],
-  computed: {
-    formData: {
-      get() {
-        return this.modelValue
-      },
-      set(value) {
-        this.$emit('update:modelValue', value)
-      }
+  setup(props, { emit }) {
+    const isCollapse = ref(true)
+
+    const formData = computed({
+      get: () => props.modelValue,
+      set: (value) => emit('update:modelValue', value)
+    })
+
+    const toggleCollapse = () => {
+      isCollapse.value = !isCollapse.value
+    }
+
+    const resetForm = () => {
+      emit('update:modelValue', {
+        country: '',
+        bank: '',
+        cardNumber: '',
+        level: '',
+        limit: '',
+        type: '',
+        isQualified: '',
+        equity: '',
+        remark: ''
+      })
+    }
+
+    return {
+      formData,
+      isCollapse,
+      toggleCollapse,
+      resetForm
     }
   }
 }
 </script>
 
-<style scoped>
+<style lang="scss" scoped>
 .search-form {
-  background-color: #fff;
-  padding: 20px;
-  border-radius: 4px;
-  box-shadow: 0 2px 12px 0 rgba(0,0,0,0.1);
-  margin-bottom: 20px;
-}
+  margin-bottom: 12px;
+  background-color: var(--el-bg-color);
+  
+  :deep(.el-card__header) {
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--el-border-color-lighter);
+    background-color: var(--el-fill-color-blank);
+  }
+  
+  :deep(.el-card__body) {
+    padding: 12px 16px;
+    background-color: var(--el-fill-color-blank);
+  }
+  
+  .search-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    font-size: 14px;
+    font-weight: 500;
+    color: var(--el-text-color-primary);
 
-.search-row {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  margin: 0 !important;
-}
+    .search-actions {
+      display: flex;
+      gap: 8px;
 
-:deep(.el-form-item) {
-  margin-bottom: 10px;
-  margin-right: 0;
-  flex: 1 1 300px;
-}
+      :deep(.el-button) {
+        padding: 4px 8px;
+        height: 24px;
+        font-size: 12px;
+      }
+    }
+  }
 
-:deep(.el-select) {
-  width: 100%;
+  .form-content {
+    .first-row,
+    .extra-rows {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      width: 100%;
+    }
+
+    .extra-rows {
+      margin-top: 8px;
+    }
+    
+    :deep(.el-form-item) {
+      margin: 0;
+      flex: 0 0 auto;
+      min-width: 200px;
+      
+      .el-form-item__content {
+        margin-left: 8px !important;
+        flex: 1;
+        min-width: 0;
+        
+        .el-select,
+        .el-input {
+          width: 100%;
+        }
+      }
+    }
+  }
+
+  .is-reverse {
+    transform: rotate(180deg);
+    transition: transform 0.3s ease;
+  }
 }
 </style>
