@@ -33,6 +33,19 @@ export default defineConfig({
   build: {
     reportCompressedSize: true,
     chunkSizeWarningLimit: 1500,
+    minify: 'terser',
+    terserOptions: {
+      compress: {
+        drop_console: true,
+        drop_debugger: true
+      },
+      format: {
+        comments: false
+      },
+      mangle: {
+        keep_fnames: true // 保持函数名不变，避免影响一些动态引用
+      }
+    },
     rollupOptions: {
       output: {
         manualChunks(id) {
@@ -55,17 +68,7 @@ export default defineConfig({
         entryFileNames: 'assets/js/[name]-[hash].js',
         assetFileNames: 'assets/[ext]/[name]-[hash].[ext]'
       }
-    },
-    minify: 'terser',
-    terserOptions: {
-      compress: {
-        drop_console: true,
-        drop_debugger: true,
-      },
-      format: {
-        comments: false,
-      },
-    },
+    }
   },
   server: {
     proxy: {
