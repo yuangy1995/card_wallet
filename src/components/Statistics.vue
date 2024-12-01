@@ -82,6 +82,7 @@
       title="统计分析"
       width="80%"
       :before-close="handleClose"
+      draggable
       class="statistics-dialog"
     >
       <!-- 统计卡片区域 -->

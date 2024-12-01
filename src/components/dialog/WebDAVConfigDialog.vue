@@ -6,6 +6,7 @@
     :close-on-click-modal="false"
     :append-to-body="true"
     :z-index="2001"
+    draggable
   >
     <el-form
       ref="formRef"

@@ -6,6 +6,7 @@
     width="800px"
     class="card-details-dialog"
     :close-on-click-modal="false"
+    draggable
   >
     <el-form ref="formRef" :model="formData" :rules="rules" label-width="120px">
       <!-- 基本信息 -->

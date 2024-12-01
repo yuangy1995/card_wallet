@@ -1,12 +1,13 @@
 <template>
   <el-dialog
     v-model="visible"
+    title="使用帮助"
     width="80%"
     class="help-dialog"
+    draggable
     :close-on-click-modal="false"
     :close-on-press-escape="true"
     :show-close="false"
-    draggable
     :modal-class="'help-dialog-modal'"
   >
     <el-scrollbar height="70vh" class="help-scrollbar">

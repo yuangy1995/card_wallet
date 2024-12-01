@@ -5,6 +5,7 @@
     width="30%"
     draggable
     destroy-on-close
+    :before-close="handleClose"
   >
     <div class="dialog-content">
       <div class="button-group">
@@ -91,6 +92,10 @@ export default {
       dialogVisible.value = false
     }
 
+    const handleClose = () => {
+      dialogVisible.value = false
+    }
+
     return {
       dialogVisible,
       localColumns,
@@ -98,7 +103,8 @@ export default {
       unselectAll,
       resetDefault,
       handleConfirm,
-      handleCancel
+      handleCancel,
+      handleClose
     }
   }
 }

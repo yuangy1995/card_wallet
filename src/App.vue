@@ -28,7 +28,7 @@
               <TrendCharts />
             </el-icon>统计分析
           </el-button>
-          <el-button type="primary" @click="manualCheckAnnualFees">
+          <el-button type="warning" @click="manualCheckAnnualFees">
             <el-icon>
               <Calendar />
             </el-icon>检测年费情况

@@ -3,6 +3,7 @@
     v-model="dialogVisible"
     title="设置导出密码"
     width="30%"
+    draggable
     :close-on-click-modal="false"
     :close-on-press-escape="false"
     :show-close="false"

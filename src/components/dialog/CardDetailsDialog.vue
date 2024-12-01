@@ -4,6 +4,7 @@
     title="信用卡详情"
     center
     width="800px"
+    draggable
     class="card-details-dialog"
   >
     <el-tabs>

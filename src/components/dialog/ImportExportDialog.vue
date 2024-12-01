@@ -11,6 +11,7 @@
     :title="isImport ? '导入数据' : '导出数据'"
     width="30%"
     draggable
+    :before-close="handleClose"
   >
     <div class="import-export-content">
       <template v-if="isImport">
@@ -318,6 +319,10 @@ export default {
       dialogVisible.value = false
     }
 
+    const handleClose = () => {
+      dialogVisible.value = false
+    }
+
     return {
       dialogVisible,
       showPasswordDialog,
@@ -333,7 +338,8 @@ export default {
       handleDownload,
       handleCancel,
       handlePasswordConfirm,
-      handlePasswordSkip
+      handlePasswordSkip,
+      handleClose
     }
   }
 }

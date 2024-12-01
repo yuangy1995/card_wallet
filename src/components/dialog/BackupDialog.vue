@@ -1,11 +1,12 @@
 <template>
   <el-dialog
     v-model="visible"
-    title="备份管理"
+    title="webdav云备份管理"
     width="600px"
     :close-on-click-modal="false"
     :append-to-body="true"
     :z-index="2000"
+    draggable
     @closed="handleClosed"
   >
     <div class="backup-dialog">
@@ -29,7 +30,7 @@
           :percentage="progress"
           :status="progress === 100 ? 'success' : ''"
         />
-        <div class="progress-text">{{ backingUp ? '正在备份...' : '正在恢复...' }}</div>
+        <div class="progress-text">{{ progressText }}</div>
       </div>
 
       <el-scrollbar height="400px" class="backup-list-container">
@@ -86,6 +87,7 @@
     v-model="backupDialogVisible"
     title="创建备份"
     width="400px"
+    draggable
     append-to-body
   >
     <el-form :model="backupForm" label-width="80px" ref="backupFormRef">
@@ -141,6 +143,7 @@
     v-model="restoreDialogVisible"
     title="输入密码"
     width="400px"
+    draggable
     append-to-body
   >
     <el-form :model="restoreForm" label-width="80px">
@@ -167,7 +170,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { webdavClient } from '@/utils/webdav'
 import { encryptData, decryptData } from '@/utils/encryption'
@@ -201,8 +204,14 @@ const currentBackup = ref(null)
 const progressVisible = ref(false)
 const progress = ref(0)
 const progressStatus = ref('')
-const progressTitle = ref('')
-const progressText = ref('')
+const currentOperation = ref('') // 新增：当前操作类型（'backup' 或 'restore'）
+
+// 进度文本（computed）
+const progressText = computed(() => {
+  return currentOperation.value === 'backup' 
+    ? `正在备份... ${progress.value}%`
+    : `正在恢复... ${progress.value}%`
+})
 
 // 验证密码一致性
 const validatePassword = (rule, value, callback) => {
@@ -497,11 +506,9 @@ const updateProgress = (type, value) => {
   progressStatus.value = value >= 100 ? 'success' : ''
   
   if (type === 'upload') {
-    progressTitle.value = '正在创建备份'
-    progressText.value = `正在上传... ${progress.value}%`
+    currentOperation.value = 'backup'
   } else {
-    progressTitle.value = '正在恢复备份'
-    progressText.value = `正在下载... ${progress.value}%`
+    currentOperation.value = 'restore'
   }
 
   // 如果进度完成，延迟关闭进度对话框
@@ -509,6 +516,7 @@ const updateProgress = (type, value) => {
     setTimeout(() => {
       progressVisible.value = false
       progress.value = 0
+      currentOperation.value = ''
     }, 500)
   }
 }
