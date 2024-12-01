@@ -197,9 +197,7 @@ export default {
         try {
           const parsed = JSON.parse(savedColumns)
           tableCustomColumns.value = parsed
-          console.log('Loaded saved columns:', parsed)
         } catch (e) {
-          console.error('Error loading saved columns:', e)
         }
       }
 
@@ -214,7 +212,6 @@ export default {
 
     // 方法
     const handleTableCustomConfirm = (columns) => {
-      console.log('Handling column confirmation:', columns)
       tableCustomColumns.value = columns
       localStorage.setItem('tableCustomColumns', JSON.stringify(columns))
       showTableCustomDialog.value = false
@@ -222,7 +219,6 @@ export default {
     }
 
     const openTableCustom = () => {
-      console.log('Opening custom table dialog')
       showTableCustomDialog.value = true
     }
 
@@ -384,7 +380,6 @@ export default {
             }
           )
         } catch (e) {
-          // 忽略弹窗关闭事件
         }
       } else {
         ElMessage({
@@ -417,23 +412,21 @@ export default {
         localStorage.setItem('cardData', JSON.stringify([]))
         ElMessage.success('所有数据已清除')
       } catch {
-        // 用户取消操作
       }
     }
 
     const handleCardNumberVisibility = ({ id, isVisible }) => {
-      console.log('Card number visibility changed:', id, isVisible)
+      cardData.value.find(card => card.id === id).showCardNumber = isVisible
     }
 
     const handleCvvVisibility = ({ id, isVisible }) => {
-      console.log('CVV visibility changed:', id, isVisible)
+      cardData.value.find(card => card.id === id).showCVV = isVisible
     }
 
     const setAnnualFeeQualified = (cardId) => {
       const card = cardData.value.find(c => c.id === cardId)
       if (card) {
         card.isQualified = '1'
-        // Save to localStorage or backend
       }
     }
 

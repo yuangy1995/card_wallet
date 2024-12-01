@@ -51,7 +51,6 @@ export default {
   },
   emits: ['update:visible', 'confirm'],
   setup(props, { emit }) {
-    console.log('Dialog setup with columns:', props.columns)
     
     const dialogVisible = computed({
       get: () => props.visible,
@@ -62,40 +61,33 @@ export default {
 
     // 监听 visible 和 columns 属性的变化
     watch(() => props.visible, (newValue) => {
-      console.log('Dialog visibility changed:', newValue)
       if (newValue) {
         // 当对话框打开时，复制传入的列配置
-        localColumns.value = JSON.parse(JSON.stringify(props.columns))
+        localColumns.value = [...props.columns]
       }
     })
 
     const selectAll = () => {
-      console.log('Selecting all columns')
-      localColumns.value.forEach(column => {
-        column.checked = true
-      })
+      localColumns.value = localColumns.value.map(col => ({ ...col, checked: true }))
     }
 
     const unselectAll = () => {
-      console.log('Unselecting all columns')
-      localColumns.value.forEach(column => {
-        column.checked = false
-      })
+      localColumns.value = localColumns.value.map(col => ({ ...col, checked: false }))
     }
 
     const resetDefault = () => {
-      console.log('Resetting to default')
-      localColumns.value = JSON.parse(JSON.stringify(creditCardOptions.tableCustomData))
+      localColumns.value = creditCardOptions.tableCustomData.map(col => ({
+        ...col,
+        checked: col.defaultShow
+      }))
     }
 
     const handleConfirm = () => {
-      console.log('Confirming with columns:', localColumns.value)
       emit('confirm', localColumns.value)
       dialogVisible.value = false
     }
 
     const handleCancel = () => {
-      console.log('Canceling dialog')
       dialogVisible.value = false
     }
 
