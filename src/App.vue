@@ -152,15 +152,15 @@ export default {
       options: creditCardOptions,
     })
     const searchForm = ref({
-      country: '',
+      type: '',  // 币种字段
       bank: '',
       cardNumber: '',
       level: '',
       limit: '',
-      type: '',
       isQualified: '',
       equity: '',
-      remark: ''
+      remark: '',
+      country: ''  // 保留country字段
     })
     const status = ref('add')
     const labelWidth = ref('120px')
@@ -174,18 +174,51 @@ export default {
 
     const tableData = computed(() => {
       return cardData.value.filter(card => {
-        const matchCountry = !searchForm.value.country || card.country === searchForm.value.country;
-        const matchBank = !searchForm.value.bank || card.bank === searchForm.value.bank;
-        const matchCardNumber = !searchForm.value.cardNumber || card.cardNumber.includes(searchForm.value.cardNumber);
-        const matchLevel = !searchForm.value.level || card.level === searchForm.value.level;
-        const matchLimit = !searchForm.value.limit || card.limit.toString().includes(searchForm.value.limit);
-        const matchType = !searchForm.value.type || card.type === searchForm.value.type;
-        const matchIsQualified = searchForm.value.isQualified === '' || card.isQualified === searchForm.value.isQualified;
-        const matchEquity = !searchForm.value.equity || card.equity.includes(searchForm.value.equity);
-        const matchRemark = !searchForm.value.remark || card.remark.includes(searchForm.value.remark);
+        // 币种匹配
+        const matchType = !searchForm.value.type || 
+                         (card.type && (searchForm.value.type.includes(card.type) ||
+                         card.type.includes(searchForm.value.type)));
+        
+        // 银行匹配
+        const matchBank = !searchForm.value.bank || 
+                         (card.bank && (searchForm.value.bank.includes(card.bank) ||
+                         card.bank.includes(searchForm.value.bank)));
+        
+        // 卡号匹配
+        const matchCardNumber = !searchForm.value.cardNumber || 
+                              (card.cardNumber && card.cardNumber.includes(searchForm.value.cardNumber));
+        
+        // 等级匹配
+        const matchLevel = !searchForm.value.level || 
+                         (card.level && (searchForm.value.level.includes(card.level) ||
+                         card.level.includes(searchForm.value.level)));
+        
+        // 额度匹配 - 转为字符串进行匹配
+        const matchLimit = !searchForm.value.limit || 
+                         (card.limit !== undefined && card.limit !== null && 
+                          card.limit.toString().includes(searchForm.value.limit));
+        
+        // 国家匹配
+        const matchCountry = !searchForm.value.country || 
+                           (card.country && (searchForm.value.country.includes(card.country) ||
+                           card.country.includes(searchForm.value.country)));
+        
+        // 年费达标匹配 - 精确匹配
+        const matchIsQualified = searchForm.value.isQualified === undefined || 
+                                searchForm.value.isQualified === null || 
+                                searchForm.value.isQualified === '' || 
+                                card.isQualified === searchForm.value.isQualified;
+        
+        // 权益匹配
+        const matchEquity = !searchForm.value.equity || 
+                          (card.equity && card.equity.includes(searchForm.value.equity));
+        
+        // 备注匹配
+        const matchRemark = !searchForm.value.remark || 
+                          (card.remark && card.remark.includes(searchForm.value.remark));
 
-        return matchCountry && matchBank && matchCardNumber && matchLevel && 
-               matchLimit && matchType && matchIsQualified && matchEquity && matchRemark;
+        return matchType && matchBank && matchCardNumber && matchLevel && 
+               matchLimit && matchCountry && matchIsQualified && matchEquity && matchRemark;
       });
     })
 
