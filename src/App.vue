@@ -190,7 +190,7 @@ export default {
     })
 
     // 初始化数据
-    onMounted(() => {
+    onMounted(async () => {
       // 加载列配置
       const savedColumns = localStorage.getItem('tableCustomColumns')
       if (savedColumns) {
@@ -207,6 +207,8 @@ export default {
       const storedData = localStorage.getItem('cardData')
       if (storedData) {
         cardData.value = JSON.parse(storedData)
+        // 自动检查年费情况
+        await manualCheckAnnualFees()
       }
     })
 
@@ -227,6 +229,7 @@ export default {
     const confirmDelete = () => {
       if (cardToDelete.value) {
         cardData.value = cardData.value.filter(item => item.id !== cardToDelete.value.id)
+        localStorage.setItem('cardData', JSON.stringify(cardData.value))
         deleteDialogVisible.value = false
         cardToDelete.value = null
         ElMessage.success('删除成功')
@@ -250,10 +253,12 @@ export default {
         ElMessage.success('添加成功')
         creditCardData.value.dialogFormVisible = false
         cardData.value.push(Object.assign({}, data))
+        localStorage.setItem('cardData', JSON.stringify(cardData.value))
       } else if (status.value === 'edit') {
         const index = cardData.value.findIndex(item => item.id === data.id)
         if (index > -1) {
           cardData.value.splice(index, 1, Object.assign({}, data))
+          localStorage.setItem('cardData', JSON.stringify(cardData.value))
           ElMessage.success('修改成功')
           creditCardData.value.dialogFormVisible = false
         }
@@ -281,6 +286,7 @@ export default {
 
     const handleImportData = (data) => {
       cardData.value = data
+      localStorage.setItem('cardData', JSON.stringify(data))
       ElMessage.success('导入成功')
     }
 
@@ -391,8 +397,9 @@ export default {
 
     const generateRandomData = () => {
       const mockData = generateMockData(15)
-      cardData.value = [...cardData.value, ...mockData]
-      ElMessage.success('已生成15条随机信用卡数据')
+      cardData.value = mockData
+      localStorage.setItem('cardData', JSON.stringify(mockData))
+      ElMessage.success('已生成随机数据')
     }
 
     const confirmClearData = async () => {
@@ -407,7 +414,7 @@ export default {
           }
         )
         cardData.value = []
-        localStorage.removeItem('cardData')
+        localStorage.setItem('cardData', JSON.stringify([]))
         ElMessage.success('所有数据已清除')
       } catch {
         // 用户取消操作
