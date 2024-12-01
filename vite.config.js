@@ -1,4 +1,5 @@
 import { fileURLToPath, URL } from 'node:url'
+import { resolve } from 'path'
 
 import { defineConfig } from 'vite'
 import AutoImport from 'unplugin-auto-import/vite'
@@ -83,6 +84,23 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': fileURLToPath(new URL('./src', import.meta.url))
+    }
+  },
+  server: {
+    proxy: {
+      '/webdav-proxy': {
+        target: 'http://192.168.8.175:5005',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/webdav-proxy/, ''),
+        configure: (proxy, options) => {
+          // 在这里可以直接修改代理请求
+          proxy.on('proxyReq', (proxyReq, req, res) => {
+            // 删除可能导致问题的头
+            proxyReq.removeHeader('Origin');
+            proxyReq.removeHeader('Referer');
+          });
+        },
+      }
     }
   }
 })

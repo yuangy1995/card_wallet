@@ -1,57 +1,69 @@
 <template>
   <div class="app-container">
     <div class="main_body">
-      <search-form
+      <SearchForm
         v-model="searchForm"
         :options="creditCardOptions"
         class="search-form"
       />
       <div class="button-container">
-        <el-button type="primary" @click="addCreditCard">
-          <el-icon>
-            <Plus />
-          </el-icon>新增信用卡
-        </el-button>
-        <el-button type="success" @click="exportData">
-          <el-icon>
-            <Share />
-          </el-icon>导出数据
-        </el-button>
-        <el-button type="warning" @click="importData">
-          <el-icon>
-            <FolderOpened />
-          </el-icon>导入数据
-        </el-button>
-        <el-button type="primary" @click="showStatistics">
-          <el-icon>
-            <TrendCharts />
-          </el-icon>统计分析
-        </el-button>
-        <el-button type="primary" @click="manualCheckAnnualFees">
-          <el-icon>
-            <Calendar />
-          </el-icon>检测年费情况
-        </el-button>
-        <el-button type="info" @click="openTableCustom">
-          <el-icon>
-            <Setting />
-          </el-icon>自定义列
-        </el-button>
-        <el-button type="danger" @click="confirmClearData">
-          <el-icon>
-            <Delete />
-          </el-icon>清除所有数据
-        </el-button>
-        <el-button type="warning" @click="generateRandomData">
-          <el-icon>
-            <Star />
-          </el-icon>生成随机数据
-        </el-button>
-        <el-button type="info" @click="showHelp">
-          <el-icon>
-            <QuestionFilled />
-          </el-icon>使用帮助
-        </el-button>
+        <el-button-group class="button-group">
+          <el-button type="primary" @click="addCreditCard">
+            <el-icon>
+              <Plus />
+            </el-icon>新增信用卡
+          </el-button>
+          <el-button type="success" @click="exportData">
+            <el-icon>
+              <Share />
+            </el-icon>导出数据
+          </el-button>
+          <el-button type="warning" @click="importData">
+            <el-icon>
+              <FolderOpened />
+            </el-icon>导入数据
+          </el-button>
+          <el-button type="primary" @click="showStatistics">
+            <el-icon>
+              <TrendCharts />
+            </el-icon>统计分析
+          </el-button>
+          <el-button type="primary" @click="manualCheckAnnualFees">
+            <el-icon>
+              <Calendar />
+            </el-icon>检测年费情况
+          </el-button>
+          <el-button type="info" @click="openTableCustom">
+            <el-icon>
+              <Setting />
+            </el-icon>自定义列
+          </el-button>
+          <el-button type="danger" @click="confirmClearData">
+            <el-icon>
+              <Delete />
+            </el-icon>清除所有数据
+          </el-button>
+          <el-button type="warning" @click="generateRandomData">
+            <el-icon>
+              <Star />
+            </el-icon>生成随机数据
+          </el-button>
+          <el-button type="info" @click="showHelp">
+            <el-icon>
+              <QuestionFilled />
+            </el-icon>使用帮助
+          </el-button>
+          <el-button type="primary" @click="showWebDAVConfig">
+            <el-icon>
+              <Connection />
+            </el-icon>WebDAV配置
+          </el-button>
+          <el-button @click="handleBackup">
+            <el-icon>
+              <Upload />
+            </el-icon>备份
+          </el-button>
+        </el-button-group>
       </div>
 
       <CreditCardTable :table-data="tableData" :visible-columns="visibleColumns" @edit="editCreditCard"
@@ -78,7 +90,10 @@
         </el-scrollbar>
 
       </el-dialog>
-      <HelpPage ref="helpPageRef" />
+      <HelpPage ref="helpPage" />
+      <WebDAVConfigDialog ref="webDAVConfig" />
+      <BackupDialog ref="backup" @update="handleBackupUpdate" @showConfig="showWebDAVConfig" />
+
     </div>
   </div>
 </template>
@@ -86,18 +101,31 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Plus, Share, FolderOpened, TrendCharts, Calendar, Setting, Delete, Star, QuestionFilled } from '@element-plus/icons-vue'
-import { creditCardOptions } from './config/creditCardOptions'
-import SearchForm from './components/search/SearchForm.vue'
-import CreditCardTable from './components/table/CreditCardTable.vue'
-import TableCustomDialog from './components/dialog/TableCustomDialog.vue'
-import CardDetailsDialog from './components/dialog/CardDetailsDialog.vue'
-import CreditCardDialog from './components/dialog/CreditCardDialog.vue'
-import ImportExportDialog from './components/dialog/ImportExportDialog.vue'
-import DeleteConfirmDialog from './components/dialog/DeleteConfirmDialog.vue'
-import Statistics from './components/Statistics.vue'
-import HelpPage from './components/help/HelpPage.vue'
-import { generateMockData } from './utils/mockData'
+import {
+  Delete,
+  Setting,
+  Plus,
+  Share,
+  FolderOpened,
+  TrendCharts,
+  Calendar,
+  Star,
+  QuestionFilled,
+  Connection,
+  Upload
+} from '@element-plus/icons-vue'
+import CreditCardTable from '@/components/table/CreditCardTable.vue'
+import CreditCardDialog from '@/components/dialog/CreditCardDialog.vue'
+import ImportExportDialog from '@/components/dialog/ImportExportDialog.vue'
+import DeleteConfirmDialog from '@/components/dialog/DeleteConfirmDialog.vue'
+import TableCustomDialog from '@/components/dialog/TableCustomDialog.vue'
+import CardDetailsDialog from '@/components/dialog/CardDetailsDialog.vue'
+import Statistics from '@/components/Statistics.vue'
+import HelpPage from '@/components/help/HelpPage.vue'
+import WebDAVConfigDialog from '@/components/dialog/WebDAVConfigDialog.vue'
+import BackupDialog from '@/components/dialog/BackupDialog.vue'
+import { creditCardOptions } from '@/config/creditCardOptions'
+import SearchForm from '@/components/search/SearchForm.vue'
 
 // 状态管理
 const cardData = ref([])
@@ -151,7 +179,10 @@ const searchForm = ref({
 const status = ref('add')
 const labelWidth = ref('120px')
 
-const helpPageRef = ref(null)
+// 组件引用
+const helpPage = ref(null)
+const webDAVConfig = ref(null)
+const backup = ref(null)
 
 // 计算属性
 const visibleColumns = computed(() => {
@@ -482,9 +513,22 @@ const handleDialogCancel = () => {
 }
 
 const showHelp = () => {
-  helpPageRef.value?.showHelp()
+  helpPage.value?.showHelp()
 }
 
+const showWebDAVConfig = () => {
+  webDAVConfig.value?.showDialog()
+}
+
+const handleBackup = () => {
+  backup.value?.open(cardData.value)
+}
+
+const handleBackupUpdate = (data) => {
+  cardData.value = data
+  localStorage.setItem('cardData', JSON.stringify(data))
+  ElMessage.success('恢复成功')
+}
 </script>
 
 <style lang="scss">

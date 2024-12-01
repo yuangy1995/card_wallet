@@ -5,6 +5,7 @@
     class="help-dialog"
     :close-on-click-modal="false"
     :close-on-press-escape="true"
+    :show-close="false"
     draggable
     :modal-class="'help-dialog-modal'"
   >
@@ -68,6 +69,40 @@
               <p>点击"导入数据"按钮，可导入之前导出的数据文件：</p>
               <ul>
                 <li>需要输入导出时设置的密码</li>
+              </ul>
+            </li>
+            <li><strong>WebDAV 云端备份：</strong>
+              <p>支持通过 WebDAV 服务器进行云端备份和恢复：</p>
+              <ul>
+                <li>配置 WebDAV 服务器：
+                  <ul>
+                    <li>支持 HTTP/HTTPS 协议</li>
+                    <li>可配置服务器地址、端口和路径</li>
+                    <li>支持用户名密码认证</li>
+                    <li>HTTPS 可选择是否验证证书</li>
+                  </ul>
+                </li>
+                <li>创建备份：
+                  <ul>
+                    <li>支持自定义备份密码</li>
+                    <li>显示备份进度</li>
+                    <li>自动加密保护数据</li>
+                  </ul>
+                </li>
+                <li>恢复备份：
+                  <ul>
+                    <li>显示所有可用的备份列表</li>
+                    <li>显示备份时间和大小</li>
+                    <li>需要输入备份密码才能恢复</li>
+                  </ul>
+                </li>
+                <li>备份管理：
+                  <ul>
+                    <li>支持删除旧的备份</li>
+                    <li>显示备份状态和连接状态</li>
+                    <li>自动重连机制</li>
+                  </ul>
+                </li>
               </ul>
             </li>
           </ul>

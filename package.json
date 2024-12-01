@@ -13,7 +13,8 @@
     "echarts": "^5.5.1",
     "element-plus": "^2.3.9",
     "file-saver": "^2.0.5",
-    "vue": "^3.3.4"
+    "vue": "^3.3.4",
+    "webdav": "^5.7.1"
   },
   "devDependencies": {
     "@vitejs/plugin-vue": "^4.2.3",
