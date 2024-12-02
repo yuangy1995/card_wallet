@@ -336,7 +336,6 @@ const importData = () => {
 const handleImportData = (data) => {
   cardData.value = data
   localStorage.setItem('cardData', JSON.stringify(data))
-  ElMessage.success('导入成功')
 }
 
 const viewDetails = (row) => {
@@ -528,7 +527,6 @@ const handleBackup = () => {
 const handleBackupUpdate = (data) => {
   cardData.value = data
   localStorage.setItem('cardData', JSON.stringify(data))
-  ElMessage.success('恢复成功')
 }
 </script>
 
