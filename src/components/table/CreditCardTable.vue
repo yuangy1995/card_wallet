@@ -62,22 +62,21 @@
       v-show="contextMenuVisible"
       class="context-menu"
       :style="{ left: contextMenuX + 'px', top: contextMenuY + 'px' }"
-      @click.stop
     >
       <el-menu>
-        <el-menu-item v-if="showAnnualFeeOption" @click="() => handleSetAnnualFeeQualified()">
+        <el-menu-item v-if="showAnnualFeeOption" @click="handleSetAnnualFeeQualified">
           <el-icon><Check /></el-icon>
           <span>设置年费已达标</span>
         </el-menu-item>
-        <el-menu-item @click="() => handleContextMenuAction('edit')">
+        <el-menu-item @click="handleContextMenuAction('edit')">
           <el-icon><Edit /></el-icon>
           <span>编辑</span>
         </el-menu-item>
-        <el-menu-item @click="() => handleContextMenuAction('delete')">
+        <el-menu-item @click="handleContextMenuAction('delete')">
           <el-icon><Delete /></el-icon>
           <span>删除</span>
         </el-menu-item>
-        <el-menu-item @click="() => handleContextMenuAction('details')">
+        <el-menu-item @click="handleContextMenuAction('details')">
           <el-icon><View /></el-icon>
           <span>查看详情</span>
         </el-menu-item>
@@ -243,25 +242,17 @@ export default {
       contextMenuVisible.value = true
 
       // 点击其他地方时关闭菜单
-      const closeMenu = (e) => {
-        // 检查点击是否在菜单外部
-        const menu = document.querySelector('.context-menu')
-        if (menu && !menu.contains(e.target)) {
-          contextMenuVisible.value = false
-          document.removeEventListener('click', closeMenu)
-        }
+      const closeMenu = () => {
+        contextMenuVisible.value = false
+        document.removeEventListener('click', closeMenu)
       }
-      
-      // 延迟添加事件监听，避免立即触发
-      setTimeout(() => {
-        document.addEventListener('click', closeMenu)
-      }, 0)
+      document.addEventListener('click', closeMenu)
     }
 
     // 处理右键菜单动作
     const handleContextMenuAction = (action) => {
       if (!selectedRow.value) return
-      
+
       switch (action) {
         case 'edit':
           emit('edit', selectedRow.value)
@@ -273,12 +264,11 @@ export default {
           emit('view-details', selectedRow.value)
           break
       }
+      
       contextMenuVisible.value = false
     }
 
-    // 处理设置年费达标
     const handleSetAnnualFeeQualified = () => {
-      if (!selectedRow.value) return
       emit('annual-fee-qualified', selectedRow.value.id)
       contextMenuVisible.value = false
     }

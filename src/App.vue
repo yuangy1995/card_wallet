@@ -51,12 +51,7 @@
           <el-button type="info" @click="showHelp">
             <el-icon>
               <QuestionFilled />
-            </el-icon>帮助
-          </el-button>
-          <el-button type="primary" @click="showHistory">
-            <el-icon>
-              <Timer />
-            </el-icon>历史记录
+            </el-icon>使用帮助
           </el-button>
           <el-button type="primary" @click="showWebDAVConfig">
             <el-icon>
@@ -98,7 +93,7 @@
       <HelpPage ref="helpPage" />
       <WebDAVConfigDialog ref="webDAVConfig" />
       <BackupDialog ref="backup" @update="handleBackupUpdate" @showConfig="showWebDAVConfig" />
-      <HistoryDialog ref="historyDialogRef" @update="handleHistoryRestore" />
+
     </div>
   </div>
 </template>
@@ -117,8 +112,7 @@ import {
   Star,
   QuestionFilled,
   Connection,
-  Upload,
-  Timer
+  Upload
 } from '@element-plus/icons-vue'
 import CreditCardTable from '@/components/table/CreditCardTable.vue'
 import CreditCardDialog from '@/components/dialog/CreditCardDialog.vue'
@@ -130,7 +124,6 @@ import Statistics from '@/components/Statistics.vue'
 import HelpPage from '@/components/help/HelpPage.vue'
 import WebDAVConfigDialog from '@/components/dialog/WebDAVConfigDialog.vue'
 import BackupDialog from '@/components/dialog/BackupDialog.vue'
-import HistoryDialog from './components/dialog/HistoryDialog.vue'
 import { creditCardOptions } from '@/config/creditCardOptions'
 import SearchForm from '@/components/search/SearchForm.vue'
 import { generateMockData } from '@/utils/mockData'
@@ -140,7 +133,11 @@ const cardData = ref([])
 const showTableCustomDialog = ref(false)
 const tableCustomColumns = ref(JSON.parse(JSON.stringify(creditCardOptions.tableCustomData)))
 const deleteDialogVisible = ref(false)
-const cardToDelete = ref(null)
+const cardToDelete = ref({
+  cardName: '',
+  bankName: '',
+  cardType: ''
+})
 const detailsVisible = ref(false)
 const currentCard = ref({
   country: '',
@@ -187,7 +184,6 @@ const labelWidth = ref('120px')
 const helpPage = ref(null)
 const webDAVConfig = ref(null)
 const backup = ref(null)
-const historyDialogRef = ref(null)
 
 // 计算属性
 const visibleColumns = computed(() => {
@@ -279,46 +275,14 @@ const openTableCustom = () => {
   showTableCustomDialog.value = true
 }
 
-const deleteCard = (row) => {
-  if (!row || !row.id) {
-    ElMessage.error('无效的信用卡数据')
-    return
-  }
-  // 深拷贝数据，避免引用问题
-  cardToDelete.value = JSON.parse(JSON.stringify(row))
-  deleteDialogVisible.value = true
-}
-
 const confirmDelete = () => {
-  if (!cardToDelete.value || !cardToDelete.value.id) {
-    ElMessage.error('无效的删除数据')
+  if (cardToDelete.value) {
+    cardData.value = cardData.value.filter(item => item.id !== cardToDelete.value.id)
+    localStorage.setItem('cardData', JSON.stringify(cardData.value))
     deleteDialogVisible.value = false
-    return
+    cardToDelete.value = null
+    ElMessage.success('删除成功')
   }
-
-  const targetId = cardToDelete.value.id
-  const originalLength = cardData.value.length
-  const originalData = JSON.stringify(cardData.value)
-  
-  cardData.value = cardData.value.filter(item => item.id !== targetId)
-  
-  // 检查是否真的删除了数据
-  if (cardData.value.length === originalLength) {
-    ElMessage.error('删除失败：未找到要删除的数据')
-    return
-  }
-
-  // 检查数据是否真的发生了变化
-  if (JSON.stringify(cardData.value) === originalData) {
-    ElMessage.error('删除失败：数据未发生变化')
-    return
-  }
-  
-  localStorage.setItem('cardData', JSON.stringify(cardData.value))
-  deleteDialogVisible.value = false
-  ElMessage.success('删除成功')
-  recordHistory('删除', `删除卡号为 ${cardToDelete.value.cardNumber} 的数据`)
-  cardToDelete.value = null
 }
 
 const addCreditCard = () => {
@@ -335,19 +299,28 @@ const editCreditCard = (row) => {
 
 const confirmAdd = (data) => {
   if (status.value === 'add') {
-    const newData = Array.isArray(data) ? data : [data]
-    cardData.value.push(...newData.map(item => ({ ...item })))
+    ElMessage.success('添加成功')
+    creditCardData.value.dialogFormVisible = false
+    cardData.value.push(Object.assign({}, data))
     localStorage.setItem('cardData', JSON.stringify(cardData.value))
-    recordHistory('新增', `新增${newData.length}条数据`)
   } else if (status.value === 'edit') {
     const index = cardData.value.findIndex(item => item.id === data.id)
     if (index > -1) {
-      cardData.value[index] = { ...data }
+      cardData.value.splice(index, 1, Object.assign({}, data))
       localStorage.setItem('cardData', JSON.stringify(cardData.value))
-      recordHistory('修改', `修改卡号${data.cardNumber}的信息`)
+      ElMessage.success('修改成功')
+      creditCardData.value.dialogFormVisible = false
     }
   }
-  creditCardData.value.dialogFormVisible = false
+}
+
+const deleteCard = (row) => {
+  deleteDialogVisible.value = true
+  cardToDelete.value = {
+    cardName: row.alias || `${row.bank} ${row.level}`,
+    bankName: row.bank,
+    cardType: row.type
+  }
 }
 
 const exportData = () => {
@@ -361,7 +334,6 @@ const importData = () => {
 }
 
 const handleImportData = (data) => {
-  recordHistory('导入', `导入${data.length}条数据`)
   cardData.value = data
   localStorage.setItem('cardData', JSON.stringify(data))
 }
@@ -471,17 +443,16 @@ const manualCheckAnnualFees = async () => {
 }
 
 const generateRandomData = () => {
-  const mockData = generateMockData()
-  recordHistory('随机生成', `生成${mockData.length}条随机数据`)
+  const mockData = generateMockData(15)
   cardData.value = mockData
   localStorage.setItem('cardData', JSON.stringify(mockData))
-  ElMessage.success('随机数据生成成功')
+  ElMessage.success('已生成随机数据')
 }
 
 const confirmClearData = async () => {
   try {
     await ElMessageBox.confirm(
-      '确定要清除所有数据吗？',
+      '此操作将清除所有信用卡数据，是否继续？',
       '警告',
       {
         confirmButtonText: '确定',
@@ -489,12 +460,10 @@ const confirmClearData = async () => {
         type: 'warning',
       }
     )
-    recordHistory('清除数据', `清除${cardData.value.length}条数据`)
     cardData.value = []
     localStorage.setItem('cardData', JSON.stringify([]))
     ElMessage.success('所有数据已清除')
   } catch {
-    // 用户取消操作
   }
 }
 
@@ -509,9 +478,7 @@ const handleCvvVisibility = ({ id, isVisible }) => {
 const setAnnualFeeQualified = (cardId) => {
   const card = cardData.value.find(c => c.id === cardId)
   if (card) {
-    recordHistory('更新年费状态', `更新卡号${card.cardNumber}的年费状态`)
     card.isQualified = '1'
-    localStorage.setItem('cardData', JSON.stringify(cardData.value))
   }
 }
 
@@ -558,34 +525,8 @@ const handleBackup = () => {
 }
 
 const handleBackupUpdate = (data) => {
-  recordHistory('WebDAV恢复', `从WebDAV恢复${data.length}条数据`)
   cardData.value = data
   localStorage.setItem('cardData', JSON.stringify(data))
-}
-
-const showHistory = () => {
-  historyDialogRef.value?.open()
-}
-
-const recordHistory = (type, description) => {
-  const history = JSON.parse(localStorage.getItem('creditCardHistory') || '[]')
-  const currentData = JSON.parse(JSON.stringify(cardData.value))
-  history.unshift({
-    id: Date.now(),
-    timestamp: new Date().toLocaleString(),
-    type,
-    description,
-    data: currentData
-  })
-  localStorage.setItem('creditCardHistory', JSON.stringify(history))
-  console.log('Recorded history:', { type, description, dataCount: currentData.length })
-}
-
-const handleHistoryRestore = (data) => {
-  recordHistory('历史数据恢复', `恢复${data.length}条数据`)
-  cardData.value = data
-  localStorage.setItem('cardData', JSON.stringify(data))
-  ElMessage.success('历史数据恢复成功')
 }
 </script>
 

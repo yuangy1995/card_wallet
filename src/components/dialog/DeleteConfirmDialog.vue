@@ -1,13 +1,10 @@
 <template>
   <el-dialog
     v-model="dialogVisible"
-    title="删除确认"
+    title="确认删除"
     width="30%"
-    :show-close="true"
-    :append-to-body="true"
-    destroy-on-close
+    :close-on-click-modal="false"
     draggable
-    @close="handleClose"
   >
     <div class="delete-confirm-content">
       <el-alert
@@ -16,138 +13,140 @@
         show-icon
       >
         <template #title>
-          <span class="warning-title">确定要删除该信用卡吗？此操作不可恢复！</span>
+          <span class="warning-title">
+            <el-icon class="warning-icon"><Warning /></el-icon>
+            确定要删除这张信用卡吗？
+          </span>
+        </template>
+        <template #default>
+          <div class="card-info">
+            <p><strong>卡片名称：</strong>{{ cardInfo.cardName }}</p>
+            <p><strong>发卡行：</strong>{{ cardInfo.bankName }}</p>
+            <p><strong>卡片类型：</strong>{{ cardInfo.cardType }}</p>
+          </div>
+          <p class="warning-text">此操作将永久删除该信用卡信息，无法恢复！</p>
         </template>
       </el-alert>
-      <div class="card-info" v-if="cardInfo">
-        <div class="info-item">
-          <span class="label">银行名称：</span>
-          <span class="value">{{ cardInfo.bank || '-' }}</span>
-        </div>
-        <div class="info-item">
-          <span class="label">卡片别名：</span>
-          <span class="value">{{ cardInfo.alias || '-' }}</span>
-        </div>
-        <div class="info-item">
-          <span class="label">卡片级别：</span>
-          <span class="value">{{ cardInfo.level || '-' }}</span>
-        </div>
-        <div class="info-item">
-          <span class="label">信用额度：</span>
-          <span class="value">{{ formatLimit(cardInfo.limit) || '-' }}</span>
-        </div>
-      </div>
-      <div class="no-card-info" v-else>
-        <el-empty description="无卡片信息" />
-      </div>
     </div>
+
     <template #footer>
-      <span class="dialog-footer">
+      <div class="dialog-footer">
         <el-button @click="handleCancel">取消</el-button>
-        <el-button
-          type="danger"
-          :disabled="!cardInfo"
-          @click="handleConfirm"
-        >
+        <el-button type="danger" @click="handleConfirm">
+          <el-icon><Delete /></el-icon>
           确认删除
         </el-button>
-      </span>
+      </div>
     </template>
   </el-dialog>
 </template>
 
-<script setup>
+<script>
 import { computed } from 'vue'
 import { Delete, Warning } from '@element-plus/icons-vue'
 
-// 定义 props
-const props = defineProps({
-  visible: {
-    type: Boolean,
-    required: true
+export default {
+  name: 'DeleteConfirmDialog',
+  components: {
+    Delete,
+    Warning
   },
-  cardInfo: {
-    type: Object,
-    default: () => null
+  props: {
+    visible: {
+      type: Boolean,
+      required: true
+    },
+    cardInfo: {
+      type: Object,
+      required: true,
+      default: () => ({
+        cardName: '',
+        bankName: '',
+        cardType: ''
+      })
+    }
+  },
+  emits: ['update:visible', 'confirm', 'cancel'],
+  setup(props, { emit }) {
+    // 对话框可见性
+    const dialogVisible = computed({
+      get: () => props.visible,
+      set: (value) => emit('update:visible', value)
+    })
+
+    // 处理确认
+    const handleConfirm = () => {
+      emit('confirm')
+      dialogVisible.value = false
+    }
+
+    // 处理取消
+    const handleCancel = () => {
+      emit('cancel')
+      dialogVisible.value = false
+    }
+
+    return {
+      dialogVisible,
+      handleConfirm,
+      handleCancel
+    }
   }
-})
-
-// 定义 emits
-const emit = defineEmits(['update:visible', 'confirm', 'cancel'])
-
-// 对话框可见性
-const dialogVisible = computed({
-  get: () => props.visible,
-  set: (value) => emit('update:visible', value)
-})
-
-// 格式化额度显示
-const formatLimit = (value) => {
-  if (!value) return ''
-  return value.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ',')
-}
-
-// 处理确认
-const handleConfirm = () => {
-  emit('confirm')
-}
-
-// 处理取消
-const handleCancel = () => {
-  emit('cancel')
-}
-
-// 对话框关闭后的处理
-const handleClose = () => {
-  emit('update:visible', false)
 }
 </script>
 
-<style lang="scss" scoped>
+<style scoped>
 .delete-confirm-content {
-  padding: 10px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
 
-  .warning-title {
-    font-weight: bold;
-    font-size: 16px;
-  }
+.warning-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 16px;
+  font-weight: bold;
+}
 
-  .card-info {
-    margin-top: 20px;
-    padding: 15px;
-    border: 1px solid #ebeef5;
-    border-radius: 4px;
-    background-color: #f5f7fa;
+.warning-icon {
+  font-size: 20px;
+  color: var(--el-color-warning);
+}
 
-    .info-item {
-      margin-bottom: 10px;
-      line-height: 24px;
+.card-info {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 12px 0;
+  padding: 12px;
+  background-color: var(--el-fill-color-light);
+  border-radius: 4px;
+}
 
-      &:last-child {
-        margin-bottom: 0;
-      }
-
-      .label {
-        display: inline-block;
-        width: 80px;
-        color: #606266;
-      }
-
-      .value {
-        color: #303133;
-        font-weight: 500;
-      }
-    }
-  }
-
-  .no-card-info {
-    margin-top: 20px;
-  }
+.warning-text {
+  color: var(--el-color-danger);
+  font-weight: bold;
+  margin-top: 8px;
 }
 
 .dialog-footer {
   display: flex;
-  justify-content: flex-end;
-  gap: 10px;
+  justify-content: center;
+  gap: 12px;
+  padding-top: 20px;
+}
+
+:deep(.el-alert__title) {
+  font-size: 16px;
+}
+
+:deep(.el-alert__content) {
+  width: 100%;
+}
+
+:deep(.el-dialog__header) {
+  display: none;
 }
 </style>
