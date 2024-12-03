@@ -33,6 +33,21 @@
               <Calendar />
             </el-icon>检测年费情况
           </el-button>
+          <el-button type="primary" @click="showWebDAVConfig">
+            <el-icon>
+              <Connection />
+            </el-icon>WebDAV配置
+          </el-button>
+          <el-button @click="handleBackup">
+            <el-icon>
+              <Upload />
+            </el-icon>云备份
+          </el-button>
+          <el-button type="warning" @click="showLocalBackup">
+            <el-icon>
+              <DocumentCopy />
+            </el-icon>本地备份
+          </el-button>
           <el-button type="info" @click="openTableCustom">
             <el-icon>
               <Setting />
@@ -52,21 +67,6 @@
             <el-icon>
               <QuestionFilled />
             </el-icon>使用帮助
-          </el-button>
-          <el-button type="primary" @click="showWebDAVConfig">
-            <el-icon>
-              <Connection />
-            </el-icon>WebDAV配置
-          </el-button>
-          <el-button @click="handleBackup">
-            <el-icon>
-              <Upload />
-            </el-icon>云备份
-          </el-button>
-          <el-button type="warning" @click="showLocalBackup">
-            <el-icon>
-              <DocumentCopy />
-            </el-icon>本地备份
           </el-button>
         </el-button-group>
       </div>
