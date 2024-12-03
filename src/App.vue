@@ -61,7 +61,12 @@
           <el-button @click="handleBackup">
             <el-icon>
               <Upload />
-            </el-icon>备份
+            </el-icon>云备份
+          </el-button>
+          <el-button type="warning" @click="showLocalBackup">
+            <el-icon>
+              <DocumentCopy />
+            </el-icon>本地备份
           </el-button>
         </el-button-group>
       </div>
@@ -93,13 +98,13 @@
       <HelpPage ref="helpPage" />
       <WebDAVConfigDialog ref="webDAVConfig" />
       <BackupDialog ref="backup" @update="handleBackupUpdate" @showConfig="showWebDAVConfig" />
-
+      <LocalBackupDialog v-model="localBackupVisible" @restore="handleLocalBackupRestore" ref="localBackup" />
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch, onUnmounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   Delete,
@@ -112,7 +117,8 @@ import {
   Star,
   QuestionFilled,
   Connection,
-  Upload
+  Upload,
+  DocumentCopy
 } from '@element-plus/icons-vue'
 import CreditCardTable from '@/components/table/CreditCardTable.vue'
 import CreditCardDialog from '@/components/dialog/CreditCardDialog.vue'
@@ -124,6 +130,7 @@ import Statistics from '@/components/Statistics.vue'
 import HelpPage from '@/components/help/HelpPage.vue'
 import WebDAVConfigDialog from '@/components/dialog/WebDAVConfigDialog.vue'
 import BackupDialog from '@/components/dialog/BackupDialog.vue'
+import LocalBackupDialog from '@/components/dialog/LocalBackupDialog.vue'
 import { creditCardOptions } from '@/config/creditCardOptions'
 import SearchForm from '@/components/search/SearchForm.vue'
 import { generateMockData } from '@/utils/mockData'
@@ -136,7 +143,8 @@ const deleteDialogVisible = ref(false)
 const cardToDelete = ref({
   cardName: '',
   bankName: '',
-  cardType: ''
+  cardType: '',
+  id: ''
 })
 const detailsVisible = ref(false)
 const currentCard = ref({
@@ -179,6 +187,9 @@ const searchForm = ref({
 })
 const status = ref('add')
 const labelWidth = ref('120px')
+const localBackupVisible = ref(false)
+const localBackup = ref(null)
+let backupTimer = null
 
 // 组件引用
 const helpPage = ref(null)
@@ -276,12 +287,14 @@ const openTableCustom = () => {
 }
 
 const confirmDelete = () => {
-  if (cardToDelete.value) {
-    cardData.value = cardData.value.filter(item => item.id !== cardToDelete.value.id)
+  if (!cardToDelete.value.id) return
+  
+  const index = cardData.value.findIndex(item => item.id === cardToDelete.value.id)
+  if (index > -1) {
+    cardData.value.splice(index, 1)
     localStorage.setItem('cardData', JSON.stringify(cardData.value))
-    deleteDialogVisible.value = false
-    cardToDelete.value = null
     ElMessage.success('删除成功')
+    deleteDialogVisible.value = false
   }
 }
 
@@ -298,29 +311,27 @@ const editCreditCard = (row) => {
 }
 
 const confirmAdd = (data) => {
+  creditCardData.value.dialogFormVisible = false
   if (status.value === 'add') {
-    ElMessage.success('添加成功')
-    creditCardData.value.dialogFormVisible = false
-    cardData.value.push(Object.assign({}, data))
-    localStorage.setItem('cardData', JSON.stringify(cardData.value))
-  } else if (status.value === 'edit') {
+    cardData.value.push(data)
+  } else {
     const index = cardData.value.findIndex(item => item.id === data.id)
-    if (index > -1) {
-      cardData.value.splice(index, 1, Object.assign({}, data))
-      localStorage.setItem('cardData', JSON.stringify(cardData.value))
-      ElMessage.success('修改成功')
-      creditCardData.value.dialogFormVisible = false
+    if (index !== -1) {
+      cardData.value[index] = data
     }
   }
+  localStorage.setItem('cardData', JSON.stringify(cardData.value))
+  ElMessage.success(status.value === 'add' ? '添加成功' : '修改成功')
 }
 
 const deleteCard = (row) => {
-  deleteDialogVisible.value = true
   cardToDelete.value = {
-    cardName: row.alias || `${row.bank} ${row.level}`,
-    bankName: row.bank,
-    cardType: row.type
+    cardName: row.alias || '未命名信用卡',
+    bankName: row.bank || '',
+    cardType: row.type || '',
+    id: row.id
   }
+  deleteDialogVisible.value = true
 }
 
 const exportData = () => {
@@ -528,6 +539,53 @@ const handleBackupUpdate = (data) => {
   cardData.value = data
   localStorage.setItem('cardData', JSON.stringify(data))
 }
+
+const autoBackup = () => {
+  const backups = JSON.parse(localStorage.getItem('cardDataBackups') || '[]')
+  const newBackup = {
+    timestamp: Date.now(),
+    data: JSON.parse(JSON.stringify(cardData.value)),
+    status: 'success'
+  }
+  
+  backups.unshift(newBackup)
+  // 只保留最近50条备份
+  const updatedBackups = backups.slice(0, 50)
+  localStorage.setItem('cardDataBackups', JSON.stringify(updatedBackups))
+}
+
+const resetAutoBackupTimer = () => {
+  if (backupTimer) {
+    clearTimeout(backupTimer)
+  }
+  backupTimer = setTimeout(() => {
+    autoBackup()
+  }, 60000) // 1分钟后自动备份
+}
+
+const handleLocalBackupRestore = (data) => {
+  cardData.value = data
+  localStorage.setItem('cardData', JSON.stringify(data))
+}
+
+const showLocalBackup = () => {
+  localBackupVisible.value = true
+  localBackup.value?.handleOpen()
+}
+
+watch(
+  cardData,
+  () => {
+    resetAutoBackupTimer()
+  },
+  { deep: true }
+)
+
+onUnmounted(() => {
+  if (backupTimer) {
+    clearTimeout(backupTimer)
+  }
+})
 </script>
 
 <style lang="scss">

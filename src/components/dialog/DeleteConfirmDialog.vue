@@ -41,57 +41,40 @@
   </el-dialog>
 </template>
 
-<script>
+<script setup>
 import { computed } from 'vue'
 import { Delete, Warning } from '@element-plus/icons-vue'
 
-export default {
-  name: 'DeleteConfirmDialog',
-  components: {
-    Delete,
-    Warning
+const props = defineProps({
+  visible: {
+    type: Boolean,
+    default: false
   },
-  props: {
-    visible: {
-      type: Boolean,
-      required: true
-    },
-    cardInfo: {
-      type: Object,
-      required: true,
-      default: () => ({
-        cardName: '',
-        bankName: '',
-        cardType: ''
-      })
-    }
-  },
-  emits: ['update:visible', 'confirm', 'cancel'],
-  setup(props, { emit }) {
-    // 对话框可见性
-    const dialogVisible = computed({
-      get: () => props.visible,
-      set: (value) => emit('update:visible', value)
+  cardInfo: {
+    type: Object,
+    default: () => ({
+      cardName: '',
+      bankName: '',
+      cardType: ''
     })
-
-    // 处理确认
-    const handleConfirm = () => {
-      emit('confirm')
-      dialogVisible.value = false
-    }
-
-    // 处理取消
-    const handleCancel = () => {
-      emit('cancel')
-      dialogVisible.value = false
-    }
-
-    return {
-      dialogVisible,
-      handleConfirm,
-      handleCancel
-    }
   }
+})
+
+const emit = defineEmits(['update:visible', 'confirm', 'cancel'])
+
+const dialogVisible = computed({
+  get: () => props.visible,
+  set: (val) => emit('update:visible', val)
+})
+
+const handleConfirm = () => {
+  emit('confirm')
+  dialogVisible.value = false
+}
+
+const handleCancel = () => {
+  emit('cancel')
+  dialogVisible.value = false
 }
 </script>
 
