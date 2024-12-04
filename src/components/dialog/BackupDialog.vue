@@ -282,6 +282,7 @@ const showBackupDialog = () => {
 
 // 创建备份
 const handleBackupConfirm = async () => {
+  backupDialogVisible.value = false
   if (backupForm.value.useCustomPassword) {
     try {
       await backupFormRef.value.validate()
@@ -311,7 +312,6 @@ const handleBackupConfirm = async () => {
     if (result.success) {
       ElMessage.success(result.message)
       await loadBackupList()
-      backupDialogVisible.value = false
     } else {
       ElMessage.error(result.message)
     }

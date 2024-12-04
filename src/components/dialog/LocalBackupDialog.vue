@@ -65,6 +65,7 @@
           <el-table 
             :data="comparisonData" 
             border 
+            stripe
             style="width: 100%"
             height="600px"
             :cell-class-name="getTableCellClass"
