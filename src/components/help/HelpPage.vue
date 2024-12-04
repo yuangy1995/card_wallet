@@ -1,16 +1,16 @@
 <template>
   <el-dialog
     v-model="visible"
-    title="使用帮助"
-    width="80%"
+    width="60%"
     class="help-dialog"
     draggable
+    top="5vh"
     :close-on-click-modal="false"
     :close-on-press-escape="true"
     :show-close="false"
     :modal-class="'help-dialog-modal'"
   >
-    <el-scrollbar height="70vh" class="help-scrollbar">
+    <el-scrollbar height="75vh" class="help-scrollbar">
       <div class="help-content">
         <h2>信用卡管理系统使用指南</h2>
         

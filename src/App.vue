@@ -89,8 +89,8 @@
       <!-- 查看详情弹窗 -->
       <CardDetailsDialog v-model:visible="detailsVisible" :card-info="currentCard" />
       <!-- 统计分析弹窗 -->
-      <el-dialog v-model="statisticsVisible" title="信用卡统计分析" width="80%" :destroy-on-close="true">
-        <el-scrollbar max-height="700px">
+      <el-dialog v-model="statisticsVisible" top="5vh" title="信用卡统计分析" width="80%" :destroy-on-close="true">
+        <el-scrollbar height="80vh">
           <Statistics v-if="statisticsVisible" :card-data="cardData" />
         </el-scrollbar>
 
