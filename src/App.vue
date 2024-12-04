@@ -592,7 +592,7 @@ onUnmounted(() => {
 @use './styles/app.scss';
 
 // 全局弹窗样式
-.el-message-box {
+.annual-fee-dialog{
   width: 720px !important;
   max-width: 95vw !important;
 }

@@ -44,8 +44,8 @@
               <div class="backup-info">
                 <div class="backup-name">{{ backup.filename }}</div>
                 <div class="backup-meta">
-                  <span>{{ formatDate(backup.modifiedTime) }}</span>
-                  <span>{{ formatSize(backup.size) }}</span>
+                  <el-tag type="success" size="small">{{ formatDate(backup.lastmod) }}</el-tag>
+                  <el-tag type="info" size="small">{{ formatSize(backup.size) }}</el-tag>
                 </div>
               </div>
               <div class="backup-actions">
@@ -258,6 +258,7 @@ const loadBackupList = async () => {
         restoring: false,
         deleting: false
       }))
+      console.log(backupList)
     } else {
       ElMessage.error(result.message || '获取备份列表失败')
       isConnected.value = false  // 连接可能已断开
