@@ -180,6 +180,17 @@
             </li>
           </ul>
         </div>
+
+        <el-divider content-position="left">WebDAV 配置</el-divider>
+        <div class="section">
+          <h3>🔐 WebDAV 同步</h3>
+          <p>本系统支持通过 WebDAV 进行数据同步和备份。</p>
+          <div class="webdav-section">
+            <el-button type="primary" @click="openWebDAVDocs">
+              查看 WebDAV 完整配置说明
+            </el-button>
+          </div>
+        </div>
       </div>
     </el-scrollbar>
     <template #footer>
@@ -203,6 +214,195 @@ watch(visible, (val) => {
     document.body.style.overflow = ''
   }
 })
+
+const openWebDAVDocs = () => {
+  // 将内容保存到单独的文件中以保持代码整洁
+  const webdavContent = `<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebDAV 配置说明</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 900px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        pre {
+            background-color: #f6f8fa;
+            border-radius: 6px;
+            padding: 16px;
+            overflow: auto;
+        }
+        code {
+            font-family: SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace;
+            font-size: 14px;
+        }
+        h1, h2, h3 {
+            border-bottom: 1px solid #eaecef;
+            padding-bottom: .3em;
+        }
+    </style>
+</head>
+<body>
+<h1>信用卡管理 WebDAV 版本完整配置</h1>
+
+<p>一个安全的部署方案是应用使用 HTTPS，并且 WebDAV 服务/服务商也使用 HTTPS。</p>
+
+<h2>部署信用卡管理</h2>
+
+<p>nginx 加入以下区块：</p>
+
+<pre><code>location /card {
+    alias /usr/share/nginx/html_admin/card;  # 替换为你的实际打包后的dist目录路径
+    try_files $uri $uri/ /card/index.html;  # 支持 Vue 路由的 history 模式
+    index index.html;
+}</code></pre>
+
+<p>此时，可以使用浏览器 https://yourdomain.com/card 访问应用了。</p>
+
+<h2>使用服务商托管的 WebDAV</h2>
+
+<p>登录你的 WebDAV 配置页面：</p>
+<ul>
+    <li>开启 HTTPS</li>
+    <li>将托管的域名填入 CORS 允许跨源里，比如 https://yourdomain.com</li>
+</ul>
+
+<h2>使用自托管的 WebDAV</h2>
+
+<h3>nginx 配置</h3>
+
+<p>同源配置：</p>
+
+<pre><code>location /webdav {
+    proxy_pass http://127.0.0.1:8082;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header REMOTE-HOST $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header Host $host;
+    proxy_redirect off;
+}</code></pre>
+
+<p>不同源配置：</p>
+
+<pre><code>location ^~ /webdav/ {
+    if ($request_method = 'OPTIONS') {
+        add_header 'Access-Control-Allow-Origin' $http_origin always;
+        add_header 'Access-Control-Allow-Methods' 'PROPFIND,OPTIONS,GET,POST,PUT,DELETE,MKCOL,COPY,MOVE' always;
+        add_header 'Access-Control-Allow-Headers' 'Authorization,Depth,Content-Type' always;
+        add_header 'Access-Control-Allow-Credentials' 'true' always;
+        add_header 'Access-Control-Max-Age' '3600' always;
+        return 204;
+    }
+
+    # 非 OPTIONS 请求的 CORS 头
+    add_header 'Access-Control-Allow-Origin' $http_origin always;
+    add_header 'Access-Control-Allow-Credentials' 'true' always;
+
+    proxy_pass http://127.0.0.1:8082;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header REMOTE-HOST $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header Host $host;
+    proxy_redirect off;
+}</code></pre>
+
+<h3>WebDAV 服务</h3>
+
+<p>使用这个服务：<a href="https://github.com/hacdias/webdav" target="_blank">https://github.com/hacdias/webdav</a></p>
+
+<p>启动命令：webdav -c config.yaml</p>
+
+<p>yaml 内容参考：</p>
+
+<pre><code>address: 127.0.0.1
+port: 8082
+
+prefix: /webdav
+
+debug: false
+noSniff: false
+behindProxy: true
+
+directory: /data/webdav/data
+
+permissions: CRUD
+
+rules: []
+
+log:
+  format: console
+  colors: true
+  outputs:
+  - stderr
+
+cors:
+  enabled: true
+  credentials: true
+  allowed_headers:
+    - Depth
+  allowed_hosts:
+    - http://localhost:8080
+    - http://yovey.lov.us
+    - https://yovey.lov.us
+    - https://sgp.lov.us
+  allowed_methods:
+    - GET
+  exposed_headers:
+    - Content-Length
+    - Content-Range
+
+users:
+  - username: 'card'
+    password: 'card1111111111111111111111111'
+    directory: '/data/webdav/data/king_directory'
+  - username: 'admin'
+    password: 'lil2222222222222222222222222'
+    directory: '/data/webdav/data/admin_directory'
+  - username: 'test_user'
+    password: 'test_user20241204'
+    directory: '/data/webdav/data/test_user20241204'
+  - username: johnqqqqqqqqqqqqqqqqqqqqqq
+    password: "{bcrypt}$2y$10$zEP6oofmXFeHaeMfBNLnP.DO8m.H.Mwhd24/TOX2MWLxAExXi4qgi"
+    directory: /another/path
+  - username: basicqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq
+    password: basic
+    permissions: CRUD
+    rules:
+      - path: /some/file
+        permissions: none
+      - path: /tmp/admin
+        permissions: CRUD
+      - regex: "^.+.js$"
+        permissions: RU</code></pre>
+
+<h3>配置说明：</h3>
+<ul>
+    <li>端口：需要与 nginx 指向的端口保持一致</li>
+    <li>prefix：需要与 nginx 配置的 location 保持一致</li>
+    <li>directory 和 user 下的 location：分别是默认路径和用户指定的路径，都需要确保存在，否则会返回 404</li>
+    <li>allowed_hosts：允许的跨源来源域名，需要添加部署应用的域名</li>
+</ul>
+</body>
+</html>`
+
+  // 创建一个blob对象，指定 HTML 类型和 UTF-8 编码
+  const blob = new Blob([webdavContent], { type: 'text/html;charset=utf-8' })
+  const url = window.URL.createObjectURL(blob)
+  
+  // 在新窗口中打开
+  window.open(url, '_blank')
+  
+  // 清理URL对象
+  setTimeout(() => {
+    window.URL.revokeObjectURL(url)
+  }, 100)
+}
 
 const showHelp = () => {
   visible.value = true
