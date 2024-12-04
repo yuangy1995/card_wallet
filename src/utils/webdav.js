@@ -30,7 +30,7 @@ export class WebDAVClient {
   }
 
   // 初始化客户端
-  initialize(config) {
+  async initialize(config) {
     try {
       const clientOptions = {
         username: config.username,
@@ -124,6 +124,14 @@ export class WebDAVClient {
       const clientUrl = this.getProxyUrl(config.url);
       this.client = createClient(clientUrl, clientOptions);
       this.config = config;
+
+      // 确保备份目录存在
+      const backupDir = '/credit-card-backup';
+      if (!await this.client.exists(backupDir)) {
+        await this.client.createDirectory(backupDir);
+        console.log('已创建备份目录:', backupDir);
+      }
+
       return true;
     } catch (error) {
       throw new Error(`初始化失败：${error.message}`);
@@ -243,6 +251,13 @@ export class WebDAVClient {
     }
 
     try {
+      // 检查并创建备份目录
+      const backupDir = '/credit-card-backup';
+      if (!await this.client.exists(backupDir)) {
+        await this.client.createDirectory(backupDir);
+        console.log('已创建备份目录:', backupDir);
+      }
+
       const files = await this.client.getDirectoryContents('/credit-card-backup', {
         deep: false,
         glob: '*.json'
