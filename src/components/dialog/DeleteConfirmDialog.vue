@@ -1,7 +1,6 @@
 <template>
   <el-dialog
     v-model="dialogVisible"
-    title="确认删除"
     width="30%"
     :close-on-click-modal="false"
     draggable
