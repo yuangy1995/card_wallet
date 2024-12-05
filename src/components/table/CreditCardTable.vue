@@ -44,7 +44,9 @@
           <template v-else-if="column.value === 'lastTime'" #default="{ row }">
             <div v-if="row.lastTime" style="display: flex; flex-direction: column; align-items: center;">
               <span>{{ row.lastTime }}</span>
-              <span style="color: #909399; font-size: 12px;">(距离上次提额{{ getDaysFromNow(row.lastTime) }}天)</span>
+              <span style="color: #909399; font-size: 12px;">
+                ({{ getDaysFromNow(row.lastTime).text }}{{ getDaysFromNow(row.lastTime).days }}天)
+              </span>
             </div>
             <span v-else>-</span>
           </template>
@@ -52,6 +54,17 @@
             <el-tag v-if="row.isQualified === '1'" type="success">已达标</el-tag>
             <el-tag v-if="row.isQualified === '2'" type="danger">未达标</el-tag>
             <el-tag v-if="row.isQualified === '3'" type="info">终免年费</el-tag>
+          </template>
+          <template v-else-if="column.value === 'interestFreePeriod'" #default="{ row }">
+            <span>{{ calculateInterestFreePeriod(row.accountBillDate, row.dueDate) }}</span>
+          </template>
+          <template v-else-if="column.value === 'nextAnnualFeeCollectionTime'" #default="{ row }">
+            <div style="display: flex; flex-direction: column; align-items: center;">
+              <span>{{ row.nextAnnualFeeCollectionTime }}</span>
+              <span style="color: #909399; font-size: 12px;">
+                (距离收取年费{{ getDaysFromNow(row.nextAnnualFeeCollectionTime).text }}{{ getDaysFromNow(row.nextAnnualFeeCollectionTime).days }}天)
+              </span>
+            </div>
           </template>
         </el-table-column>
       </template>
@@ -129,6 +142,105 @@ function parseAnnualFee(fee) {
   return isNaN(num) ? 0 : num
 }
 
+// 计算免息期
+function calculateInterestFreePeriod(billingDay, repaymentDay) {
+  // 如果账单日或还款日未设置，返回 '-'
+  if (!billingDay || !repaymentDay) {
+    return '-'
+  }
+
+  // 将字符串转换为数字
+  billingDay = parseInt(billingDay)
+  repaymentDay = parseInt(repaymentDay)
+
+  // 获取当前日期
+  const today = new Date()
+  const currentYear = today.getFullYear()
+  const currentMonth = today.getMonth()
+  const currentDay = today.getDate()
+
+  // 获取当月的最后一天
+  const lastDayOfMonth = new Date(currentYear, currentMonth + 1, 0).getDate()
+
+  // 确保账单日和还款日不超过当月天数
+  billingDay = Math.min(billingDay, lastDayOfMonth)
+  repaymentDay = Math.min(repaymentDay, lastDayOfMonth)
+
+  // 计算下一个账单日
+  let nextBillingDate
+  if (currentDay >= billingDay) {
+    // 如果当前日期大于等于账单日，下一个账单日在下个月
+    nextBillingDate = new Date(currentYear, currentMonth + 1, billingDay)
+  } else {
+    // 如果当前日期小于账单日，下一个账单日在当月
+    nextBillingDate = new Date(currentYear, currentMonth, billingDay)
+  }
+
+  // 计算还款日期
+  let repaymentDate = new Date(nextBillingDate)
+  if (repaymentDay < billingDay) {
+    // 如果还款日小于账单日，还款日在下个月
+    repaymentDate.setMonth(repaymentDate.getMonth() + 1)
+  }
+  repaymentDate.setDate(repaymentDay)
+
+  // 如果消费日是账单日当天，按当期账单计算
+  if (currentDay === billingDay) {
+    repaymentDate = new Date(currentYear, currentMonth, repaymentDay)
+    if (repaymentDay < billingDay) {
+      repaymentDate.setMonth(repaymentDate.getMonth() + 1)
+    }
+  }
+
+  // 计算天数差
+  const diffTime = repaymentDate.getTime() - today.getTime()
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+
+  return `${diffDays}天`
+}
+
+// 计算免息期天数（仅返回数字，用于排序）
+function calculateInterestFreePeriodDays(billingDay, repaymentDay) {
+  if (!billingDay || !repaymentDay) {
+    return 0
+  }
+
+  billingDay = parseInt(billingDay)
+  repaymentDay = parseInt(repaymentDay)
+
+  const today = new Date()
+  const currentYear = today.getFullYear()
+  const currentMonth = today.getMonth()
+  const currentDay = today.getDate()
+
+  const lastDayOfMonth = new Date(currentYear, currentMonth + 1, 0).getDate()
+  billingDay = Math.min(billingDay, lastDayOfMonth)
+  repaymentDay = Math.min(repaymentDay, lastDayOfMonth)
+
+  let nextBillingDate
+  if (currentDay >= billingDay) {
+    nextBillingDate = new Date(currentYear, currentMonth + 1, billingDay)
+  } else {
+    nextBillingDate = new Date(currentYear, currentMonth, billingDay)
+  }
+
+  let repaymentDate = new Date(nextBillingDate)
+  if (repaymentDay < billingDay) {
+    repaymentDate.setMonth(repaymentDate.getMonth() + 1)
+  }
+  repaymentDate.setDate(repaymentDay)
+
+  if (currentDay === billingDay) {
+    repaymentDate = new Date(currentYear, currentMonth, repaymentDay)
+    if (repaymentDay < billingDay) {
+      repaymentDate.setMonth(repaymentDate.getMonth() + 1)
+    }
+  }
+
+  const diffTime = repaymentDate.getTime() - today.getTime()
+  return Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+}
+
 export default {
   name: 'CreditCardTable',
   components: {
@@ -182,11 +294,12 @@ export default {
         case 'valid': return '120'
         case 'cvv': return '120'
         case 'limit': return '100'
-        case 'nextAnnualFeeCollectionTime': return '150'
+        case 'nextAnnualFeeCollectionTime': return '170'
         case 'lastTime': return '170'
-        case 'isQualified': return '100'
+        case 'isQualified': return '130'
         case 'equity': return '200'
         case 'remark': return '200'
+        case 'interestFreePeriod': return '150'
         default: return '150'
       }
     }
@@ -196,15 +309,37 @@ export default {
     }
 
     const isColumnSortable = (columnValue) => {
-      return ['country', 'bank', 'level', 'type', 'annualFee', 'cardNumber', 'valid'].includes(columnValue)
+      return ['country', 'bank', 'level', 'type', 'annualFee', 'cardNumber', 'valid', 'interestFreePeriod'].includes(columnValue)
     }
 
     const getSortMethod = (columnValue) => {
       switch (columnValue) {
-        case 'annualFee': return (a, b) => Number(a) - Number(b)
-        case 'cardNumber': return (a, b) => a.localeCompare(b)
-        case 'valid': return (a, b) => new Date(a) - new Date(b)
-        default: return undefined
+        case 'cardNumber':
+          return (a, b) => {
+            const weightA = getCardTypeWeight(a.cardNumber)
+            const weightB = getCardTypeWeight(b.cardNumber)
+            return weightA - weightB
+          }
+        case 'valid':
+          return (a, b) => {
+            const dateA = parseValidDate(a.valid)
+            const dateB = parseValidDate(b.valid)
+            return dateA - dateB
+          }
+        case 'annualFee':
+          return (a, b) => {
+            const feeA = parseAnnualFee(a.annualFee)
+            const feeB = parseAnnualFee(b.annualFee)
+            return feeA - feeB
+          }
+        case 'interestFreePeriod':
+          return (a, b) => {
+            const daysA = calculateInterestFreePeriodDays(a.accountBillDate, a.dueDate) || 0
+            const daysB = calculateInterestFreePeriodDays(b.accountBillDate, b.dueDate) || 0
+            return daysA - daysB
+          }
+        default:
+          return undefined
       }
     }
 
@@ -323,7 +458,8 @@ export default {
       getDaysFromNow,
       handleSetAnnualFeeQualified,
       showAnnualFeeOption,
-      rowClassName
+      rowClassName,
+      calculateInterestFreePeriod
     }
   }
 }

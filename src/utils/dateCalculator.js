@@ -156,15 +156,19 @@ export function isNearAnnualFeeDate(nextAnnualFeeDate, warningDays = 60) {
 }
 
 /**
- * 计算给定日期距今的天数
+ * 计算给定日期距今的天数，并返回包含天数和文本的对象
  * @param {string|Date} date - 给定日期
- * @returns {number} 天数差
+ * @returns {{ days: number, text: string }} 天数差和对应文本
  */
 export function getDaysFromNow(date) {
-  if (!date) return 0
+  if (!date) return { days: 0, text: '' }
   const today = new Date()
   today.setHours(0, 0, 0, 0)
   const targetDate = new Date(date)
   targetDate.setHours(0, 0, 0, 0)
-  return Math.ceil((today - targetDate) / (1000 * 3600 * 24))
+  const diffDays = Math.ceil((targetDate - today) / (1000 * 3600 * 24))
+  return {
+    days: Math.abs(diffDays),
+    text: diffDays >= 0 ? '还有' : '已过'
+  }
 }

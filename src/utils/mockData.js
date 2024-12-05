@@ -151,6 +151,15 @@ export const generateCreditCard = () => {
   const isQualifiedStates = ['1', '2', '3'] // 1: 已达标, 2: 未达标, 3: 终免年费
   const isQualified = isQualifiedStates[randomInt(0, 2)]
   
+  // 生成账单日和还款日
+  const accountBillDate = randomInt(1, 28).toString() // 避免使用29-31日，以处理2月份的情况
+  const daysAfterBill = randomInt(10, 25) // 还款日通常在账单日后10-25天
+  let dueDate = parseInt(accountBillDate) + daysAfterBill
+  if (dueDate > 28) {
+    dueDate = dueDate - 28 // 如果超过28号，转到下月初
+  }
+  dueDate = dueDate.toString()
+  
   return {
     id: Date.now() + randomInt(1000, 9999),
     country,
@@ -166,7 +175,9 @@ export const generateCreditCard = () => {
     nextAnnualFeeCollectionTime: nextAnnualFeeDate.toISOString().slice(0, 10),
     lastTime,
     isQualified,
-    level: cardLevel
+    level: cardLevel,
+    accountBillDate,
+    dueDate
   }
 }
 
