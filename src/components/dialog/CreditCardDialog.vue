@@ -3,6 +3,7 @@
     v-model="dialogVisible"
     :title="title"
     center
+    top="5vh"
     width="800px"
     class="card-details-dialog"
     :close-on-click-modal="false"

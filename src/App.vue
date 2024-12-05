@@ -143,7 +143,9 @@ const deleteDialogVisible = ref(false)
 const cardToDelete = ref({
   cardName: '',
   bankName: '',
-  cardType: '',
+  country: '',
+  level: '',
+  limit: '',
   id: ''
 })
 const detailsVisible = ref(false)
@@ -328,7 +330,9 @@ const deleteCard = (row) => {
   cardToDelete.value = {
     cardName: row.alias || '未命名信用卡',
     bankName: row.bank || '',
-    cardType: row.type || '',
+    country: row.country || '',
+    level: row.level || '',
+    limit: row.limit ? `${row.limit} ${row.type}` : '',
     id: row.id
   }
   deleteDialogVisible.value = true

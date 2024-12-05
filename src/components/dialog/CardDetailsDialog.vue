@@ -3,6 +3,7 @@
     v-model="dialogVisible"
     title="信用卡详情"
     center
+    top="5vh"
     width="800px"
     draggable
     class="card-details-dialog"
@@ -141,8 +142,8 @@ export default {
     },
     lastTimeDisplay() {
       if (!this.cardInfo.lastTime) return '-'
-      const days = getDaysFromNow(this.cardInfo.lastTime)
-      return `${this.cardInfo.lastTime}\n(距离上次提额${days}天)`
+      const { days, text } = getDaysFromNow(this.cardInfo.lastTime)
+      return `${this.cardInfo.lastTime}\n(${text}${days}天)`
     }
   },
 

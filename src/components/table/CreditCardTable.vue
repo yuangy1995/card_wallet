@@ -393,6 +393,7 @@ export default {
           emit('edit', selectedRow.value)
           break
         case 'delete':
+        console.log('编辑', selectedRow.value)
           emit('delete', selectedRow.value)
           break
         case 'details':

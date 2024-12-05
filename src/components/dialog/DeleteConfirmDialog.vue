@@ -22,7 +22,9 @@
           <div class="card-info">
             <p><strong>卡片名称：</strong>{{ cardInfo.cardName }}</p>
             <p><strong>发卡行：</strong>{{ cardInfo.bankName }}</p>
-            <p><strong>卡片类型：</strong>{{ cardInfo.cardType }}</p>
+            <p><strong>发行地区：</strong>{{ cardInfo.country }}</p>
+            <p><strong>卡片等级：</strong>{{ cardInfo.level }}</p>
+            <p><strong>卡片额度：</strong>{{ cardInfo.limit }}</p>
           </div>
           <p class="warning-text">此操作将永久删除该信用卡信息，无法恢复！</p>
         </template>
@@ -55,10 +57,13 @@ const props = defineProps({
     default: () => ({
       cardName: '',
       bankName: '',
-      cardType: ''
+      limit: '',
+      level: ''
     })
   }
 })
+
+console.log(props.cardInfo)
 
 const emit = defineEmits(['update:visible', 'confirm', 'cancel'])
 
