@@ -315,14 +315,12 @@ const validateCardNumber = (rule, value, callback) => {
 // 验证CVV
 const validateCVV = (rule, value, callback) => {
   if (!value) {
-    return callback(new Error('请输入CVV'))
+    return callback()
   }
-  
   const cvv = String(value).replace(/\D/g, '')
   if (!/^\d{3,4}$/.test(cvv)) {
     return callback(new Error('CVV必须为3-4位数字'))
   }
-  
   callback()
 }
 
@@ -392,7 +390,6 @@ export default {
         { validator: validateCardNumber, trigger: 'blur' }
       ],
       cvv: [
-        { required: true, message: '请输入CVV', trigger: 'blur' },
         { validator: validateCVV, trigger: 'blur' }
       ],
       valid: [{ required: true, message: '请选择有效期', trigger: 'change' }],
