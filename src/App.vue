@@ -165,6 +165,7 @@ const currentCard = ref({
   isQualified: '',
   nextAnnualFeeCollectionTime: '',
   lastTime: '',
+  lastModifyTime: '',
   equity: '',
   remark: ''
 })
@@ -314,6 +315,27 @@ const editCreditCard = (row) => {
 
 const confirmAdd = (data) => {
   creditCardData.value.dialogFormVisible = false
+  // Add lastTime field with current timestamp
+  data.lastTime = new Date().toLocaleString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  })
+  // 添加最后修改时间
+  data.lastModifyTime = new Date().toLocaleString('zh-CN', {
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hour12: false
+  })
+  console.log(data)
   if (status.value === 'add') {
     cardData.value.push(data)
   } else {
@@ -494,6 +516,27 @@ const setAnnualFeeQualified = (cardId) => {
   const card = cardData.value.find(c => c.id === cardId)
   if (card) {
     card.isQualified = '1'
+    // Add lastTime field when setting annual fee as qualified
+    card.lastTime = new Date().toLocaleString('zh-CN', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false
+    })
+    // 添加最后修改时间
+    card.lastModifyTime = new Date().toLocaleString('zh-CN', {
+      year: 'numeric',
+      month: '2-digit',
+      day: '2-digit',
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false
+    })
+    localStorage.setItem('cardData', JSON.stringify(cardData.value))
   }
 }
 

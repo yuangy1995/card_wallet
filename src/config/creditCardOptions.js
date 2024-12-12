@@ -586,6 +586,7 @@ export const creditCardOptions = {
     { label: "CVV", value: "cvv", checked: true },
     { label: "有效期", value: "valid", checked: true },
     { label: "年费", value: "annualFee", checked: true },
+    { label: "最后修改时间", value: "lastModifyTime", checked: true },
     { label: "年费是否达标", value: "isQualified", checked: true },
     { label: "下次年费收取时间", value: "nextAnnualFeeCollectionTime", checked: true },
     { label: "上次提额时间", value: "lastTime", checked: true },

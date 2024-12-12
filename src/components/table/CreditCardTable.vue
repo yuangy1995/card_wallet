@@ -50,6 +50,12 @@
             </div>
             <span v-else>-</span>
           </template>
+          <template v-else-if="column.value === 'lastModifyTime'" #default="{ row }">
+            <div v-if="row.lastModifyTime" style="display: flex; flex-direction: column; align-items: center;">
+              <span>{{ row.lastModifyTime }}</span>
+            </div>
+            <span v-else>-</span>
+          </template>
           <template v-else-if="column.value === 'isQualified'" #default="{ row }">
             <el-tag v-if="row.isQualified === '1'" type="success">已达标</el-tag>
             <el-tag v-if="row.isQualified === '2'" type="danger">未达标</el-tag>
@@ -296,6 +302,7 @@ export default {
         case 'limit': return '100'
         case 'nextAnnualFeeCollectionTime': return '170'
         case 'lastTime': return '170'
+        case 'lastModifyTime': return '170'
         case 'isQualified': return '130'
         case 'equity': return '200'
         case 'remark': return '200'
