@@ -48,6 +48,9 @@
           <el-descriptions-item label="备注" :span="2">
             <div class="details-content">{{ cardInfo.remark || '暂无备注信息' }}</div>
           </el-descriptions-item>
+          <el-descriptions-item label="最后修改时间" :span="2">
+            <div style="white-space: pre-line">{{ lastModifyTime }}</div>
+          </el-descriptions-item>
         </el-descriptions>
       </el-tab-pane>
 
@@ -101,6 +104,9 @@
           <el-descriptions-item label="备注">
             <div class="details-content">{{ cardInfo.remark || '暂无备注信息' }}</div>
           </el-descriptions-item>
+          <el-descriptions-item label="最后修改时间" :span="2">
+            <div style="white-space: pre-line">{{ lastModifyTime }}</div>
+          </el-descriptions-item>
         </el-descriptions>
       </el-tab-pane>
     </el-tabs>
@@ -144,6 +150,11 @@ export default {
       if (!this.cardInfo.lastTime) return '-'
       const { days, text } = getDaysFromNow(this.cardInfo.lastTime)
       return `${this.cardInfo.lastTime}\n(${text}${days}天)`
+    },
+    lastModifyTime() {
+      if (!this.cardInfo.lastModifyTime) return '-'
+      const { days, text } = getDaysFromNow(this.cardInfo.lastModifyTime)
+      return this.cardInfo.lastModifyTime
     }
   },
 

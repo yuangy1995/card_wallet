@@ -315,16 +315,6 @@ const editCreditCard = (row) => {
 
 const confirmAdd = (data) => {
   creditCardData.value.dialogFormVisible = false
-  // Add lastTime field with current timestamp
-  data.lastTime = new Date().toLocaleString('zh-CN', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: false
-  })
   // 添加最后修改时间
   data.lastModifyTime = new Date().toLocaleString('zh-CN', {
     year: 'numeric',
@@ -516,16 +506,7 @@ const setAnnualFeeQualified = (cardId) => {
   const card = cardData.value.find(c => c.id === cardId)
   if (card) {
     card.isQualified = '1'
-    // Add lastTime field when setting annual fee as qualified
-    card.lastTime = new Date().toLocaleString('zh-CN', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-      hour12: false
-    })
+  
     // 添加最后修改时间
     card.lastModifyTime = new Date().toLocaleString('zh-CN', {
       year: 'numeric',
