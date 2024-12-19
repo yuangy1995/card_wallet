@@ -272,6 +272,21 @@ onMounted(async () => {
   const storedData = localStorage.getItem('cardData')
   if (storedData) {
     cardData.value = JSON.parse(storedData)
+    
+    // 检查并为没有 ID 的卡片生成唯一 ID
+    let hasChanges = false
+    cardData.value.forEach(card => {
+      if (!card.id) {
+        card.id = crypto.randomUUID()
+        hasChanges = true
+      }
+    })
+    
+    // 如果有卡片被添加了 ID，更新本地存储
+    if (hasChanges) {
+      localStorage.setItem('cardData', JSON.stringify(cardData.value))
+    }
+
     // 自动检查年费情况
     await manualCheckAnnualFees()
   }
