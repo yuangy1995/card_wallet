@@ -245,14 +245,20 @@ export class WebDAVClient {
         glob: '*.json'
       });
 
+      // 先处理文件名，再排序
+      const processedFiles = files.map(file => ({
+        filename: file.basename,
+        basename: file.basename,
+        lastmod: file.lastmod,
+        size: file.size
+      }));
+
+      // 按时间倒序排序
+      processedFiles.sort((a, b) => new Date(b.lastmod) - new Date(a.lastmod));
+
       return {
         success: true,
-        data: files.map(file => ({
-          filename: decodeURIComponent(file.href.split('/').pop()),
-          basename: decodeURIComponent(file.href.split('/').pop()),
-          lastmod: file.lastmod,
-          size: file.size
-        }))
+        data: processedFiles
       };
     } catch (error) {
       return { success: false, message: error.message };
