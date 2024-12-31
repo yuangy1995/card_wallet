@@ -419,7 +419,7 @@ export default {
           message += '<ul style="list-style-type: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 16px;">'
           unqualifiedCards.value.sort((a, b) => a.diffDays - b.diffDays).forEach(card => {
             message += `<li style="margin: 0; padding: 12px; background: #fdf6ec; border-radius: 4px; flex: 0 1 calc(33.33% - 12px); min-width: 200px; box-sizing: border-box;">
-              <strong>${card.bank}${card.type}</strong><br />
+              <strong>${card.bank.replace(/\(.*?\)/g, "").trim()}</strong><br />
               <strong>${card.alias}</strong>
               <div style="color: #666; margin-top: 4px;">距离年费收取还有 ${card.diffDays} 天</div>
             </li>`
@@ -433,7 +433,7 @@ export default {
           message += '<ul style="list-style-type: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 16px;">'
           warningCards.value.sort((a, b) => a.diffDays - b.diffDays).forEach(card => {
             message += `<li style="margin: 0; padding: 12px; background: #fefce8; border-radius: 4px; flex: 0 1 calc(33.33% - 12px); min-width: 200px; box-sizing: border-box;">
-              <strong>${card.bank}${card.type}</strong><br />
+              <strong>${card.bank.replace(/\(.*?\)/g, "").trim()}</strong><br />
               <strong>${card.alias}</strong>
               <div style="color: #666; margin-top: 4px;">将在 ${card.diffDays} 天后收取年费</div>
             </li>`
@@ -447,7 +447,7 @@ export default {
           message += '<ul style="list-style-type: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 16px;">'
           overdueCards.value.sort((a, b) => b.diffDays - a.diffDays).forEach(card => {
             message += `<li style="margin: 0; padding: 12px; background: #fef0f0; border-radius: 4px; flex: 0 1 calc(33.33% - 12px); min-width: 200px; box-sizing: border-box;">
-              <strong>${card.bank}${card.type}</strong><br />
+              <strong>${card.bank.replace(/\(.*?\)/g, "").trim()}</strong><br />
               <strong>${card.alias}</strong>
               <div style="color: #666; margin-top: 4px;">已过期 ${Math.abs(card.diffDays)} 天</div>
             </li>`

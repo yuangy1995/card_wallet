@@ -427,7 +427,7 @@ const manualCheckAnnualFees = async () => {
       message += '<ul style="list-style-type: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 16px;">'
       unqualifiedCards.forEach(card => {
         message += `<li style="margin: 0; padding: 12px; background: #fdf6ec; border-radius: 4px; flex: 0 1 calc(33.33% - 12px); min-width: 200px; box-sizing: border-box;">
-          <strong>${card.bank}${card.type}</strong><br />
+          <strong>${card.bank.replace(/\(.*?\)/g, "").trim()}</strong><br />
           <strong>${card.alias}</strong>
           <div style="color: #666; margin-top: 4px;">距离年费收取还有 ${card.diffDays} 天</div>
         </li>`
@@ -441,7 +441,7 @@ const manualCheckAnnualFees = async () => {
       message += '<ul style="list-style-type: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 16px;">'
       warningCards.forEach(card => {
         message += `<li style="margin: 0; padding: 12px; background: #fefce8; border-radius: 4px; flex: 0 1 calc(33.33% - 12px); min-width: 200px; box-sizing: border-box;">
-          <strong>${card.bank}${card.type}</strong><br />
+          <strong>${card.bank.replace(/\(.*?\)/g, "").trim()}</strong><br />
           <strong>${card.alias}</strong>
           <div style="color: #666; margin-top: 4px;">将在 ${Math.ceil((new Date(card.nextAnnualFeeCollectionTime) - now) / (1000 * 60 * 60 * 24))} 天后收取年费</div>
         </li>`
@@ -455,7 +455,7 @@ const manualCheckAnnualFees = async () => {
       message += '<ul style="list-style-type: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 16px;">'
       overdueCards.forEach(card => {
         message += `<li style="margin: 0; padding: 12px; background: #fef0f0; border-radius: 4px; flex: 0 1 calc(33.33% - 12px); min-width: 200px; box-sizing: border-box;">
-          <strong>${card.bank}${card.type}</strong><br />
+          <strong>${card.bank.replace(/\(.*?\)/g, "").trim()}</strong><br />
           <strong>${card.alias}</strong>
           <div style="color: #666; margin-top: 4px;">已过期 ${Math.ceil((now - new Date(card.nextAnnualFeeCollectionTime)) / (1000 * 60 * 60 * 24))} 天</div>
         </li>`
