@@ -253,18 +253,16 @@ const loadBackupList = async () => {
   try {
     const result = await webdavClient.getBackupList()
     if (result.success) {
-      backupList.value = result.data.map(item => ({
-        ...item,
-        restoring: false,
-        deleting: false
-      }))
-      console.log(backupList)
+      // 按照lastmod时间倒序排序
+      backupList.value = result.data.sort((a, b) => {
+        return new Date(b.lastmod) - new Date(a.lastmod)
+      })
     } else {
-      ElMessage.error(result.message || '获取备份列表失败')
-      isConnected.value = false  // 连接可能已断开
+      ElMessage.error(result.message)
     }
   } catch (error) {
-    ElMessage.error('加载备份列表失败：' + error.message)
+    console.error('加载备份列表失败:', error)
+    ElMessage.error('加载备份列表失败')
   } finally {
     loading.value = false
   }
