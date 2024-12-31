@@ -77,14 +77,8 @@
       </div>
     </el-card>
 
-    <el-dialog
-      v-model="dialogVisible"
-      title="统计分析"
-      width="80%"
-      :before-close="handleClose"
-      draggable
-      class="statistics-dialog"
-    >
+    <el-dialog v-model="dialogVisible" title="统计分析" width="80%" :before-close="handleClose" draggable
+      class="statistics-dialog">
       <!-- 统计卡片区域 -->
       <div class="statistics-cards">
         <el-row :gutter="20">
@@ -197,7 +191,7 @@ export default {
       cards.forEach(card => {
         const currency = card.type || '人民币'
         const limit = parseFloat(card.limit) || 0
-        
+
         if (currency === '人民币') {
           if (card.country === '中国') {
             // 对于中国境内的卡片，按银行分组取最大额度
@@ -255,7 +249,7 @@ export default {
           name,
           value
         }))
-      
+
       const option = {
         title: {
           text: title,
@@ -312,7 +306,7 @@ export default {
           name,
           value
         }))
-      
+
       const option = {
         title: {
           text: title,
@@ -349,7 +343,7 @@ export default {
           name,
           value
         }))
-      
+
       const option = {
         title: {
           text: title,
@@ -381,25 +375,25 @@ export default {
     const totalAnnualFeeCards = computed(() => {
       return props.cardData.filter(card => card.nextAnnualFeeCollectionTime && card.isQualified !== '3').length
     })
-    
+
     const warningCards = ref([])
     const overdueCards = ref([])
     const unqualifiedCards = ref([])
-    
+
     // 检测年费情况
     const checkAnnualFees = async () => {
       const now = new Date()
       warningCards.value = []
       overdueCards.value = []
       unqualifiedCards.value = []
-      
+
       // 收集需要提醒的卡片
       for (const card of props.cardData) {
         if (!card.nextAnnualFeeCollectionTime || card.isQualified === '3') continue
-        
+
         const dueDate = new Date(card.nextAnnualFeeCollectionTime)
         const diffDays = Math.ceil((dueDate - now) / (1000 * 60 * 60 * 24))
-        
+
         // 未达标的卡片
         if (card.isQualified === '2' && diffDays > 0) {
           unqualifiedCards.value.push({ ...card, diffDays })
@@ -413,53 +407,56 @@ export default {
           overdueCards.value.push({ ...card, diffDays })
         }
       }
-      
+
       // 如果有需要提醒的卡片，显示汇总弹窗
       if (warningCards.value.length > 0 || overdueCards.value.length > 0 || unqualifiedCards.value.length > 0) {
         // 构建提醒消息
         let message = '<div style="max-height: 400px; overflow-y: auto;">'
-        
+
         if (unqualifiedCards.value.length > 0) {
           message += '<div style="margin-bottom: 16px;">'
           message += '<h3 style="color: #E6A23C; margin-bottom: 8px;">年费尚未达标</h3>'
           message += '<ul style="list-style-type: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 16px;">'
           unqualifiedCards.value.sort((a, b) => a.diffDays - b.diffDays).forEach(card => {
             message += `<li style="margin: 0; padding: 12px; background: #fdf6ec; border-radius: 4px; flex: 0 1 calc(33.33% - 12px); min-width: 200px; box-sizing: border-box;">
-              <strong>${card.bank}${card.type}</strong>
+              <strong>${card.bank}${card.type}</strong><br />
+              <strong>${card.alias}</strong>
               <div style="color: #666; margin-top: 4px;">距离年费收取还有 ${card.diffDays} 天</div>
             </li>`
           })
           message += '</ul></div>'
         }
-        
+
         if (warningCards.value.length > 0) {
           message += '<div style="margin-bottom: 16px;">'
           message += '<h3 style="color: #E6A23C; margin-bottom: 8px;">即将到期年费提醒</h3>'
           message += '<ul style="list-style-type: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 16px;">'
           warningCards.value.sort((a, b) => a.diffDays - b.diffDays).forEach(card => {
             message += `<li style="margin: 0; padding: 12px; background: #fefce8; border-radius: 4px; flex: 0 1 calc(33.33% - 12px); min-width: 200px; box-sizing: border-box;">
-              <strong>${card.bank}${card.type}</strong>
+              <strong>${card.bank}${card.type}</strong><br />
+              <strong>${card.alias}</strong>
               <div style="color: #666; margin-top: 4px;">将在 ${card.diffDays} 天后收取年费</div>
             </li>`
           })
           message += '</ul></div>'
         }
-        
+
         if (overdueCards.value.length > 0) {
           message += '<div style="margin-bottom: 16px;">'
           message += '<h3 style="color: #F56C6C; margin-bottom: 8px;">已过期年费提醒</h3>'
           message += '<ul style="list-style-type: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 16px;">'
           overdueCards.value.sort((a, b) => b.diffDays - a.diffDays).forEach(card => {
             message += `<li style="margin: 0; padding: 12px; background: #fef0f0; border-radius: 4px; flex: 0 1 calc(33.33% - 12px); min-width: 200px; box-sizing: border-box;">
-              <strong>${card.bank}${card.type}</strong>
+              <strong>${card.bank}${card.type}</strong><br />
+              <strong>${card.alias}</strong>
               <div style="color: #666; margin-top: 4px;">已过期 ${Math.abs(card.diffDays)} 天</div>
             </li>`
           })
           message += '</ul></div>'
         }
-        
+
         message += '</div>'
-        
+
         try {
           await ElMessageBox.alert(
             message,
@@ -482,14 +479,14 @@ export default {
         })
       }
     }
-    
+
     // 在组件挂载时检查年费情况
     onMounted(() => {
       // 等待 DOM 渲染完成
       setTimeout(() => {
         initCharts(props.cardData)
         checkAnnualFees() // 自动检查年费情况
-        
+
         // 添加图表resize监听
         window.addEventListener('resize', () => {
           const charts = [bankChart.value, levelChart.value]
@@ -533,10 +530,10 @@ export default {
 
       props.cardData.forEach(card => {
         if (!card.nextAnnualFeeCollectionTime) return
-        
+
         const dueDate = new Date(card.nextAnnualFeeCollectionTime)
         const diffDays = Math.ceil((dueDate - now) / (1000 * 60 * 60 * 24))
-        
+
         // 未达标的卡片
         if (card.isQualified === '2' && diffDays > 0) {
           unqualifiedCount++
@@ -578,7 +575,7 @@ export default {
     })
     const bankLimitsData = computed(() => {
       const bankMap = new Map()
-      
+
       props.cardData.forEach(card => {
         const key = `${card.bank}-${card.type}`
         if (!bankMap.has(key)) {
@@ -684,6 +681,7 @@ export default {
 
   &.warning {
     background-color: #fefce8;
+
     .stat-title {
       color: #E6A23C;
     }
@@ -691,6 +689,7 @@ export default {
 
   &.danger {
     background-color: #fef0f0;
+
     .stat-title {
       color: #F56C6C;
     }
