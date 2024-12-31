@@ -56,6 +56,9 @@
             </div>
             <span v-else>-</span>
           </template>
+          <template v-else-if="column.value === 'bank'" #default="{ row }">
+            <span>{{ row.bank.replace(/\(.*?\)/g, "").trim() }}</span>
+          </template>
           <template v-else-if="column.value === 'isQualified'" #default="{ row }">
             <el-tag v-if="row.isQualified === '1'" type="success">已达标</el-tag>
             <el-tag v-if="row.isQualified === '2'" type="danger">未达标</el-tag>
