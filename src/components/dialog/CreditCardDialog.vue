@@ -569,7 +569,7 @@ export default {
     const handleSubmit = () => {
       formRef.value.validate((valid) => {
         if (!valid) return
-        
+        formData.value.id = crypto.randomUUID();
         // 处理提交数据
         const submitData = { ...formData.value }
         
@@ -581,6 +581,7 @@ export default {
         
         emit('submit', submitData)
         dialogVisible.value = false
+        console.log(submitData, 'submitData')
       })
     }
 
