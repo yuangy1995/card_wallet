@@ -191,7 +191,7 @@ export class WebDAVClient {
         minute: '2-digit',
         second: '2-digit',
         hour12: false
-      }).replace(/[\/:]/g, '-').replace(', ', '_');
+      }).replace(/[\/:]/g, '-').replace(/,?\s+/g, '-');
       
       const filename = `backup-${timestamp}.json`;
       const filepath = `${backupDir}/${filename}`;
@@ -248,8 +248,8 @@ export class WebDAVClient {
       return {
         success: true,
         data: files.map(file => ({
-          filename: file.basename,
-          basename: file.basename,
+          filename: decodeURIComponent(file.href.split('/').pop()),
+          basename: decodeURIComponent(file.href.split('/').pop()),
           lastmod: file.lastmod,
           size: file.size
         }))
