@@ -15,20 +15,6 @@ export class WebDAVClient {
     this.progressCallback = callback;
   }
 
-  // 获取代理URL
-  getProxyUrl(originalUrl) {
-    try {
-      const url = new URL(originalUrl);
-      // 在开发环境中使用代理
-      if (import.meta.env.DEV) {
-        return `/webdav-proxy${url.pathname}${url.search}`;
-      }
-      return originalUrl;
-    } catch (error) {
-      return originalUrl;
-    }
-  }
-
   // 初始化客户端
   async initialize(config) {
     try {
@@ -40,9 +26,6 @@ export class WebDAVClient {
       // 自定义请求处理
       clientOptions.fetcher = async (url, options) => {
         try {
-          // 使用代理URL
-          const proxyUrl = this.getProxyUrl(url);
-          
           // 构建基本认证头
           const authHeader = 'Basic ' + btoa(`${config.username}:${config.password}`);
           
@@ -57,7 +40,7 @@ export class WebDAVClient {
           const signal = controller.signal;
 
           // 使用fetch API
-          const response = await fetch(proxyUrl, {
+          const response = await fetch(url, {
             ...options,
             headers,
             signal,
@@ -120,9 +103,8 @@ export class WebDAVClient {
         }
       };
 
-      // 创建WebDAV客户端时也使用代理URL
-      const clientUrl = this.getProxyUrl(config.url);
-      this.client = createClient(clientUrl, clientOptions);
+      // 创建WebDAV客户端
+      this.client = createClient(config.url, clientOptions);
       this.config = config;
 
       // 确保备份目录存在

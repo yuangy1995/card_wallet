@@ -69,20 +69,5 @@ export default defineConfig({
         assetFileNames: 'assets/[ext]/[name]-[hash].[ext]'
       }
     }
-  },
-  server: {
-    proxy: {
-      '/webdav-proxy': {
-        target: 'http://192.168.8.175:5005',
-        changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/webdav-proxy/, ''),
-        configure: (proxy, options) => {
-          proxy.on('proxyReq', (proxyReq, req, res) => {
-            proxyReq.removeHeader('Origin');
-            proxyReq.removeHeader('Referer');
-          });
-        }
-      }
-    }
   }
 })
