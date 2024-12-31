@@ -59,6 +59,7 @@
               :formatter="formatCardNumber"
               :parser="parseCardNumber"
               clearable
+              autocomplete="off"
             >
               <template #append>
                 <el-tooltip content="信用卡号通常为16位数字，某些卡可能为13-19位">
@@ -75,6 +76,7 @@
               v-model="formData.alias" 
               placeholder="为卡片起个好记的名字"
               clearable 
+              autocomplete="off"
             />
           </el-form-item>
         </el-descriptions-item>
@@ -122,6 +124,7 @@
               placeholder="请输入CVV"
               maxlength="4"
               show-password
+              autocomplete="off"
             >
               <template #append>
                 <el-tooltip content="CVV通常为卡片背面的3位数字，美国运通卡为正面4位数字">
@@ -229,6 +232,7 @@
             type="textarea" 
             :rows="3" 
             placeholder="请输入权益信息" 
+            autocomplete="off"
           />
         </el-descriptions-item>
         <el-descriptions-item label="📌 备注" :span="2">
@@ -237,6 +241,7 @@
             type="textarea" 
             :rows="3" 
             placeholder="请输入备注信息" 
+            autocomplete="off"
           />
         </el-descriptions-item>
       </el-descriptions>
