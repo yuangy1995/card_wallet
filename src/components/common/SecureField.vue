@@ -59,16 +59,35 @@ export default {
     const displayValue = computed(() => {
       if (!props.value) return ''
       
+      // 移除所有非数字字符
+      const cleanValue = props.value.replace(/\D/g, '')
+      
       if (!visible.value) {
         if (props.maskAll) {
-          return '*'.repeat(props.value.length)
+          return '*'.repeat(cleanValue.length)
         }
         
         const start = props.maskStart
-        const end = props.maskEnd || props.value.length
-        return props.value.slice(0, start) + 
+        const end = props.maskEnd || cleanValue.length
+        
+        // 对卡号进行分组显示
+        if (props.type === 'cardNumber') {
+          const visibleStart = cleanValue.slice(0, start)
+          const masked = '*'.repeat(end - start)
+          const visibleEnd = cleanValue.slice(end)
+          
+          // 将数字分成4个一组
+          return (visibleStart + masked + visibleEnd).replace(/(.{4})/g, '$1 ').trim()
+        }
+        
+        return cleanValue.slice(0, start) + 
                '*'.repeat(end - start) + 
-               props.value.slice(end)
+               cleanValue.slice(end)
+      }
+      
+      // 显示完整卡号时的格式化
+      if (props.type === 'cardNumber') {
+        return cleanValue.replace(/(.{4})/g, '$1 ').trim()
       }
       
       return props.value
