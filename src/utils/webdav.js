@@ -325,6 +325,43 @@ export class WebDAVClient {
       return { success: false, message: error.message };
     }
   }
+
+  // 重命名备份
+  async renameBackup(oldFilename, newFilename) {
+    if (!this.client) {
+      throw new Error('WebDAV 客户端未初始化');
+    }
+
+    try {
+      const oldPath = `/credit-card-backup/${oldFilename}`;
+      const newPath = `/credit-card-backup/${newFilename}`;
+
+      // 获取基础URL，移除认证信息
+      const url = this.client.getFileDownloadLink(oldPath);
+      const baseUrl = url.replace(/^https?:\/\/[^@]+@/, 'https://');
+      
+      // 使用 fetch 直接发送 MOVE 请求
+      const response = await fetch(baseUrl, {
+        method: 'MOVE',
+        headers: {
+          'Authorization': 'Basic ' + btoa(`${this.config.username}:${this.config.password}`),
+          'Destination': baseUrl.replace(oldFilename, newFilename),
+          'Overwrite': 'T'
+        }
+      });
+
+      if (!response.ok) {
+        throw new Error(`重命名失败：${response.status} ${response.statusText}`);
+      }
+
+      return {
+        success: true,
+        message: '重命名成功'
+      };
+    } catch (error) {
+      return { success: false, message: error.message };
+    }
+  }
 }
 
 // 导出单例实例

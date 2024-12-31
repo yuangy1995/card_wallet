@@ -59,6 +59,15 @@
                   恢复
                 </el-button>
                 <el-button
+                  type="primary"
+                  size="small"
+                  @click="handleRename(backup)"
+                  :loading="backup.renaming"
+                  :disabled="!isConnected"
+                >
+                  重命名
+                </el-button>
+                <el-button
                   type="danger"
                   size="small"
                   @click="handleDelete(backup)"
@@ -167,6 +176,26 @@
       </span>
     </template>
   </el-dialog>
+
+  <!-- 重命名对话框 -->
+  <el-dialog
+    v-model="renameDialogVisible"
+    title="重命名备份"
+    width="400px"
+    append-to-body
+  >
+    <el-form :model="renameForm" label-width="80px">
+      <el-form-item label="新文件名">
+        <el-input v-model="renameForm.newFilename" />
+      </el-form-item>
+    </el-form>
+    <template #footer>
+      <span class="dialog-footer">
+        <el-button @click="renameDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="handleRenameConfirm">确定</el-button>
+      </span>
+    </template>
+  </el-dialog>
 </template>
 
 <script setup>
@@ -199,6 +228,13 @@ const restoreForm = ref({
   password: ''
 })
 const currentBackup = ref(null)
+
+// 重命名对话框
+const renameDialogVisible = ref(false)
+const renameForm = ref({
+  oldFilename: '',
+  newFilename: ''
+})
 
 // 进度相关
 const progressVisible = ref(false)
@@ -436,6 +472,38 @@ const handleDelete = async (backup) => {
   } finally {
     backup.deleting = false
     loading.value = false
+  }
+}
+
+// 重命名备份
+const handleRename = (backup) => {
+  renameForm.value.oldFilename = backup.filename
+  renameForm.value.newFilename = backup.filename
+  renameDialogVisible.value = true
+}
+
+// 确认重命名
+const handleRenameConfirm = async () => {
+  const backup = backupList.value.find(b => b.filename === renameForm.value.oldFilename)
+  if (!backup) return
+
+  backup.renaming = true
+  try {
+    const result = await webdavClient.renameBackup(
+      renameForm.value.oldFilename,
+      renameForm.value.newFilename
+    )
+    if (result.success) {
+      ElMessage.success(result.message)
+      await loadBackupList()
+    } else {
+      ElMessage.error(result.message)
+    }
+  } catch (error) {
+    ElMessage.error(error.message)
+  } finally {
+    backup.renaming = false
+    renameDialogVisible.value = false
   }
 }
 
