@@ -574,7 +574,9 @@ export default {
     const handleSubmit = () => {
       formRef.value.validate((valid) => {
         if (!valid) return
-        formData.value.id = crypto.randomUUID();
+        if(!formData.value.id){
+          formData.value.id = crypto.randomUUID();
+        }
         // 处理提交数据
         const submitData = { ...formData.value }
         
