@@ -415,7 +415,18 @@ export default {
     }
 
     const handleSetAnnualFeeQualified = () => {
-      emit('annual-fee-qualified', selectedRow.value.id)
+      // 更新年费达标状态和下次收取时间
+      selectedRow.value.isQualified = '1'
+      if (selectedRow.value.nextAnnualFeeCollectionTime) {
+        const nextDate = new Date(selectedRow.value.nextAnnualFeeCollectionTime)
+        nextDate.setFullYear(nextDate.getFullYear() + 1)
+        selectedRow.value.nextAnnualFeeCollectionTime = nextDate.toISOString().split('T')[0]
+      }
+      emit('annual-fee-qualified', {
+        id: selectedRow.value.id,
+        isQualified: '1',
+        nextAnnualFeeCollectionTime: selectedRow.value.nextAnnualFeeCollectionTime
+      })
       contextMenuVisible.value = false
     }
 
