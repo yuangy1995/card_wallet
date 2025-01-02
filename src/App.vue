@@ -287,10 +287,88 @@ onMounted(async () => {
       localStorage.setItem('cardData', JSON.stringify(cardData.value))
     }
 
+    // 检查年费达标状态
+    await checkAnnualFeeQualified()
+    
     // 自动检查年费情况
     await manualCheckAnnualFees()
   }
 })
+
+// 检查年费达标状态
+const checkAnnualFeeQualified = async () => {
+  const now = new Date()
+  const warningCards = cardData.value.filter(card => {
+    if (card.isQualified === '3' || !card.nextAnnualFeeCollectionTime) return false
+    const dueDate = new Date(card.nextAnnualFeeCollectionTime)
+    const diffDays = Math.ceil((dueDate - now) / (1000 * 60 * 60 * 24))
+    return diffDays <= 60 && diffDays >= 0
+  })
+
+  if (warningCards.length > 0) {
+    try {
+      const message = `
+        <div style="display: flex; min-height: 200px; max-height: 500px;">
+          <div style="flex: 1; padding: 16px; display: flex; flex-direction: column; justify-content: center;">
+            <h3 style="margin: 0 0 16px 0; color: #E6A23C;">年费达标状态检测</h3>
+            <p style="margin: 0 0 12px 0; line-height: 1.6;">检测到以下卡片临近年费收取时间不足60天。</p>
+            <p style="margin: 0 0 12px 0; line-height: 1.6;">建议将这些卡片修改为未达标状态，以协助您处理年费收取问题。</p>
+            <p style="margin: 0; line-height: 1.6; color: #666;">
+              提示：如果您在去年将卡片设为已达标，但今年忘记修改状态且消费未达标，可能会遗漏年费情况。为避免年费损失，建议点击"是"来更新状态。
+            </p>
+          </div>
+          <div style="width: 1px; background: #DCDFE6; margin: 16px 0;"></div>
+          <div style="flex: 1; padding: 16px;">
+            <h3 style="margin: 0 0 16px 0; color: #E6A23C;">待处理卡片列表</h3>
+            <div style="max-height: 400px; overflow-y: auto;">
+              <ul style="list-style-type: none; padding: 0; margin: 0;">
+                ${warningCards.map(card => `
+                  <li style="margin-bottom: 8px; padding: 12px; background: #f5f7fa; border-radius: 4px;">
+                    <div style="font-weight: bold; margin-bottom: 4px;">
+                      ${card.bank.replace(/\(.*?\)/g, "").trim()} - ${card.alias}
+                    </div>
+                    <div style="color: #666; font-size: 13px;">
+                      下次年费收取时间：${card.nextAnnualFeeCollectionTime}
+                    </div>
+                    <div style="color: #E6A23C; font-size: 13px; margin-top: 4px;">
+                      距离收取年费：${Math.ceil((new Date(card.nextAnnualFeeCollectionTime) - new Date()) / (1000 * 60 * 60 * 24))} 天
+                    </div>
+                  </li>
+                `).join('')}
+              </ul>
+            </div>
+          </div>
+        </div>`
+
+      const result = await ElMessageBox.confirm(
+        message,
+        '',
+        {
+          confirmButtonText: '是',
+          cancelButtonText: '取消',
+          dangerouslyUseHTMLString: true,
+          customClass: 'annual-fee-check-dialog',
+          center: false
+        }
+      )
+
+      if (result === 'confirm') {
+        // 更新卡片状态为未达标
+        warningCards.forEach(card => {
+          const index = cardData.value.findIndex(c => c.id === card.id)
+          if (index !== -1) {
+            cardData.value[index].isQualified = '2'
+          }
+        })
+        // 保存更新后的数据
+        localStorage.setItem('cardData', JSON.stringify(cardData.value))
+        ElMessage.success('已将符合条件的卡片更新为未达标状态')
+      }
+    } catch (e) {
+      // 用户点击取消，不做任何操作
+    }
+  }
+}
 
 // 方法
 const handleTableCustomConfirm = (columns) => {
@@ -677,6 +755,26 @@ onUnmounted(() => {
         border-color: #f78989 !important;
       }
     }
+  }
+}
+
+.annual-fee-check-dialog {
+  .el-message-box {
+    width: 800px;
+    max-width: 95vw;
+  }
+
+  .el-message-box__header {
+    padding-bottom: 0;
+  }
+
+  .el-message-box__content {
+    padding: 0;
+  }
+
+  .el-message-box__btns {
+    padding: 12px 16px;
+    border-top: 1px solid #DCDFE6;
   }
 }
 </style>
