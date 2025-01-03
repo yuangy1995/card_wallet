@@ -422,11 +422,7 @@ export default {
         nextDate.setFullYear(nextDate.getFullYear() + 1)
         selectedRow.value.nextAnnualFeeCollectionTime = nextDate.toISOString().split('T')[0]
       }
-      emit('annual-fee-qualified', {
-        id: selectedRow.value.id,
-        isQualified: '1',
-        nextAnnualFeeCollectionTime: selectedRow.value.nextAnnualFeeCollectionTime
-      })
+      emit('annual-fee-qualified', selectedRow.value.id)
       contextMenuVisible.value = false
     }
 
