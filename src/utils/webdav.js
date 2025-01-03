@@ -193,7 +193,10 @@ export class WebDAVClient {
         hour12: false
       }).replace(/[\/:]/g, '-').replace(/,?\s+/g, '-');
       
-      const filename = `backup-${timestamp}.json`;
+      // 解密数据获取卡片数量
+      const decryptedData = decryptData(data);
+      const cardCount = decryptedData.cards?.length || 0;
+      const filename = `${timestamp}---(${cardCount}).json`;
       const filepath = `${backupDir}/${filename}`;
 
       // 报告开始上传
