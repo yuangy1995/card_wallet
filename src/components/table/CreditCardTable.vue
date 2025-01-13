@@ -75,6 +75,9 @@
               </span>
             </div>
           </template>
+          <template v-else-if="column.value === 'valid'" #default="{ row }">
+            <span>{{ formatValidDate(row.valid) }}</span>
+          </template>
         </el-table-column>
       </template>
     </el-table>
@@ -112,7 +115,7 @@ import SecureField from '../common/SecureField.vue'
 import { ElMessageBox } from 'element-plus'
 import { Edit, View, Delete, Check } from '@element-plus/icons-vue'
 import { ref, onMounted, computed } from 'vue'
-import { getDaysFromNow } from '../../utils/dateCalculator'
+import { getDaysFromNow, formatValidDate } from '../../utils/dateCalculator'
 import { creditCardOptions } from '@/config/creditCardOptions'
 
 // 获取卡片类型权重
@@ -477,7 +480,8 @@ export default {
       handleSetAnnualFeeQualified,
       showAnnualFeeOption,
       rowClassName,
-      calculateInterestFreePeriod
+      calculateInterestFreePeriod,
+      formatValidDate
     }
   }
 }

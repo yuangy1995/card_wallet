@@ -172,3 +172,19 @@ export function getDaysFromNow(date) {
     text: diffDays >= 0 ? '还有' : '已过'
   }
 }
+
+/**
+ * 将YYYY-MM-DD格式的日期转换为MM/YY格式
+ * @param {string} date - YYYY-MM-DD格式的日期
+ * @returns {string} MM/YY格式的日期
+ */
+export function formatValidDate(date) {
+  if (!date) return ''
+  try {
+    const [year, month] = date.split('-')
+    if (!year || !month) return date
+    return `${month}/${year.slice(2)}`
+  } catch (error) {
+    return date
+  }
+}
