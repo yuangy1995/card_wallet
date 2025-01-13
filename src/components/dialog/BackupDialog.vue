@@ -222,6 +222,9 @@ const backupForm = ref({
   confirmPassword: ''
 })
 
+// 暂存的自定义密码
+const tempCustomPassword = ref('')
+
 // 恢复表单相关
 const restoreDialogVisible = ref(false)
 const restoreForm = ref({
@@ -328,6 +331,7 @@ const handleBackupConfirm = async () => {
   backingUp.value = true
   progressVisible.value = true
   progress.value = 0
+  progressText.value = '正在备份...'
   try {
     // 获取当前数据
     const data = {
@@ -336,14 +340,21 @@ const handleBackupConfirm = async () => {
       tags: []
     }
 
+    // 如果使用自定义密码，先暂存密码
+    if (backupForm.value.useCustomPassword) {
+      tempCustomPassword.value = backupForm.value.password
+    }
+
     // 加密数据
     const encryptedData = encryptData(
       data,
       backupForm.value.useCustomPassword ? backupForm.value.password : undefined
     )
 
-    const result = await webdavClient.createBackup(encryptedData)
+    const result = await webdavClient.createBackup(encryptedData, tempCustomPassword.value)
     if (result.success) {
+      progress.value = 100
+      progressText.value = '备份完成'
       ElMessage.success(result.message)
       await loadBackupList()
     } else {
@@ -353,6 +364,10 @@ const handleBackupConfirm = async () => {
     ElMessage.error(error.message)
   } finally {
     backingUp.value = false
+    progressVisible.value = false
+    progress.value = 0
+    // 清除暂存的密码
+    tempCustomPassword.value = ''
   }
 }
 

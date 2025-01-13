@@ -169,7 +169,7 @@ export class WebDAVClient {
   }
 
   // 创建备份
-  async createBackup(data) {
+  async createBackup(data, tempPassword) {
     if (!this.client) {
       throw new Error('WebDAV 客户端未初始化');
     }
@@ -194,9 +194,9 @@ export class WebDAVClient {
       }).replace(/[\/:]/g, '-').replace(/,?\s+/g, '-');
       
       // 解密数据获取卡片数量
-      const decryptedData = decryptData(data);
+      const decryptedData = decryptData(data, tempPassword);
       const cardCount = decryptedData.cards?.length || 0;
-      const filename = `${timestamp}---(${cardCount}).json`;
+      const filename = `${timestamp}---(${cardCount})${tempPassword ? '[密]' : ''}.json`;
       const filepath = `${backupDir}/${filename}`;
 
       // 报告开始上传
@@ -205,8 +205,7 @@ export class WebDAVClient {
       }
 
       // 上传备份数据
-      const jsonData = JSON.stringify(data);
-      await this.client.putFileContents(filepath, jsonData, {
+      await this.client.putFileContents(filepath, data, {
         overwrite: true,
         contentLength: true
       });
