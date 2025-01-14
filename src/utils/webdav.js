@@ -204,8 +204,9 @@ export class WebDAVClient {
         this.progressCallback('upload', 0);
       }
 
+      const jsonData = JSON.stringify(data);
       // 上传备份数据
-      await this.client.putFileContents(filepath, data, {
+      await this.client.putFileContents(filepath, jsonData, {
         overwrite: true,
         contentLength: true
       });
