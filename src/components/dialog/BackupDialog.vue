@@ -50,6 +50,15 @@
               </div>
               <div class="backup-actions">
                 <el-button
+                  type="warning"
+                  size="small"
+                  @click="handleCompare(backup)"
+                  :loading="backup.comparing"
+                  :disabled="!isConnected"
+                >
+                  比对
+                </el-button>
+                <el-button
                   type="success"
                   size="small"
                   @click="handleRestore(backup)"
@@ -196,6 +205,83 @@
       </span>
     </template>
   </el-dialog>
+
+  <!-- 比对对话框 -->
+  <el-dialog
+    v-model="compareDialogVisible"
+    title="备份数据比对"
+    width="90%"
+    append-to-body
+    :close-on-click-modal="false"
+    class="compare-dialog"
+  >
+    <div class="compare-container">
+      <div class="table-wrapper">
+        <el-table 
+          :data="comparisonData" 
+          border 
+          stripe
+          style="width: 100%"
+          height="600px"
+          :cell-class-name="getTableCellClass"
+        >
+          <el-table-column type="index" width="50" />
+          <el-table-column
+            label="数据来源"
+            width="180"
+            align="center"
+          >
+            <template #default="{ row }">
+              <div class="data-source">
+                <div class="source-item">
+                  <span class="source-label">云端数据：</span>
+                  <span class="source-value" :class="{ 'text-success': row._status !== 'added', 'text-danger': row._status === 'added' }">
+                    {{ row._status !== 'added' ? '✅' : '❌' }}
+                  </span>
+                </div>
+                <div class="source-item">
+                  <span class="source-label">本地数据：</span>
+                  <span class="source-value" :class="{ 'text-success': row._status !== 'deleted', 'text-danger': row._status === 'deleted' }">
+                    {{ row._status !== 'deleted' ? '✅' : '❌' }}
+                  </span>
+                </div>
+              </div>
+            </template>
+          </el-table-column>
+          <el-table-column
+            v-for="col in tableColumns"
+            :key="col.value"
+            :prop="col.value"
+            :label="col.label"
+            :min-width="getColumnWidth(col.value)"
+          >
+            <template #default="{ row }">
+              <template v-if="row._diff && row._diff[col.value]">
+                <div class="diff-content" :class="{ 'diff-highlight': true }">
+                  <div class="diff-item">
+                    <span class="diff-label">云端值：</span>
+                    <span class="diff-value">{{ formatColumnValue(row._diff[col.value].cloud, col.value) }}</span>
+                  </div>
+                  <div class="diff-item">
+                    <span class="diff-label">本地值：</span>
+                    <span class="diff-value">{{ formatColumnValue(row._diff[col.value].local, col.value) }}</span>
+                  </div>
+                </div>
+              </template>
+              <template v-else>
+                {{ formatColumnValue(row[col.value], col.value) }}
+              </template>
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
+    </div>
+    <template #footer>
+      <span class="dialog-footer">
+        <el-button @click="compareDialogVisible = false">关闭</el-button>
+      </span>
+    </template>
+  </el-dialog>
 </template>
 
 <script setup>
@@ -204,6 +290,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { webdavClient } from '@/utils/webdav'
 import { encryptData, decryptData } from '@/utils/encryption'
 import { Delete, Download } from '@element-plus/icons-vue'
+import { creditCardOptions } from '@/config/creditCardOptions'
 
 const emit = defineEmits(['update', 'showConfig'])
 const visible = ref(false)
@@ -231,6 +318,11 @@ const restoreForm = ref({
   password: ''
 })
 const currentBackup = ref(null)
+
+// 比对相关
+const compareDialogVisible = ref(false)
+const comparisonData = ref([])
+const tableColumns = creditCardOptions.tableCustomData
 
 // 重命名对话框
 const renameDialogVisible = ref(false)
@@ -443,7 +535,7 @@ const handleRestoreSuccess = (data) => {
   }
 }
 
-// 确认恢复（输入密码后）
+// 确认密码输入后的处理
 const handleRestoreConfirm = async () => {
   if (!restoreForm.value.password) {
     ElMessage.warning('请输入密码')
@@ -451,8 +543,17 @@ const handleRestoreConfirm = async () => {
   }
 
   try {
-    const decryptedData = decryptData(currentBackup.value, restoreForm.value.password)
-    handleRestoreSuccess(decryptedData)
+    if (typeof currentBackup.value === 'object' && currentBackup.value.type === 'compare') {
+      // 比对逻辑
+      const decryptedData = decryptData(currentBackup.value.content, restoreForm.value.password)
+      compareData(decryptedData, currentBackup.value.backup)
+      restoreDialogVisible.value = false
+      restoreForm.value.password = ''
+    } else {
+      // 恢复逻辑
+      const decryptedData = decryptData(currentBackup.value, restoreForm.value.password)
+      handleRestoreSuccess(decryptedData)
+    }
   } catch (error) {
     ElMessage.error('解密备份失败：' + error.message)
   }
@@ -487,6 +588,171 @@ const handleDelete = async (backup) => {
   } finally {
     backup.deleting = false
     loading.value = false
+  }
+}
+
+// 比对数据
+const handleCompare = async (backup) => {
+  try {
+    backup.comparing = true
+    const result = await webdavClient.restoreBackup(backup.filename)
+    if (result.success) {
+      try {
+        // 检查数据是否加密
+        const content = result.data
+        let decryptedData
+
+        if (typeof content === 'string' && (content.startsWith('encrypted:') || content.startsWith('default:'))) {
+          // 如果是默认加密，直接解密
+          if (content.startsWith('default:')) {
+            decryptedData = decryptData(content)
+          } else {
+            // 如果是自定义密码加密，显示密码输入对话框
+            currentBackup.value = { content, type: 'compare', backup }
+            restoreDialogVisible.value = true
+            return
+          }
+        } else {
+          // 未加密数据直接使用
+          decryptedData = content
+        }
+
+        // 解析数据
+        const parsedData = typeof decryptedData === 'string' ? JSON.parse(decryptedData) : decryptedData
+        const backupData = parsedData.cards || []
+        const currentData = JSON.parse(localStorage.getItem('cardData') || '[]')
+
+        // 创建Map用于快速查找
+        const currentMap = new Map(currentData.map(item => [item.id, item]))
+        const backupMap = new Map(backupData.map(item => [item.id, item]))
+        const comparedData = []
+        let hasChanges = false
+
+        // 检查删除和修改的数据
+        backupData.forEach(backupItem => {
+          const currentItem = currentMap.get(backupItem.id)
+          if (!currentItem) {
+            // 已删除的数据
+            comparedData.push({
+              ...backupItem,
+              _status: 'deleted'
+            })
+            hasChanges = true
+          } else if (currentItem.lastTime !== backupItem.lastTime) {
+            // 如果最后修改时间不一致，检查所有字段
+            const itemHasChanges = Object.keys(backupItem).some(key => {
+              // 对于特殊字段（如年费达标状态），比较原始值
+              if (key === 'isQualified') {
+                return backupItem[key] !== currentItem[key]
+              }
+              return JSON.stringify(backupItem[key]) !== JSON.stringify(currentItem[key])
+            })
+            
+            if (itemHasChanges) {
+              // 创建一个新的对象来存储差异信息
+              const diffItem = { ...currentItem, _status: 'modified', _diff: {} }
+              
+              // 检查每个字段的差异
+              Object.keys(backupItem).forEach(key => {
+                // 对于特殊字段（如年费达标状态），比较原始值
+                if (key === 'isQualified') {
+                  if (backupItem[key] !== currentItem[key]) {
+                    diffItem._diff[key] = {
+                      cloud: backupItem[key],
+                      local: currentItem[key]
+                    }
+                  }
+                } else if (JSON.stringify(backupItem[key]) !== JSON.stringify(currentItem[key])) {
+                  diffItem._diff[key] = {
+                    cloud: backupItem[key],
+                    local: currentItem[key]
+                  }
+                }
+              })
+              
+              comparedData.push(diffItem)
+              hasChanges = true
+            }
+          }
+        })
+
+        // 检查新增的数据
+        currentData.forEach(currentItem => {
+          if (!backupMap.has(currentItem.id)) {
+            comparedData.push({
+              ...currentItem,
+              _status: 'added'
+            })
+            hasChanges = true
+          }
+        })
+
+        if (!hasChanges) {
+          ElMessage.success('本地数据与云端数据一致')
+          return
+        }
+
+        comparisonData.value = comparedData
+        compareDialogVisible.value = true
+      } catch (error) {
+        ElMessage.error('处理备份数据失败：' + error.message)
+      }
+    } else {
+      ElMessage.error(result.message)
+    }
+  } catch (error) {
+    ElMessage.error('比对失败：' + error.message)
+  } finally {
+    backup.comparing = false
+  }
+}
+
+// 获取表格单元格的类名
+const getTableCellClass = ({ row }) => {
+  if (row._status === 'deleted') return 'comparison-deleted'
+  if (row._status === 'modified') return 'comparison-modified'
+  if (row._status === 'added') return 'comparison-added'
+  return ''
+}
+
+// 获取列宽度
+const getColumnWidth = (columnValue) => {
+  switch (columnValue) {
+    case 'country': return '100'
+    case 'bank': return '150'
+    case 'alias': return '200'
+    case 'level': return '110'
+    case 'type': return '150'
+    case 'annualFee': return '90'
+    case 'cardNumber': return '250'
+    case 'valid': return '120'
+    case 'cvv': return '120'
+    case 'limit': return '100'
+    case 'nextAnnualFeeCollectionTime': return '150'
+    case 'lastTime': return '170'
+    case 'isQualified': return '100'
+    case 'equity': return '200'
+    case 'remark': return '200'
+    default: return '150'
+  }
+}
+
+// 格式化列值
+const formatColumnValue = (value, columnType) => {
+  if (value === undefined || value === null || value === '') return '-'
+  
+  switch (columnType) {
+    case 'isQualified':
+      switch (value) {
+        case '1': return '已达标'
+        case '0': return '未达标'
+        default: return value
+      }
+    case 'nextAnnualFeeCollectionTime':
+    case 'lastTime':
+      return value ? formatDate(value) : '-'
+    default:
+      return value
   }
 }
 
@@ -685,11 +951,67 @@ defineExpose({
 .progress-container {
   padding: 24px 0;
   text-align: center;
+}
+
+.diff-content {
+  padding: 8px;
+  
+  &.diff-highlight {
+    background-color: #fdf6ec;
+  }
+}
+
+.diff-item {
+  margin-bottom: 4px;
+  &:last-child {
+    margin-bottom: 0;
+  }
+}
+
+.diff-label {
+  color: #909399;
+  margin-right: 8px;
+  font-size: 13px;
+}
+
+.diff-value {
+  color: #303133;
+  font-weight: 500;
 
   .progress-text {
     margin-top: 8px;
     color: var(--el-text-color-secondary);
   }
+}
+
+.data-source {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.source-item {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.source-label {
+  font-size: 13px;
+  color: var(--el-text-color-regular);
+}
+
+.source-value {
+  font-size: 14px;
+}
+
+.text-success {
+  color: var(--el-color-success);
+}
+
+.text-danger {
+  color: var(--el-color-danger);
 }
 
 .connection-status {
