@@ -394,6 +394,8 @@ export default {
         contextMenuVisible.value = false
         document.removeEventListener('click', closeMenu)
       }
+      // 先移除之前的监听器，再添加新的监听器
+      document.removeEventListener('click', closeMenu)
       document.addEventListener('click', closeMenu)
     }
 
