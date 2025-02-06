@@ -203,25 +203,15 @@ const handleCompare = (backup) => {
       )
       if (hasChanges) {
         comparedData.push({
-          ...currentItem,
+          ...backupItem,
           _status: 'modified'
         })
       } else {
         comparedData.push({
-          ...currentItem,
+          ...backupItem,
           _status: 'unchanged'
         })
       }
-    }
-  })
-
-  // 检查新增的数据
-  currentData.forEach(currentItem => {
-    if (!backupMap.has(currentItem.id)) {
-      comparedData.push({
-        ...currentItem,
-        _status: 'added'
-      })
     }
   })
 
