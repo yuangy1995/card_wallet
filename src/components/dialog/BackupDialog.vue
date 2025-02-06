@@ -49,42 +49,27 @@
                 </div>
               </div>
               <div class="backup-actions">
-                <el-button
-                  type="warning"
-                  size="small"
-                  @click="handleCompare(backup)"
-                  :loading="backup.comparing"
-                  :disabled="!isConnected"
-                >
-                  比对
-                </el-button>
-                <el-button
-                  type="success"
-                  size="small"
-                  @click="handleRestore(backup)"
-                  :loading="backup.restoring"
-                  :disabled="!isConnected"
-                >
-                  恢复
-                </el-button>
-                <el-button
-                  type="primary"
-                  size="small"
-                  @click="handleRename(backup)"
-                  :loading="backup.renaming"
-                  :disabled="!isConnected"
-                >
-                  重命名
-                </el-button>
-                <el-button
-                  type="danger"
-                  size="small"
-                  @click="handleDelete(backup)"
-                  :loading="backup.deleting"
-                  :disabled="!isConnected"
-                >
-                  删除
-                </el-button>
+                <el-dropdown trigger="click" :disabled="!isConnected">
+                  <el-button size="small">
+                    操作<el-icon class="el-icon--right"><arrow-down /></el-icon>
+                  </el-button>
+                  <template #dropdown>
+                    <el-dropdown-menu>
+                      <el-dropdown-item @click="handleCompare(backup)" :loading="backup.comparing">
+                        <el-icon><document-copy /></el-icon>比对
+                      </el-dropdown-item>
+                      <el-dropdown-item @click="handleRestore(backup)" :loading="backup.restoring">
+                        <el-icon><refresh-right /></el-icon>恢复
+                      </el-dropdown-item>
+                      <el-dropdown-item @click="handleRename(backup)" :loading="backup.renaming">
+                        <el-icon><edit /></el-icon>重命名
+                      </el-dropdown-item>
+                      <el-dropdown-item @click="handleDelete(backup)" :loading="backup.deleting">
+                        <el-icon><delete /></el-icon>删除
+                      </el-dropdown-item>
+                    </el-dropdown-menu>
+                  </template>
+                </el-dropdown>
               </div>
             </div>
           </template>
@@ -289,7 +274,7 @@ import { ref, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { webdavClient } from '@/utils/webdav'
 import { encryptData, decryptData } from '@/utils/encryption'
-import { Delete, Download } from '@element-plus/icons-vue'
+import { Delete, ArrowDown, DocumentCopy, RefreshRight, Edit } from '@element-plus/icons-vue'
 import { creditCardOptions } from '@/config/creditCardOptions'
 
 const emit = defineEmits(['update', 'showConfig'])
