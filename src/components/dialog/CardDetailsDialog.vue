@@ -21,7 +21,7 @@
           <el-descriptions-item label="额度">{{ cardInfo.limit }}</el-descriptions-item>
           
           <!-- 卡片信息 -->
-          <el-descriptions-item label="卡号">{{ cardInfo.cardNumber }}</el-descriptions-item>
+          <el-descriptions-item label="卡号">{{ formatCardNumber(cardInfo.cardNumber) }}</el-descriptions-item>descriptions-item>
           <el-descriptions-item label="有效期">{{ cardInfo.valid }}</el-descriptions-item>
           <el-descriptions-item label="CVV码">{{ cardInfo.cvv }}</el-descriptions-item>
           <el-descriptions-item label="账单日">{{ cardInfo.accountBillDate }}</el-descriptions-item>
@@ -69,7 +69,7 @@
       <!-- 卡片信息标签页 -->
       <el-tab-pane label="卡片信息">
         <el-descriptions :column="2" border>
-          <el-descriptions-item label="卡号">{{ cardInfo.cardNumber }}</el-descriptions-item>
+          <el-descriptions-item label="卡号">{{ formatCardNumber(cardInfo.cardNumber) }}</el-descriptions-item>
           <el-descriptions-item label="有效期">{{ cardInfo.valid }}</el-descriptions-item>
           <el-descriptions-item label="CVV码">{{ cardInfo.cvv }}</el-descriptions-item>
           <el-descriptions-item label="账单日">{{ cardInfo.accountBillDate }}</el-descriptions-item>
@@ -161,6 +161,11 @@ export default {
   methods: {
     handleClose() {
       this.dialogVisible = false
+    },
+    formatCardNumber(cardNumber) {
+      if (!cardNumber) return ''
+      // 每4个字符添加一个空格
+      return cardNumber.replace(/(.{4})/g, '$1 ').trim()
     }
   }
 }
