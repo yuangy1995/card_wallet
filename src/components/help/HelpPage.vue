@@ -290,7 +290,7 @@ const openWebDAVDocs = () => {
             font-family: SFMono-Regular, Consolas, 'Liberation Mono', Menlo, monospace;
             font-size: 14px;
         }
-        h1, h2, h3 {
+        :is(h1), :is(h2), :is(h3) {
             border-bottom: 1px solid #eaecef;
             padding-bottom: .3em;
         }
@@ -514,7 +514,7 @@ defineExpose({
   .section {
     margin-bottom: 20px;
 
-    h3 {
+    :is(h3) {
       color: var(--el-color-primary);
       margin: 15px 0;
     }

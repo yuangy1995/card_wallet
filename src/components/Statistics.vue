@@ -763,7 +763,7 @@ export default {
 }
 
 .limits-detail {
-  h3 {
+  :is(h3) {
     margin-bottom: 20px;
     color: var(--el-text-color-primary);
   }
