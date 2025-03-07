@@ -17,7 +17,7 @@
       <div class="form-content">
         <div class="first-row">
           <el-form-item label="国家">
-            <el-select v-model="formData.country" placeholder="请选择国家" filterable allow-create clearable>
+            <el-select v-model="formData.country" placeholder="请选择国家" filterable allow-create clearable multiple collapse-tags>
               <el-option 
                 v-for="(item, index) in options.countryData" 
                 :key="index"
@@ -27,7 +27,7 @@
             </el-select>
           </el-form-item>
           <el-form-item label="银行">
-            <el-select v-model="formData.bank" placeholder="请选择银行" filterable allow-create clearable>
+            <el-select v-model="formData.bank" placeholder="请选择银行" filterable allow-create clearable multiple collapse-tags>
               <el-option 
                 v-for="item in options.bankList" 
                 :key="item.name" 
@@ -40,7 +40,7 @@
             <el-input v-model="formData.cardNumber" autocomplete="off" clearable />
           </el-form-item>
           <el-form-item label="等级">
-            <el-select v-model="formData.level" placeholder="请选择等级" filterable clearable>
+            <el-select v-model="formData.level" placeholder="请选择等级" filterable clearable multiple collapse-tags>
               <el-option 
                 v-for="item in options.cardLevel" 
                 :key="item.name" 
@@ -53,7 +53,7 @@
             <el-input v-model="formData.limit" autocomplete="off" clearable />
           </el-form-item>
           <el-form-item label="币种">
-            <el-select v-model="formData.type" placeholder="请选择币种" filterable clearable>
+            <el-select v-model="formData.type" placeholder="请选择币种" filterable clearable multiple collapse-tags>
               <el-option 
                 v-for="item in options.currencyList" 
                 :key="item.name" 
@@ -65,7 +65,7 @@
         </div>
         <div v-show="!isCollapse" class="extra-rows">
           <el-form-item label="年费达标">
-            <el-select v-model="formData.isQualified" placeholder="请选择" filterable clearable>
+            <el-select v-model="formData.isQualified" placeholder="请选择" filterable clearable multiple collapse-tags>
               <el-option 
                 v-for="item in options.isQualified" 
                 :key="item.name" 
