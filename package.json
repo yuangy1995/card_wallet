@@ -5,7 +5,11 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:run": "vitest run",
+    "coverage": "vitest run --coverage"
   },
   "dependencies": {
     "@element-plus/icons-vue": "^2.3.1",
@@ -17,13 +21,18 @@
     "webdav": "^5.7.1"
   },
   "devDependencies": {
+    "@testing-library/vue": "^8.1.0",
     "@vitejs/plugin-vue": "^4.2.3",
+    "@vue/test-utils": "^2.4.6",
+    "happy-dom": "^17.3.0",
+    "jsdom": "^26.0.0",
     "rollup-plugin-obfuscator": "^1.0.3",
     "rollup-plugin-visualizer": "^5.12.0",
     "sass": "^1.81.0",
     "terser": "^5.36.0",
     "unplugin-auto-import": "^0.16.6",
     "unplugin-vue-components": "^0.25.1",
-    "vite": "^4.4.6"
+    "vite": "^4.4.6",
+    "vitest": "^3.0.8"
   }
 }
