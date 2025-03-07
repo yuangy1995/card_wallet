@@ -418,6 +418,7 @@ const confirmAdd = (data) => {
     second: '2-digit',
     hour12: false
   })
+  
   console.log(data)
   if (status.value === 'add') {
     cardData.value.push(data)

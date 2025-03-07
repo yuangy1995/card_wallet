@@ -623,15 +623,24 @@ const handleCompare = async (backup) => {
               _status: 'deleted'
             })
             hasChanges = true
-          } else if (currentItem.lastTime !== backupItem.lastTime) {
-            // 如果最后修改时间不一致，检查所有字段
-            const itemHasChanges = Object.keys(backupItem).some(key => {
-              // 对于特殊字段（如年费达标状态），比较原始值
-              if (key === 'isQualified') {
-                return backupItem[key] !== currentItem[key]
-              }
-              return JSON.stringify(backupItem[key]) !== JSON.stringify(currentItem[key])
-            })
+          } else {
+            // 首先检查lastModifyTime是否不一致
+            let itemHasChanges = backupItem.lastModifyTime !== currentItem.lastModifyTime
+            
+            // 如果lastModifyTime一致，仍然检查其他关键字段是否有变化
+            if (!itemHasChanges) {
+              itemHasChanges = Object.keys(backupItem).some(key => {
+                // 对于特殊字段（如年费达标状态），比较原始值
+                if (key === 'isQualified') {
+                  return backupItem[key] !== currentItem[key]
+                }
+                // 排除lastTime和lastModifyTime字段
+                if (key !== 'lastTime' && key !== 'lastModifyTime') {
+                  return JSON.stringify(backupItem[key]) !== JSON.stringify(currentItem[key])
+                }
+                return false
+              })
+            }
             
             if (itemHasChanges) {
               // 创建一个新的对象来存储差异信息
@@ -730,7 +739,9 @@ const formatColumnValue = (value, columnType) => {
     case 'isQualified':
       switch (value) {
         case '1': return '已达标'
-        case '0': return '未达标'
+        case '2': return '未达标'
+        case '3': return '终免年费'
+        case '0': return '未达标' // 兼容旧数据
         default: return value
       }
     case 'nextAnnualFeeCollectionTime':
