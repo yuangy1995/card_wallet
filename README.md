@@ -60,6 +60,18 @@ pnpm dev
 pnpm build
 ```
 
+## 打包编译命令
+
+系统支持两种不同的部署模式，可以通过不同的环境变量进行构建：
+
+```bash
+# 构建带有 /card/ 路径前缀的版本（适用于子路径部署，如 https://yourdomain.com/card/）
+pnpm build -- --mode with-card
+
+# 构建不带路径前缀的版本（适用于根路径部署，如 https://yourdomain.com/）
+pnpm build -- --mode without-card
+```
+
 ## 使用指南
 
 ### 基本操作
