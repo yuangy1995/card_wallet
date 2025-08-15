@@ -76,6 +76,15 @@
             <el-icon><Share /></el-icon>
             下载文件
           </el-button>
+          <!-- 仅在开发测试环境显示明文导出按钮 -->
+          <el-button 
+            v-if="isDevelopment" 
+            type="warning" 
+            @click="handlePlaintextExport"
+          >
+            <el-icon><DocumentCopy /></el-icon>
+            导出明文数据
+          </el-button>
         </div>
       </template>
     </div>
@@ -100,7 +109,7 @@
 <script>
 import { computed, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import { CopyDocument, FolderOpened, Share } from '@element-plus/icons-vue'
+import { CopyDocument, FolderOpened, Share, DocumentCopy } from '@element-plus/icons-vue'
 import { encryptData, decryptData } from '../../utils/encryption'
 import ExportPasswordDialog from './ExportPasswordDialog.vue'
 
@@ -110,6 +119,7 @@ export default {
     CopyDocument,
     FolderOpened,
     Share,
+    DocumentCopy,
     ExportPasswordDialog
   },
   props: {
@@ -131,6 +141,14 @@ export default {
     const showPasswordDialog = ref(false)
     const password = ref('')
     const tempData = ref(null)
+    
+    // 检测是否为开发环境
+    const isDevelopment = computed(() => {
+      return import.meta.env.MODE === 'development' || 
+             import.meta.env.DEV === true ||
+             window.location.hostname === 'localhost' ||
+             window.location.hostname === '127.0.0.1'
+    })
     
     // 对话框可见性
     const dialogVisible = computed({
@@ -316,6 +334,30 @@ export default {
       URL.revokeObjectURL(url)
     }
 
+    // 导出明文数据（仅开发环境）
+    const handlePlaintextExport = () => {
+      if (!isDevelopment.value) {
+        ElMessage.warning('明文导出功能仅在开发环境下可用')
+        return
+      }
+      
+      try {
+        const plaintextData = JSON.stringify(props.data, null, 2)
+        const blob = new Blob([plaintextData], { type: 'application/json' })
+        const url = URL.createObjectURL(blob)
+        const link = document.createElement('a')
+        link.href = url
+        link.download = `credit_cards_plaintext_${new Date().toISOString().split('T')[0]}.json`
+        document.body.appendChild(link)
+        link.click()
+        document.body.removeChild(link)
+        URL.revokeObjectURL(url)
+        ElMessage.success('明文数据导出成功')
+      } catch (error) {
+        ElMessage.error('明文数据导出失败：' + error.message)
+      }
+    }
+
     // 取消
     const handleCancel = () => {
       dialogVisible.value = false
@@ -334,10 +376,12 @@ export default {
       password,
       isValidJson,
       showPasswordInput,
+      isDevelopment,
       handleFileChange,
       handleImport,
       handleCopy,
       handleDownload,
+      handlePlaintextExport,
       handleCancel,
       handlePasswordConfirm,
       handlePasswordSkip,

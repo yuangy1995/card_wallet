@@ -1,636 +1,709 @@
 <template>
-  <div class="statistics-container">
-    <el-card class="overview-section">
-      <div class="overview-grid">
-        <div class="stat-item">
-          <div class="stat-title">信用卡总数</div>
-          <div class="stat-value">{{ totalCards }}</div>
+  <div class="statistics-container" v-loading="loading" element-loading-text="正在分析数据...">
+    <!-- 概览卡片 -->
+    <div class="overview-cards">
+      <el-row :gutter="20">
+        <el-col :xs="24" :sm="12" :md="6">
+          <el-card class="stat-card">
+            <div class="stat-icon">🎫</div>
+            <div class="stat-content">
+              <div class="stat-title">信用卡总数</div>
+              <div class="stat-value">{{ totalCards }}</div>
+            </div>
+          </el-card>
+        </el-col>
+        <el-col :xs="24" :sm="12" :md="6">
+          <el-card class="stat-card">
+            <div class="stat-icon">🏦</div>
+            <div class="stat-content">
+              <div class="stat-title">银行数量</div>
+              <div class="stat-value">{{ totalBanks }}</div>
+            </div>
+          </el-card>
+        </el-col>
+        <el-col :xs="24" :sm="12" :md="6">
+          <el-card class="stat-card">
+            <div class="stat-icon">🌍</div>
+            <div class="stat-content">
+              <div class="stat-title">国家数量</div>
+              <div class="stat-value">{{ totalCountries }}</div>
+            </div>
+          </el-card>
+        </el-col>
+        <el-col :xs="24" :sm="12" :md="6">
+          <el-card class="stat-card">
+            <div class="stat-icon">💰</div>
+            <div class="stat-content">
+              <div class="stat-title">币种数量</div>
+              <div class="stat-value">{{ totalCurrencies }}</div>
+            </div>
+          </el-card>
+        </el-col>
+      </el-row>
+    </div>
+
+    <!-- 总额度汇总 -->
+    <el-card class="total-limits-card">
+          <template #header>
+            <div class="card-header">
+              <span>🎯 总额度汇总</span>
+            </div>
+          </template>
+          <el-row :gutter="20">
+            <el-col v-for="(amount, currency) in currencyTotals" :key="currency" :xs="12" :sm="8" :md="6">
+              <div class="currency-total">
+                <div class="currency-name">{{ currency }}</div>
+                <div class="currency-amount">{{ formatCurrency(amount, currency) }}</div>
+              </div>
+            </el-col>
+          </el-row>
+        </el-card>
+
+    <!-- 额度统计 -->
+    <el-card class="limit-stats-card">
+      <template #header>
+        <div class="card-header">
+          <span>💳 额度统计分析</span>
+          <el-tooltip content="根据是否共享额度进行智能统计">
+            <el-icon><QuestionFilled /></el-icon>
+          </el-tooltip>
         </div>
-        <div v-for="(limit, currency) in otherCurrencyLimits" :key="currency" class="stat-item">
-          <div class="stat-title">{{ currency }}总额度</div>
-          <div class="stat-value">{{ formatNumber(limit) }}</div>
-        </div>
+      </template>
+      <div class="limit-stats">
+        <el-row :gutter="20">
+          <el-col :xs="24" :lg="12">
+            <div class="limit-section">
+              <h4>💼 共享额度银行</h4>
+              <div v-if="sharedLimitStats.length === 0" class="empty-state">
+                暂无共享额度的银行
+              </div>
+              <div v-else class="limit-list">
+                <div v-for="item in sharedLimitStats" :key="item.key" class="limit-item shared">
+                  <div class="bank-info">
+                    <div class="bank-name">{{ item.country }} - {{ item.bank }}</div>
+                    <div class="card-count">{{ item.cardCount }} 张卡片共享</div>
+                  </div>
+                  <div class="limit-amount">
+                    {{ formatCurrency(item.totalLimit, item.currency) }}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </el-col>
+          <el-col :xs="24" :lg="12">
+            <div class="limit-section">
+              <h4>📋 独立额度卡片</h4>
+              <div v-if="independentLimitStats.length === 0" class="empty-state">
+                暂无独立额度的卡片
+              </div>
+              <div v-else class="limit-list">
+                <div v-for="item in independentLimitStats" :key="item.key" class="limit-item independent">
+                  <div class="bank-info">
+                    <div class="bank-name">{{ item.country }} - {{ item.bank }}</div>
+                    <div class="card-alias">{{ item.alias }}</div>
+                  </div>
+                  <div class="limit-amount">
+                    {{ formatCurrency(item.limit, item.currency) }}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </el-col>
+        </el-row>
+        
+        
+
+        <!-- 新增分析模块 -->
+        <el-row :gutter="20">
+          <el-col :xs="24" :lg="12">
+            <el-card class="analysis-card">
+              <template #header>
+                <div class="card-header">
+                  <span>⭐ 卡片等级分布</span>
+                </div>
+              </template>
+              <div class="level-stats">
+                <div v-for="item in levelStats" :key="item.level" class="level-item">
+                  <div class="level-info">
+                    <span class="level-name">{{ item.level }}</span>
+                    <span class="level-count">{{ item.count }} 张</span>
+                  </div>
+                  <div class="level-bar">
+                    <div class="level-progress" :style="{ width: item.percentage + '%' }"></div>
+                  </div>
+                </div>
+              </div>
+            </el-card>
+          </el-col>
+          <el-col :xs="24" :lg="12">
+            <el-card class="analysis-card">
+              <template #header>
+                <div class="card-header">
+                  <span>💰 年费分析</span>
+                </div>
+              </template>
+              <el-row :gutter="16">
+                <el-col :xs="24" :sm="8">
+                  <div class="annual-summary-item">
+                    <div class="summary-label">总年费</div>
+                    <div class="summary-value">¥{{ totalAnnualFee.toLocaleString() }}</div>
+                  </div>
+                </el-col>
+                <el-col :xs="24" :sm="8">
+                  <div class="annual-summary-item">
+                    <div class="summary-label">平均年费</div>
+                    <div class="summary-value">¥{{ avgAnnualFee.toLocaleString() }}</div>
+                  </div>
+                </el-col>
+                <el-col :xs="24" :sm="8">
+                  <div class="annual-summary-item">
+                    <div class="summary-label">免年费卡</div>
+                    <div class="summary-value">{{ freeAnnualFeeCards }} 张</div>
+                  </div>
+                </el-col>
+              </el-row>
+            </el-card>
+          </el-col>
+        </el-row>
+
+        <el-row :gutter="20">
+          <el-col :xs="24" :lg="12">
+            <el-card class="analysis-card">
+              <template #header>
+                <div class="card-header">
+                  <span>📅 卡片有效期分析</span>
+                </div>
+              </template>
+              <div class="expiry-stats">
+                <div class="expiry-item warning" v-if="expiryStats.expiredCards > 0">
+                  <el-icon><WarningFilled /></el-icon>
+                  <span>已过期: {{ expiryStats.expiredCards }} 张</span>
+                </div>
+                <div class="expiry-item danger" v-if="expiryStats.soonExpiring > 0">
+                  <el-icon><Clock /></el-icon>
+                  <span>6个月内到期: {{ expiryStats.soonExpiring }} 张</span>
+                </div>
+                <div class="expiry-item success">
+                  <el-icon><Check /></el-icon>
+                  <span>有效期正常: {{ expiryStats.normalCards }} 张</span>
+                </div>
+              </div>
+            </el-card>
+          </el-col>
+          <el-col :xs="24" :lg="12">
+            <el-card class="analysis-card">
+              <template #header>
+                <div class="card-header">
+                  <span>📈 提额分析</span>
+                </div>
+              </template>
+              <div class="raise-limit-stats">
+                <div class="raise-stat-item">
+                  <div class="stat-label">近6个月提额</div>
+                  <div class="stat-value">{{ raiseLimitStats.recent6Months }} 张</div>
+                </div>
+                <div class="raise-stat-item">
+                  <div class="stat-label">近1年提额</div>
+                  <div class="stat-value">{{ raiseLimitStats.recent1Year }} 张</div>
+                </div>
+                <div class="raise-stat-item">
+                  <div class="stat-label">从未提额</div>
+                  <div class="stat-value">{{ raiseLimitStats.never }} 张</div>
+                </div>
+              </div>
+            </el-card>
+          </el-col>
+        </el-row>
       </div>
     </el-card>
 
-    <el-row :gutter="20" class="chart-row">
-      <el-col :span="12">
+    <!-- 年费状态分析 -->
+    <el-card class="annual-fee-card">
+      <template #header>
+        <div class="card-header">
+          <span>⏰ 年费状态分析</span>
+        </div>
+      </template>
+      <el-row :gutter="20">
+        <el-col :xs="24" :sm="6">
+          <div class="annual-stat-item normal">
+            <div class="annual-title">已达标</div>
+            <div class="annual-value">{{ annualFeeStats.qualified }}</div>
+          </div>
+        </el-col>
+        <el-col :xs="24" :sm="6">
+          <div class="annual-stat-item warning">
+            <div class="annual-title">未达标</div>
+            <div class="annual-value">{{ annualFeeStats.unqualified }}</div>
+          </div>
+        </el-col>
+        <el-col :xs="24" :sm="6">
+          <div class="annual-stat-item danger">
+            <div class="annual-title">即将到期</div>
+            <div class="annual-value">{{ annualFeeStats.warning }}</div>
+          </div>
+        </el-col>
+        <el-col :xs="24" :sm="6">
+          <div class="annual-stat-item success">
+            <div class="annual-title">终身免费</div>
+            <div class="annual-value">{{ annualFeeStats.lifetime }}</div>
+          </div>
+        </el-col>
+      </el-row>
+    </el-card>
+
+    <!-- 分布图表 -->
+    <el-row :gutter="20">
+      <el-col :xs="24" :lg="12">
         <el-card class="chart-card">
           <template #header>
             <div class="card-header">
-              <span>银行分布</span>
+              <span>🏦 银行分布</span>
             </div>
           </template>
-          <div class="chart-container">
-            <div ref="bankChart" style="height: 400px"></div>
-          </div>
+          <div ref="bankChart" class="chart"></div>
         </el-card>
       </el-col>
-
-      <el-col :span="12">
+      <el-col :xs="24" :lg="12">
         <el-card class="chart-card">
           <template #header>
             <div class="card-header">
-              <span>卡片等级分布</span>
+              <span>🌍 国家分布</span>
             </div>
           </template>
-          <div class="chart-container">
-            <div ref="levelChart" style="height: 400px"></div>
-          </div>
+          <div ref="countryChart" class="chart"></div>
         </el-card>
       </el-col>
     </el-row>
 
-    <el-card class="box-card">
+    <!-- 详细数据表格 -->
+    <el-card class="table-card">
       <template #header>
         <div class="card-header">
-          <span>年费处理情况</span>
+          <span>📊 详细数据分析</span>
+          <el-button type="primary" size="small" @click="exportData">
+            <el-icon><Download /></el-icon>
+            导出数据
+          </el-button>
         </div>
       </template>
-      <div class="annual-fee-stats">
-        <el-row :gutter="20">
-          <el-col :span="6">
-            <div class="stat-item">
-              <div class="stat-title">总计年费卡片</div>
-              <div class="stat-value">{{ totalAnnualFeeCards }}</div>
-            </div>
-          </el-col>
-          <el-col :span="6">
-            <div class="stat-item warning">
-              <div class="stat-title">未达标</div>
-              <div class="stat-value">{{ unqualifiedCards.length }}</div>
-            </div>
-          </el-col>
-          <el-col :span="6">
-            <div class="stat-item warning">
-              <div class="stat-title">即将到期</div>
-              <div class="stat-value">{{ warningCards.length }}</div>
-            </div>
-          </el-col>
-          <el-col :span="6">
-            <div class="stat-item danger">
-              <div class="stat-title">已过期</div>
-              <div class="stat-value">{{ overdueCards.length }}</div>
-            </div>
-          </el-col>
-        </el-row>
-      </div>
+      <el-table :data="detailedStats" stripe>
+        <el-table-column prop="country" label="国家" width="100" />
+        <el-table-column prop="bank" label="银行" width="150" />
+        <el-table-column prop="currency" label="币种" width="80" />
+        <el-table-column prop="cardCount" label="卡片数" width="80" align="right" />
+        <el-table-column prop="sharedType" label="额度类型" width="100">
+          <template #default="{ row }">
+            <el-tag v-if="row.isShared" type="success" size="small">共享</el-tag>
+            <el-tag v-else type="info" size="small">独立</el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column prop="totalLimit" label="总额度" align="right">
+          <template #default="{ row }">
+            {{ formatCurrency(row.totalLimit, row.currency) }}
+          </template>
+        </el-table-column>
+        <el-table-column prop="avgLimit" label="平均额度" align="right">
+          <template #default="{ row }">
+            {{ formatCurrency(row.avgLimit, row.currency) }}
+          </template>
+        </el-table-column>
+      </el-table>
     </el-card>
-
-    <el-dialog v-model="dialogVisible" title="统计分析" width="80%" :before-close="handleClose" draggable
-      class="statistics-dialog">
-      <!-- 统计卡片区域 -->
-      <div class="statistics-cards">
-        <el-row :gutter="20">
-          <!-- 信用卡总数统计 -->
-          <el-col :span="6">
-            <el-card shadow="hover" class="stat-card">
-              <div class="stat-title">信用卡总数</div>
-              <div class="stat-value">{{ totalCards }}</div>
-            </el-card>
-          </el-col>
-          <!-- 总额度统计 -->
-          <el-col :span="6">
-            <el-card shadow="hover" class="stat-card">
-              <div class="stat-title">总额度统计</div>
-              <div v-for="(limit, currency) in currencyLimits" :key="currency" class="stat-value">
-                {{ currency }}: {{ formatNumber(limit) }}
-              </div>
-            </el-card>
-          </el-col>
-          <!-- 年费统计 -->
-          <el-col :span="6">
-            <el-card shadow="hover" class="stat-card" :class="annualFeeStatus.class">
-              <div class="stat-title">年费状态</div>
-              <div class="stat-value">{{ annualFeeStatus.text }}</div>
-              <div class="stat-detail" v-if="annualFeeStatus.detail">
-                {{ annualFeeStatus.detail }}
-              </div>
-            </el-card>
-          </el-col>
-          <!-- 银行分布 -->
-          <el-col :span="6">
-            <el-card shadow="hover" class="stat-card">
-              <div class="stat-title">银行分布</div>
-              <div class="stat-value">{{ bankCount }}家银行</div>
-            </el-card>
-          </el-col>
-        </el-row>
-      </div>
-
-      <!-- 图表区域 -->
-      <div class="charts-container">
-        <el-row :gutter="20">
-          <el-col :span="12">
-            <div ref="bankDistributionChart" class="chart"></div>
-          </el-col>
-          <el-col :span="12">
-            <div ref="currencyDistributionChart" class="chart"></div>
-          </el-col>
-        </el-row>
-      </div>
-
-      <!-- 额度明细表格 -->
-      <div class="limits-detail">
-        <h3>额度明细</h3>
-        <el-table :data="bankLimitsData" style="width: 100%" border stripe>
-          <el-table-column prop="bank" label="银行" />
-          <el-table-column prop="currency" label="币种" width="100" />
-          <el-table-column prop="cardCount" label="卡片数量" width="100" align="right" />
-          <el-table-column label="总额度" width="200" align="right">
-            <template #default="{ row }">
-              {{ formatNumber(row.totalLimit) }}
-            </template>
-          </el-table-column>
-        </el-table>
-      </div>
-    </el-dialog>
   </div>
 </template>
 
-<script>
-import { ref, computed, onMounted, watch } from 'vue'
-import { BACKUP_CONSTANTS } from '@/config/constants'
+<script setup>
+import { ref, computed, onMounted, nextTick, watch } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
+import { QuestionFilled, Download, WarningFilled, Clock, Check } from '@element-plus/icons-vue'
 import * as echarts from 'echarts'
-import { ElMessageBox, ElMessage } from 'element-plus'
+import { BACKUP_CONSTANTS } from '@/config/constants'
 
-export default {
-  name: 'Statistics',
-  props: {
-    cardData: {
-      type: Array,
-      required: true,
-      default: () => []
-    }
-  },
-  setup(props) {
-    const bankChart = ref(null)
-    const levelChart = ref(null)
-    const bankDistributionChart = ref(null)
-    const currencyDistributionChart = ref(null)
+// Props
+const props = defineProps({
+  cardData: {
+    type: Array,
+    required: true,
+    default: () => []
+  }
+})
 
-    const totalCards = ref(0)
-    const totalLimitCNY = ref(0)
-    const otherCurrencyLimits = ref({})
+// 响应式数据
+const loading = ref(false)
+const bankChart = ref(null)
+const countryChart = ref(null)
 
-    const formatNumber = (num) => {
-      return new Intl.NumberFormat('zh-CN').format(num)
-    }
+// 货币格式化
+const formatCurrency = (amount, currency) => {
+  const symbols = {
+    'CNY': '¥',
+    'USD': '$',
+    'EUR': '€', 
+    'GBP': '£',
+    'JPY': '¥',
+    'HKD': 'HK$',
+    'TWD': 'NT$',
+    'SGD': 'S$',
+    '人民币': '¥',
+    '美元': '$',
+    '欧元': '€',
+    '英镑': '£',
+    '日元': '¥',
+    '港币': 'HK$',
+    '新台币': 'NT$',
+    '新币': 'S$'
+  }
+  const symbol = symbols[currency] || currency
+  return `${symbol}${amount.toLocaleString()}`
+}
 
-    const formatBankName = (bank) => {
-      return bank.split('(')[0].trim()
-    }
+// 基础统计
+const totalCards = computed(() => props.cardData.length)
 
-    const initCharts = (data) => {
-      const cards = data
-      totalCards.value = cards.length
+const totalBanks = computed(() => {
+  const banks = new Set(props.cardData.map(card => 
+    (card.bank || '').replace(/\(.*?\)/g, "").trim()
+  ))
+  return banks.size
+})
 
-      // 计算各币种总额度
-      const limits = {}
-      const cnyBankLimits = new Map() // 用于存储中国境内各银行的最大额度
+const totalCountries = computed(() => {
+  const countries = new Set(props.cardData.map(card => card.country))
+  return countries.size
+})
 
-      cards.forEach(card => {
-        const currency = card.type || '人民币'
-        const limit = parseFloat(card.limit) || 0
+const totalCurrencies = computed(() => {
+  const currencies = new Set(props.cardData.map(card => card.type))
+  return currencies.size
+})
 
-        if (currency === '人民币') {
-          if (card.country === '中国') {
-            // 对于中国境内的卡片，按银行分组取最大额度
-            const currentBankMax = cnyBankLimits.get(card.bank) || 0
-            cnyBankLimits.set(card.bank, Math.max(currentBankMax, limit))
-          } else {
-            // 非中国境内的卡片直接累加
-            limits[currency] = (limits[currency] || 0) + limit
-          }
-        } else if (limit > 0) { // 只统计额度大于0的外币卡
-          limits[currency] = (limits[currency] || 0) + limit
-        }
-      })
-
-      // 将中国境内各银行的最大额度加入到人民币总额中
-      const domesticTotal = Array.from(cnyBankLimits.values()).reduce((sum, limit) => sum + limit, 0)
-      if (domesticTotal > 0 || limits['人民币']) {
-        limits['人民币'] = (limits['人民币'] || 0) + domesticTotal
+// 额度统计分析（考虑共享额度）
+const sharedLimitStats = computed(() => {
+  const sharedGroups = new Map()
+  
+  props.cardData.forEach(card => {
+    if (card.isSharedLimit) {
+      const key = `${card.country}-${card.bank.replace(/\(.*?\)/g, "").trim()}-${card.type}`
+      if (!sharedGroups.has(key)) {
+        sharedGroups.set(key, {
+          key,
+          country: card.country,
+          bank: card.bank.replace(/\(.*?\)/g, "").trim(),
+          currency: card.type,
+          totalLimit: parseFloat(card.limit) || 0,
+          cardCount: 0
+        })
       }
+      sharedGroups.get(key).cardCount++
+    }
+  })
+  
+  return Array.from(sharedGroups.values()).sort((a, b) => b.totalLimit - a.totalLimit)
+})
 
-      // 更新统计数据
-      totalLimitCNY.value = limits['人民币'] || 0
-      delete limits['人民币']
-      otherCurrencyLimits.value = limits
+const independentLimitStats = computed(() => {
+  return props.cardData
+    .filter(card => !card.isSharedLimit)
+    .map(card => ({
+      key: card.id,
+      country: card.country,
+      bank: card.bank.replace(/\(.*?\)/g, "").trim(),
+      alias: card.alias,
+      currency: card.type,
+      limit: parseFloat(card.limit) || 0
+    }))
+    .sort((a, b) => b.limit - a.limit)
+})
 
-      // 统计银行分布
+// 按币种汇总总额度
+const currencyTotals = computed(() => {
+  const totals = {}
+  
+  // 共享额度统计
+  sharedLimitStats.value.forEach(item => {
+    totals[item.currency] = (totals[item.currency] || 0) + item.totalLimit
+  })
+  
+  // 独立额度统计
+  independentLimitStats.value.forEach(item => {
+    totals[item.currency] = (totals[item.currency] || 0) + item.limit
+  })
+  
+  return totals
+})
+
+// 年费状态统计
+const annualFeeStats = computed(() => {
+  const now = new Date()
+  let qualified = 0, unqualified = 0, warning = 0, lifetime = 0
+  
+  props.cardData.forEach(card => {
+    if (card.isQualified === '1') qualified++
+    else if (card.isQualified === '2') unqualified++
+    else if (card.isQualified === '3') lifetime++
+    
+    // 检查即将到期的年费
+    if (card.nextAnnualFeeCollectionTime && card.isQualified !== '3') {
+      const dueDate = new Date(card.nextAnnualFeeCollectionTime)
+      const diffDays = Math.ceil((dueDate - now) / (1000 * 60 * 60 * 24))
+      if (diffDays <= 60 && diffDays > 0) warning++
+    }
+  })
+  
+  return { qualified, unqualified, warning, lifetime }
+})
+
+// 卡片等级分布统计
+const levelStats = computed(() => {
+  const levelMap = new Map()
+  
+  props.cardData.forEach(card => {
+    const level = card.level || '未知'
+    levelMap.set(level, (levelMap.get(level) || 0) + 1)
+  })
+  
+  const total = props.cardData.length
+  const stats = Array.from(levelMap.entries())
+    .map(([level, count]) => ({
+      level,
+      count,
+      percentage: total > 0 ? Math.round((count / total) * 100) : 0
+    }))
+    .sort((a, b) => b.count - a.count)
+  
+  return stats
+})
+
+// 年费分析统计
+const totalAnnualFee = computed(() => {
+  return props.cardData.reduce((total, card) => {
+    return total + (parseFloat(card.annualFee) || 0)
+  }, 0)
+})
+
+const avgAnnualFee = computed(() => {
+  return props.cardData.length > 0 ? Math.round(totalAnnualFee.value / props.cardData.length) : 0
+})
+
+const freeAnnualFeeCards = computed(() => {
+  return props.cardData.filter(card => 
+    parseFloat(card.annualFee) === 0 || card.isQualified === '3'
+  ).length
+})
+
+// 卡片有效期分析
+const expiryStats = computed(() => {
+  const now = new Date()
+  const sixMonthsLater = new Date()
+  sixMonthsLater.setMonth(now.getMonth() + 6)
+  
+  let expiredCards = 0, soonExpiring = 0, normalCards = 0
+  
+  props.cardData.forEach(card => {
+    if (card.valid) {
+      const [month, year] = card.valid.split('/')
+      const expiryDate = new Date(2000 + parseInt(year), parseInt(month) - 1)
+      
+      if (expiryDate < now) {
+        expiredCards++
+      } else if (expiryDate < sixMonthsLater) {
+        soonExpiring++
+      } else {
+        normalCards++
+      }
+    }
+  })
+  
+  return { expiredCards, soonExpiring, normalCards }
+})
+
+// 提额分析统计
+const raiseLimitStats = computed(() => {
+  const now = new Date()
+  const sixMonthsAgo = new Date()
+  sixMonthsAgo.setMonth(now.getMonth() - 6)
+  const oneYearAgo = new Date()
+  oneYearAgo.setFullYear(now.getFullYear() - 1)
+  
+  let recent6Months = 0, recent1Year = 0, never = 0
+  
+  props.cardData.forEach(card => {
+    if (card.lastTime) {
+      const lastRaiseDate = new Date(card.lastTime)
+      if (lastRaiseDate >= sixMonthsAgo) {
+        recent6Months++
+      } else if (lastRaiseDate >= oneYearAgo) {
+        recent1Year++
+      }
+    } else {
+      never++
+    }
+  })
+  
+  return { recent6Months, recent1Year, never }
+})
+
+// 详细数据表格
+const detailedStats = computed(() => {
+  const stats = []
+  
+  // 共享额度数据
+  sharedLimitStats.value.forEach(item => {
+    stats.push({
+      country: item.country,
+      bank: item.bank,
+      currency: item.currency,
+      cardCount: item.cardCount,
+      isShared: true,
+      totalLimit: item.totalLimit,
+      avgLimit: item.totalLimit // 共享额度平均额度就是总额度
+    })
+  })
+  
+  // 独立额度数据按银行分组
+  const independentGroups = new Map()
+  independentLimitStats.value.forEach(item => {
+    const key = `${item.country}-${item.bank}-${item.currency}`
+    if (!independentGroups.has(key)) {
+      independentGroups.set(key, {
+        country: item.country,
+        bank: item.bank,
+        currency: item.currency,
+        cardCount: 0,
+        totalLimit: 0,
+        isShared: false
+      })
+    }
+    const group = independentGroups.get(key)
+    group.cardCount++
+    group.totalLimit += item.limit
+  })
+  
+  independentGroups.forEach(group => {
+    group.avgLimit = group.totalLimit / group.cardCount
+    stats.push(group)
+  })
+  
+  return stats.sort((a, b) => {
+    if (a.country !== b.country) return a.country.localeCompare(b.country)
+    if (a.bank !== b.bank) return a.bank.localeCompare(b.bank)
+    return b.totalLimit - a.totalLimit
+  })
+})
+
+// 初始化图表
+const initCharts = async () => {
+  loading.value = true
+  
+  try {
+    // 模拟分析时间
+    await new Promise(resolve => setTimeout(resolve, 1000))
+    
+    await nextTick()
+    
+    // 银行分布图表
+    if (bankChart.value) {
+      const bankInstance = echarts.init(bankChart.value)
       const bankData = {}
-      cards.forEach(card => {
-        const bank = formatBankName(card.bank || '未知')
+      props.cardData.forEach(card => {
+        const bank = card.bank.replace(/\(.*?\)/g, "").trim()
         bankData[bank] = (bankData[bank] || 0) + 1
       })
-
-      // 统计卡片等级
-      const levelData = {}
-      cards.forEach(card => {
-        const level = card.level || '未知'
-        levelData[level] = (levelData[level] || 0) + 1
-      })
-
-      // 初始化图表
-      initPieChart(bankChart.value, '银行分布', bankData)
-      initPieChart(levelChart.value, '卡片等级分布', levelData)
-
-      // 初始化统计分析图表
-      initBankDistributionChart(bankDistributionChart.value, '银行分布', bankData)
-      initCurrencyDistributionChart(currencyDistributionChart.value, '币种分布', limits)
-    }
-
-    const initPieChart = (el, title, data) => {
-      if (!el) return
-      const chart = echarts.init(el)
-      const sortedData = Object.entries(data)
+      
+      const bankChartData = Object.entries(bankData)
         .sort((a, b) => b[1] - a[1])
-        .map(([name, value]) => ({
-          name,
-          value
-        }))
-
-      const option = {
-        title: {
-          text: title,
-          left: 'center'
-        },
+        .map(([name, value]) => ({ name, value }))
+      
+      bankInstance.setOption({
         tooltip: {
           trigger: 'item',
-          formatter: '{b}: {c} ({d}%)'
+          formatter: '{b}: {c} 张 ({d}%)'
         },
-        legend: {
-          type: 'scroll',
-          orient: 'vertical',
-          right: 10,
-          top: 20,
-          bottom: 20,
-        },
-        series: [
-          {
-            type: 'pie',
-            radius: ['40%', '70%'],
-            center: ['40%', '50%'],
-            avoidLabelOverlap: true,
+        series: [{
+          type: 'pie',
+          radius: ['40%', '70%'],
+          data: bankChartData,
+          emphasis: {
             itemStyle: {
-              borderRadius: 10,
-              borderColor: '#fff',
-              borderWidth: 2
-            },
-            label: {
-              show: false
-            },
-            emphasis: {
-              label: {
-                show: true,
-                fontSize: 14,
-                fontWeight: 'bold'
-              }
-            },
-            labelLine: {
-              show: false
-            },
-            data: sortedData
+              shadowBlur: 10,
+              shadowOffsetX: 0,
+              shadowColor: 'rgba(0, 0, 0, 0.5)'
+            }
           }
-        ]
-      }
-      chart.setOption(option)
+        }]
+      })
     }
-
-    const initBankDistributionChart = (el, title, data) => {
-      if (!el) return
-      const chart = echarts.init(el)
-      const sortedData = Object.entries(data)
+    
+    // 国家分布图表
+    if (countryChart.value) {
+      const countryInstance = echarts.init(countryChart.value)
+      const countryData = {}
+      props.cardData.forEach(card => {
+        countryData[card.country] = (countryData[card.country] || 0) + 1
+      })
+      
+      const countryChartData = Object.entries(countryData)
         .sort((a, b) => b[1] - a[1])
-        .map(([name, value]) => ({
-          name,
-          value
-        }))
-
-      const option = {
-        title: {
-          text: title,
-          left: 'center'
-        },
+        .map(([name, value]) => ({ name, value }))
+      
+      countryInstance.setOption({
         tooltip: {
           trigger: 'item',
-          formatter: '{b}: {c}张 ({d}%)'
+          formatter: '{b}: {c} 张 ({d}%)'
         },
-        series: [
-          {
-            type: 'pie',
-            radius: '60%',
-            data: sortedData,
-            emphasis: {
-              itemStyle: {
-                shadowBlur: 10,
-                shadowOffsetX: 0,
-                shadowColor: 'rgba(0, 0, 0, 0.5)'
-              }
+        series: [{
+          type: 'pie',
+          radius: ['40%', '70%'],
+          data: countryChartData,
+          emphasis: {
+            itemStyle: {
+              shadowBlur: 10,
+              shadowOffsetX: 0,
+              shadowColor: 'rgba(0, 0, 0, 0.5)'
             }
           }
-        ]
-      }
-      chart.setOption(option)
-    }
-
-    const initCurrencyDistributionChart = (el, title, data) => {
-      if (!el) return
-      const chart = echarts.init(el)
-      const sortedData = Object.entries(data)
-        .sort((a, b) => b[1] - a[1])
-        .map(([name, value]) => ({
-          name,
-          value
-        }))
-
-      const option = {
-        title: {
-          text: title,
-          left: 'center'
-        },
-        tooltip: {
-          trigger: 'item',
-          formatter: '{b}: {c} ({d}%)'
-        },
-        series: [
-          {
-            type: 'pie',
-            radius: '60%',
-            data: sortedData,
-            emphasis: {
-              itemStyle: {
-                shadowBlur: 10,
-                shadowOffsetX: 0,
-                shadowColor: 'rgba(0, 0, 0, 0.5)'
-              }
-            }
-          }
-        ]
-      }
-      chart.setOption(option)
-    }
-
-    // 计算属性
-    const totalAnnualFeeCards = computed(() => {
-      return props.cardData.filter(card => card.nextAnnualFeeCollectionTime && card.isQualified !== '3').length
-    })
-
-    const warningCards = ref([])
-    const overdueCards = ref([])
-    const unqualifiedCards = ref([])
-
-    // 检测年费情况
-    const checkAnnualFees = async () => {
-      const now = new Date()
-      warningCards.value = []
-      overdueCards.value = []
-      unqualifiedCards.value = []
-
-      // 收集需要提醒的卡片
-      for (const card of props.cardData) {
-        if (!card.nextAnnualFeeCollectionTime || card.isQualified === '3') continue
-
-        const dueDate = new Date(card.nextAnnualFeeCollectionTime)
-        const diffDays = Math.ceil((dueDate - now) / (1000 * 60 * 60 * 24))
-
-        // 未达标的卡片
-        if (card.isQualified === '2' && diffDays > 0) {
-          unqualifiedCards.value.push({ ...card, diffDays })
-        }
-        // 即将到期的卡片（不包括未达标的卡片）
-        else if (diffDays <= BACKUP_CONSTANTS.ANNUAL_FEE_CHECK_DAYS && diffDays > 0 && card.isQualified !== '2') {
-          warningCards.value.push({ ...card, diffDays })
-        }
-        // 已过期的卡片
-        else if (diffDays <= 0 && diffDays > -60) {
-          overdueCards.value.push({ ...card, diffDays })
-        }
-      }
-
-      // 如果有需要提醒的卡片，显示汇总弹窗
-      if (warningCards.value.length > 0 || overdueCards.value.length > 0 || unqualifiedCards.value.length > 0) {
-        // 构建提醒消息
-        let message = '<div style="max-height: 400px; overflow-y: auto;">'
-
-        if (unqualifiedCards.value.length > 0) {
-          message += '<div style="margin-bottom: 16px;">'
-          message += '<h3 style="color: #E6A23C; margin-bottom: 8px;">年费尚未达标</h3>'
-          message += '<ul style="list-style-type: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 16px;">'
-          unqualifiedCards.value.sort((a, b) => a.diffDays - b.diffDays).forEach(card => {
-            message += `<li style="margin: 0; padding: 12px; background: #fdf6ec; border-radius: 4px; flex: 0 1 calc(33.33% - 12px); min-width: 200px; box-sizing: border-box;">
-              <strong>${card.bank.replace(/\(.*?\)/g, "").trim()}</strong><br />
-              <strong>${card.alias}</strong>
-              <div style="color: #666; margin-top: 4px;">距离年费收取还有 ${card.diffDays} 天</div>
-            </li>`
-          })
-          message += '</ul></div>'
-        }
-
-        if (warningCards.value.length > 0) {
-          message += '<div style="margin-bottom: 16px;">'
-          message += '<h3 style="color: #E6A23C; margin-bottom: 8px;">即将到期年费提醒</h3>'
-          message += '<ul style="list-style-type: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 16px;">'
-          warningCards.value.sort((a, b) => a.diffDays - b.diffDays).forEach(card => {
-            message += `<li style="margin: 0; padding: 12px; background: #fefce8; border-radius: 4px; flex: 0 1 calc(33.33% - 12px); min-width: 200px; box-sizing: border-box;">
-              <strong>${card.bank.replace(/\(.*?\)/g, "").trim()}</strong><br />
-              <strong>${card.alias}</strong>
-              <div style="color: #666; margin-top: 4px;">将在 ${card.diffDays} 天后收取年费</div>
-            </li>`
-          })
-          message += '</ul></div>'
-        }
-
-        if (overdueCards.value.length > 0) {
-          message += '<div style="margin-bottom: 16px;">'
-          message += '<h3 style="color: #F56C6C; margin-bottom: 8px;">已过期年费提醒</h3>'
-          message += '<ul style="list-style-type: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 16px;">'
-          overdueCards.value.sort((a, b) => b.diffDays - a.diffDays).forEach(card => {
-            message += `<li style="margin: 0; padding: 12px; background: #fef0f0; border-radius: 4px; flex: 0 1 calc(33.33% - 12px); min-width: 200px; box-sizing: border-box;">
-              <strong>${card.bank.replace(/\(.*?\)/g, "").trim()}</strong><br />
-              <strong>${card.alias}</strong>
-              <div style="color: #666; margin-top: 4px;">已过期 ${Math.abs(card.diffDays)} 天</div>
-            </li>`
-          })
-          message += '</ul></div>'
-        }
-
-        message += '</div>'
-
-        try {
-          await ElMessageBox.alert(
-            message,
-            '年费提醒',
-            {
-              confirmButtonText: '知道了',
-              dangerouslyUseHTMLString: true,
-              customClass: 'annual-fee-dialog',
-              showClose: false
-            }
-          )
-        } catch (e) {
-          // 用户取消删除操作，无需处理
-        }
-      } else {
-        ElMessage({
-          type: 'success',
-          message: '太好了！目前没有需要担心的年费问题',
-          duration: 3000
-        })
-      }
-    }
-
-    // 在组件挂载时检查年费情况
-    onMounted(() => {
-      // 等待 DOM 渲染完成
-      setTimeout(() => {
-        initCharts(props.cardData)
-        checkAnnualFees() // 自动检查年费情况
-
-        // 添加图表resize监听
-        window.addEventListener('resize', () => {
-          const charts = [bankChart.value, levelChart.value]
-          charts.forEach(chart => {
-            const instance = echarts.getInstanceByDom(chart)
-            instance && instance.resize()
-          })
-        })
-      }, 100)
-    })
-
-    // 监听卡片数据变化
-    watch(() => props.cardData, (newData) => {
-      initCharts(newData)
-      checkAnnualFees() // 当数据变化时重新检查年费情况
-    }, { deep: true })
-
-    // 统计分析相关数据
-    const dialogVisible = ref(false)
-    const cardCount = computed(() => props.cardData.length)
-    const bankCount = computed(() => {
-      const banks = new Set(props.cardData.map(card => card.bank))
-      return banks.size
-    })
-    const currencyLimits = computed(() => {
-      const limits = {}
-      props.cardData.forEach(card => {
-        const currency = card.type
-        if (!limits[currency]) {
-          limits[currency] = 0
-        }
-        limits[currency] += Number(card.limit) || 0
+        }]
       })
-      return limits
-    })
-    const annualFeeStatus = computed(() => {
-      const now = new Date()
-      let warningCount = 0
-      let overdueCount = 0
-      let unqualifiedCount = 0
-
-      props.cardData.forEach(card => {
-        if (!card.nextAnnualFeeCollectionTime) return
-
-        const dueDate = new Date(card.nextAnnualFeeCollectionTime)
-        const diffDays = Math.ceil((dueDate - now) / (1000 * 60 * 60 * 24))
-
-        // 未达标的卡片
-        if (card.isQualified === '2' && diffDays > 0) {
-          unqualifiedCount++
-        }
-        // 即将到期的卡片（不包括未达标的卡片）
-        else if (diffDays <= BACKUP_CONSTANTS.ANNUAL_FEE_CHECK_DAYS && diffDays > 0 && card.isQualified !== '2') {
-          warningCount++
-        }
-        // 已过期的卡片
-        else if (diffDays <= 0 && diffDays > -60) {
-          overdueCount++
-        }
-      })
-
-      if (overdueCount > 0) {
-        return {
-          text: '需要注意',
-          detail: `${overdueCount}张卡年费已过期`,
-          class: 'danger'
-        }
-      } else if (warningCount > 0) {
-        return {
-          text: '即将到期',
-          detail: `${warningCount}张卡年费即将到期`,
-          class: 'warning'
-        }
-      } else if (unqualifiedCount > 0) {
-        return {
-          text: '未达标',
-          detail: `${unqualifiedCount}张卡未达标`,
-          class: 'warning'
-        }
-      } else {
-        return {
-          text: '正常',
-          class: 'normal'
-        }
-      }
-    })
-    const bankLimitsData = computed(() => {
-      const bankMap = new Map()
-
-      props.cardData.forEach(card => {
-        const key = `${card.bank}-${card.type}`
-        if (!bankMap.has(key)) {
-          bankMap.set(key, {
-            bank: card.bank,
-            currency: card.type,
-            cardCount: 0,
-            totalLimit: 0
-          })
-        }
-        const bankData = bankMap.get(key)
-        bankData.cardCount++
-        bankData.totalLimit += Number(card.limit) || 0
-      })
-
-      return Array.from(bankMap.values())
-        .sort((a, b) => {
-          // 先按币种排序
-          if (a.currency !== b.currency) {
-            return a.currency.localeCompare(b.currency)
-          }
-          // 再按总额度降序排序
-          return b.totalLimit - a.totalLimit
-        })
-    })
-
-    const handleClose = () => {
-      dialogVisible.value = false
     }
-
-    return {
-      totalCards,
-      totalLimitCNY,
-      otherCurrencyLimits,
-      bankChart,
-      levelChart,
-      formatNumber,
-      totalAnnualFeeCards,
-      warningCards,
-      overdueCards,
-      unqualifiedCards,
-      checkAnnualFees,
-      dialogVisible,
-      bankDistributionChart,
-      currencyDistributionChart,
-      cardCount,
-      bankCount,
-      currencyLimits,
-      annualFeeStatus,
-      bankLimitsData,
-      handleClose
-    }
+  } finally {
+    loading.value = false
   }
 }
+
+// 导出数据
+const exportData = () => {
+  const data = detailedStats.value.map(item => ({
+    国家: item.country,
+    银行: item.bank,
+    币种: item.currency,
+    卡片数: item.cardCount,
+    额度类型: item.isShared ? '共享' : '独立',
+    总额度: item.totalLimit,
+    平均额度: item.avgLimit
+  }))
+  
+  const csv = [
+    Object.keys(data[0]).join(','),
+    ...data.map(row => Object.values(row).join(','))
+  ].join('\n')
+  
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
+  const link = document.createElement('a')
+  link.href = URL.createObjectURL(blob)
+  link.download = `信用卡统计分析_${new Date().toISOString().split('T')[0]}.csv`
+  link.click()
+  
+  ElMessage.success('数据导出成功')
+}
+
+onMounted(() => {
+  initCharts()
+})
+
+watch(() => props.cardData, () => {
+  initCharts()
+}, { deep: true })
 </script>
 
 <style scoped>
@@ -641,132 +714,321 @@ export default {
   gap: 20px;
 }
 
-.overview-section {
+.overview-cards {
   margin-bottom: 20px;
 }
 
-.overview-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 20px;
+.stat-card {
+  display: flex;
+  align-items: center;
+  padding: 20px;
+  border-radius: 12px;
+  transition: transform 0.3s ease;
+  cursor: pointer;
 }
 
-.chart-row {
-  margin-bottom: 20px;
+.stat-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
 
-.chart-card {
-  height: 100%;
+.stat-icon {
+  font-size: 32px;
+  margin-right: 16px;
+}
+
+.stat-content {
+  flex: 1;
+}
+
+.stat-title {
+  font-size: 14px;
+  color: var(--el-text-color-secondary);
+  margin-bottom: 4px;
+}
+
+.stat-value {
+  font-size: 24px;
+  font-weight: bold;
+  color: var(--el-text-color-primary);
 }
 
 .card-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
+  font-weight: bold;
 }
 
-.chart-container {
-  height: 400px;
+.limit-stats {
+  .limit-section {
+    margin-bottom: 20px;
+    
+    h4 {
+      margin-bottom: 16px;
+      color: var(--el-text-color-primary);
+      font-size: 16px;
+    }
+  }
+  
+  .empty-state {
+    text-align: center;
+    color: var(--el-text-color-secondary);
+    padding: 40px;
+    background: var(--el-fill-color-light);
+    border-radius: 8px;
+  }
+  
+  .limit-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  
+  .limit-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px;
+    border-radius: 8px;
+    transition: background-color 0.3s ease;
+    
+    &.shared {
+      background: linear-gradient(135deg, #e8f5e8 0%, #f0f9ff 100%);
+      border-left: 4px solid #67c23a;
+    }
+    
+    &.independent {
+      background: linear-gradient(135deg, #fff7ed 0%, #fef3c7 100%);
+      border-left: 4px solid #e6a23c;
+    }
+    
+    .bank-info {
+      flex: 1;
+      
+      .bank-name {
+        font-weight: bold;
+        margin-bottom: 4px;
+        color: var(--el-text-color-primary);
+      }
+      
+      .card-count, .card-alias {
+        font-size: 12px;
+        color: var(--el-text-color-secondary);
+      }
+    }
+    
+    .limit-amount {
+      font-size: 18px;
+      font-weight: bold;
+      color: var(--el-color-primary);
+    }
+  }
+  
 }
 
-.annual-fee-stats {
-  padding: 10px;
+.total-limits-card {
+  margin-bottom: 20px;
+  
+  .currency-total {
+    text-align: center;
+    padding: 16px;
+    background: var(--el-fill-color-light);
+    border-radius: 8px;
+    margin-bottom: 12px;
+    
+    .currency-name {
+      font-size: 14px;
+      color: var(--el-text-color-secondary);
+      margin-bottom: 8px;
+    }
+    
+    .currency-amount {
+      font-size: 20px;
+      font-weight: bold;
+      color: var(--el-color-primary);
+    }
+  }
 }
 
-.stat-item {
+.analysis-card {
+  margin-bottom: 20px;
+}
+
+.level-stats {
+  .level-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 16px;
+    
+    .level-info {
+      flex: 1;
+      
+      .level-name {
+        font-weight: bold;
+        margin-right: 16px;
+        color: var(--el-text-color-primary);
+      }
+      
+      .level-count {
+        font-size: 12px;
+        color: var(--el-text-color-secondary);
+      }
+    }
+    
+    .level-bar {
+      width: 100px;
+      height: 8px;
+      background: var(--el-fill-color-light);
+      border-radius: 4px;
+      overflow: hidden;
+      
+      .level-progress {
+        height: 100%;
+        background: linear-gradient(90deg, var(--el-color-primary-light-3), var(--el-color-primary));
+        border-radius: 4px;
+        transition: width 0.3s ease;
+      }
+    }
+  }
+}
+
+.annual-summary-item {
+  text-align: center;
+  padding: 16px;
+  background: var(--el-fill-color-light);
+  border-radius: 8px;
+  margin-bottom: 12px;
+  
+  .summary-label {
+    font-size: 12px;
+    color: var(--el-text-color-secondary);
+    margin-bottom: 8px;
+  }
+  
+  .summary-value {
+    font-size: 18px;
+    font-weight: bold;
+    color: var(--el-color-primary);
+  }
+}
+
+.expiry-stats {
+  .expiry-item {
+    display: flex;
+    align-items: center;
+    padding: 12px;
+    border-radius: 8px;
+    margin-bottom: 12px;
+    
+    .el-icon {
+      margin-right: 8px;
+      font-size: 16px;
+    }
+    
+    &.warning {
+      background: #fefce8;
+      color: #a16207;
+    }
+    
+    &.danger {
+      background: #fef2f2;
+      color: #dc2626;
+    }
+    
+    &.success {
+      background: #f0fdf4;
+      color: #16a34a;
+    }
+  }
+}
+
+.raise-limit-stats {
+  .raise-stat-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px;
+    background: var(--el-fill-color-light);
+    border-radius: 8px;
+    margin-bottom: 12px;
+    
+    .stat-label {
+      font-size: 14px;
+      color: var(--el-text-color-regular);
+    }
+    
+    .stat-value {
+      font-size: 16px;
+      font-weight: bold;
+      color: var(--el-color-primary);
+    }
+  }
+}
+
+.annual-stat-item {
   text-align: center;
   padding: 20px;
   border-radius: 8px;
-  background-color: var(--el-fill-color-light);
-  transition: all 0.3s ease;
-
-  &.warning {
-    background-color: #fefce8;
-
-    .stat-title {
-      color: #E6A23C;
-    }
-  }
-
-  &.danger {
-    background-color: #fef0f0;
-
-    .stat-title {
-      color: #F56C6C;
-    }
-  }
-
-  .stat-title {
-    font-size: 16px;
-    color: var(--el-text-color-secondary);
-    margin-bottom: 10px;
-  }
-
-  .stat-value {
-    font-size: 24px;
-    font-weight: bold;
-    color: var(--el-text-color-primary);
-  }
-}
-
-.statistics-dialog {
-  :deep(.el-dialog__body) {
-    padding: 20px;
-  }
-}
-
-.statistics-cards {
-  margin-bottom: 30px;
-}
-
-.stat-card {
-  text-align: center;
-  transition: transform 0.3s ease;
-
-  &:hover {
-    transform: translateY(-5px);
-  }
-
-  .stat-title {
-    font-size: 16px;
-    color: var(--el-text-color-secondary);
-    margin-bottom: 10px;
-  }
-
-  .stat-value {
-    font-size: 24px;
-    font-weight: bold;
-    color: var(--el-text-color-primary);
-    margin-bottom: 5px;
-  }
-
-  .stat-detail {
+  margin-bottom: 12px;
+  
+  .annual-title {
     font-size: 14px;
-    color: var(--el-text-color-secondary);
+    margin-bottom: 8px;
   }
-
+  
+  .annual-value {
+    font-size: 24px;
+    font-weight: bold;
+  }
+  
+  &.normal {
+    background: #f0f9ff;
+    color: #1e40af;
+  }
+  
   &.warning {
-    .stat-value {
-      color: var(--el-color-warning);
-    }
+    background: #fefce8;
+    color: #a16207;
   }
-
+  
   &.danger {
-    .stat-value {
-      color: var(--el-color-danger);
-    }
+    background: #fef2f2;
+    color: #dc2626;
+  }
+  
+  &.success {
+    background: #f0fdf4;
+    color: #16a34a;
   }
 }
 
 .chart {
-  height: 400px;
-  margin-bottom: 30px;
+  height: 300px;
 }
 
-.limits-detail {
-  :is(h3) {
-    margin-bottom: 20px;
-    color: var(--el-text-color-primary);
+.chart-card, .table-card {
+  margin-bottom: 20px;
+}
+
+@media (max-width: 768px) {
+  .statistics-container {
+    padding: 12px;
+  }
+  
+  .stat-card {
+    flex-direction: column;
+    text-align: center;
+    
+    .stat-icon {
+      margin-right: 0;
+      margin-bottom: 8px;
+    }
+  }
+  
+  .chart {
+    height: 250px;
   }
 }
 </style>
