@@ -149,6 +149,18 @@
           </el-form-item>
         </el-descriptions-item>
 
+        <el-descriptions-item label="🔗 银行额度共享">
+          <el-form-item prop="isSharedLimit">
+            <el-radio-group v-model="formData.isSharedLimit" @change="handleLimitSharingChange">
+              <el-radio :value="true" size="large">是</el-radio>
+              <el-radio :value="false" size="large">否</el-radio>
+            </el-radio-group>
+            <div style="color: #909399; font-size: 12px; margin-top: 4px;">
+              {{ formData.isSharedLimit ? '该银行所有卡片共享同一额度总额' : '每张卡片拥有独立的信用额度' }}
+            </div>
+          </el-form-item>
+        </el-descriptions-item>
+
         <el-descriptions-item label="💵 额度">
           <el-form-item prop="limit">
             <el-input-number
@@ -158,8 +170,13 @@
               :step="1000"
               :formatter="value => formatCurrency(value, formData.type)"
               :parser="value => parseCurrency(value)"
+              :disabled="formData.isSharedLimit && existingSharedLimitCard"
               style="width: 100%"
             />
+            <div v-if="formData.isSharedLimit && existingSharedLimitCard" 
+                 style="color: #E6A23C; font-size: 12px; margin-top: 4px;">
+              检测到同银行已有卡片，已自动使用共享额度：{{ formatCurrency(formData.limit, formData.type) }}
+            </div>
           </el-form-item>
         </el-descriptions-item>
 
@@ -168,8 +185,10 @@
           <el-form-item prop="accountBillDate">
             <el-input 
               v-model="formData.accountBillDate" 
-              placeholder="请输入账单日"
+              placeholder="请输入账单日(1-31)"
               type="number"
+              min="1"
+              max="31"
               autocomplete="off" 
               clearable 
             />
@@ -179,8 +198,10 @@
           <el-form-item prop="dueDate">
             <el-input 
               v-model="formData.dueDate" 
-              placeholder="请输入还款日"
+              placeholder="请输入还款日(1-31)"
               type="number"
+              min="1"
+              max="31"
               autocomplete="off" 
               clearable 
             />
@@ -208,10 +229,11 @@
           <el-date-picker 
             v-model="formData.nextAnnualFeeCollectionTime" 
             type="date" 
-            placeholder="选择下次年费收取时间"
+            :placeholder="formData.isQualified === '3' ? '终身免年费卡不收年费，无需选择' : '选择下次年费收取时间'"
             format="YYYY-MM-DD" 
             value-format="YYYY-MM-DD" 
             style="width: 100%" 
+            :disabled="formData.isQualified === '3'"
           />
         </el-descriptions-item>
         <el-descriptions-item label="📈 上次提额日期" :span="2">
@@ -353,6 +375,9 @@ function formatCurrency(value, currency) {
 
 // 验证日期范围（1-31）
 function validateDateRange(rule, value, callback) {
+  if (!value) {
+    return callback() // 空值允许
+  }
   const num = parseInt(value)
   if (isNaN(num) || num < 1 || num > 31) {
     callback(new Error('请输入1-31之间的数字'))
@@ -379,6 +404,10 @@ export default {
     initialData: {
       type: Object,
       default: () => ({})
+    },
+    existingCards: {
+      type: Array,
+      default: () => []
     }
   },
   emits: ['update:visible', 'submit', 'cancel'],
@@ -406,6 +435,12 @@ export default {
       annualFee: [
         { required: true, message: '请输入年费', trigger: 'blur' },
         { type: 'number', min: 0, message: '年费必须大于等于0', trigger: 'blur' }
+      ],
+      accountBillDate: [
+        { validator: validateDateRange, trigger: 'blur' }
+      ],
+      dueDate: [
+        { validator: validateDateRange, trigger: 'blur' }
       ]
     }
 
@@ -472,8 +507,12 @@ export default {
       isQualified: '2',
       lastTime: '',
       equity: '',
-      remark: ''
+      remark: '',
+      isSharedLimit: true // 默认共享额度
     })
+
+    // 检查是否存在同银行的卡片
+    const existingSharedLimitCard = ref(null)
 
     // 监听初始数据变化
     watch(
@@ -507,6 +546,55 @@ export default {
       { immediate: true, deep: true }
     )
 
+    // 处理额度共享变化
+    const handleLimitSharingChange = (isShared) => {
+      if (isShared && formData.value.country && formData.value.bank) {
+        checkExistingSharedLimit()
+      } else {
+        existingSharedLimitCard.value = null
+      }
+    }
+
+    // 检查同银行现有卡片的额度
+    const checkExistingSharedLimit = () => {
+      if (!formData.value.country || !formData.value.bank) return
+      
+      const currentCountry = formData.value.country
+      const currentBank = formData.value.bank.replace(/\(.*?\)/g, "").trim()
+      
+      // 查找同国家同银行的已有卡片（排除当前编辑的卡片）
+      const existingCard = props.existingCards.find(card => {
+        const cardBank = (card.bank || '').replace(/\(.*?\)/g, "").trim()
+        return card.country === currentCountry && 
+               cardBank === currentBank && 
+               card.isSharedLimit === true &&
+               card.id !== formData.value.id
+      })
+      
+      if (existingCard) {
+        existingSharedLimitCard.value = existingCard
+        formData.value.limit = existingCard.limit
+        formData.value.type = existingCard.type
+      } else {
+        existingSharedLimitCard.value = null
+      }
+    }
+
+    // 监听国家和银行变化，当选择共享额度时自动检查
+    watch([() => formData.value.country, () => formData.value.bank], () => {
+      if (formData.value.isSharedLimit) {
+        checkExistingSharedLimit()
+      }
+    })
+
+    // 监听年费达标状态变化
+    watch(() => formData.value.isQualified, (newVal) => {
+      if (newVal === '3') {
+        // 选择终身免年费时，清空下次年费收取时间
+        formData.value.nextAnnualFeeCollectionTime = ''
+      }
+    })
+
     // 监听 visible 变化，当对话框关闭时重置表单
     watch(
       () => props.visible,
@@ -530,9 +618,11 @@ export default {
             isQualified: '2',
             lastTime: '',
             equity: '',
-            remark: ''
+            remark: '',
+            isSharedLimit: true
           }
-          // 重置卡片类型
+          // 重置相关状态
+          existingSharedLimitCard.value = null
           cardType.value = ''
           // 重置表单验证
           if (formRef.value) {
@@ -588,7 +678,6 @@ export default {
         
         emit('submit', submitData)
         dialogVisible.value = false
-        console.log(submitData, 'submitData')
       })
     }
 
@@ -606,7 +695,9 @@ export default {
       parseCurrency,
       validDateOptions,
       handleCancel,
-      handleSubmit
+      handleSubmit,
+      handleLimitSharingChange,
+      existingSharedLimitCard
     }
   }
 }

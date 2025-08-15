@@ -12,9 +12,19 @@ import { visualizer } from 'rollup-plugin-visualizer'
 export default defineConfig(({ command, mode }) => {
   // 加载环境变量
   const env = loadEnv(mode, process.cwd())
-  // 根据环境变量决定是否使用'/card/'前缀
-  const baseUrl = env.VITE_USE_CARD_PREFIX === 'true' ? '/card/' : '/'
-  
+  // Dev 使用根路径，Build 优先使用 VITE_BASE；否则根据开关使用 '/card/' 或相对 './'
+  let baseUrl = '/'
+  if (command === 'build') {
+    const rawBase = (env.VITE_BASE || '').trim()
+    if (rawBase) {
+      baseUrl = rawBase.endsWith('/') ? rawBase : `${rawBase}/`
+    } else if (env.VITE_USE_CARD_PREFIX === 'true') {
+      baseUrl = '/card/'
+    } else {
+      baseUrl = './'
+    }
+  }
+
   return {
     base: baseUrl,
     plugins: [
@@ -26,7 +36,7 @@ export default defineConfig(({ command, mode }) => {
       }),
       vue(),
       visualizer({
-        open: true,
+        open: false,
         gzipSize: true,
         brotliSize: true,
       }),

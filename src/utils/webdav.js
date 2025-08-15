@@ -1,7 +1,7 @@
 import { createClient } from 'webdav';
 import { encryptData, decryptData } from './encryption';
 
-const WEBDAV_CONFIG_KEY = 'webdav_config';
+import { STORAGE_KEYS } from '@/config/constants'
 
 export class WebDAVClient {
   constructor() {
@@ -55,42 +55,25 @@ export class WebDAVClient {
             const reader = response.body.getReader();
             const contentLength = +response.headers.get('Content-Length') || 0;
             let receivedLength = 0;
+            const progressCallback = this.progressCallback;
 
-            const stream = new ReadableStream({
-              async start(controller) {
-                while (true) {
-                  const { done, value } = await reader.read();
-                  if (done) break;
-                  receivedLength += value.length;
-                  controller.enqueue(value);
-                  // 报告进度
-                  if (contentLength > 0) {
-                    this.progressCallback('download', receivedLength / contentLength * 100);
-                  }
-                }
-                controller.close();
-              }
-            });
-
-            return new Response(stream, { headers: response.headers });
-          }
-
-          // 如果是上传操作，处理进度
-          if (options.method === 'PUT' && this.progressCallback && options.body) {
-            const totalSize = options.body.length;
-            let uploadedSize = 0;
             const stream = new ReadableStream({
               start: async (controller) => {
-                const reader = options.body.getReader();
-                while (true) {
-                  const { done, value } = await reader.read();
-                  if (done) break;
-                  uploadedSize += value.length;
-                  controller.enqueue(value);
-                  // 报告进度
-                  this.progressCallback('upload', uploadedSize / totalSize * 100);
+                try {
+                  while (true) {
+                    const { done, value } = await reader.read();
+                    if (done) break;
+                    receivedLength += value.length;
+                    controller.enqueue(value);
+                    // 报告进度
+                    if (contentLength > 0 && progressCallback) {
+                      progressCallback('download', (receivedLength / contentLength) * 100);
+                    }
+                  }
+                  controller.close();
+                } catch (e) {
+                  controller.error(e);
                 }
-                controller.close();
               }
             });
 
@@ -111,7 +94,6 @@ export class WebDAVClient {
       const backupDir = '/credit-card-backup';
       if (!await this.client.exists(backupDir)) {
         await this.client.createDirectory(backupDir);
-        console.log('已创建备份目录:', backupDir);
       }
 
       return true;
@@ -145,7 +127,7 @@ export class WebDAVClient {
   saveConfig(config) {
     try {
       const encryptedConfig = encryptData(JSON.stringify(config));
-      localStorage.setItem(WEBDAV_CONFIG_KEY, encryptedConfig);
+      localStorage.setItem(STORAGE_KEYS.WEBDAV_CONFIG, encryptedConfig);
       this.config = config;
       return true;
     } catch (error) {
@@ -156,7 +138,7 @@ export class WebDAVClient {
   // 加载配置
   loadConfig() {
     try {
-      const encryptedConfig = localStorage.getItem(WEBDAV_CONFIG_KEY);
+      const encryptedConfig = localStorage.getItem(STORAGE_KEYS.WEBDAV_CONFIG);
       if (!encryptedConfig) {
         return null;
       }
@@ -240,7 +222,6 @@ export class WebDAVClient {
       const backupDir = '/credit-card-backup';
       if (!await this.client.exists(backupDir)) {
         await this.client.createDirectory(backupDir);
-        console.log('已创建备份目录:', backupDir);
       }
 
       const files = await this.client.getDirectoryContents('/credit-card-backup', {

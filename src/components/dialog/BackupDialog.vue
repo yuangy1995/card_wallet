@@ -165,7 +165,7 @@
     </el-form>
     <template #footer>
       <span class="dialog-footer">
-        <el-button @click="restoreDialogVisible = false">取消</el-button>
+        <el-button @click="handleRestoreCancel">取消</el-button>
         <el-button type="primary" @click="handleRestoreConfirm">确定</el-button>
       </span>
     </template>
@@ -270,8 +270,9 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, nextTick } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { handleNetworkError, handleEncryptionError, handleValidationError } from '@/utils/errorHandler'
 import { webdavClient } from '@/utils/webdav'
 import { encryptData, decryptData } from '@/utils/encryption'
 import { Delete, ArrowDown, DocumentCopy, RefreshRight, Edit } from '@element-plus/icons-vue'
@@ -321,6 +322,7 @@ const progressVisible = ref(false)
 const progress = ref(0)
 const progressStatus = ref('')
 const currentOperation = ref('') // 新增：当前操作类型（'backup' 或 'restore'）
+const awaitingPassword = ref(false)
 
 // 进度文本（computed）
 const progressText = computed(() => {
@@ -377,8 +379,7 @@ const loadBackupList = async () => {
       ElMessage.error(result.message)
     }
   } catch (error) {
-    console.error('加载备份列表失败:', error)
-    ElMessage.error('加载备份列表失败')
+    handleNetworkError(error, '加载备份列表失败')
   } finally {
     loading.value = false
   }
@@ -401,6 +402,7 @@ const handleBackupConfirm = async () => {
     try {
       await backupFormRef.value.validate()
     } catch (error) {
+      ElMessage.error('表单验证失败')
       return
     }
   }
@@ -408,7 +410,7 @@ const handleBackupConfirm = async () => {
   backingUp.value = true
   progressVisible.value = true
   progress.value = 0
-  progressText.value = '正在备份...'
+  currentOperation.value = 'backup'
   try {
     // 获取当前数据
     const data = {
@@ -431,7 +433,6 @@ const handleBackupConfirm = async () => {
     const result = await webdavClient.createBackup(encryptedData, tempCustomPassword.value)
     if (result.success) {
       progress.value = 100
-      progressText.value = '备份完成'
       ElMessage.success(result.message)
       await loadBackupList()
     } else {
@@ -464,6 +465,7 @@ const handleRestore = async (backup) => {
     backup.restoring = true
     progressVisible.value = true
     progress.value = 0
+    currentOperation.value = 'restore'
     
     const result = await webdavClient.restoreBackup(backup.filename)
     if (result.success) {
@@ -478,6 +480,7 @@ const handleRestore = async (backup) => {
           } else {
             // 如果是自定义密码加密，显示密码输入对话框
             currentBackup.value = content
+            awaitingPassword.value = true
             restoreDialogVisible.value = true
           }
         } else {
@@ -492,11 +495,17 @@ const handleRestore = async (backup) => {
     }
   } catch (error) {
     if (error !== 'cancel') {
-      ElMessage.error('恢复失败：' + error.message)
+      handleNetworkError(error, '恢复备份')
     }
   } finally {
     backup.restoring = false
     loading.value = false
+    // 仅当不在等待密码时，才重置/关闭进度显示
+    if (!awaitingPassword.value && progressVisible.value) {
+      progressVisible.value = false
+      progress.value = 0
+      currentOperation.value = ''
+    }
   }
 }
 
@@ -515,8 +524,13 @@ const handleRestoreSuccess = (data) => {
     restoreDialogVisible.value = false
     visible.value = false
     restoreForm.value.password = ''
+    // 重置进度与状态
+    progressVisible.value = false
+    progress.value = 0
+    currentOperation.value = ''
+    awaitingPassword.value = false
   } catch (error) {
-    ElMessage.error('解析备份数据失败：' + error.message)
+    handleEncryptionError(error, '解析备份数据')
   }
 }
 
@@ -540,8 +554,109 @@ const handleRestoreConfirm = async () => {
       handleRestoreSuccess(decryptedData)
     }
   } catch (error) {
-    ElMessage.error('解密备份失败：' + error.message)
+    handleEncryptionError(error, '解密备份')
   }
+}
+
+// 根据解密后的数据进行比对，并展示结果
+const compareData = (decryptedData) => {
+  // 解析数据
+  const parsedData = typeof decryptedData === 'string' ? JSON.parse(decryptedData) : decryptedData
+  const backupData = parsedData.cards || []
+  const currentData = JSON.parse(localStorage.getItem('cardData') || '[]')
+
+  // 创建Map用于快速查找
+  const currentMap = new Map(currentData.map(item => [item.id, item]))
+  const backupMap = new Map(backupData.map(item => [item.id, item]))
+  const comparedData = []
+  let hasChanges = false
+
+  // 检查删除和修改的数据
+  backupData.forEach(backupItem => {
+    const currentItem = currentMap.get(backupItem.id)
+    if (!currentItem) {
+      // 已删除的数据
+      comparedData.push({
+        ...backupItem,
+        _status: 'deleted'
+      })
+      hasChanges = true
+    } else {
+      // 首先检查lastModifyTime是否不一致
+      let itemHasChanges = backupItem.lastModifyTime !== currentItem.lastModifyTime
+
+      // 如果lastModifyTime一致，仍然检查其他关键字段是否有变化
+      if (!itemHasChanges) {
+        itemHasChanges = Object.keys(backupItem).some(key => {
+          // 对于特殊字段（如年费达标状态），比较原始值
+          if (key === 'isQualified') {
+            return backupItem[key] !== currentItem[key]
+          }
+          // 排除lastTime和lastModifyTime字段
+          if (key !== 'lastTime' && key !== 'lastModifyTime') {
+            return JSON.stringify(backupItem[key]) !== JSON.stringify(currentItem[key])
+          }
+          return false
+        })
+      }
+
+      if (itemHasChanges) {
+        // 创建一个新的对象来存储差异信息
+        const diffItem = { ...currentItem, _status: 'modified', _diff: {} }
+
+        // 检查每个字段的差异
+        Object.keys(backupItem).forEach(key => {
+          // 对于特殊字段（如年费达标状态），比较原始值
+          if (key === 'isQualified') {
+            if (backupItem[key] !== currentItem[key]) {
+              diffItem._diff[key] = {
+                cloud: backupItem[key],
+                local: currentItem[key]
+              }
+            }
+          } else if (JSON.stringify(backupItem[key]) !== JSON.stringify(currentItem[key])) {
+            diffItem._diff[key] = {
+              cloud: backupItem[key],
+              local: currentItem[key]
+            }
+          }
+        })
+
+        comparedData.push(diffItem)
+        hasChanges = true
+      }
+    }
+  })
+
+  // 检查新增的数据
+  currentData.forEach(currentItem => {
+    if (!backupMap.has(currentItem.id)) {
+      comparedData.push({
+        ...currentItem,
+        _status: 'added'
+      })
+      hasChanges = true
+    }
+  })
+
+  if (!hasChanges) {
+    ElMessage.success('本地数据与云端数据一致')
+    return
+  }
+
+  comparisonData.value = comparedData
+  compareDialogVisible.value = true
+}
+
+// 取消密码输入
+const handleRestoreCancel = () => {
+  restoreDialogVisible.value = false
+  awaitingPassword.value = false
+  // 取消恢复时，关闭并重置进度状态
+  progressVisible.value = false
+  progress.value = 0
+  currentOperation.value = ''
+  restoreForm.value.password = ''
 }
 
 // 删除备份
@@ -793,6 +908,8 @@ const handleClosed = () => {
   backingUp.value = false
   progressVisible.value = false
   progress.value = 0
+  currentOperation.value = ''
+  awaitingPassword.value = false
   isConnected.value = false  // 重置连接状态
 }
 
@@ -858,6 +975,8 @@ const updateProgress = (type, value) => {
   // 如果进度完成，延迟关闭进度对话框
   if (value >= 100) {
     setTimeout(() => {
+      // 在恢复操作且等待密码输入时，保持进度可见
+      if (currentOperation.value === 'restore' && awaitingPassword.value) return
       progressVisible.value = false
       progress.value = 0
       currentOperation.value = ''
@@ -866,7 +985,6 @@ const updateProgress = (type, value) => {
 }
 
 // 在组件挂载时设置进度回调
-import { onMounted } from 'vue'
 onMounted(() => {
   webdavClient.setProgressCallback(updateProgress)
 })

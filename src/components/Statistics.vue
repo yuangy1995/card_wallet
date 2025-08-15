@@ -150,6 +150,7 @@
 
 <script>
 import { ref, computed, onMounted, watch } from 'vue'
+import { BACKUP_CONSTANTS } from '@/config/constants'
 import * as echarts from 'echarts'
 import { ElMessageBox, ElMessage } from 'element-plus'
 
@@ -399,7 +400,7 @@ export default {
           unqualifiedCards.value.push({ ...card, diffDays })
         }
         // 即将到期的卡片（不包括未达标的卡片）
-        else if (diffDays <= 60 && diffDays > 0 && card.isQualified !== '2') {
+        else if (diffDays <= BACKUP_CONSTANTS.ANNUAL_FEE_CHECK_DAYS && diffDays > 0 && card.isQualified !== '2') {
           warningCards.value.push({ ...card, diffDays })
         }
         // 已过期的卡片
@@ -469,7 +470,7 @@ export default {
             }
           )
         } catch (e) {
-          // 忽略弹窗关闭事件
+          // 用户取消删除操作，无需处理
         }
       } else {
         ElMessage({
@@ -539,7 +540,7 @@ export default {
           unqualifiedCount++
         }
         // 即将到期的卡片（不包括未达标的卡片）
-        else if (diffDays <= 60 && diffDays > 0 && card.isQualified !== '2') {
+        else if (diffDays <= BACKUP_CONSTANTS.ANNUAL_FEE_CHECK_DAYS && diffDays > 0 && card.isQualified !== '2') {
           warningCount++
         }
         // 已过期的卡片

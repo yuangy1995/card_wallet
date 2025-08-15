@@ -1,18 +1,19 @@
 <template>
-  <export-password-dialog
-    v-if="showPasswordDialog"
-    v-model:visible="showPasswordDialog"
-    @confirm="handlePasswordConfirm"
-    @skip="handlePasswordSkip"
-  />
-  
-  <el-dialog
-    v-model="dialogVisible"
-    :title="isImport ? '导入数据' : '导出数据'"
-    width="30%"
-    draggable
-    :before-close="handleClose"
-  >
+  <div>
+    <export-password-dialog
+      v-if="showPasswordDialog"
+      v-model:visible="showPasswordDialog"
+      @confirm="handlePasswordConfirm"
+      @skip="handlePasswordSkip"
+    />
+    
+    <el-dialog
+      v-model="dialogVisible"
+      :title="isImport ? '导入数据' : '导出数据'"
+      width="30%"
+      draggable
+      :before-close="handleClose"
+    >
     <div class="import-export-content">
       <template v-if="isImport">
         <el-alert
@@ -92,7 +93,8 @@
         </el-button>
       </span>
     </template>
-  </el-dialog>
+    </el-dialog>
+  </div>
 </template>
 
 <script>

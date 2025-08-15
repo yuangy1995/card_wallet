@@ -62,8 +62,6 @@ const props = defineProps({
   }
 })
 
-console.log(props.cardInfo)
-
 const emit = defineEmits(['update:visible', 'confirm', 'cancel'])
 
 const dialogVisible = computed({

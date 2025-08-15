@@ -119,7 +119,8 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, nextTick } from 'vue'
+import { BACKUP_CONSTANTS } from '@/config/constants'
 import { ElMessage } from 'element-plus'
 import { creditCardOptions } from '@/config/creditCardOptions'
 
@@ -165,7 +166,7 @@ const loadBackupList = () => {
   loading.value = true
   try {
     const backups = JSON.parse(localStorage.getItem('cardDataBackups') || '[]')
-    backupList.value = backups.slice(0, 50) // 只保留最近50条备份
+    backupList.value = backups.slice(0, BACKUP_CONSTANTS.MAX_BACKUP_COUNT) // 只保留最近50条备份
   } catch (error) {
     console.error('加载备份列表失败:', error)
     ElMessage.error('加载备份列表失败')

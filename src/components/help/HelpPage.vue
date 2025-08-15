@@ -211,6 +211,19 @@
         <div class="section">
           <h3>💡 快捷操作</h3>
           <ul>
+            <li><strong>键盘快捷键：</strong>
+              <p>系统支持以下快捷键操作：</p>
+              <ul>
+                <li><kbd>Ctrl+N</kbd> - 新增信用卡</li>
+                <li><kbd>Ctrl+E</kbd> - 导出数据</li>
+                <li><kbd>Ctrl+I</kbd> - 导入数据</li>
+                <li><kbd>Ctrl+Shift+S</kbd> - 统计分析</li>
+                <li><kbd>Ctrl+Shift+H</kbd> - 使用帮助</li>
+                <li><kbd>Ctrl+B</kbd> - 云备份</li>
+                <li><kbd>Escape</kbd> - 关闭弹窗</li>
+              </ul>
+              <p><em>注意：在输入框中输入文字时快捷键不会触发，避免干扰正常输入。</em></p>
+            </li>
             <li><strong>表格右键菜单：</strong>
               <p>在表格行上右键点击可快速：</p>
               <ul>
@@ -224,6 +237,45 @@
                 <li>定期导出数据保存</li>
                 <li>更新重要信息后及时备份</li>
                 <li>妥善保管导出文件的密码</li>
+              </ul>
+            </li>
+          </ul>
+
+          <h3>📱 移动端优化</h3>
+          <ul>
+            <li><strong>响应式设计：</strong>
+              <p>应用已全面适配移动设备：</p>
+              <ul>
+                <li>自动适配手机、平板、电脑屏幕</li>
+                <li>移动端按钮优化，仅显示图标节省空间</li>
+                <li>表格在小屏幕自动隐藏次要列</li>
+                <li>弹窗在移动端自动全屏显示</li>
+              </ul>
+            </li>
+            <li><strong>触摸优化：</strong>
+              <ul>
+                <li>按钮和链接增大触摸区域</li>
+                <li>支持触摸滑动和手势操作</li>
+                <li>优化表单输入体验</li>
+              </ul>
+            </li>
+          </ul>
+
+          <h3>⚡ 性能优化</h3>
+          <ul>
+            <li><strong>智能搜索：</strong>
+              <p>搜索功能已优化：</p>
+              <ul>
+                <li>300毫秒防抖，减少不必要的计算</li>
+                <li>输入时实时筛选，体验更流畅</li>
+                <li>支持模糊匹配和精确搜索</li>
+              </ul>
+            </li>
+            <li><strong>加载优化：</strong>
+              <ul>
+                <li>组件按需加载，减少初始加载时间</li>
+                <li>数据缓存机制，提升计算性能</li>
+                <li>加载状态提示，操作反馈更清晰</li>
               </ul>
             </li>
           </ul>

@@ -1,15 +1,21 @@
 <template>
-  <div class="credit-card-table">
+  <div class="table-container credit-card-table">
     <el-table 
       :data="tableData" 
       style="width: 100%" 
       border
       height="calc(100vh - 250px)"
+      @row-dblclick="handleRowDoubleClick"
+      class="mobile-optimized"
       @row-contextmenu="handleContextMenu"
       @sort-change="handleSortChange"
       :default-sort="{ prop: sortState.key, order: sortState.order }"
       :row-class-name="rowClassName"
+      @selection-change="handleSelectionChange"
+      :span-method="spanMethod"
+      ref="tableRef"
     >
+      <el-table-column type="selection" width="55" align="center" fixed />
       <el-table-column type="index" label="序号" width="60" align="center" fixed />
       <template v-for="column in columns" :key="column.value">
         <el-table-column
@@ -17,9 +23,11 @@
           :prop="column.value"
           :label="column.label"
           :width="getColumnWidth(column.value)"
+          :min-width="getColumnMinWidth(column.value)"
           align="center"
           :fixed="isColumnFixed(column.value)"
-          :sortable="isColumnSortable(column.value)"
+          :sortable="isSortable(column.value)"
+          :class-name="getColumnClass(column.value)"
           :sort-method="getSortMethod(column.value)"
         >
           <template v-if="column.value === 'cardNumber'" #default="scope">
@@ -114,9 +122,11 @@
 import SecureField from '../common/SecureField.vue'
 import { ElMessageBox } from 'element-plus'
 import { Edit, View, Delete, Check } from '@element-plus/icons-vue'
-import { ref, onMounted, computed } from 'vue'
+import { ref, computed, nextTick, onMounted, watch, toRef } from 'vue'
+import { daysBetween } from '../../utils/dateUtils'
 import { getDaysFromNow, formatValidDate } from '../../utils/dateCalculator'
 import { creditCardOptions } from '@/config/creditCardOptions'
+import { cardDataCache } from '@/utils/cache'
 
 // 获取卡片类型权重
 function getCardTypeWeight(cardNumber) {
@@ -152,6 +162,43 @@ function parseAnnualFee(fee) {
   if (!fee) return 0
   const num = parseFloat(fee)
   return isNaN(num) ? 0 : num
+}
+
+// 计算免息期天数
+function calculateInterestFreePeriodDays(accountBillDate, dueDate) {
+  if (!accountBillDate || !dueDate) return 0
+  
+  const today = new Date()
+  const currentDay = today.getDate()
+  const currentMonth = today.getMonth()
+  const currentYear = today.getFullYear()
+  
+  const billingDay = parseInt(accountBillDate)
+  const repaymentDay = parseInt(dueDate)
+  
+  if (isNaN(billingDay) || isNaN(repaymentDay)) return 0
+  
+  // 计算下一个还款日
+  let repaymentDate = new Date(currentYear, currentMonth, repaymentDay)
+  
+  // 如果今天超过了本月的账单日，则计算下个月的还款日
+  if (currentDay > billingDay) {
+    repaymentDate.setMonth(repaymentDate.getMonth() + 1)
+  }
+  
+  // 账单日当天的消费按当期账单计算
+  if (currentDay === billingDay) {
+    repaymentDate = new Date(currentYear, currentMonth, repaymentDay)
+    if (repaymentDay < billingDay) {
+      repaymentDate.setMonth(repaymentDate.getMonth() + 1)
+    }
+  }
+  
+  // 计算天数差
+  const diffTime = repaymentDate.getTime() - today.getTime()
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+  
+  return diffDays
 }
 
 // 计算免息期
@@ -196,7 +243,6 @@ function calculateInterestFreePeriod(billingDay, repaymentDay) {
   }
   repaymentDate.setDate(repaymentDay)
 
-  // 如果消费日是账单日当天，按当期账单计算
   if (currentDay === billingDay) {
     repaymentDate = new Date(currentYear, currentMonth, repaymentDay)
     if (repaymentDay < billingDay) {
@@ -208,49 +254,7 @@ function calculateInterestFreePeriod(billingDay, repaymentDay) {
   const diffTime = repaymentDate.getTime() - today.getTime()
   const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24))
 
-  return `${diffDays}天`
-}
-
-// 计算免息期天数（仅返回数字，用于排序）
-function calculateInterestFreePeriodDays(billingDay, repaymentDay) {
-  if (!billingDay || !repaymentDay) {
-    return 0
-  }
-
-  billingDay = parseInt(billingDay)
-  repaymentDay = parseInt(repaymentDay)
-
-  const today = new Date()
-  const currentYear = today.getFullYear()
-  const currentMonth = today.getMonth()
-  const currentDay = today.getDate()
-
-  const lastDayOfMonth = new Date(currentYear, currentMonth + 1, 0).getDate()
-  billingDay = Math.min(billingDay, lastDayOfMonth)
-  repaymentDay = Math.min(repaymentDay, lastDayOfMonth)
-
-  let nextBillingDate
-  if (currentDay >= billingDay) {
-    nextBillingDate = new Date(currentYear, currentMonth + 1, billingDay)
-  } else {
-    nextBillingDate = new Date(currentYear, currentMonth, billingDay)
-  }
-
-  let repaymentDate = new Date(nextBillingDate)
-  if (repaymentDay < billingDay) {
-    repaymentDate.setMonth(repaymentDate.getMonth() + 1)
-  }
-  repaymentDate.setDate(repaymentDay)
-
-  if (currentDay === billingDay) {
-    repaymentDate = new Date(currentYear, currentMonth, repaymentDay)
-    if (repaymentDay < billingDay) {
-      repaymentDate.setMonth(repaymentDate.getMonth() + 1)
-    }
-  }
-
-  const diffTime = repaymentDate.getTime() - today.getTime()
-  return Math.ceil(diffTime / (1000 * 60 * 60 * 24))
+  return diffDays
 }
 
 export default {
@@ -282,6 +286,8 @@ export default {
     const contextMenuX = ref(0)
     const contextMenuY = ref(0)
     const selectedRow = ref(null)
+
+    let cleanupClickListener = null
 
     const sortState = ref({
       key: localStorage.getItem('creditCardTableSortKey') || '',
@@ -317,27 +323,48 @@ export default {
       }
     }
 
+    const getColumnMinWidth = (columnValue) => {
+      switch (columnValue) {
+        case 'country': return '80'
+        case 'bank': return '100'
+        case 'alias': return '120'
+        case 'level': return '80'
+        case 'type': return '100'
+        case 'annualFee': return '70'
+        case 'cardNumber': return '180'
+        case 'valid': return '90'
+        case 'cvv': return '80'
+        case 'limit': return '80'
+        case 'nextAnnualFeeCollectionTime': return '120'
+        case 'lastTime': return '120'
+        case 'lastModifyTime': return '120'
+        case 'isQualified': return '100'
+        case 'equity': return '120'
+        case 'remark': return '120'
+        case 'interestFreePeriod': return '100'
+        default: return '100'
+      }
+    }
+
     const isColumnFixed = (columnValue) => {
       return ['country', 'bank', 'alias'].includes(columnValue)
     }
 
-    const isColumnSortable = (columnValue) => {
+    const isSortable = (columnValue) => {
       return ['country', 'bank', 'level', 'type', 'annualFee', 'cardNumber', 'valid', 'interestFreePeriod'].includes(columnValue)
     }
 
-    const getSortMethod = (columnValue) => {
+    const isColumnSortable = (columnValue) => {
+      return isSortable(columnValue)
+    }
+
+    function getSortMethod(columnValue) {
       switch (columnValue) {
-        case 'cardNumber':
+        case 'type':
           return (a, b) => {
-            const weightA = getCardTypeWeight(a.cardNumber)
-            const weightB = getCardTypeWeight(b.cardNumber)
+            const weightA = getCardTypeWeight(a.cardNumber) || 999
+            const weightB = getCardTypeWeight(b.cardNumber) || 999
             return weightA - weightB
-          }
-        case 'valid':
-          return (a, b) => {
-            const dateA = parseValidDate(a.valid)
-            const dateB = parseValidDate(b.valid)
-            return dateA - dateB
           }
         case 'annualFee':
           return (a, b) => {
@@ -354,6 +381,24 @@ export default {
         default:
           return undefined
       }
+    }
+
+    // 获取列的响应式类名
+    function getColumnClass(columnValue) {
+      const mobileHiddenColumns = ['equity', 'remark', 'lastTime', 'lastModifyTime']
+      const tabletHiddenColumns = ['lastModifyTime']
+      
+      let classes = []
+      
+      if (mobileHiddenColumns.includes(columnValue)) {
+        classes.push('mobile-hidden')
+      }
+      
+      if (tabletHiddenColumns.includes(columnValue)) {
+        classes.push('tablet-hidden')
+      }
+      
+      return classes.join(' ')
     }
 
     // 自定义排序方法
@@ -381,6 +426,44 @@ export default {
       return selectedRow.value.isQualified === '2'
     })
 
+    // 处理双击行事件
+    const handleRowDoubleClick = (row) => {
+      emit('view-details', row)
+    }
+
+    // 表格引用和选中的行
+    const tableRef = ref(null)
+    const selectedRows = ref([])
+    
+    // 处理选中行变化
+    const handleSelectionChange = (selection) => {
+      selectedRows.value = selection
+      emit('selection-change', selection)
+    }
+    
+    // 批量操作方法
+    const toggleSelectAll = () => {
+      if (tableRef.value && tableRef.value.toggleRowSelection) {
+        if (selectedRows.value.length === props.tableData.length) {
+          tableRef.value.clearSelection()
+        } else {
+          nextTick(() => {
+            props.tableData.forEach(row => {
+              if (tableRef.value && tableRef.value.toggleRowSelection) {
+                tableRef.value.toggleRowSelection(row, true)
+              }
+            })
+          })
+        }
+      }
+    }
+    
+    const clearSelection = () => {
+      if (tableRef.value) {
+        tableRef.value.clearSelection()
+      }
+    }
+
     // 处理右键菜单显示
     const handleContextMenu = (row, column, event) => {
       event.preventDefault()
@@ -392,11 +475,19 @@ export default {
       // 点击其他地方时关闭菜单
       const closeMenu = () => {
         contextMenuVisible.value = false
+        cleanupClickListener = null
+      }
+      
+      // 清理之前的监听器
+      if (cleanupClickListener) {
+        cleanupClickListener()
+      }
+      
+      // 添加新的监听器并保存清理函数
+      document.addEventListener('click', closeMenu)
+      cleanupClickListener = () => {
         document.removeEventListener('click', closeMenu)
       }
-      // 先移除之前的监听器，再添加新的监听器
-      document.removeEventListener('click', closeMenu)
-      document.addEventListener('click', closeMenu)
     }
 
     // 处理右键菜单动作
@@ -408,7 +499,6 @@ export default {
           emit('edit', selectedRow.value)
           break
         case 'delete':
-        console.log('编辑', selectedRow.value)
           emit('delete', selectedRow.value)
           break
         case 'details':
@@ -453,6 +543,65 @@ export default {
       return props.rowClassName({ row });
     }
 
+    // 表格合并单元格方法
+    const spanMethod = ({ row, column, rowIndex, columnIndex }) => {
+      // 国家列合并
+      if (column.property === 'country') {
+        if (row.showCountry) {
+          return {
+            rowspan: row.countryRowSpan,
+            colspan: 1
+          }
+        } else {
+          return {
+            rowspan: 0,
+            colspan: 0
+          }
+        }
+      }
+      // 银行列合并
+      else if (column.property === 'bank') {
+        if (row.showBank) {
+          return {
+            rowspan: row.bankRowSpan,
+            colspan: 1
+          }
+        } else {
+          return {
+            rowspan: 0,
+            colspan: 0
+          }
+        }
+      }
+      // 额度列合并（只有共享额度的才合并）
+      else if (column.property === 'limit') {
+        if (row.isSharedLimit) {
+          if (row.showLimit) {
+            return {
+              rowspan: row.limitRowSpan,
+              colspan: 1
+            }
+          } else {
+            return {
+              rowspan: 0,
+              colspan: 0
+            }
+          }
+        } else {
+          // 独立额度不合并
+          return {
+            rowspan: 1,
+            colspan: 1
+          }
+        }
+      }
+      // 其他列不合并
+      return {
+        rowspan: 1,
+        colspan: 1
+      }
+    }
+
     // 初始化时恢复排序状态
     onMounted(() => {
       if (sortState.value.key && sortState.value.order) {
@@ -462,28 +611,51 @@ export default {
     })
 
     return {
+      tableData: toRef(props, 'tableData'),
+      visibleColumns: toRef(props, 'visibleColumns'),
+      handleEdit: (row) => emit('edit', row),
+      handleDelete: (row) => emit('delete', row),
+      handleVisibilityChange: (data) => {
+        if (data.type === 'cardNumber') {
+          emit('card-number-visibility', data)
+        } else if (data.type === 'cvv') {
+          emit('cvv-visibility', data)
+        }
+      },
+      handleViewDetails: (row) => emit('view-details', row),
+      handleAnnualFeeQualified: (cardId) => emit('annual-fee-qualified', cardId),
+      rowClassName: props.rowClassName,
       columns,
       isColumnVisible,
       getColumnWidth,
+      getColumnMinWidth,
+      isSortable,
       isColumnFixed,
       isColumnSortable,
       getSortMethod,
+      getColumnClass,
+      sortMethods,
+      formatValidDate,
+      getDaysFromNow,
+      handleRowDoubleClick,
       handleContextMenu,
-      handleContextMenuAction,
-      handleVisibilityChange,
+      handleSortChange,
+      sortState,
+      parseAnnualFee,
+      calculateInterestFreePeriodDays,
+      calculateInterestFreePeriod,
       contextMenuVisible,
       contextMenuX,
       contextMenuY,
       selectedRow,
-      sortState,
-      sortMethods,
-      handleSortChange,
-      getDaysFromNow,
-      handleSetAnnualFeeQualified,
       showAnnualFeeOption,
-      rowClassName,
-      calculateInterestFreePeriod,
-      formatValidDate
+      tableRef,
+      selectedRows,
+      handleSelectionChange,
+      toggleSelectAll,
+      clearSelection,
+      handleContextMenuAction,
+      spanMethod
     }
   }
 }
