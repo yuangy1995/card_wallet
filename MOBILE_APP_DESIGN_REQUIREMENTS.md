@@ -41,31 +41,35 @@
 - 时间格式统一使用ISO 8601标准（如：2024-12-01）
 
 ### 2.2 推荐技术栈
-**React Native:**
+**Expo:**
 - 开发语言：TypeScript/JavaScript
-- 框架版本：React Native 0.72+
-- 架构模式：Redux Toolkit + RTK Query / Zustand
-- UI组件库：React Native Elements / NativeBase / Tamagui
-- 导航：React Navigation 6+
-- 数据库：react-native-sqlite-storage / WatermelonDB
-- 本地存储：@react-native-async-storage/async-storage
-- 加密库：react-native-crypto-js / crypto-js
-- 网络请求：Axios / React Query
-- 图表库：react-native-chart-kit / Victory Native
-- 文件操作：react-native-fs
-- WebDAV：自定义实现或react-native-webdav
-- 安全存储：react-native-keychain
-- 生物识别：react-native-biometrics
+- 框架版本：Expo SDK 50+ (基于React Native 0.73+)
+- 架构模式：Redux Toolkit + RTK Query / Zustand / React Context
+- UI组件库：React Native Elements / NativeBase / Tamagui / Expo Vector Icons
+- 导航：@react-navigation/native 6+ (Expo Router可选)
+- 数据库：expo-sqlite / @expo/sqlite-next
+- 本地存储：@react-native-async-storage/async-storage / expo-secure-store
+- 加密库：expo-crypto / crypto-js
+- 网络请求：Axios / fetch / expo-network
+- 图表库：react-native-chart-kit / Victory Native / react-native-svg-charts
+- 文件操作：expo-file-system / expo-document-picker
+- WebDAV：基于expo-file-system和fetch API实现
+- 安全存储：expo-secure-store
+- 生物识别：expo-local-authentication
+- 通知推送：expo-notifications
+- 设备信息：expo-device / expo-application
 
-### 2.3 共享组件（React Native）
+### 2.3 共享组件（Expo）
 - **数据加密/解密模块**：使用crypto-js库，与Web端完全一致
-- **WebDAV同步模块**：基于react-native-fs和XMLHttpRequest实现
+- **WebDAV同步模块**：基于expo-file-system和fetch API实现
 - **统计计算引擎**：使用React Native图表库和计算逻辑
-- **导入导出处理器**：支持JSON/CSV格式，使用react-native-share
+- **导入导出处理器**：支持JSON/CSV格式，使用expo-sharing和expo-document-picker
 - **字段兼容性处理器**：TypeScript接口定义，处理版本差异
 - **数据完整性保护器**：Redux中间件或Zustand middleware实现
-- **本地数据库管理**：SQLite封装层，支持数据迁移
-- **安全存储管理**：Keychain封装，统一密钥管理
+- **本地数据库管理**：expo-sqlite封装层，支持数据迁移
+- **安全存储管理**：expo-secure-store封装，统一密钥管理
+- **通知管理模块**：expo-notifications实现年费提醒
+- **生物认证模块**：expo-local-authentication统一认证接口
 
 ## 3. 数据模型
 
@@ -139,9 +143,9 @@ CREATE TABLE credit_cards (
 );
 ```
 
-#### 3.2.3 React Native数据库设计
+#### 3.2.3 Expo数据库设计
 
-**SQLite实现 (react-native-sqlite-storage)**
+**SQLite实现 (expo-sqlite)**
 ```sql
 CREATE TABLE credit_cards (
     id TEXT PRIMARY KEY,
@@ -310,15 +314,24 @@ interface CreditCardService {
 - **应用设置**：主题、安全、通知、数据设置
 - **表格自定义**：列显示、排序、宽度调整
 - **提醒设置**：年费、到期提醒的时间和方式设置
+- **生物识别**：指纹、面容ID登录设置
+- **应用锁定**：自动锁定时间、锁屏密码设置
+
+### 6.5 Expo特有功能模块
+- **推送通知**：年费提醒、到期通知的本地和远程推送
+- **应用更新**：OTA热更新支持，自动检查更新
+- **设备信息**：获取设备型号、系统版本用于数据统计
+- **网络状态**：监控网络连接，智能同步策略
+- **应用状态**：前后台切换检测，自动锁定功能
 
 ## 7. 安全与隐私
 
 ### 7.1 数据加密统一标准
 #### 7.1.1 加密算法一致性
 - **算法标准**：AES-256-GCM，与Web端完全一致
-- **实现库**：移动端使用与CryptoJS兼容的加密库
-  - Android：使用Java Crypto API或CryptoJS的Java实现
-  - iOS：使用CommonCrypto或CryptoJS的Swift/Objective-C实现
+- **实现库**：Expo端使用与CryptoJS兼容的加密库
+  - 统一使用crypto-js库，确保跨平台一致性
+  - expo-crypto作为备选方案，提供原生加密性能
 - **加密格式**：`prefix:encryptedData`格式与Web端保持一致
   - 默认加密：`default:加密内容`
   - 自定义密码：`encrypted:加密内容`
@@ -330,7 +343,7 @@ interface CreditCardService {
 - **密钥一致性验证**：定期验证各平台加密密钥的一致性
 
 #### 7.1.3 密钥管理统一
-- **本地存储**：使用系统安全存储（Android Keystore / iOS Keychain）
+- **本地存储**：使用expo-secure-store（基于系统安全存储）
 - **传输安全**：HTTPS通信，证书验证
 - **密码同步**：支持自定义密码在设备间同步
 
@@ -407,21 +420,197 @@ interface FieldMapping {
 
 ## 10. 开发实施指导
 
-### 10.1 React Native加密模块实现
+### 10.1 Expo项目初始化与pnpm配置
+
+#### 项目创建
+```bash
+# 创建Expo项目
+npx create-expo-app --template
+cd credit-card-app
+
+# 安装pnpm（如果未安装）
+npm install -g pnpm
+
+# 删除npm生成的lock文件，使用pnpm
+rm package-lock.json
+pnpm install
+```
+
+#### pnpm配置文件 (.npmrc)
+```bash
+# 创建 .npmrc 文件
+cat > .npmrc << EOF
+# 使用pnpm存储
+store-dir=~/.pnpm-store
+
+# 启用shamefully-hoist解决React Native兼容性问题  
+shamefully-hoist=true
+
+# 设置国内镜像（可选）
+registry=https://registry.npmmirror.com
+
+# Expo相关配置
+auto-install-peers=true
+strict-peer-dependencies=false
+EOF
+```
+
+#### package.json脚本配置
+```json
+{
+  "name": "credit-card-app",
+  "main": "expo/AppEntry.js",
+  "scripts": {
+    "start": "pnpm expo start",
+    "android": "pnpm expo start --android",
+    "ios": "pnpm expo start --ios", 
+    "web": "pnpm expo start --web",
+    "build": "eas build --platform all",
+    "build:android": "eas build --platform android",
+    "build:ios": "eas build --platform ios",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "lint": "eslint . --ext .js,.jsx,.ts,.tsx"
+  },
+  "dependencies": {
+    "expo": "~50.0.0",
+    "react": "18.2.0",
+    "react-native": "0.73.0"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.20.0"
+  }
+}
+```
+
+#### 核心依赖安装
+```bash
+# UI框架和导航
+pnpm add @react-navigation/native @react-navigation/stack @react-navigation/bottom-tabs
+pnpm expo install react-native-screens react-native-safe-area-context
+
+# 状态管理
+pnpm add @reduxjs/toolkit react-redux
+# 或者选择 Zustand
+pnpm add zustand
+
+# UI组件库
+pnpm add react-native-elements react-native-vector-icons
+pnpm expo install expo-vector-icons
+
+# 数据存储和安全
+pnpm add crypto-js
+pnpm expo install expo-sqlite expo-secure-store
+
+# 文件系统和网络
+pnpm expo install expo-file-system expo-document-picker expo-sharing
+pnpm add axios
+
+# 图表和数据可视化
+pnpm add react-native-chart-kit react-native-svg
+pnpm expo install react-native-svg
+
+# 通知和设备功能
+pnpm expo install expo-notifications expo-local-authentication
+pnpm expo install expo-device expo-application expo-network
+
+# 开发工具
+pnpm add --save-dev @types/react @types/react-native
+pnpm add --save-dev @testing-library/react-native jest
+```
+
+#### pnpm工作流最佳实践
+```bash
+# 清理缓存和重新安装
+pnpm store prune
+pnpm install --frozen-lockfile
+
+# 查看依赖树
+pnpm list --depth=2
+
+# 更新依赖
+pnpm update
+
+# 检查过时依赖
+pnpm outdated
+
+# 审计安全漏洞
+pnpm audit
+
+# 本地开发常用命令
+pnpm start          # 启动开发服务器
+pnpm run ios        # iOS模拟器
+pnpm run android    # Android模拟器
+pnpm test           # 运行测试
+pnpm run build      # 构建应用
+```
+
+#### .pnpmfile.cjs 配置（可选）
+```javascript
+// .pnpmfile.cjs - 解决Expo和React Native的依赖冲突
+function readPackage(pkg, context) {
+  // 解决React Native和Expo的peer dependencies问题
+  if (pkg.name === 'react-native') {
+    pkg.peerDependencies = {
+      ...pkg.peerDependencies,
+      'react': '*',
+      'react-native': '*'
+    }
+  }
+  
+  // 强制使用特定版本避免冲突
+  if (pkg.dependencies && pkg.dependencies['react-native-svg']) {
+    pkg.dependencies['react-native-svg'] = '13.4.0'
+  }
+  
+  return pkg
+}
+
+module.exports = {
+  hooks: {
+    readPackage
+  }
+}
+```
+
+#### EAS Build配置 (eas.json)
+```json
+{
+  "cli": {
+    "version": ">= 5.0.0",
+    "packageManager": "pnpm"
+  },
+  "build": {
+    "development": {
+      "developmentClient": true,
+      "distribution": "internal"
+    },
+    "preview": {
+      "distribution": "internal"
+    },
+    "production": {
+      "autoIncrement": true
+    }
+  },
+  "submit": {
+    "production": {}
+  }
+}
+```
+
+### 10.2 Expo加密模块实现
 
 #### 安装依赖
 ```bash
-npm install crypto-js
-npm install react-native-keychain
-# 或者
-yarn add crypto-js
-yarn add react-native-keychain
+# 使用pnpm安装依赖
+pnpm add crypto-js
+pnpm expo install expo-secure-store expo-crypto
 ```
 
 #### 加密管理器实现
 ```typescript
 import CryptoJS from 'crypto-js';
-import * as Keychain from 'react-native-keychain';
+import * as SecureStore from 'expo-secure-store';
 
 class CryptoManager {
   private static readonly DEFAULT_PASSWORD = 'defAult.@.Password.';
@@ -469,17 +658,14 @@ class CryptoManager {
 
   // 安全存储自定义密码
   static async storeCustomPassword(password: string): Promise<void> {
-    await Keychain.setInternetCredentials(this.KEYCHAIN_SERVICE, 'customPassword', password);
+    await SecureStore.setItemAsync('customPassword', password);
   }
 
   // 获取自定义密码
   static async getCustomPassword(): Promise<string | null> {
     try {
-      const credentials = await Keychain.getInternetCredentials(this.KEYCHAIN_SERVICE);
-      if (credentials && credentials.password) {
-        return credentials.password;
-      }
-      return null;
+      const password = await SecureStore.getItemAsync('customPassword');
+      return password || null;
     } catch (error) {
       return null;
     }
@@ -489,22 +675,85 @@ class CryptoManager {
 export default CryptoManager;
 ```
 
-### 10.2 React Native数据兼容性处理
+#### 通知管理器实现
+```typescript
+import * as Notifications from 'expo-notifications';
+import * as Device from 'expo-device';
+import Constants from 'expo-constants';
+
+Notifications.setNotificationHandler({
+  handleNotification: async () => ({
+    shouldShowAlert: true,
+    shouldPlaySound: false,
+    shouldSetBadge: false,
+  }),
+});
+
+class NotificationManager {
+  static async registerForPushNotifications(): Promise<string | null> {
+    let token;
+
+    if (Platform.OS === 'android') {
+      await Notifications.setNotificationChannelAsync('default', {
+        name: 'default',
+        importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 250, 250, 250],
+        lightColor: '#FF231F7C',
+      });
+    }
+
+    if (Device.isDevice) {
+      const { status: existingStatus } = await Notifications.getPermissionsAsync();
+      let finalStatus = existingStatus;
+      
+      if (existingStatus !== 'granted') {
+        const { status } = await Notifications.requestPermissionsAsync();
+        finalStatus = status;
+      }
+      
+      if (finalStatus !== 'granted') {
+        alert('Failed to get push token for push notification!');
+        return null;
+      }
+      
+      token = (await Notifications.getExpoPushTokenAsync({
+        projectId: Constants.expoConfig?.extra?.eas?.projectId,
+      })).data;
+    } else {
+      alert('Must use physical device for Push Notifications');
+    }
+
+    return token;
+  }
+
+  static async scheduleAnnualFeeReminder(card: CreditCard): Promise<void> {
+    if (!card.nextAnnualFeeCollectionTime) return;
+
+    const reminderDate = new Date(card.nextAnnualFeeCollectionTime);
+    reminderDate.setDate(reminderDate.getDate() - 30); // 30天前提醒
+
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: '年费提醒',
+        body: `${card.bank} - ${card.alias} 将在30天后收取年费`,
+        data: { cardId: card.id, type: 'annual_fee' },
+      },
+      trigger: { date: reminderDate },
+    });
+  }
+}
+
+### 10.2 Expo数据兼容性处理
 
 #### 数据库服务实现
 ```typescript
-import SQLite from 'react-native-sqlite-storage';
+import * as SQLite from 'expo-sqlite';
 
 class DatabaseService {
   private db: SQLite.SQLiteDatabase | null = null;
 
   async initialize(): Promise<void> {
-    this.db = await SQLite.openDatabase(
-      { name: 'CreditCards.db', location: 'default' },
-      () => console.log('Database opened'),
-      error => console.error('Database error:', error)
-    );
-    
+    this.db = SQLite.openDatabase('CreditCards.db');
     await this.createTables();
   }
 
@@ -538,7 +787,7 @@ class DatabaseService {
       )
     `;
     
-    await this.db?.executeSql(createTableQuery);
+    await this.db.execAsync(createTableQuery);
   }
 }
 
@@ -607,11 +856,12 @@ class DataCompatibilityHandler {
 }
 ```
 
-### 10.3 React Native测试策略
+### 10.3 Expo测试策略
 
 #### 单元测试（Jest + React Native Testing Library）
 ```bash
-npm install --save-dev @testing-library/react-native jest
+pnpm add --save-dev @testing-library/react-native jest
+pnpm expo install expo-constants
 ```
 
 ```typescript
@@ -635,9 +885,10 @@ describe('CryptoManager', () => {
 });
 ```
 
-#### E2E测试（Detox）
+#### E2E测试（Expo + Maestro）
 ```bash
-npm install --save-dev detox
+# 安装Maestro
+curl -Ls "https://get.maestro.mobile.dev" | bash
 ```
 
 #### 测试覆盖重点
@@ -646,20 +897,22 @@ npm install --save-dev detox
 3. **字段扩展测试**：模拟版本升级和降级场景
 4. **WebDAV同步测试**：网络请求和数据完整性
 5. **UI组件测试**：关键界面和用户交互
-6. **安全存储测试**：Keychain操作和密码管理
+6. **安全存储测试**：expo-secure-store操作和密码管理
 
 ---
 
-**文档版本**：v3.0  
-**更新时间**：基于React Native技术栈调整  
+**文档版本**：v4.0  
+**更新时间**：基于Expo跨平台技术栈调整  
 **更新内容**：
-- 将原生开发方案调整为React Native跨平台开发
-- 更新技术栈推荐和依赖库选择
-- 提供React Native特定的加密实现方案
-- 调整数据库方案为SQLite + TypeScript
-- 更新测试策略以适应React Native开发
-- 保持与Web端的完全兼容性设计
+- 将React Native开发方案调整为Expo跨平台开发
+- 更新技术栈推荐为Expo生态系统组件
+- 提供Expo特定的加密实现方案（expo-secure-store + crypto-js）
+- 调整数据库方案为expo-sqlite
+- 更新文件系统操作为expo-file-system
+- 添加expo-notifications通知推送支持
+- 更新测试策略以适应Expo开发环境
+- 保持与Web端Vue.js应用的完全兼容性设计
 
-**适用平台**：React Native（Android、iOS跨平台应用）
-**Node.js版本要求**：16.x以上  
-**React Native版本要求**：0.72以上
+**适用平台**：Expo（Android、iOS、Web跨平台应用）
+**Node.js版本要求**：18.x以上  
+**Expo SDK版本要求**：50以上
