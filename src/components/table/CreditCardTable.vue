@@ -8,8 +8,6 @@
       @row-dblclick="handleRowDoubleClick"
       class="mobile-optimized"
       @row-contextmenu="handleContextMenu"
-      @sort-change="handleSortChange"
-      :default-sort="{ prop: sortState.key, order: sortState.order }"
       :row-class-name="rowClassName"
       @selection-change="handleSelectionChange"
       :span-method="spanMethod"
@@ -26,7 +24,7 @@
           :min-width="getColumnMinWidth(column.value)"
           align="center"
           :fixed="isColumnFixed(column.value)"
-          :sortable="isSortable(column.value)"
+          :sortable="false"
           :class-name="getColumnClass(column.value)"
           :sort-method="getSortMethod(column.value)"
         >
@@ -73,7 +71,7 @@
             <el-tag v-if="row.isQualified === '3'" type="info">终免年费</el-tag>
           </template>
           <template v-else-if="column.value === 'interestFreePeriod'" #default="{ row }">
-            <span>{{ calculateInterestFreePeriod(row.accountBillDate, row.dueDate) }}</span>
+            <span>{{ calculateInterestFreePeriod(row.accountBillDate, row.dueDate, row.billingDaySpendingToNextBill) }}</span>
           </template>
           <template v-else-if="column.value === 'nextAnnualFeeCollectionTime'" #default="{ row }">
             <div style="display: flex; flex-direction: column; align-items: center;">
@@ -165,7 +163,7 @@ function parseAnnualFee(fee) {
 }
 
 // 计算免息期天数
-function calculateInterestFreePeriodDays(accountBillDate, dueDate) {
+function calculateInterestFreePeriodDays(accountBillDate, dueDate, billingDaySpendingToNextBill = true) {
   if (!accountBillDate || !dueDate) return 0
   
   const today = new Date()
@@ -186,11 +184,20 @@ function calculateInterestFreePeriodDays(accountBillDate, dueDate) {
     repaymentDate.setMonth(repaymentDate.getMonth() + 1)
   }
   
-  // 账单日当天的消费按当期账单计算
+  // 根据billingDaySpendingToNextBill配置处理账单日当天的消费
   if (currentDay === billingDay) {
-    repaymentDate = new Date(currentYear, currentMonth, repaymentDay)
-    if (repaymentDay < billingDay) {
+    if (billingDaySpendingToNextBill) {
+      // 账单日当天消费计入下期账单，享受更长免息期
       repaymentDate.setMonth(repaymentDate.getMonth() + 1)
+      if (repaymentDay < billingDay) {
+        repaymentDate.setMonth(repaymentDate.getMonth() + 1)
+      }
+    } else {
+      // 账单日当天消费计入当期账单，免息期较短
+      repaymentDate = new Date(currentYear, currentMonth, repaymentDay)
+      if (repaymentDay < billingDay) {
+        repaymentDate.setMonth(repaymentDate.getMonth() + 1)
+      }
     }
   }
   
@@ -202,7 +209,7 @@ function calculateInterestFreePeriodDays(accountBillDate, dueDate) {
 }
 
 // 计算免息期
-function calculateInterestFreePeriod(billingDay, repaymentDay) {
+function calculateInterestFreePeriod(billingDay, repaymentDay, billingDaySpendingToNextBill = true) {
   // 如果账单日或还款日未设置，返回 '-'
   if (!billingDay || !repaymentDay) {
     return '-'
@@ -243,10 +250,20 @@ function calculateInterestFreePeriod(billingDay, repaymentDay) {
   }
   repaymentDate.setDate(repaymentDay)
 
+  // 根据billingDaySpendingToNextBill配置处理账单日当天的消费
   if (currentDay === billingDay) {
-    repaymentDate = new Date(currentYear, currentMonth, repaymentDay)
-    if (repaymentDay < billingDay) {
+    if (billingDaySpendingToNextBill) {
+      // 账单日当天消费计入下期账单，享受更长免息期
       repaymentDate.setMonth(repaymentDate.getMonth() + 1)
+      if (repaymentDay < billingDay) {
+        repaymentDate.setMonth(repaymentDate.getMonth() + 1)
+      }
+    } else {
+      // 账单日当天消费计入当期账单，免息期较短
+      repaymentDate = new Date(currentYear, currentMonth, repaymentDay)
+      if (repaymentDay < billingDay) {
+        repaymentDate.setMonth(repaymentDate.getMonth() + 1)
+      }
     }
   }
 
@@ -374,8 +391,8 @@ export default {
           }
         case 'interestFreePeriod':
           return (a, b) => {
-            const daysA = calculateInterestFreePeriodDays(a.accountBillDate, a.dueDate) || 0
-            const daysB = calculateInterestFreePeriodDays(b.accountBillDate, b.dueDate) || 0
+            const daysA = calculateInterestFreePeriodDays(a.accountBillDate, a.dueDate, a.billingDaySpendingToNextBill) || 0
+            const daysB = calculateInterestFreePeriodDays(b.accountBillDate, b.dueDate, b.billingDaySpendingToNextBill) || 0
             return daysA - daysB
           }
         default:

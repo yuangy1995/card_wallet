@@ -207,6 +207,18 @@
             />
           </el-form-item>
         </el-descriptions-item>
+        
+        <el-descriptions-item label="📋 账单日消费计入" :span="2">
+          <el-form-item prop="billingDaySpendingToNextBill">
+            <el-radio-group v-model="formData.billingDaySpendingToNextBill">
+              <el-radio :value="false" size="large">当期账单</el-radio>
+              <el-radio :value="true" size="large">下期账单</el-radio>
+            </el-radio-group>
+            <div style="color: #909399; font-size: 12px; margin-top: 4px;">
+              {{ formData.billingDaySpendingToNextBill ? '账单日当天的消费将计入下期账单，免息期更长' : '账单日当天的消费将计入当期账单，免息期较短' }}
+            </div>
+          </el-form-item>
+        </el-descriptions-item>
         <el-descriptions-item label="💵 年费">
           <el-input 
             v-model="formData.annualFee" 
@@ -508,7 +520,8 @@ export default {
       lastTime: '',
       equity: '',
       remark: '',
-      isSharedLimit: true // 默认共享额度
+      isSharedLimit: true, // 默认共享额度
+      billingDaySpendingToNextBill: true // 默认账单日消费计入下期账单
     })
 
     // 检查是否存在同银行的卡片
@@ -619,7 +632,8 @@ export default {
             lastTime: '',
             equity: '',
             remark: '',
-            isSharedLimit: true
+            isSharedLimit: true,
+            billingDaySpendingToNextBill: true
           }
           // 重置相关状态
           existingSharedLimitCard.value = null
