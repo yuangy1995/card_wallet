@@ -334,8 +334,13 @@ const tableData = computed(() => {
     }
     bankGroups.set(countryBankKey, bankGroups.get(countryBankKey) + 1);
     
-    // 不再需要统计额度分组，因为不再合并显示
-    // 保留空代码块以维持代码结构
+    // 统计额度分组（只有共享额度的才合并）
+    if (card.isSharedLimit) {
+      if (!sharedLimitGroups.has(sharedLimitKey)) {
+        sharedLimitGroups.set(sharedLimitKey, 0);
+      }
+      sharedLimitGroups.set(sharedLimitKey, sharedLimitGroups.get(sharedLimitKey) + 1);
+    }
   });
   
   // 第二遍遍历，生成显示数据
@@ -367,10 +372,22 @@ const tableData = computed(() => {
       processedCard.showBank = false;
     }
     
-    // 不再合并显示额度列，每行都显示自己的额度
-    processedCard.limitRowSpan = 1;
-    processedCard.showLimit = true;
-    currentSharedLimit = null; // 重置共享额度状态
+    // 处理额度列合并（只有共享额度的才合并）
+    if (card.isSharedLimit) {
+      if (sharedLimitKey !== currentSharedLimit) {
+        currentSharedLimit = sharedLimitKey;
+        processedCard.limitRowSpan = sharedLimitGroups.get(sharedLimitKey);
+        processedCard.showLimit = true;
+      } else {
+        processedCard.limitRowSpan = 0;
+        processedCard.showLimit = false;
+      }
+    } else {
+      // 独立额度不合并
+      processedCard.limitRowSpan = 1;
+      processedCard.showLimit = true;
+      currentSharedLimit = null; // 重置共享额度状态
+    }
     
     grouped.push(processedCard);
   });
