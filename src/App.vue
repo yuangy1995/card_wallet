@@ -279,8 +279,9 @@ const tableData = computed(() => {
                       card.level.includes(searchForm.value.level)));
     
     // 年费达标状态匹配
-    const matchStatus = searchForm.value.isQualified === '' || 
-                       card.isQualified === searchForm.value.isQualified;
+    const matchStatus = !searchForm.value.isQualified || 
+                       searchForm.value.isQualified.length === 0 || 
+                       searchForm.value.isQualified.includes(card.isQualified);
     
     // 别名搜索
     const matchAlias = !searchForm.value.alias || 
