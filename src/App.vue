@@ -286,7 +286,30 @@ const tableData = computed(() => {
     const matchAlias = !searchForm.value.alias || 
                       (card.alias && card.alias.toLowerCase().includes(searchForm.value.alias.toLowerCase()));
     
-    return matchType && matchBank && matchLevel && matchStatus && matchAlias;
+    // 国家匹配
+    const matchCountry = !searchForm.value.country || 
+                        (card.country && (searchForm.value.country.includes(card.country) ||
+                        card.country.includes(searchForm.value.country)));
+    
+    // 卡号匹配 - 去除空格和其他格式字符进行匹配
+    const matchCardNumber = !searchForm.value.cardNumber || 
+                           (card.cardNumber && 
+                            card.cardNumber.replace(/[\s-]/g, '').includes(searchForm.value.cardNumber.replace(/[\s-]/g, '')));
+    
+    // 额度匹配
+    const matchLimit = !searchForm.value.limit || 
+                      (card.limit && card.limit.toString().includes(searchForm.value.limit));
+    
+    // 权益匹配
+    const matchEquity = !searchForm.value.equity || 
+                       (card.equity && card.equity.toLowerCase().includes(searchForm.value.equity.toLowerCase()));
+    
+    // 备注匹配
+    const matchRemark = !searchForm.value.remark || 
+                       (card.remark && card.remark.toLowerCase().includes(searchForm.value.remark.toLowerCase()));
+    
+    return matchType && matchBank && matchLevel && matchStatus && matchAlias && 
+           matchCountry && matchCardNumber && matchLimit && matchEquity && matchRemark;
   });
 
   // 默认排序：先按国家，再按银行
