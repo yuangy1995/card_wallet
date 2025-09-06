@@ -7,6 +7,9 @@
         class="search-form"
       />
       <div class="button-container">
+        <!-- 自动锁定倒计时显示 -->
+        <AutoLockCountdown class="countdown-display" />
+        
         <el-button-group class="button-group mobile-responsive">
           <el-button type="primary" @click="addCreditCard">
             <el-icon>
@@ -132,6 +135,32 @@
         full-screen
       />
     </div>
+        <!-- 安全功能组件 -->
+        <PasswordSetup 
+      v-model="showPasswordSetup" 
+      @password-set="handlePasswordSet"
+    />
+    
+    <PasswordVerify 
+      v-model="showPasswordVerify" 
+      @verified="handlePasswordVerified"
+      @forgot-password="showForgotPasswordDialog = true"
+    />
+    
+    <ForgotPassword
+      v-model="showForgotPasswordDialog"
+      @option-selected="handleForgotPasswordOption"
+    />
+    
+    <PasswordRecovery
+      v-model="showPasswordRecovery"
+      @recovery-success="handleRecoverySuccess"
+    />
+    
+    <FloatingLockButton
+      @lock-app="handleLockApp"
+      @show-password-settings="showPasswordSetup = true"
+    />
   </div>
 </template>
 
@@ -165,6 +194,15 @@ const HelpPage = defineAsyncComponent(() => import('@/components/help/HelpPage.v
 const WebDAVConfigDialog = defineAsyncComponent(() => import('@/components/dialog/WebDAVConfigDialog.vue'))
 const BackupDialog = defineAsyncComponent(() => import('@/components/dialog/BackupDialog.vue'))
 const LocalBackupDialog = defineAsyncComponent(() => import('@/components/dialog/LocalBackupDialog.vue'))
+
+// 安全功能组件导入
+import PasswordSetup from '@/components/security/PasswordSetup.vue'
+import PasswordVerify from '@/components/security/PasswordVerify.vue'
+import ForgotPassword from '@/components/security/ForgotPassword.vue'
+import PasswordRecovery from '@/components/security/PasswordRecovery.vue'
+import FloatingLockButton from '@/components/security/FloatingLockButton.vue'
+import AutoLockCountdown from '@/components/security/AutoLockCountdown.vue'
+
 import { creditCardOptions } from '@/config/creditCardOptions'
 import SearchForm from '@/components/search/SearchForm.vue'
 import { generateMockData } from '@/utils/mockData'
@@ -175,6 +213,9 @@ import { BACKUP_CONSTANTS, STORAGE_KEYS } from '@/config/constants'
 import { saveCardData, getCardData, saveBackupData, getBackupData, saveTableColumns, getTableColumns } from '@/utils/storage'
 import { useDebouncedRef } from '@/composables/useDebounce'
 import { useKeyboardShortcuts } from '@/composables/useKeyboardShortcuts'
+import { useTheme } from '@/composables/useTheme'
+import { useAutoLock } from '@/composables/useAutoLock'
+import { PasswordManager } from '@/utils/passwordManager'
 
 // 状态管理
 const cardData = ref([])
@@ -1019,6 +1060,88 @@ onUnmounted(() => {
     clearTimeout(backupTimer)
   }
 })
+
+// 安全功能状态
+const showPasswordSetup = ref(false)
+const showPasswordVerify = ref(false)
+const showForgotPasswordDialog = ref(false)
+const showPasswordRecovery = ref(false)
+
+// 自动锁定功能
+const { isLocked, unlockApp, lockApp, initAfterPasswordSet } = useAutoLock()
+
+// 密码设置完成
+const handlePasswordSet = () => {
+  initAfterPasswordSet()
+  ElMessage.success('密码设置成功，安全功能已启用')
+}
+
+// 密码验证成功
+const handlePasswordVerified = () => {
+  unlockApp()
+  showPasswordVerify.value = false
+}
+
+// 处理忘记密码选项
+const handleForgotPasswordOption = (option) => {
+  if (option === 'reset') {
+    handleResetAllData()
+  } else if (option === 'recover') {
+    showPasswordRecovery.value = true
+  }
+}
+
+// 重置所有数据
+const handleResetAllData = async () => {
+  try {
+    await ElMessageBox.confirm(
+      '此操作将清除所有数据，包括信用卡信息、WebDAV配置和本地备份。确定继续吗？',
+      '警告',
+      {
+        confirmButtonText: '确定清除',
+        cancelButtonText: '取消',
+        type: 'error'
+      }
+    )
+    
+    const success = PasswordManager.clearAllAppData()
+    if (success) {
+      ElMessage.success('数据已清除，请设置新密码')
+      showPasswordSetup.value = true
+    } else {
+      ElMessage.error('数据清除失败')
+    }
+  } catch {
+    ElMessage.info('已取消操作')
+  }
+}
+
+// 找回密码成功
+const handleRecoverySuccess = () => {
+  showPasswordSetup.value = true
+}
+
+// 手动锁定应用
+const handleLockApp = () => {
+  lockApp()
+  showPasswordVerify.value = true
+}
+
+// 监听锁定状态
+watch(() => isLocked.value, (locked) => {
+  if (locked) {
+    showPasswordVerify.value = true
+  }
+})
+
+onMounted(() => {
+  // 检查是否需要设置密码
+  if (!PasswordManager.hasPassword()) {
+    showPasswordSetup.value = true
+  } else if (PasswordManager.isAppLocked() || PasswordManager.shouldAutoLock()) {
+    showPasswordVerify.value = true
+  }
+})
 </script>
 
 <style lang="scss">
@@ -1106,10 +1229,12 @@ onUnmounted(() => {
   flex-direction: column;
   align-items: center;
   gap: 12px;
+  position: relative;
   
   @media (min-width: 768px) {
     flex-direction: row;
     justify-content: space-between;
   }
 }
+
 </style>

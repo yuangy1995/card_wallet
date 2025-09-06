@@ -29,3 +29,10 @@ export const UI_CONSTANTS = {
   LOADING_DELAY: 500,           // 加载延迟
   DEBOUNCE_DELAY: 300           // 防抖延迟
 }
+
+// 安全相关常量
+export const SECURITY_CONSTANTS = {
+  AUTO_LOCK_TIMEOUT: 2 * 60 * 1000, // 2分钟自动锁定
+  MAX_FAILED_ATTEMPTS: 5,           // 最大失败尝试次数
+  PASSWORD_MIN_LENGTH: 6            // 密码最小长度
+}
