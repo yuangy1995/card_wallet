@@ -124,9 +124,12 @@ export const generateCreditCard = () => {
   const currency = creditCardOptions.currencyList[randomInt(0, creditCardOptions.currencyList.length - 1)].name
   const currencyCode = getCurrencyCode(currency)
   
-  // 生成有效期（1-5年内）
+  // 生成有效期（1-5年内）- 使用MM/YY格式
   const validYears = randomInt(1, 5)
   const validDate = new Date(now.getFullYear() + validYears, randomInt(0, 11))
+  const validMonth = String(validDate.getMonth() + 1).padStart(2, '0')
+  const validYear = String(validDate.getFullYear()).slice(2) // 取后两位
+  const valid = `${validMonth}/${validYear}` // MM/YY格式
   
   // 生成年费日期（随机分布在过去1年到未来1年之间）
   const annualFeeDate = randomDate(
@@ -151,7 +154,7 @@ export const generateCreditCard = () => {
   const isQualifiedStates = ['1', '2', '3'] // 1: 已达标, 2: 未达标, 3: 终免年费
   const isQualified = isQualifiedStates[randomInt(0, 2)]
   
-  // 生成账单日和还款日
+  // 生成账单日和还款日（String类型）
   const accountBillDate = randomInt(1, 28).toString() // 避免使用29-31日，以处理2月份的情况
   const daysAfterBill = randomInt(10, 25) // 还款日通常在账单日后10-25天
   let dueDate = parseInt(accountBillDate) + daysAfterBill
@@ -160,24 +163,32 @@ export const generateCreditCard = () => {
   }
   dueDate = dueDate.toString()
   
+  // 生成最后修改时间
+  const lastModifyTime = now.toISOString().slice(0, 19).replace('T', ' ')
+  
   return {
-    id: Date.now() + randomInt(1000, 9999),
+    id: crypto.randomUUID(), // 使用UUID
     country,
     bank: bankName,
     alias,
     cardNumber: generateCardNumber(bin),
     cvv: generateCVV(),
-    valid: validDate.toISOString().slice(0, 7),
+    valid, // MM/YY格式
     limit: randomInt(...(limitRanges[baseLevel] || limitRanges['普卡'])),
     type: currencyCode,
     annualFee: randomInt(...(annualFeeRanges[currencyCode] || annualFeeRanges['CNY'])),
-    annualFeeDate: annualFeeDate.toISOString().slice(0, 10),
     nextAnnualFeeCollectionTime: nextAnnualFeeDate.toISOString().slice(0, 10),
     lastTime,
     isQualified,
     level: cardLevel,
-    accountBillDate,
-    dueDate
+    accountBillDate, // String类型
+    dueDate, // String类型
+    // 🆕 新增字段
+    isSharedLimit: Math.random() > 0.3, // 70%概率共享额度
+    billingDaySpendingToNextBill: Math.random() > 0.5, // 50%概率计入下期
+    lastModifyTime, // 最后修改时间
+    equity: '', // 权益信息默认为空
+    remark: '' // 备注信息默认为空
   }
 }
 

@@ -210,12 +210,13 @@ import { encryptData, decryptData } from '@/utils/encryption'
 import { formatDate, daysBetween } from '@/utils/dateUtils'
 import { getCurrentTimeFormatted } from '@/utils/dateFormatter'
 import { BACKUP_CONSTANTS, STORAGE_KEYS } from '@/config/constants'
-import { saveCardData, getCardData, saveBackupData, getBackupData, saveTableColumns, getTableColumns } from '@/utils/storage'
+import { saveCardData, getCardData, saveBackupData, getBackupData, saveTableColumns, getTableColumns, CardDataStorage } from '@/utils/storage'
 import { useDebouncedRef } from '@/composables/useDebounce'
 import { useKeyboardShortcuts } from '@/composables/useKeyboardShortcuts'
 import { useTheme } from '@/composables/useTheme'
 import { useAutoLock } from '@/composables/useAutoLock'
 import { PasswordManager } from '@/utils/passwordManager'
+import { getBankDisplayName } from '@/utils/bankNameFormatter'
 
 // 状态管理
 const cardData = ref([])
@@ -486,26 +487,27 @@ onMounted(async () => {
       tableCustomColumns.value = storedColumns
     }
 
-    // 加载卡片数据
+    // 加载卡片数据（带迁移信息）
     showLoading('正在加载数据...')
-    const storedData = getCardData()
-    if (storedData && storedData.length > 0) {
-      cardData.value = storedData
-      
-      // 检查并为没有 ID 的卡片生成唯一 ID
-      let hasChanges = false
-      cardData.value.forEach(card => {
-        if (!card.id) {
-          card.id = crypto.randomUUID()
-          hasChanges = true
-        }
-      })
-      
-      // 如果有卡片被添加了 ID，更新本地存储
-      if (hasChanges) {
-        saveCardData(cardData.value)
+    const result = CardDataStorage.getCardData(true)
+    const migrationInfo = result.migrationInfo
+    cardData.value = result.data
+    
+    // 检查并为没有 ID 的卡片生成唯一 ID
+    let hasChanges = false
+    cardData.value.forEach(card => {
+      if (!card.id) {
+        card.id = crypto.randomUUID()
+        hasChanges = true
       }
+    })
+    
+    // 如果有卡片被添加了 ID，更新本地存储
+    if (hasChanges) {
+      saveCardData(cardData.value)
+    }
 
+    if (cardData.value && cardData.value.length > 0) {
       // 检查年费达标状态
       showLoading('正在检查年费状态...')
       await checkAnnualFeeQualified()
@@ -513,6 +515,11 @@ onMounted(async () => {
       // 自动检查年费情况
       await manualCheckAnnualFees()
     }
+    
+    // 显示迁移报告（需要在所有loading完成后）
+    hideLoading()
+    await nextTick()
+    showMigrationReport(migrationInfo)
   } finally {
     hideLoading()
   }
@@ -978,6 +985,169 @@ const showWebDAVConfig = () => {
   webDAVConfig.value?.showDialog()
 }
 
+// 显示数据迁移报告
+const showMigrationReport = async (migrationInfo) => {
+  if (!migrationInfo) return
+  
+  // 判断是否为测试环境（通过 hostname 或环境变量）
+  const isTestEnv = window.location.hostname === 'localhost' || 
+                     window.location.hostname === '127.0.0.1' ||
+                     import.meta.env.DEV
+  
+  // 如果没有迁移，只在测试环境下提示
+  if (!migrationInfo.migrated) {
+    if (isTestEnv) {
+      ElMessage({
+        type: 'success',
+        message: '✅ 数据结构已是最新版本，无需迁移',
+        duration: 3000,
+        showClose: true
+      })
+    }
+    return
+  }
+  
+  // 有迁移，显示详细弹窗
+  const summary = migrationInfo.summary
+  const details = migrationInfo.details || []
+  
+  // 构建详细的HTML内容
+  let htmlContent = '<div style="max-height: 70vh; overflow-y: auto;">'
+  
+  // 概览部分
+  htmlContent += '<div style="margin-bottom: 20px; padding: 15px; background: #f0f9ff; border-radius: 8px; border-left: 4px solid #3b82f6;">'
+  htmlContent += '<h3 style="margin: 0 0 10px 0; color: #1e40af;">📊 迁移概览</h3>'
+  htmlContent += `<p style="margin: 5px 0;"><strong>总卡片数:</strong> ${summary.total}</p>`
+  htmlContent += `<p style="margin: 5px 0;"><strong>需要迁移:</strong> ${summary.migrated}</p>`
+  htmlContent += `<p style="margin: 5px 0;"><strong>成功迁移:</strong> <span style="color: #16a34a;">${summary.success}</span></p>`
+  
+  if (summary.errors > 0) {
+    htmlContent += `<p style="margin: 5px 0;"><strong>失败数量:</strong> <span style="color: #dc2626;">${summary.errors}</span></p>`
+  }
+  htmlContent += '</div>'
+  
+  // 失败的卡片
+  if (summary.errors > 0 && summary.errorDetails && summary.errorDetails.length > 0) {
+    htmlContent += '<div style="margin-bottom: 20px;">'
+    htmlContent += '<h3 style="color: #dc2626; margin-bottom: 10px;">❌ 迁移失败的卡片</h3>'
+    
+    summary.errorDetails.forEach((error, index) => {
+      htmlContent += '<div style="margin-bottom: 10px; padding: 12px; background: #fef2f2; border-radius: 6px; border-left: 4px solid #dc2626;">'
+      htmlContent += `<p style="margin: 0 0 5px 0; font-weight: bold;">卡片 #${index + 1}</p>`
+      htmlContent += `<p style="margin: 0; color: #666;">索引: ${error.index}</p>`
+      if (error.cardId) {
+        htmlContent += `<p style="margin: 5px 0 0 0; color: #666;">ID: ${error.cardId}</p>`
+      }
+      htmlContent += `<p style="margin: 5px 0 0 0; color: #dc2626;">错误: ${error.message}</p>`
+      htmlContent += '</div>'
+    })
+    htmlContent += '</div>'
+  }
+  
+  // 成功迁移的卡片详情（仅测试环境显示）
+  if (isTestEnv && details.length > 0) {
+    htmlContent += '<div style="margin-bottom: 20px;">'
+    htmlContent += '<h3 style="color: #16a34a; margin-bottom: 10px;">✅ 成功迁移的卡片详情</h3>'
+    htmlContent += '<p style="color: #666; font-size: 12px; margin-bottom: 10px;">以下列出所有字段变更的详细信息</p>'
+    
+    details.forEach((detail, idx) => {
+      const cardInfo = detail.cardInfo
+      const changes = detail.changes
+      
+      htmlContent += '<div style="margin-bottom: 15px; padding: 12px; background: #f0fdf4; border-radius: 6px; border-left: 4px solid #16a34a;">'
+      htmlContent += `<h4 style="margin: 0 0 10px 0; color: #15803d;">卡片 #${idx + 1}</h4>`
+      
+      // 卡片基本信息
+      htmlContent += '<div style="margin-bottom: 10px; padding: 8px; background: white; border-radius: 4px;">'
+      if (cardInfo.bank) {
+        htmlContent += `<p style="margin: 3px 0; font-size: 13px;"><strong>银行:</strong> ${getBankDisplayName(cardInfo.bank)}</p>`
+      }
+      if (cardInfo.alias) {
+        htmlContent += `<p style="margin: 3px 0; font-size: 13px;"><strong>别名:</strong> ${cardInfo.alias}</p>`
+      }
+      if (cardInfo.cardNumber) {
+        const masked = cardInfo.cardNumber.slice(0, 4) + ' **** **** ' + cardInfo.cardNumber.slice(-4)
+        htmlContent += `<p style="margin: 3px 0; font-size: 13px;"><strong>卡号:</strong> ${masked}</p>`
+      }
+      htmlContent += '</div>'
+      
+      // 字段变更详情
+      htmlContent += '<div style="margin-top: 10px;">'
+      htmlContent += `<p style="margin: 0 0 8px 0; font-weight: bold; color: #15803d;">变更字段 (${changes.length}个):</p>`
+      
+      changes.forEach((change, changeIdx) => {
+        htmlContent += '<div style="margin-bottom: 8px; padding: 8px; background: #fefce8; border-radius: 4px; font-size: 12px;">'
+        htmlContent += `<p style="margin: 0 0 4px 0;"><strong>字段:</strong> <code style="background: #fef9c3; padding: 2px 6px; border-radius: 3px;">${change.field}</code></p>`
+        
+        // 显示旧值
+        if (change.oldValue === undefined) {
+          htmlContent += '<p style="margin: 4px 0; color: #666;">旧值: <span style="color: #999; font-style: italic;">未定义</span></p>'
+        } else {
+          htmlContent += `<p style="margin: 4px 0; color: #666;">旧值: <code>${JSON.stringify(change.oldValue)}</code></p>`
+        }
+        
+        // 显示新值
+        if (change.newValue === undefined) {
+          htmlContent += '<p style="margin: 4px 0; color: #666;">新值: <span style="color: #999; font-style: italic;">已删除</span></p>'
+        } else {
+          htmlContent += `<p style="margin: 4px 0; color: #16a34a;">新值: <code>${JSON.stringify(change.newValue)}</code></p>`
+        }
+        
+        htmlContent += `<p style="margin: 4px 0 0 0; color: #854d0e; font-style: italic;">原因: ${change.reason}</p>`
+        htmlContent += '</div>'
+      })
+      htmlContent += '</div>'
+      htmlContent += '</div>'
+    })
+    htmlContent += '</div>'
+  } else if (details.length > 0) {
+    // 生产环境只显示简要信息
+    htmlContent += '<div style="margin-bottom: 20px;">'
+    htmlContent += '<h3 style="color: #16a34a; margin-bottom: 10px;">✅ 成功迁移的卡片</h3>'
+    
+    details.forEach((detail, idx) => {
+      const cardInfo = detail.cardInfo
+      const changes = detail.changes
+      
+      htmlContent += '<div style="margin-bottom: 10px; padding: 10px; background: #f0fdf4; border-radius: 6px;">'
+      htmlContent += `<p style="margin: 0; font-weight: bold;">卡片 #${idx + 1}</p>`
+      if (cardInfo.bank) {
+        htmlContent += `<p style="margin: 5px 0 0 0; font-size: 13px; color: #666;">${getBankDisplayName(cardInfo.bank)}`
+        if (cardInfo.alias) htmlContent += ` - ${cardInfo.alias}`
+        htmlContent += '</p>'
+      }
+      htmlContent += `<p style="margin: 5px 0 0 0; font-size: 13px; color: #16a34a;">${changes.length} 个字段已更新</p>`
+      htmlContent += '</div>'
+    })
+    htmlContent += '</div>'
+  }
+  
+  htmlContent += '</div>'
+  
+  // 显示弹窗
+  try {
+    await ElMessageBox.alert(
+      htmlContent,
+      '🔄 数据迁移完成',
+      {
+        confirmButtonText: '我知道了',
+        dangerouslyUseHTMLString: true,
+        customClass: 'migration-report-dialog',
+        showClose: true,
+        closeOnClickModal: false,
+        closeOnPressEscape: false,
+        distinguishCancelAndClose: true,
+        callback: (action) => {
+          console.log('迁移报告已关闭')
+        }
+      }
+    )
+  } catch (error) {
+    // 用户关闭弹窗
+    console.log('用户关闭了迁移报告')
+  }
+}
+
 const handleBackup = () => {
   backup.value?.open(cardData.value)
 }
@@ -1237,4 +1407,31 @@ onMounted(() => {
   }
 }
 
+/* 迁移报告弹窗样式 */
+:deep(.migration-report-dialog) {
+  max-width: 900px;
+  
+  .el-message-box__header {
+    padding: 20px 20px 15px;
+  }
+  
+  .el-message-box__title {
+    font-size: 20px;
+    font-weight: 600;
+  }
+  
+  .el-message-box__content {
+    padding: 10px 20px;
+    max-height: calc(80vh - 120px);
+    overflow-y: auto;
+  }
+  
+  code {
+    background: #f1f5f9;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font-family: 'Courier New', monospace;
+    font-size: 12px;
+  }
+}
 </style>

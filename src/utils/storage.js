@@ -3,6 +3,7 @@
  */
 import { STORAGE_KEYS } from '@/config/constants'
 import { handleStorageError } from '@/utils/errorHandler'
+import { autoMigrateLocalData } from '@/utils/cardDataMigration'
 
 /**
  * 本地存储管理器
@@ -101,11 +102,37 @@ export class StorageManager {
  */
 export class CardDataStorage {
   /**
-   * 获取信用卡数据
-   * @returns {Array} 信用卡数据数组
+   * 获取信用卡数据（自动迁移老数据）
+   * @param {boolean} returnMigrationInfo - 是否返回迁移信息
+   * @returns {Array|Object} 信用卡数据数组或包含迁移信息的对象
    */
-  static getCardData() {
-    return StorageManager.get(STORAGE_KEYS.CARD_DATA, [])
+  static getCardData(returnMigrationInfo = false) {
+    const rawData = StorageManager.get(STORAGE_KEYS.CARD_DATA, [])
+    
+    // 自动迁移老数据
+    const migrationResult = autoMigrateLocalData(rawData)
+    
+    if (migrationResult.migrated) {
+      console.log('数据迁移完成:', migrationResult.summary)
+      // 自动保存迁移后的数据
+      this.saveCardData(migrationResult.data)
+      
+      if (returnMigrationInfo) {
+        return {
+          data: migrationResult.data,
+          migrationInfo: migrationResult
+        }
+      }
+      return migrationResult.data
+    }
+    
+    if (returnMigrationInfo) {
+      return {
+        data: rawData,
+        migrationInfo: migrationResult
+      }
+    }
+    return rawData
   }
 
   /**

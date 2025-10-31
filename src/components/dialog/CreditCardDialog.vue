@@ -537,15 +537,26 @@ export default {
           
           // 处理特殊字段的格式转换
           if (data.valid) {
-            const date = new Date(data.valid)
-            data.valid = `${String(date.getMonth() + 1).padStart(2, '0')}/${String(date.getFullYear() % 100).padStart(2, '0')}`
+            // 如果是老格式（YYYY-MM-DD 或 YYYY-MM），转换为 MM/YY
+            if (!/^\d{2}\/\d{2}$/.test(data.valid)) {
+              try {
+                const date = new Date(data.valid)
+                if (!isNaN(date.getTime())) {
+                  data.valid = `${String(date.getMonth() + 1).padStart(2, '0')}/${String(date.getFullYear() % 100).padStart(2, '0')}`
+                }
+              } catch (error) {
+                console.error('有效期格式转换失败:', error)
+                data.valid = ''
+              }
+            }
           }
           
           // 确保数值类型字段正确
           data.limit = Number(data.limit) || 0
           data.annualFee = Number(data.annualFee) || 0
-          data.accountBillDate = Number(data.accountBillDate) || ''
-          data.dueDate = Number(data.dueDate) || ''
+          // 统一账单日和还款日的数据类型为String
+          data.accountBillDate = data.accountBillDate ? String(data.accountBillDate) : ''
+          data.dueDate = data.dueDate ? String(data.dueDate) : ''
           
           // 更新表单数据
           formData.value = data
@@ -684,12 +695,8 @@ export default {
         // 处理提交数据
         const submitData = { ...formData.value }
         
-        // 转换日期格式
-        if (submitData.valid) {
-          const [month, year] = submitData.valid.split('/')
-          submitData.valid = `20${year}-${month}-01`
-        }
-        
+        // 保持有效期为 MM/YY 格式存储
+        // 不再转换为 YYYY-MM-DD 格式
         emit('submit', submitData)
         dialogVisible.value = false
       })
