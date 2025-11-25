@@ -71,6 +71,12 @@
               <QuestionFilled />
             </el-icon>使用帮助
           </el-button>
+          <!-- 开发测试：导出脱敏数据 -->
+          <el-button v-if="isDev" type="danger" @click="exportDesensitizedData">
+            <el-icon>
+              <CopyDocument />
+            </el-icon>导出脱敏数据
+          </el-button>
         </el-button-group>
         
       </div>
@@ -179,7 +185,8 @@ import {
   QuestionFilled,
   Connection,
   Upload,
-  DocumentCopy
+  DocumentCopy,
+  CopyDocument
 } from '@element-plus/icons-vue'
 import CreditCardTable from '@/components/table/CreditCardTable.vue'
 import BatchOperationToolbar from '@/components/toolbar/BatchOperationToolbar.vue'
@@ -286,6 +293,9 @@ const loadingState = ref({
   text: '加载中...',
   progress: null
 })
+
+// 开发环境标识
+const isDev = import.meta.env.DEV || import.meta.env.MODE === 'development'
 
 // 组件引用
 const helpPage = ref(null)
@@ -1303,6 +1313,69 @@ watch(() => isLocked.value, (locked) => {
     showPasswordVerify.value = true
   }
 })
+
+/**
+ * 🔧 开发测试：导出脱敏数据
+ * 将卡号、有效期、CVV随机化处理后复制到剪贴板
+ */
+const exportDesensitizedData = async () => {
+  try {
+    if (cardData.value.length === 0) {
+      ElMessage.warning('没有数据可导出')
+      return
+    }
+
+    // 生成随机卡号（16位数字）
+    const generateRandomCardNumber = () => {
+      const groups = []
+      for (let i = 0; i < 4; i++) {
+        groups.push(Math.floor(1000 + Math.random() * 9000).toString())
+      }
+      return groups.join(' ')
+    }
+
+    // 生成随机有效期（MM/YY格式，未来1-5年）
+    const generateRandomValid = () => {
+      const month = String(Math.floor(1 + Math.random() * 12)).padStart(2, '0')
+      const year = String(new Date().getFullYear() % 100 + Math.floor(1 + Math.random() * 5)).padStart(2, '0')
+      return `${month}/${year}`
+    }
+
+    // 生成随机CVV（3位数字）
+    const generateRandomCVV = () => {
+      return String(Math.floor(100 + Math.random() * 900))
+    }
+
+    // 处理数据，脱敏敏感字段
+    const desensitizedData = cardData.value.map(card => ({
+      ...card,
+      cardNumber: generateRandomCardNumber(),  // 随机卡号
+      valid: generateRandomValid(),            // 随机有效期
+      cvv: generateRandomCVV()                 // 随机CVV
+    }))
+
+    // 构建导出数据
+    const exportPayload = {
+      version: '1.2.0',
+      timestamp: new Date().toISOString().slice(0, 19).replace('T', ' '),
+      totalCards: desensitizedData.length,
+      note: '⚠️ 此数据已脱敏处理：卡号、有效期、CVV已随机化',
+      cards: desensitizedData
+    }
+
+    const jsonStr = JSON.stringify(exportPayload, null, 2)
+    
+    // 复制到剪贴板
+    await navigator.clipboard.writeText(jsonStr)
+    
+    ElMessage.success(`已复制 ${desensitizedData.length} 张卡片的脱敏数据到剪贴板`)
+    
+    console.log('📋 脱敏数据已复制到剪贴板，长度:', jsonStr.length, '字符')
+  } catch (error) {
+    console.error('导出脱敏数据失败:', error)
+    ElMessage.error('复制失败，请手动复制')
+  }
+}
 
 onMounted(() => {
   // 检查是否需要设置密码
