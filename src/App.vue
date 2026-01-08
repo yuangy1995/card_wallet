@@ -539,7 +539,8 @@ onMounted(async () => {
 const checkAnnualFeeQualified = async () => {
   const now = new Date()
   const warningCards = cardData.value.filter(card => {
-    if (card.isQualified === '3' || !card.nextAnnualFeeCollectionTime) return false
+    // 排除终身免年费('3')、已经是未达标状态('2')、或没有年费收取时间的卡片
+    if (card.isQualified === '3' || card.isQualified === '2' || !card.nextAnnualFeeCollectionTime) return false
     const dueDate = new Date(card.nextAnnualFeeCollectionTime)
     const diffDays = Math.ceil((dueDate - now) / (1000 * 60 * 60 * 24))
     return diffDays <= BACKUP_CONSTANTS.ANNUAL_FEE_CHECK_DAYS && diffDays >= 0
