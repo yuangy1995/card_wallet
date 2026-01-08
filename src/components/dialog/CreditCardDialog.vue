@@ -170,12 +170,11 @@
               :step="1000"
               :formatter="value => formatCurrency(value, formData.type)"
               :parser="value => parseCurrency(value)"
-              :disabled="formData.isSharedLimit && existingSharedLimitCard"
               style="width: 100%"
             />
             <div v-if="formData.isSharedLimit && existingSharedLimitCard" 
                  style="color: #E6A23C; font-size: 12px; margin-top: 4px;">
-              检测到同银行已有卡片，已自动使用共享额度：{{ formatCurrency(formData.limit, formData.type) }}
+              检测到同银行已有共享额度卡片，修改额度将同步更新所有共享卡片
             </div>
           </el-form-item>
         </el-descriptions-item>
@@ -597,8 +596,11 @@ export default {
       
       if (existingCard) {
         existingSharedLimitCard.value = existingCard
-        formData.value.limit = existingCard.limit
-        formData.value.type = existingCard.type
+        // 只在新增模式下自动设置已有共享额度，编辑模式下不自动覆盖以允许用户修改
+        if (props.mode === 'add') {
+          formData.value.limit = existingCard.limit
+          formData.value.type = existingCard.type
+        }
       } else {
         existingSharedLimitCard.value = null
       }

@@ -684,6 +684,22 @@ const confirmAdd = async (data) => {
         cardData.value[index] = data
       }
     }
+    
+    // 如果是共享额度，同步更新所有同银行共享额度的卡片
+    if (data.isSharedLimit && data.bank && data.country) {
+      const currentBank = (data.bank || '').replace(/\(.*?\)/g, "").trim()
+      cardData.value.forEach((card, idx) => {
+        if (card.id !== data.id && 
+            card.isSharedLimit === true && 
+            card.country === data.country &&
+            (card.bank || '').replace(/\(.*?\)/g, "").trim() === currentBank) {
+          cardData.value[idx].limit = data.limit
+          cardData.value[idx].type = data.type
+          cardData.value[idx].lastModifyTime = getCurrentTimeFormatted()
+        }
+      })
+    }
+    
     localStorage.setItem('cardData', JSON.stringify(cardData.value))
     
     // 更好的成功反馈
