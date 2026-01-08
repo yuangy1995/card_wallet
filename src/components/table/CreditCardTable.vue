@@ -672,6 +672,7 @@ export default {
       toggleSelectAll,
       clearSelection,
       handleContextMenuAction,
+      handleSetAnnualFeeQualified,
       spanMethod
     }
   }
