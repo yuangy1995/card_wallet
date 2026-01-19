@@ -1240,7 +1240,7 @@ const shortcuts = {
   'ctrl+t': () => showTableCustomDialog.value = true,
   'ctrl+s': showStatistics,
   'ctrl+shift+c': confirmClearData,
-  'ctrl+b': () => backup.value?.openDialog(),
+  'ctrl+b': handleBackup,
   'ctrl+shift+b': () => localBackupVisible.value = true,
   'ctrl+shift+w': showWebDAVConfig,
   'f1': showHelp,

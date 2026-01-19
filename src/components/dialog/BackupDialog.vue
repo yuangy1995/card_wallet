@@ -931,7 +931,7 @@ const open = async (data) => {
 
     // 初始化 WebDAV 客户端
     if (!webdavClient.client) {
-      const initialized = webdavClient.initialize(config)
+      const initialized = await webdavClient.initialize(config)
       if (!initialized) {
         ElMessage.error('WebDAV 客户端初始化失败')
         emit('showConfig')

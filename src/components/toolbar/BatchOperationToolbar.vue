@@ -133,7 +133,6 @@ export default {
         )
         
         emit('batch-delete', props.selectedRows)
-        ElMessage.success(`成功删除 ${selectedCount.value} 张信用卡`)
       } catch {
         // 用户取消删除
       }

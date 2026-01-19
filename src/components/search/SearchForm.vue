@@ -16,6 +16,9 @@
     <el-form :inline="true" :model="formData" :label-width="labelWidth" size="small">
       <div class="form-content">
         <div class="first-row">
+          <el-form-item label="别名">
+            <el-input v-model="formData.alias" autocomplete="off" clearable />
+          </el-form-item>
           <el-form-item label="国家">
             <el-select v-model="formData.country" placeholder="请选择国家" filterable allow-create clearable multiple collapse-tags>
               <el-option 
@@ -125,6 +128,7 @@ export default {
 
     const resetForm = () => {
       emit('update:modelValue', {
+        alias: '',
         country: '',
         bank: '',
         cardNumber: '',
