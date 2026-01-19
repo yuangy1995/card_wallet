@@ -63,7 +63,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed, watch } from 'vue'
+import { ref, reactive, computed, watch, inject } from 'vue'
 import { ElMessage } from 'element-plus'
 import { PasswordManager } from '@/utils/passwordManager'
 import { useAutoLock } from '@/composables/useAutoLock'
@@ -77,7 +77,8 @@ const props = defineProps({
 
 const emit = defineEmits(['update:modelValue', 'password-set'])
 
-const { isLocked } = useAutoLock()
+const providedAutoLock = inject('autoLock', null)
+const { isLocked } = providedAutoLock || useAutoLock()
 const formRef = ref(null)
 const loading = ref(false)
 

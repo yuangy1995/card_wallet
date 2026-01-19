@@ -175,11 +175,11 @@ const loadBackupList = () => {
   }
 }
 
-// 比对数据
-const handleCompare = (backup) => {
-  if (!backup || !backup.data) return
-  
-  const currentData = JSON.parse(localStorage.getItem('cardData') || '[]')
+  // 比对数据
+  const handleCompare = (backup) => {
+    if (!backup || !backup.data) return
+    
+    const currentData = JSON.parse(localStorage.getItem('cardData') || '[]')
   const backupData = backup.data
 
   // 创建一个Map用于快速查找当前数据
@@ -213,6 +213,16 @@ const handleCompare = (backup) => {
           _status: 'unchanged'
         })
       }
+    }
+  })
+
+  // 检查新增的数据
+  currentData.forEach(currentItem => {
+    if (!backupMap.has(currentItem.id)) {
+      comparedData.push({
+        ...currentItem,
+        _status: 'added'
+      })
     }
   })
 
@@ -258,7 +268,7 @@ const formatColumnValue = (value, columnType) => {
     case 'annualFee':
       return value.toLocaleString()
     case 'valid':
-      return value ? new Date(value).toLocaleDateString() : '-'
+      return typeof value === 'string' ? value : (value ?? '-')
     default:
       return value
   }

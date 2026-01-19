@@ -171,7 +171,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, nextTick, defineAsyncComponent, watch, onUnmounted } from 'vue'
+import { ref, computed, onMounted, nextTick, defineAsyncComponent, watch, onUnmounted, provide } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   Delete,
@@ -218,6 +218,7 @@ import { formatDate, daysBetween } from '@/utils/dateUtils'
 import { getCurrentTimeFormatted } from '@/utils/dateFormatter'
 import { BACKUP_CONSTANTS, STORAGE_KEYS } from '@/config/constants'
 import { saveCardData, getCardData, saveBackupData, getBackupData, saveTableColumns, getTableColumns, CardDataStorage } from '@/utils/storage'
+import { autoMigrateLocalData } from '@/utils/cardDataMigration'
 import { useDebouncedRef } from '@/composables/useDebounce'
 import { useKeyboardShortcuts } from '@/composables/useKeyboardShortcuts'
 import { useTheme } from '@/composables/useTheme'
@@ -314,52 +315,53 @@ const debouncedSearchForm = useDebouncedRef(searchForm, 300)
 
 const tableData = computed(() => {
   console.log('Computing tableData, cardData length:', cardData.value.length)
+  const form = debouncedSearchForm.value
   const filtered = cardData.value.filter(card => {
     // 币种匹配
-    const matchType = !searchForm.value.type || 
-                     (card.type && (searchForm.value.type.includes(card.type) ||
-                     card.type.includes(searchForm.value.type)));
+    const matchType = !form.type || 
+                     (card.type && (form.type.includes(card.type) ||
+                     card.type.includes(form.type)));
     
     // 银行匹配
-    const matchBank = !searchForm.value.bank || 
-                     (card.bank && (searchForm.value.bank.includes(card.bank) ||
-                     card.bank.includes(searchForm.value.bank)));
+    const matchBank = !form.bank || 
+                     (card.bank && (form.bank.includes(card.bank) ||
+                     card.bank.includes(form.bank)));
     
     // 卡片等级匹配
-    const matchLevel = !searchForm.value.level || 
-                      (card.level && (searchForm.value.level.includes(card.level) ||
-                      card.level.includes(searchForm.value.level)));
+    const matchLevel = !form.level || 
+                      (card.level && (form.level.includes(card.level) ||
+                      card.level.includes(form.level)));
     
     // 年费达标状态匹配
-    const matchStatus = !searchForm.value.isQualified || 
-                       searchForm.value.isQualified.length === 0 || 
-                       searchForm.value.isQualified.includes(card.isQualified);
+    const matchStatus = !form.isQualified || 
+                       form.isQualified.length === 0 || 
+                       form.isQualified.includes(card.isQualified);
     
     // 别名搜索
-    const matchAlias = !searchForm.value.alias || 
-                      (card.alias && card.alias.toLowerCase().includes(searchForm.value.alias.toLowerCase()));
+    const matchAlias = !form.alias || 
+                      (card.alias && card.alias.toLowerCase().includes(form.alias.toLowerCase()));
     
     // 国家匹配
-    const matchCountry = !searchForm.value.country || 
-                        (card.country && (searchForm.value.country.includes(card.country) ||
-                        card.country.includes(searchForm.value.country)));
+    const matchCountry = !form.country || 
+                        (card.country && (form.country.includes(card.country) ||
+                        card.country.includes(form.country)));
     
     // 卡号匹配 - 去除空格和其他格式字符进行匹配
-    const matchCardNumber = !searchForm.value.cardNumber || 
+    const matchCardNumber = !form.cardNumber || 
                            (card.cardNumber && 
-                            card.cardNumber.replace(/[\s-]/g, '').includes(searchForm.value.cardNumber.replace(/[\s-]/g, '')));
+                            card.cardNumber.replace(/[\s-]/g, '').includes(form.cardNumber.replace(/[\s-]/g, '')));
     
     // 额度匹配
-    const matchLimit = !searchForm.value.limit || 
-                      (card.limit && card.limit.toString().includes(searchForm.value.limit));
+    const matchLimit = !form.limit || 
+                      (card.limit && card.limit.toString().includes(form.limit));
     
     // 权益匹配
-    const matchEquity = !searchForm.value.equity || 
-                       (card.equity && card.equity.toLowerCase().includes(searchForm.value.equity.toLowerCase()));
+    const matchEquity = !form.equity || 
+                       (card.equity && card.equity.toLowerCase().includes(form.equity.toLowerCase()));
     
     // 备注匹配
-    const matchRemark = !searchForm.value.remark || 
-                       (card.remark && card.remark.toLowerCase().includes(searchForm.value.remark.toLowerCase()));
+    const matchRemark = !form.remark || 
+                       (card.remark && card.remark.toLowerCase().includes(form.remark.toLowerCase()));
     
     return matchType && matchBank && matchLevel && matchStatus && matchAlias && 
            matchCountry && matchCardNumber && matchLimit && matchEquity && matchRemark;
@@ -737,8 +739,10 @@ const importData = () => {
 }
 
 const handleImportData = (data) => {
-  cardData.value = data
-  localStorage.setItem('cardData', JSON.stringify(data))
+  const rawList = Array.isArray(data) ? data : []
+  const migrationResult = autoMigrateLocalData(rawList)
+  cardData.value = migrationResult.data || []
+  saveCardData(cardData.value)
 }
 
 const viewDetails = (row) => {
@@ -967,10 +971,19 @@ const setAnnualFeeQualified = (cardId) => {
   const card = cardData.value.find(c => c.id === cardId)
   if (card) {
     card.isQualified = '1'
-  
-    // 添加最后修改时间
+
+    // 若有下次年费收取时间，则顺延一年
+    if (card.nextAnnualFeeCollectionTime) {
+      const nextDate = new Date(card.nextAnnualFeeCollectionTime)
+      if (!isNaN(nextDate.getTime())) {
+        nextDate.setFullYear(nextDate.getFullYear() + 1)
+        card.nextAnnualFeeCollectionTime = nextDate.toISOString().split('T')[0]
+      }
+    }
+
+    // 添加最后修改时间并保存
     card.lastModifyTime = getCurrentTimeFormatted()
-    localStorage.setItem('cardData', JSON.stringify(cardData.value))
+    saveCardData(cardData.value)
   }
 }
 
@@ -1265,7 +1278,8 @@ const showForgotPasswordDialog = ref(false)
 const showPasswordRecovery = ref(false)
 
 // 自动锁定功能
-const { isLocked, unlockApp, lockApp, initAfterPasswordSet } = useAutoLock()
+const { isLocked, remainingTime, unlockApp, lockApp, initAfterPasswordSet, updateActivity } = useAutoLock()
+provide('autoLock', { isLocked, remainingTime, unlockApp, lockApp, initAfterPasswordSet, updateActivity })
 
 // 密码设置完成
 const handlePasswordSet = () => {

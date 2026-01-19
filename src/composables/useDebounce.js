@@ -35,7 +35,7 @@ export function useDebouncedRef(value, delay = 300) {
     debouncedValue.value = newValue
   }, delay)
 
-  watch(value, debounced, { immediate: true })
+  watch(value, debounced, { immediate: true, deep: true })
 
   return debouncedValue
 }

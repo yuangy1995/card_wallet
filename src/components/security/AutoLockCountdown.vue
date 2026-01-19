@@ -19,12 +19,13 @@
 </template>
 
 <script setup>
-import { computed, ref, onMounted, onUnmounted, nextTick } from 'vue'
+import { computed, ref, onMounted, onUnmounted, nextTick, inject } from 'vue'
 import { Clock, Expand } from '@element-plus/icons-vue'
 import { useAutoLock } from '@/composables/useAutoLock'
 import { PasswordManager } from '@/utils/passwordManager'
 
-const { isLocked, remainingTime } = useAutoLock()
+const providedAutoLock = inject('autoLock', null)
+const { isLocked, remainingTime } = providedAutoLock || useAutoLock()
 
 // 拖拽相关状态
 const countdownEl = ref(null)
