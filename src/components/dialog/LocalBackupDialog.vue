@@ -302,7 +302,7 @@ const confirmRestore = () => {
   try {
     localStorage.setItem('cardData', JSON.stringify(selectedBackup.value.data))
     emit('restore', selectedBackup.value.data)
-    ElMessage.success('恢复成功')
+    // 不显示恢复成功消息，避免与 BackupDialog 中的恢复消息重复
     restoreConfirmVisible.value = false
   } catch (error) {
     console.error('恢复失败:', error)

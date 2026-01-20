@@ -305,7 +305,7 @@ export default {
 
         emit('import', data)
         dialogVisible.value = false
-        ElMessage.success('导入成功')
+        // 不显示导入成功消息，避免与其他导入消息重复
       } catch (error) {
         ElMessage.error('导入失败：' + error.message)
       }

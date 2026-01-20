@@ -797,7 +797,7 @@ const handleCompare = async (backup) => {
         })
 
         if (!hasChanges) {
-          ElMessage.success('本地数据与云端数据一致')
+          // 不显示一致消息，避免与 handleCompare 中的消息重复
           return
         }
 

@@ -78,7 +78,7 @@ const props = defineProps({
 const emit = defineEmits(['update:modelValue', 'password-set'])
 
 const providedAutoLock = inject('autoLock', null)
-const { isLocked } = providedAutoLock || useAutoLock()
+const { isLocked, resetLockTimer } = providedAutoLock || useAutoLock()
 const formRef = ref(null)
 const loading = ref(false)
 
@@ -171,6 +171,7 @@ const handleSetPassword = async () => {
     
     // 通知父组件
     emit('password-set')
+    resetLockTimer()
     visible.value = false
     
   } catch (error) {

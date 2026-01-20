@@ -191,7 +191,7 @@ const testConnection = async () => {
     // 测试连接
     const result = await webdavClient.testConnection()
     if (result.success) {
-      ElMessage.success(result.message)
+      // 不显示连接成功消息，避免与 BackupDialog 中的连接测试重复
     } else {
       if (result.isCertError && !form.ignoreCert) {
         // 证书错误且未开启忽略证书，询问用户是否继续

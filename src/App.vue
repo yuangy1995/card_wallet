@@ -7,8 +7,6 @@
         class="search-form"
       />
       <div class="button-container">
-        <!-- 自动锁定倒计时显示 -->
-        <AutoLockCountdown class="countdown-display" />
         
         <el-button-group class="button-group mobile-responsive">
           <el-button type="primary" @click="addCreditCard">
@@ -208,7 +206,6 @@ import PasswordVerify from '@/components/security/PasswordVerify.vue'
 import ForgotPassword from '@/components/security/ForgotPassword.vue'
 import PasswordRecovery from '@/components/security/PasswordRecovery.vue'
 import FloatingLockButton from '@/components/security/FloatingLockButton.vue'
-import AutoLockCountdown from '@/components/security/AutoLockCountdown.vue'
 
 import { creditCardOptions } from '@/config/creditCardOptions'
 import SearchForm from '@/components/search/SearchForm.vue'
@@ -1291,13 +1288,12 @@ const showForgotPasswordDialog = ref(false)
 const showPasswordRecovery = ref(false)
 
 // 自动锁定功能
-const { isLocked, remainingTime, unlockApp, lockApp, initAfterPasswordSet, updateActivity } = useAutoLock()
-provide('autoLock', { isLocked, remainingTime, unlockApp, lockApp, initAfterPasswordSet, updateActivity })
+const { isLocked, remainingTime, unlockApp, lockApp, initAfterPasswordSet, updateActivity, resetLockTimer } = useAutoLock()
+provide('autoLock', { isLocked, remainingTime, unlockApp, lockApp, initAfterPasswordSet, updateActivity, resetLockTimer })
 
 // 密码设置完成
 const handlePasswordSet = () => {
   initAfterPasswordSet()
-  ElMessage.success('密码设置成功，安全功能已启用')
 }
 
 // 密码验证成功

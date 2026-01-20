@@ -2,7 +2,10 @@
   <el-card class="search-form" shadow="never">
     <template #header>
       <div class="search-header">
-        <span>查询条件</span>
+        <div class="search-title">
+          <span>查询条件</span>
+          <AutoLockCountdown />
+        </div>
         <div class="search-actions">
           <el-button link type="primary" @click="toggleCollapse" size="small">
             {{ isCollapse ? '展开' : '收起' }}
@@ -93,11 +96,13 @@
 import { ref, computed, onMounted } from 'vue'
 import { useDebouncedRef } from '@/composables/useDebounce'
 import { ArrowDown } from '@element-plus/icons-vue'
+import AutoLockCountdown from '@/components/security/AutoLockCountdown.vue'
 
 export default {
   name: 'SearchForm',
   components: {
-    ArrowDown
+    ArrowDown,
+    AutoLockCountdown
   },
   props: {
     modelValue: {
@@ -174,6 +179,12 @@ export default {
     font-size: 14px;
     font-weight: 500;
     color: var(--el-text-color-primary);
+
+    .search-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
 
     .search-actions {
       display: flex;

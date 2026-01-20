@@ -170,6 +170,7 @@ export function useAutoLock() {
     unlockApp,
     checkLockStatus,
     initAfterPasswordSet,
-    updateActivity
+    updateActivity,
+    resetLockTimer
   }
 }

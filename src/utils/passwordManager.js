@@ -10,8 +10,8 @@ export class PasswordManager {
   static FAILED_ATTEMPTS_KEY = 'password_failed_attempts'
   static LAST_ACTIVITY_KEY = 'last_activity_time'
   
-  // 2分钟无操作自动锁定
-  static AUTO_LOCK_TIMEOUT = 2 * 60 * 1000
+  // 默认5分钟无操作自动锁定（当前仅用默认值）
+  static AUTO_LOCK_TIMEOUT = 5 * 60 * 1000
 
   /**
    * 生成密码哈希
