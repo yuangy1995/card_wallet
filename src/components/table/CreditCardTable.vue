@@ -75,10 +75,15 @@
           </template>
           <template v-else-if="column.value === 'nextAnnualFeeCollectionTime'" #default="{ row }">
             <div style="display: flex; flex-direction: column; align-items: center;">
-              <span>{{ row.nextAnnualFeeCollectionTime }}</span>
-              <span style="color: #909399; font-size: 12px;">
-                (距离收取年费{{ getDaysFromNow(row.nextAnnualFeeCollectionTime).text }}{{ getDaysFromNow(row.nextAnnualFeeCollectionTime).days }}天)
-              </span>
+              <template v-if="row.isQualified === '3'">
+                <span>- -</span>
+              </template>
+              <template v-else>
+                <span>{{ row.nextAnnualFeeCollectionTime || '-' }}</span>
+                <span v-if="row.nextAnnualFeeCollectionTime" style="color: #909399; font-size: 12px;">
+                  (距离收取年费{{ getDaysFromNow(row.nextAnnualFeeCollectionTime).text }}{{ getDaysFromNow(row.nextAnnualFeeCollectionTime).days }}天)
+                </span>
+              </template>
             </div>
           </template>
           <template v-else-if="column.value === 'valid'" #default="{ row }">
@@ -606,6 +611,27 @@ export default {
           }
         } else {
           // 独立额度不合并
+          return {
+            rowspan: 1,
+            colspan: 1
+          }
+        }
+      }
+      // 上次提额时间合并（共享额度时也合并）
+      else if (column.property === 'lastTime') {
+        if (row.isSharedLimit) {
+          if (row.showLastTime) {
+            return {
+              rowspan: row.lastTimeRowSpan,
+              colspan: 1
+            }
+          } else {
+            return {
+              rowspan: 0,
+              colspan: 0
+            }
+          }
+        } else {
           return {
             rowspan: 1,
             colspan: 1

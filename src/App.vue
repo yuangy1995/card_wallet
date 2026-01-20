@@ -393,6 +393,7 @@ const tableData = computed(() => {
   const countryGroups = new Map();
   const bankGroups = new Map();
   const sharedLimitGroups = new Map();
+  const sharedLastTimeGroups = new Map();
   
   sorted.forEach(card => {
     const country = card.country || '';
@@ -418,6 +419,11 @@ const tableData = computed(() => {
         sharedLimitGroups.set(sharedLimitKey, 0);
       }
       sharedLimitGroups.set(sharedLimitKey, sharedLimitGroups.get(sharedLimitKey) + 1);
+
+      if (!sharedLastTimeGroups.has(sharedLimitKey)) {
+        sharedLastTimeGroups.set(sharedLimitKey, 0);
+      }
+      sharedLastTimeGroups.set(sharedLimitKey, sharedLastTimeGroups.get(sharedLimitKey) + 1);
     }
   });
   
@@ -456,14 +462,20 @@ const tableData = computed(() => {
         currentSharedLimit = sharedLimitKey;
         processedCard.limitRowSpan = sharedLimitGroups.get(sharedLimitKey);
         processedCard.showLimit = true;
+        processedCard.lastTimeRowSpan = sharedLastTimeGroups.get(sharedLimitKey);
+        processedCard.showLastTime = true;
       } else {
         processedCard.limitRowSpan = 0;
         processedCard.showLimit = false;
+        processedCard.lastTimeRowSpan = 0;
+        processedCard.showLastTime = false;
       }
     } else {
       // 独立额度不合并
       processedCard.limitRowSpan = 1;
       processedCard.showLimit = true;
+      processedCard.lastTimeRowSpan = 1;
+      processedCard.showLastTime = true;
       currentSharedLimit = null; // 重置共享额度状态
     }
     
@@ -697,6 +709,7 @@ const confirmAdd = async (data) => {
             (card.bank || '').replace(/\(.*?\)/g, "").trim() === currentBank) {
           cardData.value[idx].limit = data.limit
           cardData.value[idx].type = data.type
+          cardData.value[idx].lastTime = data.lastTime
           cardData.value[idx].lastModifyTime = getCurrentTimeFormatted()
         }
       })
