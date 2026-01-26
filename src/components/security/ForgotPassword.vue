@@ -46,8 +46,9 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, inject, watch } from 'vue'
 import { Delete, Key } from '@element-plus/icons-vue'
+import { useAutoLock } from '@/composables/useAutoLock'
 
 const props = defineProps({
   modelValue: {
@@ -57,6 +58,8 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['update:modelValue', 'option-selected'])
+const providedAutoLock = inject('autoLock', null)
+const { isLocked } = providedAutoLock || useAutoLock()
 
 const visible = computed({
   get: () => props.modelValue,
@@ -67,6 +70,12 @@ const selectOption = (option) => {
   emit('option-selected', option)
   visible.value = false
 }
+
+watch(isLocked, (locked) => {
+  if (locked && visible.value) {
+    visible.value = false
+  }
+})
 </script>
 
 <style scoped>

@@ -107,11 +107,12 @@
 </template>
 
 <script>
-import { computed, ref, watch } from 'vue'
+import { computed, ref, watch, inject } from 'vue'
 import { ElMessage } from 'element-plus'
 import { CopyDocument, FolderOpened, Share, DocumentCopy } from '@element-plus/icons-vue'
 import { encryptData, decryptData } from '../../utils/encryption'
 import ExportPasswordDialog from './ExportPasswordDialog.vue'
+import { useAutoLock } from '@/composables/useAutoLock'
 
 export default {
   name: 'ImportExportDialog',
@@ -141,6 +142,8 @@ export default {
     const showPasswordDialog = ref(false)
     const password = ref('')
     const tempData = ref(null)
+    const providedAutoLock = inject('autoLock', null)
+    const { isLocked } = providedAutoLock || useAutoLock()
     
     // 检测是否为开发环境
     const isDevelopment = computed(() => {
@@ -166,7 +169,7 @@ export default {
         showPasswordDialog.value = true
       }
     })
-    
+
     // 导入文本
     const importText = ref('')
     // 导出文本
@@ -212,6 +215,17 @@ export default {
 
     // 选中的文件名
     const selectedFile = ref('')
+
+    watch(isLocked, (locked) => {
+      if (locked) {
+        showPasswordDialog.value = false
+        emit('update:visible', false)
+        tempData.value = null
+        importText.value = ''
+        password.value = ''
+        selectedFile.value = ''
+      }
+    })
 
     // 监听对话框关闭，清空导入文本和文件名
     watch(dialogVisible, (newVal) => {

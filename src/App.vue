@@ -1341,15 +1341,35 @@ const handleRecoverySuccess = () => {
   showPasswordSetup.value = true
 }
 
+const closeAllDialogsForLock = () => {
+  creditCardData.value.dialogFormVisible = false
+  importExportDialogVisible.value = false
+  deleteDialogVisible.value = false
+  showTableCustomDialog.value = false
+  detailsVisible.value = false
+  statisticsVisible.value = false
+  localBackupVisible.value = false
+  showPasswordSetup.value = false
+  showForgotPasswordDialog.value = false
+  showPasswordRecovery.value = false
+
+  helpPage.value?.hideHelp?.()
+  webDAVConfig.value?.closeDialog?.()
+  backup.value?.closeAll?.()
+  localBackup.value?.closeAll?.()
+}
+
 // 手动锁定应用
 const handleLockApp = () => {
   lockApp()
+  closeAllDialogsForLock()
   showPasswordVerify.value = true
 }
 
 // 监听锁定状态
 watch(() => isLocked.value, (locked) => {
   if (locked) {
+    closeAllDialogsForLock()
     showPasswordVerify.value = true
   }
 })

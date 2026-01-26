@@ -201,20 +201,60 @@
     class="compare-dialog"
   >
     <div class="compare-container">
-      <div class="table-wrapper">
+      <div class="compare-toolbar">
+        <div class="summary-tags">
+          <el-tag size="small" type="info">总计 {{ diffSummary.total }}</el-tag>
+          <el-tag size="small" type="success">新增 {{ diffSummary.added }}</el-tag>
+          <el-tag size="small" type="danger">删除 {{ diffSummary.deleted }}</el-tag>
+          <el-tag size="small" type="warning">修改 {{ diffSummary.modified }}</el-tag>
+          <el-tag size="small">字段差异 {{ diffSummary.modifiedFields }}</el-tag>
+        </div>
+        <div class="toolbar-actions">
+          <el-radio-group v-model="activeFilter" size="small" class="filter-switch">
+            <el-radio-button label="all">全部</el-radio-button>
+            <el-radio-button label="diff">只看差异</el-radio-button>
+            <el-radio-button label="modified">仅修改</el-radio-button>
+            <el-radio-button label="added">仅新增</el-radio-button>
+            <el-radio-button label="deleted">仅删除</el-radio-button>
+          </el-radio-group>
+          <div class="legend">
+            <span class="legend-item legend-modified">修改</span>
+            <span class="legend-item legend-added">新增</span>
+            <span class="legend-item legend-deleted">删除</span>
+          </div>
+        </div>
+      </div>
+
+      <el-result
+        v-if="compareStatus === 'match'"
+        icon="success"
+        title="本地数据与云端数据一致"
+        sub-title="未发现新增、删除或修改"
+        class="compare-empty"
+      />
+
+      <div class="table-wrapper" v-else>
+        <el-empty
+          v-if="filteredComparisonData.length === 0"
+          description="当前筛选无结果"
+          class="compare-empty"
+        />
         <el-table 
-          :data="comparisonData" 
+          v-else
+          :data="filteredComparisonData" 
           border 
           stripe
           style="width: 100%"
           height="600px"
           :cell-class-name="getTableCellClass"
+          header-row-class-name="compare-header"
         >
-          <el-table-column type="index" width="50" />
+          <el-table-column type="index" width="60" fixed="left" />
           <el-table-column
             label="数据来源"
-            width="180"
+            width="200"
             align="center"
+            fixed="left"
           >
             <template #default="{ row }">
               <div class="data-source">
@@ -242,13 +282,13 @@
           >
             <template #default="{ row }">
               <template v-if="row._diff && row._diff[col.value]">
-                <div class="diff-content" :class="{ 'diff-highlight': true }">
+                <div class="diff-content">
                   <div class="diff-item">
-                    <span class="diff-label">云端值：</span>
+                    <span class="diff-label">云端值</span>
                     <span class="diff-value">{{ formatColumnValue(row._diff[col.value].cloud, col.value) }}</span>
                   </div>
                   <div class="diff-item">
-                    <span class="diff-label">本地值：</span>
+                    <span class="diff-label">本地值</span>
                     <span class="diff-value">{{ formatColumnValue(row._diff[col.value].local, col.value) }}</span>
                   </div>
                 </div>
@@ -270,13 +310,14 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, nextTick } from 'vue'
+import { ref, computed, onMounted, nextTick, inject, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { handleNetworkError, handleEncryptionError, handleValidationError } from '@/utils/errorHandler'
 import { webdavClient } from '@/utils/webdav'
 import { encryptData, decryptData } from '@/utils/encryption'
 import { Delete, ArrowDown, DocumentCopy, RefreshRight, Edit } from '@element-plus/icons-vue'
 import { creditCardOptions } from '@/config/creditCardOptions'
+import { useAutoLock } from '@/composables/useAutoLock'
 
 const emit = defineEmits(['update', 'showConfig'])
 const visible = ref(false)
@@ -285,6 +326,8 @@ const backingUp = ref(false)
 const backupList = ref([])
 const cardData = ref([])
 const isConnected = ref(false)  // 添加连接状态
+const providedAutoLock = inject('autoLock', null)
+const { isLocked } = providedAutoLock || useAutoLock()
 
 // 备份表单相关
 const backupDialogVisible = ref(false)
@@ -308,7 +351,48 @@ const currentBackup = ref(null)
 // 比对相关
 const compareDialogVisible = ref(false)
 const comparisonData = ref([])
+const compareStatus = ref('idle')
+const activeFilter = ref('diff')
 const tableColumns = creditCardOptions.tableCustomData
+
+const filteredComparisonData = computed(() => {
+  const data = comparisonData.value || []
+  switch (activeFilter.value) {
+    case 'modified':
+      return data.filter(item => item._status === 'modified')
+    case 'added':
+      return data.filter(item => item._status === 'added')
+    case 'deleted':
+      return data.filter(item => item._status === 'deleted')
+    case 'diff':
+      return data.filter(item => ['modified', 'added', 'deleted'].includes(item._status))
+    default:
+      return data
+  }
+})
+
+const diffSummary = computed(() => {
+  const summary = {
+    total: comparisonData.value.length,
+    added: 0,
+    deleted: 0,
+    modified: 0,
+    modifiedFields: 0
+  }
+
+  comparisonData.value.forEach(item => {
+    if (item._status === 'added') summary.added += 1
+    if (item._status === 'deleted') summary.deleted += 1
+    if (item._status === 'modified') {
+      summary.modified += 1
+      if (item._diff) {
+        summary.modifiedFields += Object.keys(item._diff).length
+      }
+    }
+  })
+
+  return summary
+})
 
 // 重命名对话框
 const renameDialogVisible = ref(false)
@@ -323,6 +407,26 @@ const progress = ref(0)
 const progressStatus = ref('')
 const currentOperation = ref('') // 新增：当前操作类型（'backup' 或 'restore'）
 const awaitingPassword = ref(false)
+
+const closeAll = () => {
+  visible.value = false
+  backupDialogVisible.value = false
+  restoreDialogVisible.value = false
+  renameDialogVisible.value = false
+  compareDialogVisible.value = false
+  loading.value = false
+  backingUp.value = false
+  progressVisible.value = false
+  progress.value = 0
+  progressStatus.value = ''
+  currentOperation.value = ''
+  awaitingPassword.value = false
+  comparisonData.value = []
+  compareStatus.value = 'idle'
+  activeFilter.value = 'diff'
+  currentBackup.value = null
+  restoreForm.value.password = ''
+}
 
 // 进度文本（computed）
 const progressText = computed(() => {
@@ -640,11 +744,17 @@ const compareData = (decryptedData) => {
   })
 
   if (!hasChanges) {
+    comparisonData.value = []
+    compareStatus.value = 'match'
+    activeFilter.value = 'diff'
+    compareDialogVisible.value = true
     ElMessage.success('本地数据与云端数据一致')
     return
   }
 
   comparisonData.value = comparedData
+  compareStatus.value = 'diff'
+  activeFilter.value = 'diff'
   compareDialogVisible.value = true
 }
 
@@ -693,121 +803,36 @@ const handleDelete = async (backup) => {
 
 // 比对数据
 const handleCompare = async (backup) => {
+  compareStatus.value = 'idle'
+  comparisonData.value = []
+  const runComparison = (data) => {
+    try {
+      compareData(data)
+    } catch (error) {
+      ElMessage.error('处理备份数据失败：' + error.message)
+    }
+  }
+
   try {
     backup.comparing = true
     const result = await webdavClient.restoreBackup(backup.filename)
-    if (result.success) {
-      try {
-        // 检查数据是否加密
-        const content = result.data
-        let decryptedData
 
-        if (typeof content === 'string' && (content.startsWith('encrypted:') || content.startsWith('default:'))) {
-          // 如果是默认加密，直接解密
-          if (content.startsWith('default:')) {
-            decryptedData = decryptData(content)
-          } else {
-            // 如果是自定义密码加密，显示密码输入对话框
-            currentBackup.value = { content, type: 'compare', backup }
-            restoreDialogVisible.value = true
-            return
-          }
-        } else {
-          // 未加密数据直接使用
-          decryptedData = content
-        }
+    if (!result.success) {
+      ElMessage.error(result.message)
+      return
+    }
 
-        // 解析数据
-        const parsedData = typeof decryptedData === 'string' ? JSON.parse(decryptedData) : decryptedData
-        const backupData = parsedData.cards || []
-        const currentData = JSON.parse(localStorage.getItem('cardData') || '[]')
+    const content = result.data
 
-        // 创建Map用于快速查找
-        const currentMap = new Map(currentData.map(item => [item.id, item]))
-        const backupMap = new Map(backupData.map(item => [item.id, item]))
-        const comparedData = []
-        let hasChanges = false
-
-        // 检查删除和修改的数据
-        backupData.forEach(backupItem => {
-          const currentItem = currentMap.get(backupItem.id)
-          if (!currentItem) {
-            // 已删除的数据
-            comparedData.push({
-              ...backupItem,
-              _status: 'deleted'
-            })
-            hasChanges = true
-          } else {
-            // 首先检查lastModifyTime是否不一致
-            let itemHasChanges = backupItem.lastModifyTime !== currentItem.lastModifyTime
-            
-            // 如果lastModifyTime一致，仍然检查其他关键字段是否有变化
-            if (!itemHasChanges) {
-              itemHasChanges = Object.keys(backupItem).some(key => {
-                // 对于特殊字段（如年费达标状态），比较原始值
-                if (key === 'isQualified') {
-                  return backupItem[key] !== currentItem[key]
-                }
-                // 排除lastTime和lastModifyTime字段
-                if (key !== 'lastTime' && key !== 'lastModifyTime') {
-                  return JSON.stringify(backupItem[key]) !== JSON.stringify(currentItem[key])
-                }
-                return false
-              })
-            }
-            
-            if (itemHasChanges) {
-              // 创建一个新的对象来存储差异信息
-              const diffItem = { ...currentItem, _status: 'modified', _diff: {} }
-              
-              // 检查每个字段的差异
-              Object.keys(backupItem).forEach(key => {
-                // 对于特殊字段（如年费达标状态），比较原始值
-                if (key === 'isQualified') {
-                  if (backupItem[key] !== currentItem[key]) {
-                    diffItem._diff[key] = {
-                      cloud: backupItem[key],
-                      local: currentItem[key]
-                    }
-                  }
-                } else if (JSON.stringify(backupItem[key]) !== JSON.stringify(currentItem[key])) {
-                  diffItem._diff[key] = {
-                    cloud: backupItem[key],
-                    local: currentItem[key]
-                  }
-                }
-              })
-              
-              comparedData.push(diffItem)
-              hasChanges = true
-            }
-          }
-        })
-
-        // 检查新增的数据
-        currentData.forEach(currentItem => {
-          if (!backupMap.has(currentItem.id)) {
-            comparedData.push({
-              ...currentItem,
-              _status: 'added'
-            })
-            hasChanges = true
-          }
-        })
-
-        if (!hasChanges) {
-          // 不显示一致消息，避免与 handleCompare 中的消息重复
-          return
-        }
-
-        comparisonData.value = comparedData
-        compareDialogVisible.value = true
-      } catch (error) {
-        ElMessage.error('处理备份数据失败：' + error.message)
+    if (typeof content === 'string' && (content.startsWith('encrypted:') || content.startsWith('default:'))) {
+      if (content.startsWith('default:')) {
+        runComparison(decryptData(content))
+      } else {
+        currentBackup.value = { content, type: 'compare', backup }
+        restoreDialogVisible.value = true
       }
     } else {
-      ElMessage.error(result.message)
+      runComparison(content)
     }
   } catch (error) {
     ElMessage.error('比对失败：' + error.message)
@@ -911,6 +936,9 @@ const handleClosed = () => {
   currentOperation.value = ''
   awaitingPassword.value = false
   isConnected.value = false  // 重置连接状态
+  comparisonData.value = []
+  compareStatus.value = 'idle'
+  activeFilter.value = 'diff'
 }
 
 // 打开对话框时加载备份列表
@@ -989,8 +1017,15 @@ onMounted(() => {
   webdavClient.setProgressCallback(updateProgress)
 })
 
+watch(isLocked, (locked) => {
+  if (locked) {
+    closeAll()
+  }
+})
+
 defineExpose({
-  open
+  open,
+  closeAll
 })
 </script>
 
@@ -1067,37 +1102,6 @@ defineExpose({
   text-align: center;
 }
 
-.diff-content {
-  padding: 8px;
-  
-  &.diff-highlight {
-    background-color: #fdf6ec;
-  }
-}
-
-.diff-item {
-  margin-bottom: 4px;
-  &:last-child {
-    margin-bottom: 0;
-  }
-}
-
-.diff-label {
-  color: #909399;
-  margin-right: 8px;
-  font-size: 13px;
-}
-
-.diff-value {
-  color: #303133;
-  font-weight: 500;
-
-  .progress-text {
-    margin-top: 8px;
-    color: var(--el-text-color-secondary);
-  }
-}
-
 .data-source {
   display: flex;
   flex-direction: column;
@@ -1130,5 +1134,114 @@ defineExpose({
 
 .connection-status {
   margin-left: 16px;
+}
+
+.compare-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 0;
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: var(--el-bg-color);
+}
+
+.summary-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.toolbar-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.filter-switch {
+  margin-right: 4px;
+}
+
+.legend {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-size: 12px;
+  background: var(--el-fill-color-light);
+  border: 1px solid var(--el-border-color-lighter);
+  color: var(--el-text-color-regular);
+}
+
+.legend-modified {
+  border-color: #f3d19e;
+  color: #d48806;
+}
+
+.legend-added {
+  border-color: #c6e2b3;
+  color: #529b2e;
+}
+
+.legend-deleted {
+  border-color: #f4c2c2;
+  color: #c45656;
+}
+
+.compare-container .table-wrapper {
+  margin-top: 8px;
+}
+
+.compare-empty {
+  margin: 16px 0;
+}
+
+:deep(.compare-header th) {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--el-bg-color);
+}
+
+.diff-content {
+  display: flex;
+  gap: 12px;
+  padding: 8px;
+  background-color: #fdf6ec;
+  border-radius: 4px;
+}
+
+.diff-item {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.diff-label {
+  color: #909399;
+  font-size: 12px;
+}
+
+.diff-value {
+  color: #303133;
+  font-weight: 500;
+  word-break: break-all;
+}
+
+.progress-text {
+  margin-top: 8px;
+  color: var(--el-text-color-secondary);
 }
 </style>

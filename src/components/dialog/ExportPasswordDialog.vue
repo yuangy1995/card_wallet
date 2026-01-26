@@ -60,7 +60,8 @@
 </template>
 
 <script>
-import { ref, computed } from 'vue'
+import { ref, computed, inject, watch } from 'vue'
+import { useAutoLock } from '@/composables/useAutoLock'
 
 export default {
   name: 'ExportPasswordDialog',
@@ -73,6 +74,8 @@ export default {
   emits: ['update:visible', 'confirm', 'skip'],
   setup(props, { emit }) {
     const formRef = ref(null)
+    const providedAutoLock = inject('autoLock', null)
+    const { isLocked } = providedAutoLock || useAutoLock()
     const form = ref({
       password: '',
       confirmPassword: ''
@@ -81,6 +84,12 @@ export default {
     const dialogVisible = computed({
       get: () => props.visible,
       set: (value) => emit('update:visible', value)
+    })
+
+    watch(isLocked, (locked) => {
+      if (locked && dialogVisible.value) {
+        dialogVisible.value = false
+      }
     })
 
     const validateConfirmPassword = (rule, value, callback) => {

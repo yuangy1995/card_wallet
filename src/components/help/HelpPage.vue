@@ -302,9 +302,12 @@
 </template>
 
 <script setup>
-import { ref, watch } from 'vue'
+import { ref, watch, inject } from 'vue'
+import { useAutoLock } from '@/composables/useAutoLock'
 
 const visible = ref(false)
+const providedAutoLock = inject('autoLock', null)
+const { isLocked } = providedAutoLock || useAutoLock()
 
 // 监听对话框显示状态，当显示时禁用body滚动
 watch(visible, (val) => {
@@ -312,6 +315,12 @@ watch(visible, (val) => {
     document.body.style.overflow = 'hidden'
   } else {
     document.body.style.overflow = ''
+  }
+})
+
+watch(isLocked, (locked) => {
+  if (locked && visible.value) {
+    visible.value = false
   }
 })
 
@@ -508,8 +517,13 @@ const showHelp = () => {
   visible.value = true
 }
 
+const hideHelp = () => {
+  visible.value = false
+}
+
 defineExpose({
-  showHelp
+  showHelp,
+  hideHelp
 })
 </script>
 

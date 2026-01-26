@@ -119,10 +119,11 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, nextTick } from 'vue'
+import { ref, computed, onMounted, nextTick, inject, watch } from 'vue'
 import { BACKUP_CONSTANTS } from '@/config/constants'
 import { ElMessage } from 'element-plus'
 import { creditCardOptions } from '@/config/creditCardOptions'
+import { useAutoLock } from '@/composables/useAutoLock'
 
 const props = defineProps({
   modelValue: {
@@ -132,6 +133,8 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['update:modelValue', 'restore'])
+const providedAutoLock = inject('autoLock', null)
+const { isLocked } = providedAutoLock || useAutoLock()
 
 // 对话框可见性
 const visible = computed({
@@ -147,6 +150,15 @@ const restoreConfirmVisible = ref(false)
 const comparisonData = ref([])
 const selectedBackup = ref(null)
 const tableColumns = creditCardOptions.tableCustomData
+
+const closeAll = () => {
+  visible.value = false
+  compareDialogVisible.value = false
+  restoreConfirmVisible.value = false
+  comparisonData.value = []
+  selectedBackup.value = null
+  loading.value = false
+}
 
 // 格式化日期
 const formatDate = (timestamp) => {
@@ -316,7 +328,14 @@ const handleOpen = () => {
 }
 
 defineExpose({
-  handleOpen
+  handleOpen,
+  closeAll
+})
+
+watch(isLocked, (locked) => {
+  if (locked) {
+    closeAll()
+  }
 })
 </script>
 

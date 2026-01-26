@@ -43,8 +43,9 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, inject, watch } from 'vue'
 import { Delete, Warning } from '@element-plus/icons-vue'
+import { useAutoLock } from '@/composables/useAutoLock'
 
 const props = defineProps({
   visible: {
@@ -63,6 +64,8 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['update:visible', 'confirm', 'cancel'])
+const providedAutoLock = inject('autoLock', null)
+const { isLocked } = providedAutoLock || useAutoLock()
 
 const dialogVisible = computed({
   get: () => props.visible,
@@ -78,6 +81,12 @@ const handleCancel = () => {
   emit('cancel')
   dialogVisible.value = false
 }
+
+watch(isLocked, (locked) => {
+  if (locked && dialogVisible.value) {
+    dialogVisible.value = false
+  }
+})
 </script>
 
 <style scoped>

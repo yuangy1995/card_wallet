@@ -64,11 +64,12 @@
   </el-dialog>
 </template>
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch, inject } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Refresh } from '@element-plus/icons-vue'
 import { getCardData } from '@/utils/storage'
 import { PasswordManager } from '@/utils/passwordManager'
+import { useAutoLock } from '@/composables/useAutoLock'
 
 const props = defineProps({
   modelValue: {
@@ -78,10 +79,18 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['update:modelValue', 'recovery-success'])
+const providedAutoLock = inject('autoLock', null)
+const { isLocked } = providedAutoLock || useAutoLock()
 
 const visible = computed({
   get: () => props.modelValue,
   set: (value) => emit('update:modelValue', value)
+})
+
+watch(isLocked, (locked) => {
+  if (locked && visible.value) {
+    visible.value = false
+  }
 })
 
 const loading = ref(false)

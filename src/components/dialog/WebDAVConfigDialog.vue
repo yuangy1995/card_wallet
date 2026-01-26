@@ -82,12 +82,15 @@
 </template>
 
 <script setup>
-import { ref, reactive, computed } from 'vue'
+import { ref, reactive, computed, inject, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { webdavClient } from '../../utils/webdav'
+import { useAutoLock } from '@/composables/useAutoLock'
 
 const dialogVisible = ref(false)
 const formRef = ref(null)
+const providedAutoLock = inject('autoLock', null)
+const { isLocked } = providedAutoLock || useAutoLock()
 
 const form = reactive({
   protocol: 'https',
@@ -149,6 +152,12 @@ const rules = {
     { required: true, message: '请输入密码', trigger: 'blur' }
   ]
 }
+
+watch(isLocked, (locked) => {
+  if (locked && dialogVisible.value) {
+    dialogVisible.value = false
+  }
+})
 
 // 加载已保存的配置
 const loadSavedConfig = () => {
@@ -258,8 +267,13 @@ const showDialog = () => {
   loadSavedConfig()
 }
 
+const closeDialog = () => {
+  dialogVisible.value = false
+}
+
 defineExpose({
-  showDialog
+  showDialog,
+  closeDialog
 })
 </script>
 

@@ -120,7 +120,9 @@
 </template>
 
 <script>
+import { inject, watch } from 'vue'
 import { getDaysFromNow } from '../../utils/dateCalculator'
+import { useAutoLock } from '@/composables/useAutoLock'
 
 export default {
   name: 'CardDetailsDialog',
@@ -135,6 +137,18 @@ export default {
       required: true,
       default: () => ({})
     }
+  },
+  setup(props, { emit }) {
+    const providedAutoLock = inject('autoLock', null)
+    const { isLocked } = providedAutoLock || useAutoLock()
+
+    watch(isLocked, (locked) => {
+      if (locked) {
+        emit('update:visible', false)
+      }
+    })
+
+    return {}
   },
 
   computed: {

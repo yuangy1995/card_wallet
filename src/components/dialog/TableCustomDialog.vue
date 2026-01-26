@@ -35,8 +35,9 @@
 </template>
 
 <script>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, inject } from 'vue'
 import { creditCardOptions } from '../../config/creditCardOptions'
+import { useAutoLock } from '@/composables/useAutoLock'
 
 export default {
   name: 'TableCustomDialog',
@@ -52,6 +53,8 @@ export default {
   },
   emits: ['update:visible', 'confirm'],
   setup(props, { emit }) {
+    const providedAutoLock = inject('autoLock', null)
+    const { isLocked } = providedAutoLock || useAutoLock()
     
     const dialogVisible = computed({
       get: () => props.visible,
@@ -65,6 +68,12 @@ export default {
       if (newValue) {
         // 当对话框打开时，复制传入的列配置
         localColumns.value = [...props.columns]
+      }
+    })
+
+    watch(isLocked, (locked) => {
+      if (locked && dialogVisible.value) {
+        dialogVisible.value = false
       }
     })
 

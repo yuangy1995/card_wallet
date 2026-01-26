@@ -290,10 +290,11 @@
 </template>
 
 <script>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, inject } from 'vue'
 import { ElMessage } from 'element-plus'
 import { creditCardOptions } from '@/config/creditCardOptions'
 import { QuestionFilled } from '@element-plus/icons-vue'
+import { useAutoLock } from '@/composables/useAutoLock'
 
 // 信用卡类型识别
 const CARD_TYPES = {
@@ -425,6 +426,8 @@ export default {
   setup(props, { emit }) {
     const formRef = ref(null)
     const cardType = ref('')
+    const providedAutoLock = inject('autoLock', null)
+    const { isLocked } = providedAutoLock || useAutoLock()
     
     // 表单验证规则
     const rules = {
@@ -498,6 +501,12 @@ export default {
     const dialogVisible = computed({
       get: () => props.visible,
       set: (value) => emit('update:visible', value)
+    })
+
+    watch(isLocked, (locked) => {
+      if (locked && dialogVisible.value) {
+        dialogVisible.value = false
+      }
     })
 
     // 表单数据
