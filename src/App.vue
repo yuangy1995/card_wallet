@@ -1348,19 +1348,20 @@ const handleResetAllData = async () => {
       {
         confirmButtonText: '确定清除',
         cancelButtonText: '取消',
-        type: 'error'
+        type: 'error',
+        zIndex: 200010
       }
     )
     
     const success = PasswordManager.clearAllAppData()
     if (success) {
-      ElMessage.success('数据已清除，请设置新密码')
+      ElMessage.success({ message: '数据已清除，请设置新密码', zIndex: 200010 })
       showPasswordSetup.value = true
     } else {
-      ElMessage.error('数据清除失败')
+      ElMessage.error({ message: '数据清除失败', zIndex: 200010 })
     }
   } catch {
-    ElMessage.info('已取消操作')
+    ElMessage.info({ message: '已取消操作', zIndex: 200010 })
   }
 }
 

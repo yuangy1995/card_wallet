@@ -46,6 +46,13 @@ export default defineConfig(({ command, mode }) => {
         '@': fileURLToPath(new URL('./src', import.meta.url))
       }
     },
+    css: {
+      preprocessorOptions: {
+        scss: {
+          silenceDeprecations: ['legacy-js-api']
+        }
+      }
+    },
     build: {
       reportCompressedSize: true,
       chunkSizeWarningLimit: 1500,

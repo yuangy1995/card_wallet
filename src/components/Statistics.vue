@@ -763,12 +763,12 @@ watch(() => props.cardData, () => {
 .limit-stats {
   .limit-section {
     margin-bottom: 20px;
-    
-    h4 {
-      margin-bottom: 16px;
-      color: var(--el-text-color-primary);
-      font-size: 16px;
-    }
+  }
+
+  .limit-section h4 {
+    margin-bottom: 16px;
+    color: var(--el-text-color-primary);
+    font-size: 16px;
   }
   
   .empty-state {

@@ -232,11 +232,11 @@ export default {
       padding: 16px;
       border: 1px solid var(--el-border-color-light);
       border-radius: 4px;
+    }
 
-      h4 {
-        margin: 0 0 16px;
-        color: var(--el-text-color-primary);
-      }
+    .chart-item h4 {
+      margin: 0 0 16px;
+      color: var(--el-text-color-primary);
     }
   }
 }

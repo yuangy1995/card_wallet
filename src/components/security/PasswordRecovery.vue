@@ -4,7 +4,7 @@
     title="找回密码 - 身份验证"
     width="500px"
     :close-on-click-modal="false"
-    :z-index="10001"
+    :z-index="200002"
     center
   >
     <div class="password-recovery">
@@ -17,8 +17,11 @@
       />
       
       <div class="questions">
-        <div v-for="(question, index) in questions" :key="index" class="question-item">
-          <h4>问题 {{ index + 1 }}</h4>
+        <div v-for="(question, index) in questions" :key="index" class="question-item" :class="{ 'question-error': questionErrors[index] === false, 'question-correct': questionErrors[index] === true }">
+          <h4>问题 {{ index + 1 }}
+            <span v-if="questionErrors[index] === false" style="color: #F56C6C; font-size: 13px; font-weight: normal; margin-left: 8px;">✖ 回答错误</span>
+            <span v-if="questionErrors[index] === true" style="color: #67C23A; font-size: 13px; font-weight: normal; margin-left: 8px;">✔ 回答正确</span>
+          </h4>
           <p>{{ question.question }}</p>
           
           <el-input
@@ -26,6 +29,7 @@
             v-model="answers[index]"
             :placeholder="question.placeholder"
             style="margin-top: 10px"
+            @input="questionErrors[index] = null"
           />
           
           <el-input
@@ -34,6 +38,7 @@
             placeholder="请输入有效期 (格式: MM/YY，如: 06/30)"
             style="margin-top: 10px"
             clearable
+            @input="questionErrors[index] = null"
           >
             <template #append>
               <el-date-picker
@@ -96,6 +101,7 @@ watch(isLocked, (locked) => {
 const loading = ref(false)
 const questions = ref([])
 const answers = ref(['', '', ''])
+const questionErrors = ref([null, null, null]) // null=未验证, true=正确, false=错误
 const cardData = ref([])
 const tempDate = ref({}) // 临时存储日期选择器的值
 
@@ -136,23 +142,11 @@ const generateQuestions = () => {
     cardId: randomCard1.id,
     answer: randomCard1.cardNumber,
     validator: (answer) => {
-      const cleanAnswer = answer.trim().replace(/\s/g, '')
+      const cleanAnswer = answer.trim().replace(/[\s\-]/g, '')
       const found = cardData.value.some(card => {
-        const cleanCardNumber = card.cardNumber ? card.cardNumber.trim().replace(/\s/g, '') : ''
+        const cleanCardNumber = card.cardNumber ? card.cardNumber.trim().replace(/[\s\-]/g, '') : ''
         return cleanCardNumber && cleanCardNumber === cleanAnswer
       })
-      
-      // 开发环境调试
-      if (import.meta.env.DEV) {
-        console.log('卡号验证:', {
-          输入答案: cleanAnswer,
-          所有卡号: cardData.value.map(card => ({
-            原始: card.cardNumber,
-            清理后: card.cardNumber ? card.cardNumber.trim().replace(/\s/g, '') : ''
-          })),
-          验证结果: found
-        })
-      }
       
       return found
     }
@@ -177,25 +171,9 @@ const generateQuestions = () => {
       cardId: randomCard2.id,
       answer: randomCard2.cvv,
       validator: (answer) => {
-        const cleanAnswer = answer.trim()
-        const cleanCvv = randomCard2.cvv ? randomCard2.cvv.toString().trim() : ''
-        const result = cleanAnswer === cleanCvv
-        
-        // 开发环境调试
-        if (import.meta.env.DEV) {
-          console.log('CVV验证:', {
-            输入答案: cleanAnswer,
-            期望CVV: cleanCvv,
-            卡片信息: {
-              卡号: randomCard2.cardNumber,
-              尾号: lastFourDigits,
-              CVV: randomCard2.cvv
-            },
-            验证结果: result
-          })
-        }
-        
-        return result
+        const cleanAnswer = answer.trim().replace(/[\s\-]/g, '')
+        const cleanCvv = randomCard2.cvv ? randomCard2.cvv.toString().trim().replace(/[\s\-]/g, '') : ''
+        return cleanAnswer === cleanCvv
       }
     })
   } else {
@@ -206,13 +184,7 @@ const generateQuestions = () => {
       cardId: randomCard2.id,
       answer: randomCard2.valid,  // 使用正确的字段名
       validator: (answer) => {
-        if (!answer || !randomCard2.valid) {  // 使用正确的字段名
-          if (import.meta.env.DEV) {
-            console.log('有效期验证失败 - 缺少数据:', {
-              输入答案: answer,
-              期望有效期: randomCard2.valid  // 使用正确的字段名
-            })
-          }
+        if (!answer || !randomCard2.valid) {
           return false
         }
         
@@ -268,28 +240,9 @@ const generateQuestions = () => {
         const inputDate = parseInputDate(answer)
         const cardDate = parseCardDate(randomCard2.valid)  // 使用正确的字段名
         
-        const result = inputDate && cardDate && 
-                      inputDate.year === cardDate.year && 
-                      inputDate.month === cardDate.month
-        
-        // 开发环境调试
-        if (import.meta.env.DEV) {
-          console.log('有效期验证:', {
-            输入答案: answer,
-            期望有效期: randomCard2.valid,  // 使用正确的字段名
-            解析后输入日期: inputDate,
-            解析后卡片日期: cardDate,
-            年月比较: {
-              输入年: inputDate?.year,
-              输入月: inputDate?.month,
-              卡片年: cardDate?.year,
-              卡片月: cardDate?.month
-            },
-            验证结果: result
-          })
-        }
-        
-        return result
+        return inputDate && cardDate && 
+               inputDate.year === cardDate.year && 
+               inputDate.month === cardDate.month
       }
     })
   }
@@ -336,36 +289,16 @@ const generateQuestions = () => {
       const cleanAnswer = answer.replace(/[^\d]/g, '')
       const numAnswer = parseInt(cleanAnswer) || 0
       
-      const cleanCardLimit = String(randomCard3.limit || '0').replace(/[^\d]/g, '')  // 使用正确的字段名
+      const cleanCardLimit = String(randomCard3.limit || '0').replace(/[^\d]/g, '')
       const cardLimit = parseInt(cleanCardLimit) || 0
       
-      const result = numAnswer === cardLimit && numAnswer > 0
-      
-      // 开发环境调试
-      if (import.meta.env.DEV) {
-        console.log('信用额度验证:', {
-          输入答案: answer,
-          清理后输入: cleanAnswer,
-          转换后输入数值: numAnswer,
-          期望额度: randomCard3.limit,  // 使用正确的字段名
-          清理后期望: cleanCardLimit,
-          转换后期望数值: cardLimit,
-          卡片信息: {
-            别名: randomCard3.alias,
-            银行名: randomCard3.bank,  // 使用正确的字段名
-            额度原值: randomCard3.limit,  // 使用正确的字段名
-            额度类型: typeof randomCard3.limit
-          },
-          验证结果: result
-        })
-      }
-      
-      return result
+      return numAnswer === cardLimit && numAnswer > 0
     }
   })
   
   questions.value = newQuestions
   answers.value = ['', '', '']
+  questionErrors.value = [null, null, null]
   tempDate.value = {} // 重置临时日期存储
 }
 
@@ -383,13 +316,13 @@ const handleDateChange = (index, value) => {
 // 刷新问题
 const refreshQuestions = () => {
   generateQuestions()
-  ElMessage.info('问题已刷新')
+  ElMessage.info({ message: '问题已刷新', zIndex: 200010 })
 }
 
 // 验证答案
 const verifyAnswers = async () => {
   if (answers.value.some(answer => !answer || answer.trim() === '')) {
-    ElMessage.warning('请回答所有问题')
+    ElMessage.warning({ message: '请回答所有问题', zIndex: 200010 })
     return
   }
 
@@ -397,67 +330,47 @@ const verifyAnswers = async () => {
   
   try {
     let correctCount = 0
-    const debugInfo = []
+    const errors = []
+    const results = []
     
     questions.value.forEach((question, index) => {
       const isCorrect = question.validator(answers.value[index])
+      results[index] = isCorrect
       if (isCorrect) {
         correctCount++
+      } else {
+        errors.push(`问题 ${index + 1}`)
       }
       
       // 开发环境调试信息
       if (import.meta.env.DEV) {
-        debugInfo.push({
-          questionIndex: index + 1,
-          question: question.question,
-          userAnswer: answers.value[index],
-          expectedAnswer: getExpectedAnswer(question),
-          isCorrect: isCorrect
-        })
+        console.log(`问题 ${index + 1}: ${question.question}`)
+        console.log(`用户答案: "${answers.value[index]}"`)
+        console.log(`期望答案: "${getExpectedAnswer(question)}"`)
+        console.log(`验证结果: ${isCorrect ? '✅ 正确' : '❌ 错误'}`)
       }
     })
     
-    // 开发环境显示详细调试信息
-    if (import.meta.env.DEV) {
-      console.group('🔍 密码找回验证调试信息')
-      debugInfo.forEach(info => {
-        console.log(`问题 ${info.questionIndex}: ${info.question}`)
-        console.log(`用户答案: "${info.userAnswer}"`)
-        console.log(`期望答案: "${info.expectedAnswer}"`)
-        console.log(`验证结果: ${info.isCorrect ? '✅ 正确' : '❌ 错误'}`)
-        console.log('---')
-      })
-      console.log(`总体结果: ${correctCount}/3 题正确`)
-      console.groupEnd()
-      
-      // 在界面上也显示调试信息
-      ElMessage({
-        message: `调试信息已输出到控制台。正确: ${correctCount}/3`,
-        type: 'info',
-        duration: 5000,
-        zIndex: 100000
-      })
-    }
+    // 更新每个问题的验证状态
+    questionErrors.value = results
     
     if (correctCount === 3) {
       ElMessage.success({
         message: '验证成功！请设置新密码',
-        zIndex: 100000
+        zIndex: 200010
       })
       emit('recovery-success')
       visible.value = false
     } else {
       ElMessage.error({
-        message: `答案错误，正确 ${correctCount}/3 题${import.meta.env.DEV ? '，请查看控制台调试信息' : ''}`,
-        zIndex: 100000
+        message: `${errors.join('、')}回答错误，请修改后重试`,
+        zIndex: 200010
       })
-      // 清空错误答案
-      answers.value = ['', '', '']
     }
   } catch (error) {
     ElMessage.error({
       message: '验证过程出错',
-      zIndex: 100000
+      zIndex: 200010
     })
     if (import.meta.env.DEV) {
       console.error('验证过程错误:', error)
@@ -508,13 +421,13 @@ watch(() => visible.value, (newVal) => {
   background-color: #fafafa;
 }
 
-.question-item h4 {
+.question-item :deep(h4) {
   margin: 0 0 8px 0;
   color: #409eff;
   font-size: 16px;
 }
 
-.question-item p {
+.question-item :deep(p) {
   margin: 0 0 10px 0;
   color: #303133;
   font-weight: 500;
@@ -545,6 +458,16 @@ watch(() => visible.value, (newVal) => {
 
 .password-recovery-overlay :deep(.el-popper) {
   z-index: 100002 !important;
+}
+
+.question-error {
+  border-color: #F56C6C !important;
+  background-color: #fef0f0 !important;
+}
+
+.question-correct {
+  border-color: #67C23A !important;
+  background-color: #f0f9eb !important;
 }
 
 .buttons {

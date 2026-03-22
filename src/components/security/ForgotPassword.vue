@@ -4,7 +4,7 @@
     title="忘记密码"
     width="450px"
     :close-on-click-modal="false"
-    :z-index="10000"
+    :z-index="200001"
     center
   >
     <div class="forgot-password">

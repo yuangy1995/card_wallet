@@ -6,6 +6,7 @@
     :close-on-click-modal="false"
     :close-on-press-escape="false"
     :show-close="canClose"
+    :z-index="200003"
     center
     @close="handleClose"
   >
@@ -163,7 +164,7 @@ const handleSetPassword = async () => {
     // 设置密码
     PasswordManager.setAppPassword(form.password)
     
-    ElMessage.success(hasPassword.value ? '密码更新成功' : '密码设置成功')
+    ElMessage.success({ message: hasPassword.value ? '密码更新成功' : '密码设置成功', zIndex: 200010 })
     
     // 清空表单
     form.password = ''
@@ -175,7 +176,7 @@ const handleSetPassword = async () => {
     visible.value = false
     
   } catch (error) {
-    ElMessage.error(error.message || '密码设置失败')
+    ElMessage.error({ message: error.message || '密码设置失败', zIndex: 200010 })
   } finally {
     loading.value = false
   }
