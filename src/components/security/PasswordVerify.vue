@@ -1,4 +1,5 @@
 <template>
+  <Teleport to="body">
   <div class="password-overlay" v-if="show">
     <div class="password-container">
       <div class="password-form">
@@ -47,10 +48,11 @@
       </div>
     </div>
   </div>
+  </Teleport>
 </template>
 
 <script setup>
-import { ref, computed, nextTick, onMounted } from 'vue'
+import { ref, computed, nextTick, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { PasswordManager } from '@/utils/passwordManager'
 
@@ -129,8 +131,8 @@ const showForgotPassword = () => {
   emit('forgot-password')
 }
 
-onMounted(() => {
-  if (show.value) {
+watch(show, (val) => {
+  if (val) {
     nextTick(() => {
       passwordInput.value?.focus()
     })

@@ -528,19 +528,29 @@ onMounted(async () => {
       saveCardData(cardData.value)
     }
 
-    if (cardData.value && cardData.value.length > 0) {
-      // 检查年费达标状态
-      showLoading('正在检查年费状态...')
-      await checkAnnualFeeQualified()
+    // 判断应用是否处于锁定状态，锁定时跳过弹窗类检测
+    const appIsLocked = PasswordManager.hasPassword() && 
+      (PasswordManager.isAppLocked() || PasswordManager.shouldAutoLock())
+
+    if (appIsLocked) {
+      // 锁定状态下延迟卡片检测，等待解锁后执行
+      pendingMigrationInfo.value = migrationInfo
+      needsInitialChecks.value = true
+    } else {
+      if (cardData.value && cardData.value.length > 0) {
+        // 检查年费达标状态
+        showLoading('正在检查年费状态...')
+        await checkAnnualFeeQualified()
+        
+        // 自动检查年费情况
+        await manualCheckAnnualFees()
+      }
       
-      // 自动检查年费情况
-      await manualCheckAnnualFees()
+      // 显示迁移报告（需要在所有loading完成后）
+      hideLoading()
+      await nextTick()
+      showMigrationReport(migrationInfo)
     }
-    
-    // 显示迁移报告（需要在所有loading完成后）
-    hideLoading()
-    await nextTick()
-    showMigrationReport(migrationInfo)
   } finally {
     hideLoading()
   }
@@ -1287,6 +1297,10 @@ const showPasswordVerify = ref(false)
 const showForgotPasswordDialog = ref(false)
 const showPasswordRecovery = ref(false)
 
+// 延迟执行标记：锁定状态下跳过的初始检测
+const pendingMigrationInfo = ref(null)
+const needsInitialChecks = ref(false)
+
 // 自动锁定功能
 const { isLocked, remainingTime, unlockApp, lockApp, initAfterPasswordSet, updateActivity, resetLockTimer } = useAutoLock()
 provide('autoLock', { isLocked, remainingTime, unlockApp, lockApp, initAfterPasswordSet, updateActivity, resetLockTimer })
@@ -1297,9 +1311,23 @@ const handlePasswordSet = () => {
 }
 
 // 密码验证成功
-const handlePasswordVerified = () => {
+const handlePasswordVerified = async () => {
   unlockApp()
   showPasswordVerify.value = false
+
+  // 执行锁定期间延迟的初始检测
+  if (needsInitialChecks.value) {
+    needsInitialChecks.value = false
+    if (cardData.value && cardData.value.length > 0) {
+      await checkAnnualFeeQualified()
+      await manualCheckAnnualFees()
+    }
+    if (pendingMigrationInfo.value) {
+      await nextTick()
+      showMigrationReport(pendingMigrationInfo.value)
+      pendingMigrationInfo.value = null
+    }
+  }
 }
 
 // 处理忘记密码选项
