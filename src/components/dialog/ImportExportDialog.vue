@@ -85,6 +85,14 @@
             <el-icon><DocumentCopy /></el-icon>
             导出明文数据
           </el-button>
+          <el-button
+            v-if="isDevelopment"
+            type="info"
+            @click="handlePrivacyPlaintextExport"
+          >
+            <el-icon><DocumentCopy /></el-icon>
+            隐私导出明文数据
+          </el-button>
         </div>
       </template>
     </div>
@@ -247,6 +255,92 @@ export default {
       tempData.value = encrypted
     }
 
+    const getCrypto = () => {
+      return window.crypto || globalThis.crypto
+    }
+
+    const getRandomDigit = () => {
+      const cryptoApi = getCrypto()
+      if (!cryptoApi?.getRandomValues) {
+        return Math.floor(Math.random() * 10)
+      }
+      const array = new Uint32Array(1)
+      cryptoApi.getRandomValues(array)
+      return array[0] % 10
+    }
+
+    const randomDigits = (length, { firstDigit } = {}) => {
+      if (!length || length <= 0) return ''
+      let result = ''
+      for (let index = 0; index < length; index += 1) {
+        if (index === 0 && firstDigit !== undefined && firstDigit !== null) {
+          result += String(firstDigit)
+          continue
+        }
+        result += String(getRandomDigit())
+      }
+      return result
+    }
+
+    const randomFutureValid = () => {
+      const month = String((getRandomDigit() % 12) + 1).padStart(2, '0')
+      const yearOffset = (getRandomDigit() % 8) + 1
+      const year = String((new Date().getFullYear() + yearOffset) % 100).padStart(2, '0')
+      return `${month}/${year}`
+    }
+
+    const sanitizeCardNumber = (value) => {
+      if (!value) return value
+      const rawValue = String(value)
+      const digitsOnly = rawValue.replace(/\D/g, '')
+      if (!digitsOnly) return value
+      const firstDigit = digitsOnly[0]
+      const randomizedDigits = randomDigits(digitsOnly.length, { firstDigit })
+
+      if (/\s/.test(rawValue)) {
+        const groups = randomizedDigits.match(/\d{1,4}/g)
+        return groups ? groups.join(' ') : randomizedDigits
+      }
+      return randomizedDigits
+    }
+
+    const sanitizeCvv = (value) => {
+      if (!value) return value
+      const rawValue = String(value)
+      const digitsOnly = rawValue.replace(/\D/g, '')
+      return digitsOnly ? randomDigits(digitsOnly.length) : value
+    }
+
+    const sanitizeSensitiveCardData = (card) => {
+      const sanitizedCard = { ...card }
+
+      if (Object.prototype.hasOwnProperty.call(sanitizedCard, 'cardNumber')) {
+        sanitizedCard.cardNumber = sanitizeCardNumber(sanitizedCard.cardNumber)
+      }
+
+      if (Object.prototype.hasOwnProperty.call(sanitizedCard, 'cvv')) {
+        sanitizedCard.cvv = sanitizeCvv(sanitizedCard.cvv)
+      }
+
+      if (Object.prototype.hasOwnProperty.call(sanitizedCard, 'valid') && sanitizedCard.valid) {
+        sanitizedCard.valid = randomFutureValid()
+      }
+
+      return sanitizedCard
+    }
+
+    const downloadJsonFile = (content, filename) => {
+      const blob = new Blob([content], { type: 'application/json' })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = filename
+      document.body.appendChild(link)
+      link.click()
+      document.body.removeChild(link)
+      URL.revokeObjectURL(url)
+    }
+
     // 处理文件选择
     const handleFileChange = (file) => {
       if (file && file.raw) {
@@ -337,15 +431,10 @@ export default {
 
     // 下载文件
     const handleDownload = () => {
-      const blob = new Blob([exportText.value], { type: 'application/json' })
-      const url = URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = `credit_cards_${new Date().toISOString().split('T')[0]}.json`
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-      URL.revokeObjectURL(url)
+      downloadJsonFile(
+        exportText.value,
+        `credit_cards_${new Date().toISOString().split('T')[0]}.json`
+      )
     }
 
     // 导出明文数据（仅开发环境）
@@ -357,18 +446,33 @@ export default {
       
       try {
         const plaintextData = JSON.stringify(props.data, null, 2)
-        const blob = new Blob([plaintextData], { type: 'application/json' })
-        const url = URL.createObjectURL(blob)
-        const link = document.createElement('a')
-        link.href = url
-        link.download = `credit_cards_plaintext_${new Date().toISOString().split('T')[0]}.json`
-        document.body.appendChild(link)
-        link.click()
-        document.body.removeChild(link)
-        URL.revokeObjectURL(url)
+        downloadJsonFile(
+          plaintextData,
+          `credit_cards_plaintext_${new Date().toISOString().split('T')[0]}.json`
+        )
         ElMessage.success('明文数据导出成功')
       } catch (error) {
         ElMessage.error('明文数据导出失败：' + error.message)
+      }
+    }
+
+    // 隐私导出明文数据（仅开发环境）
+    const handlePrivacyPlaintextExport = () => {
+      if (!isDevelopment.value) {
+        ElMessage.warning('隐私导出功能仅在开发环境下可用')
+        return
+      }
+
+      try {
+        const sanitizedData = props.data.map(item => sanitizeSensitiveCardData(item))
+        const plaintextData = JSON.stringify(sanitizedData, null, 2)
+        downloadJsonFile(
+          plaintextData,
+          `credit_cards_private_plaintext_${new Date().toISOString().split('T')[0]}.json`
+        )
+        ElMessage.success('隐私明文数据导出成功')
+      } catch (error) {
+        ElMessage.error('隐私明文数据导出失败：' + error.message)
       }
     }
 
@@ -396,6 +500,7 @@ export default {
       handleCopy,
       handleDownload,
       handlePlaintextExport,
+      handlePrivacyPlaintextExport,
       handleCancel,
       handlePasswordConfirm,
       handlePasswordSkip,
