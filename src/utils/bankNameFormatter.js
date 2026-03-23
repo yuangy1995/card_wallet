@@ -1,3 +1,5 @@
+import { normalizeBankValue } from '@/utils/referenceDataUtils'
+
 /**
  * 银行名称格式化工具
  * 统一处理银行名称的显示和存储
@@ -10,7 +12,7 @@
  */
 export function getBankDisplayName(fullName) {
   if (!fullName) return ''
-  return fullName.replace(/\(.*?\)/g, '').trim()
+  return normalizeBankValue(fullName)
 }
 
 /**

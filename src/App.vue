@@ -222,6 +222,7 @@ import { useTheme } from '@/composables/useTheme'
 import { useAutoLock } from '@/composables/useAutoLock'
 import { PasswordManager } from '@/utils/passwordManager'
 import { getBankDisplayName } from '@/utils/bankNameFormatter'
+import { normalizeCountryValue, normalizeBankValue } from '@/utils/referenceDataUtils'
 
 // 状态管理
 const cardData = ref([])
@@ -393,8 +394,8 @@ const tableData = computed(() => {
   const sharedLastTimeGroups = new Map();
   
   sorted.forEach(card => {
-    const country = card.country || '';
-    const bank = (card.bank || '').replace(/\(.*?\)/g, "").trim();
+    const country = normalizeCountryValue(card.country || '');
+    const bank = normalizeBankValue(card.bank || '');
     const countryBankKey = `${country}-${bank}`;
     const sharedLimitKey = card.isSharedLimit ? `${country}-${bank}-shared` : `${card.id}-individual`;
     
@@ -426,8 +427,8 @@ const tableData = computed(() => {
   
   // 第二遍遍历，生成显示数据
   sorted.forEach((card, index) => {
-    const country = card.country || '';
-    const bank = (card.bank || '').replace(/\(.*?\)/g, "").trim();
+    const country = normalizeCountryValue(card.country || '');
+    const bank = normalizeBankValue(card.bank || '');
     const countryBankKey = `${country}-${bank}`;
     const sharedLimitKey = card.isSharedLimit ? `${country}-${bank}-shared` : `${card.id}-individual`;
     

@@ -110,7 +110,7 @@
               <el-option 
                 v-for="item in options.currencyList" 
                 :key="item.name" 
-                :label="`${item.name}(${item.chineseName})`"
+                :label="item.name"
                 :value="item.chineseName" 
               />
             </el-select>
@@ -155,7 +155,7 @@
               <el-radio :value="true" size="large">是</el-radio>
               <el-radio :value="false" size="large">否</el-radio>
             </el-radio-group>
-            <div style="color: #909399; font-size: 12px; margin-top: 4px;">
+            <div class="field-helper">
               {{ formData.isSharedLimit ? '该银行所有卡片共享同一额度总额' : '每张卡片拥有独立的信用额度' }}
             </div>
           </el-form-item>
@@ -172,8 +172,10 @@
               :parser="value => parseCurrency(value)"
               style="width: 100%"
             />
-            <div v-if="formData.isSharedLimit && existingSharedLimitCard" 
-                 style="color: #E6A23C; font-size: 12px; margin-top: 4px;">
+            <div
+              v-if="formData.isSharedLimit && existingSharedLimitCard"
+              class="field-warning"
+            >
               检测到同银行已有共享额度卡片，修改额度将同步更新所有共享卡片
             </div>
           </el-form-item>
@@ -213,7 +215,7 @@
               <el-radio :value="false" size="large">当期账单</el-radio>
               <el-radio :value="true" size="large">下期账单</el-radio>
             </el-radio-group>
-            <div style="color: #909399; font-size: 12px; margin-top: 4px;">
+            <div class="field-helper">
               {{ formData.billingDaySpendingToNextBill ? '账单日当天的消费将计入下期账单，免息期更长' : '账单日当天的消费将计入当期账单，免息期较短' }}
             </div>
           </el-form-item>
@@ -673,21 +675,7 @@ export default {
       countryData: creditCardOptions.countryData,
       bankList: creditCardOptions.bankList,
       cardLevel: creditCardOptions.cardLevel,
-      currencyList: [
-        { name: '人民币', chineseName: 'CNY' },
-        { name: '美元', chineseName: 'USD' },
-        { name: '日元', chineseName: 'JPY' },
-        { name: '欧元', chineseName: 'EUR' },
-        { name: '英镑', chineseName: 'GBP' },
-        { name: '港币', chineseName: 'HKD' },
-        { name: '澳门币', chineseName: 'MOP' },
-        { name: '新台币', chineseName: 'TWD' },
-        { name: '新加坡元', chineseName: 'SGD' },
-        { name: '澳大利亚元', chineseName: 'AUD' },
-        { name: '加拿大元', chineseName: 'CAD' },
-        { name: '瑞士法郎', chineseName: 'CHF' },
-        { name: '泰铢', chineseName: 'THB' }
-      ]
+      currencyList: creditCardOptions.currencyList
     }
 
     // 处理取消
@@ -737,6 +725,19 @@ export default {
 
 <style scoped>
 .card-details-dialog {
+  :deep(.el-dialog) {
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+  }
+
+  :deep(.el-dialog__body) {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    scrollbar-gutter: stable;
+  }
+
   :deep(.el-descriptions__cell) {
     .el-form-item {
       margin-bottom: 0;
@@ -744,6 +745,10 @@ export default {
 
       .el-form-item__content {
         margin-left: 0 !important;
+        display: flex;
+        flex-direction: column;
+        align-items: stretch;
+        width: 100%;
       }
     }
   }
@@ -755,15 +760,21 @@ export default {
 
   :deep(.el-descriptions-item__container) {
     display: flex;
-    align-items: center;
+    align-items: flex-start;
     width: 100%;
   }
 
   :deep(.el-descriptions-item__content) {
     flex: 1;
     min-width: 0;
-    white-space: nowrap;
+    white-space: normal;
     overflow: visible;
+  }
+
+  :deep(.el-radio-group) {
+    display: flex;
+    flex-wrap: wrap;
+    row-gap: 8px;
   }
   
   .el-select,
@@ -776,6 +787,24 @@ export default {
   :deep(.el-input-group__append) {
     padding: 0 10px;
     cursor: help;
+  }
+
+  .field-helper,
+  .field-warning {
+    width: 100%;
+    margin-top: 4px;
+    font-size: 12px;
+    line-height: 1.5;
+    white-space: normal;
+    word-break: break-word;
+  }
+
+  .field-helper {
+    color: #909399;
+  }
+
+  .field-warning {
+    color: #E6A23C;
   }
 }
 
