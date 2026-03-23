@@ -1,0 +1,40 @@
+name: CreditCardIOS
+options:
+  minimumXcodeGenVersion: 2.38.0
+  deploymentTarget:
+    iOS: "17.0"
+settings:
+  base:
+    PRODUCT_BUNDLE_IDENTIFIER: com.yuangy.creditcard.ios
+    SWIFT_VERSION: 6.0
+    DEVELOPMENT_TEAM: ""
+targets:
+  CreditCardIOS:
+    type: application
+    platform: iOS
+    sources:
+      - App
+      - Features
+      - Domain
+      - Data
+      - Platform
+      - Resources
+    settings:
+      base:
+        INFOPLIST_FILE: Resources/Info.plist
+        PRODUCT_NAME: CreditCardIOS
+        TARGETED_DEVICE_FAMILY: 1,2
+    scheme:
+      testTargets:
+        - CreditCardIOSTests
+  CreditCardIOSTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - Tests/UnitTests
+    dependencies:
+      - target: CreditCardIOS
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.yuangy.creditcard.ios.tests
+        INFOPLIST_FILE: Resources/TestInfo.plist
