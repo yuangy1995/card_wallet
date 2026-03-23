@@ -1,0 +1,39 @@
+name: CreditCardMac
+options:
+  minimumXcodeGenVersion: 2.38.0
+  deploymentTarget:
+    macOS: "14.0"
+settings:
+  base:
+    PRODUCT_BUNDLE_IDENTIFIER: com.yuangy.creditcard.macos
+    SWIFT_VERSION: 6.0
+    DEVELOPMENT_TEAM: ""
+targets:
+  CreditCardMac:
+    type: application
+    platform: macOS
+    sources:
+      - App
+      - Features
+      - Domain
+      - Data
+      - Platform
+      - Resources
+    settings:
+      base:
+        INFOPLIST_FILE: Resources/Info.plist
+        PRODUCT_NAME: CreditCardMac
+    scheme:
+      testTargets:
+        - CreditCardMacTests
+  CreditCardMacTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - Tests/UnitTests
+    dependencies:
+      - target: CreditCardMac
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.yuangy.creditcard.macos.tests
+        INFOPLIST_FILE: Resources/TestInfo.plist

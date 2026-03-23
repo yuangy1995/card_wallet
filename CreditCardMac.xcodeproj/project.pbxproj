@@ -1,0 +1,475 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {
+	};
+	objectVersion = 77;
+	objects = {
+
+/* Begin PBXBuildFile section */
+		503804D7E919081071BEE227 /* CreditCardMacApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = B35BC2E42D6D8D578BCA6C47 /* CreditCardMacApp.swift */; };
+		5ADF45B2E78921C662BFC783 /* AppRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1EDD9143408C71E055B8F7AE /* AppRootView.swift */; };
+		AB43D7B12A8A3567AFD7B509 /* HomeSidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97500522D7A6C452CDB07610 /* HomeSidebarView.swift */; };
+		ADF7BF245750A2D7E794B2E2 /* TestInfo.plist in Resources */ = {isa = PBXBuildFile; fileRef = 6CD92970627A15DF762D30E4 /* TestInfo.plist */; };
+		C60C77ECA25128C1F05A7ECC /* HomeDashboardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BC6F52DC94DC63D82AF8C1D /* HomeDashboardView.swift */; };
+		CFF2B559B488930E8B75BE73 /* SharedCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3DEA78BF509F20D5CD58F935 /* SharedCard.swift */; };
+/* End PBXBuildFile section */
+
+/* Begin PBXContainerItemProxy section */
+		2D9A176E156687E774605246 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 95B986D3DE9101D7ABB0036F /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 9B980CF56E13D4696D1A7494;
+			remoteInfo = CreditCardMac;
+		};
+/* End PBXContainerItemProxy section */
+
+/* Begin PBXFileReference section */
+		1EDD9143408C71E055B8F7AE /* AppRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRootView.swift; sourceTree = "<group>"; };
+		2BC6F52DC94DC63D82AF8C1D /* HomeDashboardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeDashboardView.swift; sourceTree = "<group>"; };
+		3DEA78BF509F20D5CD58F935 /* SharedCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SharedCard.swift; sourceTree = "<group>"; };
+		580EA1E3A67161B26D4D2D97 /* CreditCardMac.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CreditCardMac.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		6CD92970627A15DF762D30E4 /* TestInfo.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = TestInfo.plist; sourceTree = "<group>"; };
+		77D4AF75378164F64D7AC168 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		93050015F0352331F4826876 /* CreditCardMacTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CreditCardMacTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		97500522D7A6C452CDB07610 /* HomeSidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeSidebarView.swift; sourceTree = "<group>"; };
+		B35BC2E42D6D8D578BCA6C47 /* CreditCardMacApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreditCardMacApp.swift; sourceTree = "<group>"; };
+/* End PBXFileReference section */
+
+/* Begin PBXGroup section */
+		27600A86E1FC25C1175D87D2 /* Domain */ = {
+			isa = PBXGroup;
+			children = (
+				DA1B98727148B47BFCFEEC0F /* Models */,
+			);
+			path = Domain;
+			sourceTree = "<group>";
+		};
+		397FBD802D29916081AE6986 /* UnitTests */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			name = UnitTests;
+			path = Tests/UnitTests;
+			sourceTree = "<group>";
+		};
+		4529C0879881ACCB37B8AF9A /* Home */ = {
+			isa = PBXGroup;
+			children = (
+				2BC6F52DC94DC63D82AF8C1D /* HomeDashboardView.swift */,
+				97500522D7A6C452CDB07610 /* HomeSidebarView.swift */,
+			);
+			path = Home;
+			sourceTree = "<group>";
+		};
+		5CFD02175C2EE13F8B932B1D /* Data */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			path = Data;
+			sourceTree = "<group>";
+		};
+		7DB92285268F792278B8F24C /* Features */ = {
+			isa = PBXGroup;
+			children = (
+				4529C0879881ACCB37B8AF9A /* Home */,
+			);
+			path = Features;
+			sourceTree = "<group>";
+		};
+		8114CD06DD6834E742227522 /* Resources */ = {
+			isa = PBXGroup;
+			children = (
+				77D4AF75378164F64D7AC168 /* Info.plist */,
+				6CD92970627A15DF762D30E4 /* TestInfo.plist */,
+			);
+			path = Resources;
+			sourceTree = "<group>";
+		};
+		81605CC8AC59D32A504562E3 /* Platform */ = {
+			isa = PBXGroup;
+			children = (
+			);
+			path = Platform;
+			sourceTree = "<group>";
+		};
+		B49F74D40DBF6DE4BDC3CA9B /* App */ = {
+			isa = PBXGroup;
+			children = (
+				1EDD9143408C71E055B8F7AE /* AppRootView.swift */,
+				B35BC2E42D6D8D578BCA6C47 /* CreditCardMacApp.swift */,
+			);
+			path = App;
+			sourceTree = "<group>";
+		};
+		DA1B98727148B47BFCFEEC0F /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				3DEA78BF509F20D5CD58F935 /* SharedCard.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		ECE2D9E2F360AC2A5E9D357B = {
+			isa = PBXGroup;
+			children = (
+				B49F74D40DBF6DE4BDC3CA9B /* App */,
+				5CFD02175C2EE13F8B932B1D /* Data */,
+				27600A86E1FC25C1175D87D2 /* Domain */,
+				7DB92285268F792278B8F24C /* Features */,
+				81605CC8AC59D32A504562E3 /* Platform */,
+				8114CD06DD6834E742227522 /* Resources */,
+				397FBD802D29916081AE6986 /* UnitTests */,
+				F53BEE61FF79BC10C6D95562 /* Products */,
+			);
+			sourceTree = "<group>";
+		};
+		F53BEE61FF79BC10C6D95562 /* Products */ = {
+			isa = PBXGroup;
+			children = (
+				580EA1E3A67161B26D4D2D97 /* CreditCardMac.app */,
+				93050015F0352331F4826876 /* CreditCardMacTests.xctest */,
+			);
+			name = Products;
+			sourceTree = "<group>";
+		};
+/* End PBXGroup section */
+
+/* Begin PBXNativeTarget section */
+		3357D53D1DC2A0801F4E9246 /* CreditCardMacTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 72FAA277B85111283AD8F8DA /* Build configuration list for PBXNativeTarget "CreditCardMacTests" */;
+			buildPhases = (
+				595CB31B264885E03EA3E62A /* Sources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				6176EFCDDCCAC358687AE1D5 /* PBXTargetDependency */,
+			);
+			name = CreditCardMacTests;
+			packageProductDependencies = (
+			);
+			productName = CreditCardMacTests;
+			productReference = 93050015F0352331F4826876 /* CreditCardMacTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		9B980CF56E13D4696D1A7494 /* CreditCardMac */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 172642DDF6D459BBD19D1542 /* Build configuration list for PBXNativeTarget "CreditCardMac" */;
+			buildPhases = (
+				D59DBD37A28FD42FC9CCA624 /* Sources */,
+				1FDE2ACA58AA939C2E6DEF19 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			name = CreditCardMac;
+			packageProductDependencies = (
+			);
+			productName = CreditCardMac;
+			productReference = 580EA1E3A67161B26D4D2D97 /* CreditCardMac.app */;
+			productType = "com.apple.product-type.application";
+		};
+/* End PBXNativeTarget section */
+
+/* Begin PBXProject section */
+		95B986D3DE9101D7ABB0036F /* Project object */ = {
+			isa = PBXProject;
+			attributes = {
+				BuildIndependentTargetsInParallel = YES;
+				LastUpgradeCheck = 1430;
+				TargetAttributes = {
+					3357D53D1DC2A0801F4E9246 = {
+						DevelopmentTeam = "";
+					};
+					9B980CF56E13D4696D1A7494 = {
+						DevelopmentTeam = "";
+					};
+				};
+			};
+			buildConfigurationList = FB1E82C25D4ED34DD7890D7D /* Build configuration list for PBXProject "CreditCardMac" */;
+			developmentRegion = en;
+			hasScannedForEncodings = 0;
+			knownRegions = (
+				Base,
+				en,
+			);
+			mainGroup = ECE2D9E2F360AC2A5E9D357B;
+			minimizedProjectReferenceProxies = 1;
+			preferredProjectObjectVersion = 77;
+			productRefGroup = F53BEE61FF79BC10C6D95562 /* Products */;
+			projectDirPath = "";
+			projectRoot = "";
+			targets = (
+				9B980CF56E13D4696D1A7494 /* CreditCardMac */,
+				3357D53D1DC2A0801F4E9246 /* CreditCardMacTests */,
+			);
+		};
+/* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		1FDE2ACA58AA939C2E6DEF19 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				ADF7BF245750A2D7E794B2E2 /* TestInfo.plist in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
+
+/* Begin PBXSourcesBuildPhase section */
+		595CB31B264885E03EA3E62A /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		D59DBD37A28FD42FC9CCA624 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				5ADF45B2E78921C662BFC783 /* AppRootView.swift in Sources */,
+				503804D7E919081071BEE227 /* CreditCardMacApp.swift in Sources */,
+				C60C77ECA25128C1F05A7ECC /* HomeDashboardView.swift in Sources */,
+				AB43D7B12A8A3567AFD7B509 /* HomeSidebarView.swift in Sources */,
+				CFF2B559B488930E8B75BE73 /* SharedCard.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		6176EFCDDCCAC358687AE1D5 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 9B980CF56E13D4696D1A7494 /* CreditCardMac */;
+			targetProxy = 2D9A176E156687E774605246 /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
+
+/* Begin XCBuildConfiguration section */
+		8648C4FCE47A3018218DF95C /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				COMBINE_HIDPI_IMAGES = YES;
+				INFOPLIST_FILE = Resources/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_NAME = CreditCardMac;
+				SDKROOT = macosx;
+			};
+			name = Release;
+		};
+		98312A55AD5A00EFC2048C39 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = dwarf;
+				DEVELOPMENT_TEAM = "";
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				ENABLE_TESTABILITY = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_DYNAMIC_NO_PIC = NO;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_OPTIMIZATION_LEVEL = 0;
+				GCC_PREPROCESSOR_DEFINITIONS = (
+					"$(inherited)",
+					"DEBUG=1",
+				);
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
+				MTL_FAST_MATH = YES;
+				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.yuangy.creditcard.macos;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_ACTIVE_COMPILATION_CONDITIONS = DEBUG;
+				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Debug;
+		};
+		98B5515F9CD39F548B45F7C8 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ALWAYS_SEARCH_USER_PATHS = NO;
+				CLANG_ANALYZER_NONNULL = YES;
+				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
+				CLANG_CXX_LANGUAGE_STANDARD = "gnu++14";
+				CLANG_CXX_LIBRARY = "libc++";
+				CLANG_ENABLE_MODULES = YES;
+				CLANG_ENABLE_OBJC_ARC = YES;
+				CLANG_ENABLE_OBJC_WEAK = YES;
+				CLANG_WARN_BLOCK_CAPTURE_AUTORELEASING = YES;
+				CLANG_WARN_BOOL_CONVERSION = YES;
+				CLANG_WARN_COMMA = YES;
+				CLANG_WARN_CONSTANT_CONVERSION = YES;
+				CLANG_WARN_DEPRECATED_OBJC_IMPLEMENTATIONS = YES;
+				CLANG_WARN_DIRECT_OBJC_ISA_USAGE = YES_ERROR;
+				CLANG_WARN_DOCUMENTATION_COMMENTS = YES;
+				CLANG_WARN_EMPTY_BODY = YES;
+				CLANG_WARN_ENUM_CONVERSION = YES;
+				CLANG_WARN_INFINITE_RECURSION = YES;
+				CLANG_WARN_INT_CONVERSION = YES;
+				CLANG_WARN_NON_LITERAL_NULL_CONVERSION = YES;
+				CLANG_WARN_OBJC_IMPLICIT_RETAIN_SELF = YES;
+				CLANG_WARN_OBJC_LITERAL_CONVERSION = YES;
+				CLANG_WARN_OBJC_ROOT_CLASS = YES_ERROR;
+				CLANG_WARN_QUOTED_INCLUDE_IN_FRAMEWORK_HEADER = YES;
+				CLANG_WARN_RANGE_LOOP_ANALYSIS = YES;
+				CLANG_WARN_STRICT_PROTOTYPES = YES;
+				CLANG_WARN_SUSPICIOUS_MOVE = YES;
+				CLANG_WARN_UNGUARDED_AVAILABILITY = YES_AGGRESSIVE;
+				CLANG_WARN_UNREACHABLE_CODE = YES;
+				CLANG_WARN__DUPLICATE_METHOD_MATCH = YES;
+				COPY_PHASE_STRIP = NO;
+				DEBUG_INFORMATION_FORMAT = "dwarf-with-dsym";
+				DEVELOPMENT_TEAM = "";
+				ENABLE_NS_ASSERTIONS = NO;
+				ENABLE_STRICT_OBJC_MSGSEND = YES;
+				GCC_C_LANGUAGE_STANDARD = gnu11;
+				GCC_NO_COMMON_BLOCKS = YES;
+				GCC_WARN_64_TO_32_BIT_CONVERSION = YES;
+				GCC_WARN_ABOUT_RETURN_TYPE = YES_ERROR;
+				GCC_WARN_UNDECLARED_SELECTOR = YES;
+				GCC_WARN_UNINITIALIZED_AUTOS = YES_AGGRESSIVE;
+				GCC_WARN_UNUSED_FUNCTION = YES;
+				GCC_WARN_UNUSED_VARIABLE = YES;
+				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MTL_ENABLE_DEBUG_INFO = NO;
+				MTL_FAST_MATH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = com.yuangy.creditcard.macos;
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SDKROOT = macosx;
+				SWIFT_COMPILATION_MODE = wholemodule;
+				SWIFT_OPTIMIZATION_LEVEL = "-O";
+				SWIFT_VERSION = 6.0;
+			};
+			name = Release;
+		};
+		B9C096702996202C40985A71 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				INFOPLIST_FILE = Resources/TestInfo.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.yuangy.creditcard.macos.tests;
+				SDKROOT = macosx;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/CreditCardMac.app/Contents/MacOS/CreditCardMac";
+			};
+			name = Debug;
+		};
+		BA4BBF36A26BCA543307D02B /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				COMBINE_HIDPI_IMAGES = YES;
+				INFOPLIST_FILE = Resources/Info.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+				);
+				PRODUCT_NAME = CreditCardMac;
+				SDKROOT = macosx;
+			};
+			name = Debug;
+		};
+		F9DC3558A1989774BED500C7 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				COMBINE_HIDPI_IMAGES = YES;
+				INFOPLIST_FILE = Resources/TestInfo.plist;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/../Frameworks",
+					"@loader_path/../Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.yuangy.creditcard.macos.tests;
+				SDKROOT = macosx;
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/CreditCardMac.app/Contents/MacOS/CreditCardMac";
+			};
+			name = Release;
+		};
+/* End XCBuildConfiguration section */
+
+/* Begin XCConfigurationList section */
+		172642DDF6D459BBD19D1542 /* Build configuration list for PBXNativeTarget "CreditCardMac" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				BA4BBF36A26BCA543307D02B /* Debug */,
+				8648C4FCE47A3018218DF95C /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		72FAA277B85111283AD8F8DA /* Build configuration list for PBXNativeTarget "CreditCardMacTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				B9C096702996202C40985A71 /* Debug */,
+				F9DC3558A1989774BED500C7 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+		FB1E82C25D4ED34DD7890D7D /* Build configuration list for PBXProject "CreditCardMac" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				98312A55AD5A00EFC2048C39 /* Debug */,
+				98B5515F9CD39F548B45F7C8 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
+/* End XCConfigurationList section */
+	};
+	rootObject = 95B986D3DE9101D7ABB0036F /* Project object */;
+}
