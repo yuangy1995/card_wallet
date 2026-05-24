@@ -1,6 +1,6 @@
 <template>
   <div class="secure-field">
-    <span class="secure-text">{{ displayValue }}</span>
+    <span :class="['secure-text', type]">{{ displayValue }}</span>
     <el-icon class="secure-icon" @click="toggleVisibility">
       <component :is="visible ? Hide : View" />
     </el-icon>
@@ -64,7 +64,7 @@ export default {
       
       if (!visible.value) {
         if (props.maskAll) {
-          return '*'.repeat(cleanValue.length)
+          return '•'.repeat(cleanValue.length)
         }
         
         const start = props.maskStart
@@ -73,7 +73,7 @@ export default {
         // 对卡号进行分组显示
         if (props.type === 'cardNumber') {
           const visibleStart = cleanValue.slice(0, start)
-          const masked = '*'.repeat(end - start)
+          const masked = '•'.repeat(end - start)
           const visibleEnd = cleanValue.slice(end)
           
           // 将数字分成4个一组
@@ -81,7 +81,7 @@ export default {
         }
         
         return cleanValue.slice(0, start) + 
-               '*'.repeat(end - start) + 
+               '•'.repeat(end - start) + 
                cleanValue.slice(end)
       }
       
@@ -141,21 +141,46 @@ export default {
 .secure-field {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
+  gap: 10px;
+  padding: 4px 8px;
+  background: rgba(241, 245, 249, 0.5);
+  border-radius: 6px;
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.secure-field:hover {
+  background: rgba(241, 245, 249, 0.8);
+  border-color: rgba(203, 213, 225, 0.8);
 }
 
 .secure-text {
-  font-family: monospace;
+  font-family: 'JetBrains Mono', 'Fira Code', 'SF Mono', Monaco, Consolas, monospace;
+  font-size: 14px;
+  font-weight: 600;
+  color: #334155;
+  letter-spacing: 0.08em;
+  display: inline-block;
+  transition: all 0.2s ease;
+}
+
+.secure-text.cardNumber {
+  min-width: 150px;
+}
+
+.secure-text.cvv {
+  min-width: 30px;
 }
 
 .secure-icon {
   cursor: pointer;
-  color: var(--el-text-color-secondary);
-  transition: color 0.2s;
-  font-size: 16px;
+  color: #94a3b8;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  font-size: 15px;
 }
 
 .secure-icon:hover {
-  color: var(--el-text-color-primary);
+  color: #475569;
+  transform: scale(1.15);
 }
 </style>

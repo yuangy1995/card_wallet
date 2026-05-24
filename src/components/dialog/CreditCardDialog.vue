@@ -725,18 +725,6 @@ export default {
 
 <style scoped>
 .card-details-dialog {
-  :deep(.el-dialog) {
-    max-height: 90vh;
-    display: flex;
-    flex-direction: column;
-  }
-
-  :deep(.el-dialog__body) {
-    flex: 1;
-    min-height: 0;
-    overflow-y: auto;
-    scrollbar-gutter: stable;
-  }
 
   :deep(.el-descriptions__cell) {
     .el-form-item {
@@ -812,6 +800,6 @@ export default {
   padding: 20px;
   text-align: right;
   background-color: var(--el-bg-color);
-  border-top: 1px solid var(--el-border-color-lighter);
+  border-top: none;
 }
 </style>

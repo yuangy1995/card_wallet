@@ -1,7 +1,7 @@
 import { ref, onMounted, watch } from 'vue'
 
-// 主题状态
-const isDarkMode = ref(false)
+// 主题状态 - 默认设为 true 开启极客霓虹暗黑科技风
+const isDarkMode = ref(true)
 
 // 主题管理 composable
 export function useTheme() {
@@ -11,8 +11,9 @@ export function useTheme() {
     if (savedTheme) {
       isDarkMode.value = savedTheme === 'dark'
     } else {
-      // 如果没有保存的主题，检查系统偏好
-      isDarkMode.value = window.matchMedia('(prefers-color-scheme: dark)').matches
+      // 默认首选极客霓虹暗黑科技风！
+      isDarkMode.value = true
+      localStorage.setItem('app-theme', 'dark')
     }
     applyTheme()
   }
@@ -29,16 +30,16 @@ export function useTheme() {
       root.classList.add('dark')
       body.classList.add('dark')
       root.setAttribute('data-theme', 'dark')
-      // 强制设置根元素样式
-      root.style.backgroundColor = '#141414'
-      root.style.color = '#e5eaf3'
-      body.style.backgroundColor = '#141414'
-      body.style.color = '#e5eaf3'
+      // 由 CSS 统一控制背景与渐变，杜绝 JavaScript 强行覆盖
+      root.style.backgroundColor = ''
+      root.style.color = ''
+      body.style.backgroundColor = ''
+      body.style.color = ''
     } else {
       root.classList.remove('dark')
       body.classList.remove('dark')
       root.setAttribute('data-theme', 'light')
-      // 移除强制样式
+      // 由 CSS 统一控制背景与渐变，杜绝 JavaScript 强行覆盖
       root.style.backgroundColor = ''
       root.style.color = ''
       body.style.backgroundColor = ''

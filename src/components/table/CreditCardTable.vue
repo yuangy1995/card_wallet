@@ -9,9 +9,12 @@
       class="mobile-optimized"
       @row-contextmenu="handleContextMenu"
       :row-class-name="rowClassName"
+      :cell-class-name="cellClassName"
       @selection-change="handleSelectionChange"
       :span-method="spanMethod"
       ref="tableRef"
+      @cell-mouse-enter="handleCellMouseEnter"
+      @cell-mouse-leave="handleCellMouseLeave"
     >
       <el-table-column type="selection" width="55" align="center" fixed />
       <el-table-column type="index" label="序号" width="60" align="center" fixed />
@@ -92,6 +95,7 @@
         </el-table-column>
       </template>
     </el-table>
+    <div class="table-row-hover-overlay" :style="rowHoverOverlayStyle"></div>
 
     <!-- 右键菜单 -->
     <div 
@@ -308,6 +312,9 @@ export default {
     const contextMenuX = ref(0)
     const contextMenuY = ref(0)
     const selectedRow = ref(null)
+    const rowHoverOverlayStyle = ref({
+      display: 'none'
+    })
 
     let cleanupClickListener = null
 
@@ -560,9 +567,81 @@ export default {
       localStorage.setItem('creditCardTableSortOrder', order)
     }
 
+    const getTableElement = () => {
+      return tableRef.value?.$el || document.querySelector('.credit-card-table .el-table')
+    }
+
+    const clearTableRowHover = () => {
+      const tableElement = getTableElement()
+      if (!tableElement) return
+
+      tableElement.classList.remove('is-table-row-hovered')
+      tableElement.style.removeProperty('--table-row-hover-top')
+      tableElement.style.removeProperty('--table-row-hover-left')
+      tableElement.style.removeProperty('--table-row-hover-width')
+      tableElement.style.removeProperty('--table-row-hover-height')
+      rowHoverOverlayStyle.value = {
+        display: 'none'
+      }
+    }
+
+    const syncTableRowHover = (cell) => {
+      const tableElement = getTableElement()
+      const tableContainer = tableElement?.closest?.('.credit-card-table')
+      const rowElement = cell?.closest?.('tr.el-table__row')
+      if (!tableElement || !tableContainer || !rowElement) return
+
+      const tableRect = tableElement.getBoundingClientRect()
+      const containerRect = tableContainer.getBoundingClientRect()
+      const rowRect = rowElement.getBoundingClientRect()
+
+      tableElement.classList.add('is-table-row-hovered')
+      tableElement.style.setProperty('--table-row-hover-top', `${rowRect.top - tableRect.top}px`)
+      tableElement.style.setProperty('--table-row-hover-left', `${rowRect.left - tableRect.left}px`)
+      tableElement.style.setProperty('--table-row-hover-width', `${rowRect.width}px`)
+      tableElement.style.setProperty('--table-row-hover-height', `${rowRect.height}px`)
+      rowHoverOverlayStyle.value = {
+        display: 'block',
+        top: `${rowRect.top - containerRect.top}px`,
+        left: `${rowRect.left - containerRect.left}px`,
+        width: `${rowRect.width}px`,
+        height: `${rowRect.height}px`
+      }
+    }
+
+    const handleCellMouseEnter = (row, column, cell) => {
+      syncTableRowHover(cell)
+    }
+
+    const handleCellMouseLeave = (row, column, cell, event) => {
+      const nextRow = event?.relatedTarget?.closest?.('tr.el-table__row')
+      if (nextRow) return
+      clearTableRowHover()
+    }
+
     // 行样式类名
     const rowClassName = ({ row }) => {
-      return props.rowClassName({ row });
+      if (props.rowClassName) {
+        return props.rowClassName({ row }) || ''
+      }
+      return ''
+    }
+
+    const isMergedParentCell = (row, property) => {
+      const mergedCells = {
+        country: row.showCountry && row.countryRowSpan > 1,
+        bank: row.showBank && row.bankRowSpan > 1,
+        limit: row.isSharedLimit && row.showLimit && row.limitRowSpan > 1,
+        lastTime: row.isSharedLimit && row.showLastTime && row.lastTimeRowSpan > 1
+      }
+      return Boolean(mergedCells[property])
+    }
+
+    const cellClassName = ({ row, column }) => {
+      if (isMergedParentCell(row, column.property)) {
+        return 'credit-card-merged-cell'
+      }
+      return ''
     }
 
     // 表格合并单元格方法
@@ -667,7 +746,10 @@ export default {
       },
       handleViewDetails: (row) => emit('view-details', row),
       handleAnnualFeeQualified: (cardId) => emit('annual-fee-qualified', cardId),
-      rowClassName: props.rowClassName,
+      rowClassName,
+      handleCellMouseEnter,
+      handleCellMouseLeave,
+      cellClassName,
       columns,
       isColumnVisible,
       getColumnWidth,
@@ -694,6 +776,7 @@ export default {
       showAnnualFeeOption,
       tableRef,
       selectedRows,
+      rowHoverOverlayStyle,
       handleSelectionChange,
       toggleSelectAll,
       clearSelection,

@@ -190,7 +190,6 @@ export default {
   :deep(.el-dialog__body) {
     padding: 0 20px 20px;
   }
-
   .details-content {
     white-space: pre-wrap;
     word-break: break-all;

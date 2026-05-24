@@ -8,6 +8,15 @@
       />
       <div class="button-container">
         
+        <el-radio-group v-model="viewMode" size="small" class="view-mode-selector mobile-responsive">
+          <el-radio-button label="table">
+            <el-icon><Menu /></el-icon>表格模式
+          </el-radio-button>
+          <el-radio-button label="card">
+            <el-icon><CreditCard /></el-icon>卡片模式
+          </el-radio-button>
+        </el-radio-group>
+        
         <el-button-group class="button-group mobile-responsive">
           <el-button type="primary" @click="addCreditCard">
             <el-icon>
@@ -76,6 +85,18 @@
             </el-icon>导出脱敏数据
           </el-button>
         </el-button-group>
+
+        <!-- 主题与安全锁控制集成胶囊 -->
+        <div class="theme-toggle-container">
+          <FloatingLockButton
+            @lock-app="handleLockApp"
+            @show-password-settings="showPasswordSetup = true"
+          />
+          <el-button circle @click="toggleTheme" class="theme-toggle-btn" :title="isDarkMode ? '切换到浅色极光模式' : '切换到深色太空模式'">
+            <el-icon v-if="isDarkMode"><Sunny /></el-icon>
+            <el-icon v-else><Moon /></el-icon>
+          </el-button>
+        </div>
         
       </div>
 
@@ -92,19 +113,36 @@
         @toggle-select-all="toggleSelectAll"
       />
 
-      <CreditCardTable 
-        :table-data="tableData" 
-        :visible-columns="visibleColumns" 
-        @edit="editCreditCard"
-        @delete="deleteCard" 
-        @card-number-visibility="handleCardNumberVisibility" 
-        @cvv-visibility="handleCvvVisibility"
-        @view-details="viewDetails" 
-        @annual-fee-qualified="setAnnualFeeQualified" 
-        @selection-change="handleSelectionChange"
-        :row-class-name="getRowClassName" 
-        ref="creditCardTableRef"
-      />
+      <Transition name="view-fade" mode="out-in">
+        <CreditCardTable 
+          v-if="viewMode === 'table'"
+          :table-data="tableData" 
+          :visible-columns="visibleColumns" 
+          :selected-rows="selectedRows"
+          @edit="editCreditCard"
+          @delete="deleteCard" 
+          @card-number-visibility="handleCardNumberVisibility" 
+          @cvv-visibility="handleCvvVisibility"
+          @view-details="viewDetails" 
+          @annual-fee-qualified="setAnnualFeeQualified" 
+          @selection-change="handleSelectionChange"
+          :row-class-name="getRowClassName" 
+          ref="creditCardTableRef"
+        />
+        <CreditCardCardList
+          v-else
+          :table-data="tableData"
+          :selected-rows="selectedRows"
+          @edit="editCreditCard"
+          @delete="deleteCard"
+          @view-details="viewDetails"
+          @annual-fee-qualified="setAnnualFeeQualified"
+          @card-number-visibility="handleCardNumberVisibility"
+          @cvv-visibility="handleCvvVisibility"
+          @selection-change="handleSelectionChange"
+          ref="creditCardCardListRef"
+        />
+      </Transition>
 
       <CreditCardDialog v-model:visible="creditCardData.dialogFormVisible" :mode="status"
         :initial-data="creditCardData.data" :existing-cards="cardData" @submit="confirmAdd" @cancel="handleDialogCancel" class="mobile-dialog mobile-form" />
@@ -160,11 +198,7 @@
       v-model="showPasswordRecovery"
       @recovery-success="handleRecoverySuccess"
     />
-    
-    <FloatingLockButton
-      @lock-app="handleLockApp"
-      @show-password-settings="showPasswordSetup = true"
-    />
+
   </div>
 </template>
 
@@ -184,11 +218,16 @@ import {
   Connection,
   Upload,
   DocumentCopy,
-  CopyDocument
+  CopyDocument,
+  Menu,
+  CreditCard,
+  Sunny,
+  Moon
 } from '@element-plus/icons-vue'
 import CreditCardTable from '@/components/table/CreditCardTable.vue'
 import BatchOperationToolbar from '@/components/toolbar/BatchOperationToolbar.vue'
 // 懒加载组件
+const CreditCardCardList = defineAsyncComponent(() => import('@/components/card/CreditCardCardList.vue'))
 const CreditCardDialog = defineAsyncComponent(() => import('@/components/dialog/CreditCardDialog.vue'))
 const DeleteConfirmDialog = defineAsyncComponent(() => import('@/components/dialog/DeleteConfirmDialog.vue'))
 const ImportExportDialog = defineAsyncComponent(() => import('@/components/dialog/ImportExportDialog.vue'))
@@ -224,10 +263,19 @@ import { PasswordManager } from '@/utils/passwordManager'
 import { getBankDisplayName } from '@/utils/bankNameFormatter'
 import { normalizeCountryValue, normalizeBankValue } from '@/utils/referenceDataUtils'
 
+// 主题控制
+const { isDarkMode, toggleTheme } = useTheme()
+
 // 状态管理
 const cardData = ref([])
 const selectedRows = ref([])
 const creditCardTableRef = ref(null)
+const creditCardCardListRef = ref(null)
+
+const viewMode = ref(localStorage.getItem('creditCardViewMode') || 'table')
+watch(viewMode, (newValue) => {
+  localStorage.setItem('creditCardViewMode', newValue)
+})
 
 const showTableCustomDialog = ref(false)
 const tableCustomColumns = ref(JSON.parse(JSON.stringify(creditCardOptions.tableCustomData)))
@@ -576,24 +624,24 @@ const checkAnnualFeeQualified = async () => {
             <h3 style="margin: 0 0 16px 0; color: #E6A23C;">年费达标状态检测</h3>
             <p style="margin: 0 0 12px 0; line-height: 1.6;">检测到以下卡片临近年费收取时间不足${BACKUP_CONSTANTS.ANNUAL_FEE_CHECK_DAYS}天。</p>
             <p style="margin: 0 0 12px 0; line-height: 1.6;">建议将这些卡片修改为未达标状态，以协助您处理年费收取问题。</p>
-            <p style="margin: 0; line-height: 1.6; color: #666;">
+            <p class="annual-fee-desc" style="margin: 0; line-height: 1.6;">
               提示：如果您在去年将卡片设为已达标，但今年忘记修改状态且消费未达标，可能会遗漏年费情况。为避免年费损失，建议点击"是"来更新状态。
             </p>
           </div>
-          <div style="width: 1px; background: #DCDFE6; margin: 16px 0;"></div>
+          <div class="annual-fee-divider" style="width: 1px; margin: 16px 0;"></div>
           <div style="flex: 1; padding: 16px;">
             <h3 style="margin: 0 0 16px 0; color: #E6A23C;">待处理卡片列表</h3>
             <div style="max-height: 400px; overflow-y: auto;">
               <ul style="list-style-type: none; padding: 0; margin: 0;">
                 ${warningCards.map(card => `
-                  <li style="margin-bottom: 8px; padding: 12px; background: #f5f7fa; border-radius: 4px;">
-                    <div style="font-weight: bold; margin-bottom: 4px;">
+                  <li class="annual-fee-card-item">
+                    <div class="annual-fee-card-title">
                       ${card.bank.replace(/\(.*?\)/g, "").trim()} - ${card.alias}
                     </div>
-                    <div style="color: #666; font-size: 13px;">
+                    <div class="annual-fee-card-time">
                       下次年费收取时间：${card.nextAnnualFeeCollectionTime}
                     </div>
-                    <div style="color: #E6A23C; font-size: 13px; margin-top: 4px;">
+                    <div class="annual-fee-card-countdown">
                       距离收取年费：${Math.ceil((new Date(card.nextAnnualFeeCollectionTime) - new Date()) / (1000 * 60 * 60 * 24))} 天
                     </div>
                   </li>
@@ -805,17 +853,16 @@ const manualCheckAnnualFees = async () => {
   })
 
   if (warningCards.length > 0 || overdueCards.length > 0 || unqualifiedCards.length > 0) {
-    let message = '<div style="max-height: 400px; overflow-y: auto;">'
+    let message = '<div class="manual-check-container" style="max-height: 400px; overflow-y: auto;">'
 
     if (unqualifiedCards.length > 0) {
       message += '<div style="margin-bottom: 16px;">'
-      message += '<h3 style="color: #E6A23C; margin-bottom: 8px;">年费尚未达标</h3>'
+      message += '<h3 class="manual-check-section-title unqualified" style="margin-bottom: 8px;">年费尚未达标</h3>'
       message += '<ul style="list-style-type: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 16px;">'
       unqualifiedCards.forEach(card => {
-        message += `<li style="margin: 0; padding: 12px; background: #fdf6ec; border-radius: 4px; flex: 0 1 calc(33.33% - 12px); min-width: 200px; box-sizing: border-box;">
-          <strong>${card.bank.replace(/\(.*?\)/g, "").trim()}</strong><br />
-          <strong>${card.alias}</strong>
-          <div style="color: #666; margin-top: 4px;">距离年费收取还有 ${card.diffDays} 天</div>
+        message += `<li class="manual-check-card-item unqualified">
+          <div class="manual-check-card-title">${card.bank.replace(/\(.*?\)/g, "").trim()} - ${card.alias}</div>
+          <div class="manual-check-card-desc">距离年费收取还有 ${card.diffDays} 天</div>
         </li>`
       })
       message += '</ul></div>'
@@ -823,13 +870,12 @@ const manualCheckAnnualFees = async () => {
 
     if (warningCards.length > 0) {
       message += '<div style="margin-bottom: 16px;">'
-      message += '<h3 style="color: #E6A23C; margin-bottom: 8px;">即将到期年费提醒</h3>'
+      message += '<h3 class="manual-check-section-title warning" style="margin-bottom: 8px;">即将到期年费提醒</h3>'
       message += '<ul style="list-style-type: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 16px;">'
       warningCards.forEach(card => {
-        message += `<li style="margin: 0; padding: 12px; background: #fefce8; border-radius: 4px; flex: 0 1 calc(33.33% - 12px); min-width: 200px; box-sizing: border-box;">
-          <strong>${card.bank.replace(/\(.*?\)/g, "").trim()}</strong><br />
-          <strong>${card.alias}</strong>
-          <div style="color: #666; margin-top: 4px;">将在 ${Math.ceil((new Date(card.nextAnnualFeeCollectionTime) - now) / (1000 * 60 * 60 * 24))} 天后收取年费</div>
+        message += `<li class="manual-check-card-item warning">
+          <div class="manual-check-card-title">${card.bank.replace(/\(.*?\)/g, "").trim()} - ${card.alias}</div>
+          <div class="manual-check-card-desc">将在 ${Math.ceil((new Date(card.nextAnnualFeeCollectionTime) - now) / (1000 * 60 * 60 * 24))} 天后收取年费</div>
         </li>`
       })
       message += '</ul></div>'
@@ -837,13 +883,12 @@ const manualCheckAnnualFees = async () => {
 
     if (overdueCards.length > 0) {
       message += '<div>'
-      message += '<h3 style="color: #F56C6C; margin-bottom: 8px;">已过期年费提醒</h3>'
+      message += '<h3 class="manual-check-section-title overdue" style="margin-bottom: 8px;">已过期年费提醒</h3>'
       message += '<ul style="list-style-type: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 16px;">'
       overdueCards.forEach(card => {
-        message += `<li style="margin: 0; padding: 12px; background: #fef0f0; border-radius: 4px; flex: 0 1 calc(33.33% - 12px); min-width: 200px; box-sizing: border-box;">
-          <strong>${card.bank.replace(/\(.*?\)/g, "").trim()}</strong><br />
-          <strong>${card.alias}</strong>
-          <div style="color: #666; margin-top: 4px;">已过期 ${Math.ceil((now - new Date(card.nextAnnualFeeCollectionTime)) / (1000 * 60 * 60 * 24))} 天</div>
+        message += `<li class="manual-check-card-item overdue">
+          <div class="manual-check-card-title">${card.bank.replace(/\(.*?\)/g, "").trim()} - ${card.alias}</div>
+          <div class="manual-check-card-desc">已过期 ${Math.ceil((now - new Date(card.nextAnnualFeeCollectionTime)) / (1000 * 60 * 60 * 24))} 天</div>
         </li>`
       })
       message += '</ul></div>'
@@ -888,14 +933,26 @@ const handleSelectionChange = (selection) => {
 }
 
 const clearSelection = () => {
+  selectedRows.value = []
   if (creditCardTableRef.value && creditCardTableRef.value.clearSelection) {
     creditCardTableRef.value.clearSelection()
+  }
+  if (creditCardCardListRef.value && creditCardCardListRef.value.clearSelection) {
+    creditCardCardListRef.value.clearSelection()
   }
 }
 
 const toggleSelectAll = () => {
-  if (creditCardTableRef.value && creditCardTableRef.value.toggleSelectAll) {
-    creditCardTableRef.value.toggleSelectAll()
+  if (viewMode.value === 'table') {
+    if (creditCardTableRef.value && creditCardTableRef.value.toggleSelectAll) {
+      creditCardTableRef.value.toggleSelectAll()
+    }
+  } else {
+    if (selectedRows.value.length === tableData.value.length) {
+      selectedRows.value = []
+    } else {
+      selectedRows.value = [...tableData.value]
+    }
   }
 }
 
@@ -1544,16 +1601,64 @@ onMounted(() => {
   }
 }
 
-/* 主题切换器样式 */
+/* 主题与安全集成顶栏胶囊舱样式 */
 .theme-toggle-container {
   display: flex;
   align-items: center;
   margin-top: 12px;
   justify-content: center;
+  padding: 4px 8px;
+  border-radius: 30px;
+  transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
   
+  /* 默认亮色模式：洁白轻透太空舱质感 */
+  background: rgba(255, 255, 255, 0.88) !important;
+  border: 1px solid rgba(86, 114, 190, 0.22) !important;
+  box-shadow: 0 4px 16px rgba(86, 114, 190, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.7) !important;
+
   @media (min-width: 768px) {
     margin-top: 0;
     margin-left: 16px;
+  }
+}
+
+/* 顶栏控制按钮-主题切换 */
+.theme-toggle-btn {
+  width: 32px !important;
+  height: 32px !important;
+  padding: 0 !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  transition: all 0.25s cubic-bezier(0.25, 0.8, 0.25, 1) !important;
+  border: none !important;
+  background-color: rgba(0, 168, 180, 0.12) !important;
+  color: #007780 !important;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.05) !important;
+  cursor: pointer !important;
+
+  :deep(.el-icon) {
+    font-size: 14px !important;
+  }
+
+  &:hover {
+    background-color: #007780 !important;
+    color: #ffffff !important;
+    transform: translateY(-1px) scale(1.05) !important;
+    box-shadow: 0 4px 12px rgba(0, 168, 180, 0.3) !important;
+  }
+}
+
+
+
+@media (max-width: 768px) {
+  .theme-toggle-btn {
+    width: 28px !important;
+    height: 28px !important;
+    
+    :deep(.el-icon) {
+      font-size: 12px !important;
+    }
   }
 }
 

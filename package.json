@@ -34,5 +34,18 @@
     "unplugin-vue-components": "^0.25.1",
     "vite": "^4.4.6",
     "vitest": "^3.0.8"
-  }
+  },
+  "description": "一个基于 Vue.js 的现代化信用卡管理系统，帮助用户高效管理多张信用卡信息。",
+  "main": "vite.config.js",
+  "directories": {
+    "doc": "docs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "http://192.168.8.175:10125/yuangy/credit_card.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs"
 }
