@@ -1,39 +1,37 @@
 name: CreditCardMac
 options:
-  minimumXcodeGenVersion: 2.38.0
-  deploymentTarget:
-    macOS: "14.0"
-settings:
-  base:
-    PRODUCT_BUNDLE_IDENTIFIER: com.yuangy.creditcard.macos
-    SWIFT_VERSION: 6.0
-    DEVELOPMENT_TEAM: ""
+  bundleIdPrefix: com.applist
+packages:
+  CryptoSwift:
+    url: https://github.com/krzyzanowskim/CryptoSwift.git
+    from: 1.8.0
 targets:
   CreditCardMac:
     type: application
     platform: macOS
+    deploymentTarget: "14.0"
     sources:
-      - App
-      - Features
-      - Domain
-      - Data
-      - Platform
-      - Resources
+      - path: App
+      - path: Domain
+      - path: Features
+      - path: Resources
+    dependencies:
+      - package: CryptoSwift
     settings:
       base:
-        INFOPLIST_FILE: Resources/Info.plist
-        PRODUCT_NAME: CreditCardMac
-    scheme:
-      testTargets:
-        - CreditCardMacTests
+        MACOSX_DEPLOYMENT_TARGET: "14.0"
+        GENERATE_INFOPLIST_FILE: YES
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        INFOPLIST_KEY_NSHumanReadableCopyright: "Copyright © 2026. All rights reserved."
+        INFOPLIST_KEY_LSMinimumSystemVersion: "14.0"
   CreditCardMacTests:
     type: bundle.unit-test
     platform: macOS
+    deploymentTarget: "14.0"
     sources:
-      - Tests/UnitTests
+      - path: Tests
     dependencies:
       - target: CreditCardMac
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.yuangy.creditcard.macos.tests
-        INFOPLIST_FILE: Resources/TestInfo.plist
+        GENERATE_INFOPLIST_FILE: YES
