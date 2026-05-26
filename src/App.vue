@@ -348,6 +348,7 @@ const isDev = import.meta.env.DEV || import.meta.env.MODE === 'development'
 const helpPage = ref(null)
 const webDAVConfig = ref(null)
 const backup = ref(null)
+const initialCloudComparisonRequested = ref(false)
 
 // 计算属性 - 优化缓存
 const visibleColumns = computed(() => {
@@ -598,7 +599,8 @@ onMounted(async () => {
       // 显示迁移报告（需要在所有loading完成后）
       hideLoading()
       await nextTick()
-      showMigrationReport(migrationInfo)
+      await showMigrationReport(migrationInfo)
+      await requestInitialCloudComparison()
     }
   } finally {
     hideLoading()
@@ -1270,6 +1272,23 @@ const handleBackup = () => {
   backup.value?.open(cardData.value)
 }
 
+// 等待异步备份组件就绪后，仅在首次进入页面时请求一次云端差异检查
+const requestInitialCloudComparison = async () => {
+  initialCloudComparisonRequested.value = true
+  await nextTick()
+  if (!backup.value?.checkLatestBackupOnStartup) return
+
+  initialCloudComparisonRequested.value = false
+  await backup.value.checkLatestBackupOnStartup()
+}
+
+watch(backup, async (instance) => {
+  if (!instance || !initialCloudComparisonRequested.value || isLocked.value) return
+
+  initialCloudComparisonRequested.value = false
+  await instance.checkLatestBackupOnStartup?.()
+})
+
 const handleBackupUpdate = (data) => {
   cardData.value = data
   localStorage.setItem('cardData', JSON.stringify(data))
@@ -1382,10 +1401,11 @@ const handlePasswordVerified = async () => {
     }
     if (pendingMigrationInfo.value) {
       await nextTick()
-      showMigrationReport(pendingMigrationInfo.value)
+      await showMigrationReport(pendingMigrationInfo.value)
       pendingMigrationInfo.value = null
     }
   }
+  await requestInitialCloudComparison()
 }
 
 // 处理忘记密码选项

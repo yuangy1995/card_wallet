@@ -59,7 +59,7 @@
                         <el-icon><document-copy /></el-icon>比对
                       </el-dropdown-item>
                       <el-dropdown-item @click="handleRestore(backup)" :loading="backup.restoring">
-                        <el-icon><refresh-right /></el-icon>恢复
+                        <el-icon><refresh-right /></el-icon>恢复 / 融合
                       </el-dropdown-item>
                       <el-dropdown-item @click="handleRename(backup)" :loading="backup.renaming">
                         <el-icon><edit /></el-icon>重命名
@@ -149,6 +149,14 @@
     draggable
     append-to-body
   >
+    <el-alert
+      v-if="currentBackup && currentBackup.automatic"
+      title="正在自动比对最新云端备份，请输入该备份的解密密码"
+      type="warning"
+      :closable="false"
+      show-icon
+      class="password-hint"
+    />
     <el-form :model="restoreForm" label-width="80px">
       <el-form-item
         label="密码"
@@ -201,6 +209,17 @@
     class="compare-dialog"
   >
     <div class="compare-container">
+      <el-alert
+        v-if="comparisonIsAutomatic && compareStatus === 'diff'"
+        title="检测到最新云端备份与本地数据不一致，请选择智能融合或以云端数据覆盖本地"
+        type="warning"
+        :closable="false"
+        show-icon
+        class="automatic-compare-hint"
+      />
+      <div v-if="comparedBackup" class="compared-backup-name">
+        当前比对备份：{{ comparedBackup.filename }}
+      </div>
       <div class="compare-toolbar">
         <div class="summary-tags">
           <el-tag size="small" type="info">总计 {{ diffSummary.total }}</el-tag>
@@ -270,6 +289,15 @@
                     {{ row._status !== 'deleted' ? '✅' : '❌' }}
                   </span>
                 </div>
+                <el-tag
+                  v-if="row._status === 'modified'"
+                  :type="getVersionTagType(row._versionState)"
+                  size="small"
+                  effect="plain"
+                  class="version-tag"
+                >
+                  {{ getVersionStateText(row._versionState) }}
+                </el-tag>
               </div>
             </template>
           </el-table-column>
@@ -303,6 +331,22 @@
     </div>
     <template #footer>
       <span class="dialog-footer">
+        <el-button
+          v-if="compareStatus === 'diff'"
+          type="primary"
+          :loading="resolvingComparison"
+          @click="handleSmartMerge"
+        >
+          智能双向融合（保留最新）
+        </el-button>
+        <el-button
+          v-if="compareStatus === 'diff'"
+          type="warning"
+          :disabled="resolvingComparison"
+          @click="handleForceCloudOverwrite"
+        >
+          云端数据强制覆盖本地
+        </el-button>
         <el-button @click="compareDialogVisible = false">关闭</el-button>
       </span>
     </template>
@@ -310,7 +354,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, nextTick, inject, watch } from 'vue'
+import { ref, computed, onMounted, inject, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { handleNetworkError, handleEncryptionError, handleValidationError } from '@/utils/errorHandler'
 import { webdavClient } from '@/utils/webdav'
@@ -353,6 +397,12 @@ const compareDialogVisible = ref(false)
 const comparisonData = ref([])
 const compareStatus = ref('idle')
 const activeFilter = ref('diff')
+const comparedCloudCards = ref([])
+const comparedBackup = ref(null)
+const comparisonIsAutomatic = ref(false)
+const comparisonPassword = ref('')
+const resolvingComparison = ref(false)
+const startupComparisonAttempted = ref(false)
 const tableColumns = creditCardOptions.tableCustomData
 
 const filteredComparisonData = computed(() => {
@@ -424,6 +474,11 @@ const closeAll = () => {
   comparisonData.value = []
   compareStatus.value = 'idle'
   activeFilter.value = 'diff'
+  comparedCloudCards.value = []
+  comparedBackup.value = null
+  comparisonIsAutomatic.value = false
+  comparisonPassword.value = ''
+  resolvingComparison.value = false
   currentBackup.value = null
   restoreForm.value.password = ''
 }
@@ -553,89 +608,224 @@ const handleBackupConfirm = async () => {
   }
 }
 
-// 恢复备份
-const handleRestore = async (backup) => {
-  try {
-    await ElMessageBox.confirm(
-      '恢复备份将覆盖当前所有数据，是否继续？',
-      '警告',
-      {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning'
-      }
-    )
+const extractCards = (data) => {
+  const parsedData = typeof data === 'string' ? JSON.parse(data) : data
+  if (Array.isArray(parsedData)) return parsedData
+  if (Array.isArray(parsedData?.cards)) return parsedData.cards
+  if (Array.isArray(parsedData?.data)) return parsedData.data
+  return []
+}
 
-    backup.restoring = true
+const getStoredCards = () => {
+  const storedData = JSON.parse(localStorage.getItem('cardData') || '[]')
+  return Array.isArray(storedData) ? storedData : []
+}
+
+// 同时兼容 Web 端斜杠格式、Mac 端横杠格式以及 ISO 时间格式
+const getModifyTimestamp = (value) => {
+  if (!value) return null
+  const dateValue = String(value).trim()
+  const matched = dateValue.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})[ T](\d{1,2}):(\d{1,2})(?::(\d{1,2}))?/)
+  if (matched) {
+    return new Date(
+      Number(matched[1]),
+      Number(matched[2]) - 1,
+      Number(matched[3]),
+      Number(matched[4]),
+      Number(matched[5]),
+      Number(matched[6] || 0)
+    ).getTime()
+  }
+
+  const timestamp = new Date(dateValue).getTime()
+  return Number.isNaN(timestamp) ? null : timestamp
+}
+
+const compareModifyTime = (localItem, cloudItem) => {
+  const localTimestamp = getModifyTimestamp(localItem?.lastModifyTime)
+  const cloudTimestamp = getModifyTimestamp(cloudItem?.lastModifyTime)
+  if (localTimestamp !== null && cloudTimestamp !== null) {
+    return Math.sign(localTimestamp - cloudTimestamp)
+  }
+  if (localTimestamp !== null) return 1
+  if (cloudTimestamp !== null) return -1
+  return 0
+}
+
+const isSameFieldValue = (field, localValue, cloudValue) => {
+  if (field === 'lastModifyTime') {
+    const localTimestamp = getModifyTimestamp(localValue)
+    const cloudTimestamp = getModifyTimestamp(cloudValue)
+    if (localTimestamp !== null && cloudTimestamp !== null && localTimestamp === cloudTimestamp) {
+      return true
+    }
+  }
+  return JSON.stringify(localValue) === JSON.stringify(cloudValue)
+}
+
+const getVersionState = (localItem, cloudItem) => {
+  const compared = compareModifyTime(localItem, cloudItem)
+  if (compared > 0) return 'localNewer'
+  if (compared < 0) return 'cloudNewer'
+  return 'sameTime'
+}
+
+const getVersionStateText = (state) => {
+  if (state === 'localNewer') return '本地更新'
+  if (state === 'cloudNewer') return '云端更新'
+  return '时间相同，保留本地'
+}
+
+const getVersionTagType = (state) => {
+  if (state === 'localNewer') return 'primary'
+  if (state === 'cloudNewer') return 'success'
+  return 'info'
+}
+
+const finishRestoreProgress = () => {
+  progressVisible.value = false
+  progress.value = 0
+  currentOperation.value = ''
+  awaitingPassword.value = false
+}
+
+const persistLocalCards = (cards) => {
+  cardData.value = cards
+  localStorage.setItem('cardData', JSON.stringify(cards))
+  emit('update', cards)
+}
+
+const mergeLatestCards = (localCards, cloudCards) => {
+  const mergedMap = new Map(localCards.map(card => [card.id, card]))
+
+  cloudCards.forEach(cloudCard => {
+    const localCard = mergedMap.get(cloudCard.id)
+    if (!localCard || compareModifyTime(localCard, cloudCard) < 0) {
+      mergedMap.set(cloudCard.id, cloudCard)
+    }
+  })
+
+  return Array.from(mergedMap.values())
+}
+
+// 根据解密后的数据进行比对，并展示解决冲突的入口
+const compareData = (decryptedData, backup, options = {}) => {
+  const { automatic = false, showMatch = true } = options
+  const backupData = extractCards(decryptedData)
+  const currentData = getStoredCards()
+  const currentMap = new Map(currentData.map(item => [item.id, item]))
+  const backupMap = new Map(backupData.map(item => [item.id, item]))
+  const comparedData = []
+
+  comparedCloudCards.value = backupData
+  comparedBackup.value = backup || null
+  comparisonIsAutomatic.value = automatic
+
+  backupData.forEach(backupItem => {
+    const currentItem = currentMap.get(backupItem.id)
+    if (!currentItem) {
+      comparedData.push({
+        ...backupItem,
+        _status: 'deleted'
+      })
+      return
+    }
+
+    const diff = {}
+    const fields = new Set([...Object.keys(backupItem), ...Object.keys(currentItem)])
+    fields.forEach(field => {
+      if (!field.startsWith('_') && !isSameFieldValue(field, currentItem[field], backupItem[field])) {
+        diff[field] = {
+          cloud: backupItem[field],
+          local: currentItem[field]
+        }
+      }
+    })
+
+    if (Object.keys(diff).length > 0) {
+      comparedData.push({
+        ...currentItem,
+        _status: 'modified',
+        _versionState: getVersionState(currentItem, backupItem),
+        _diff: diff
+      })
+    }
+  })
+
+  currentData.forEach(currentItem => {
+    if (!backupMap.has(currentItem.id)) {
+      comparedData.push({
+        ...currentItem,
+        _status: 'added'
+      })
+    }
+  })
+
+  comparisonData.value = comparedData
+  activeFilter.value = 'diff'
+
+  if (comparedData.length === 0) {
+    compareStatus.value = 'match'
+    if (showMatch) {
+      compareDialogVisible.value = true
+      ElMessage.success('本地数据与云端数据一致')
+    }
+    return
+  }
+
+  compareStatus.value = 'diff'
+  compareDialogVisible.value = true
+  if (automatic) {
+    ElMessage.warning('最新云端备份与本地数据存在差异，请选择处理方式')
+  }
+}
+
+const downloadAndCompareBackup = async (backup, options = {}) => {
+  const { automatic = false, showMatch = true, action = 'compare' } = options
+  const loadingField = action === 'restore' ? 'restoring' : 'comparing'
+
+  compareStatus.value = 'idle'
+  comparisonData.value = []
+  comparisonPassword.value = ''
+  backup[loadingField] = true
+
+  if (!automatic && action === 'restore') {
     progressVisible.value = true
     progress.value = 0
     currentOperation.value = 'restore'
-    
+  }
+
+  try {
     const result = await webdavClient.restoreBackup(backup.filename)
-    if (result.success) {
-      try {
-        // 检查数据是否加密
-        const content = result.data
-        if (typeof content === 'string' && (content.startsWith('encrypted:') || content.startsWith('default:'))) {
-          // 如果是默认加密，直接解密
-          if (content.startsWith('default:')) {
-            const decryptedData = decryptData(content)
-            handleRestoreSuccess(decryptedData)
-          } else {
-            // 如果是自定义密码加密，显示密码输入对话框
-            currentBackup.value = content
-            awaitingPassword.value = true
-            restoreDialogVisible.value = true
-          }
-        } else {
-          // 未加密数据直接使用
-          handleRestoreSuccess(content)
-        }
-      } catch (error) {
-        ElMessage.error('处理备份数据失败：' + error.message)
-      }
-    } else {
+    if (!result.success) {
       ElMessage.error(result.message)
+      return
+    }
+
+    const content = result.data
+    if (typeof content === 'string' && content.startsWith('default:')) {
+      compareData(decryptData(content), backup, { automatic, showMatch })
+    } else if (typeof content === 'string' && content.startsWith('encrypted:')) {
+      currentBackup.value = { content, backup, automatic, showMatch }
+      awaitingPassword.value = true
+      restoreDialogVisible.value = true
+    } else {
+      compareData(content, backup, { automatic, showMatch })
     }
   } catch (error) {
-    if (error !== 'cancel') {
-      handleNetworkError(error, '恢复备份')
-    }
+    const operation = automatic ? '自动比对最新备份' : '处理备份数据'
+    ElMessage.error(`${operation}失败：${error.message}`)
   } finally {
-    backup.restoring = false
-    loading.value = false
-    // 仅当不在等待密码时，才重置/关闭进度显示
-    if (!awaitingPassword.value && progressVisible.value) {
-      progressVisible.value = false
-      progress.value = 0
-      currentOperation.value = ''
+    backup[loadingField] = false
+    if (!awaitingPassword.value) {
+      finishRestoreProgress()
     }
   }
 }
 
-// 处理恢复成功
-const handleRestoreSuccess = (data) => {
-  try {
-    // 如果是字符串，尝试解析 JSON
-    const parsedData = typeof data === 'string' ? JSON.parse(data) : data
-    
-    // 更新数据
-    cardData.value = parsedData.cards || []
-    emit('update', cardData.value)
-    ElMessage.success('数据恢复成功')
-    
-    // 关闭所有对话框
-    restoreDialogVisible.value = false
-    visible.value = false
-    restoreForm.value.password = ''
-    // 重置进度与状态
-    progressVisible.value = false
-    progress.value = 0
-    currentOperation.value = ''
-    awaitingPassword.value = false
-  } catch (error) {
-    handleEncryptionError(error, '解析备份数据')
-  }
+// 恢复操作先展示差异，由用户决定融合或强制覆盖
+const handleRestore = async (backup) => {
+  await downloadAndCompareBackup(backup, { action: 'restore' })
 }
 
 // 确认密码输入后的处理
@@ -646,126 +836,84 @@ const handleRestoreConfirm = async () => {
   }
 
   try {
-    if (typeof currentBackup.value === 'object' && currentBackup.value.type === 'compare') {
-      // 比对逻辑
-      const decryptedData = decryptData(currentBackup.value.content, restoreForm.value.password)
-      compareData(decryptedData, currentBackup.value.backup)
-      restoreDialogVisible.value = false
-      restoreForm.value.password = ''
-    } else {
-      // 恢复逻辑
-      const decryptedData = decryptData(currentBackup.value, restoreForm.value.password)
-      handleRestoreSuccess(decryptedData)
-    }
+    const context = currentBackup.value
+    const password = restoreForm.value.password
+    const decryptedData = decryptData(context.content, password)
+    comparisonPassword.value = password
+    compareData(decryptedData, context.backup, {
+      automatic: context.automatic,
+      showMatch: context.showMatch
+    })
+    restoreDialogVisible.value = false
+    restoreForm.value.password = ''
+    currentBackup.value = null
+    finishRestoreProgress()
   } catch (error) {
     handleEncryptionError(error, '解密备份')
   }
 }
 
-// 根据解密后的数据进行比对，并展示结果
-const compareData = (decryptedData) => {
-  // 解析数据
-  const parsedData = typeof decryptedData === 'string' ? JSON.parse(decryptedData) : decryptedData
-  const backupData = parsedData.cards || []
-  const currentData = JSON.parse(localStorage.getItem('cardData') || '[]')
+const handleSmartMerge = async () => {
+  resolvingComparison.value = true
+  let localMerged = false
+  try {
+    const mergedCards = mergeLatestCards(getStoredCards(), comparedCloudCards.value)
+    persistLocalCards(mergedCards)
+    localMerged = true
 
-  // 创建Map用于快速查找
-  const currentMap = new Map(currentData.map(item => [item.id, item]))
-  const backupMap = new Map(backupData.map(item => [item.id, item]))
-  const comparedData = []
-  let hasChanges = false
-
-  // 检查删除和修改的数据
-  backupData.forEach(backupItem => {
-    const currentItem = currentMap.get(backupItem.id)
-    if (!currentItem) {
-      // 已删除的数据
-      comparedData.push({
-        ...backupItem,
-        _status: 'deleted'
-      })
-      hasChanges = true
+    const password = comparisonPassword.value || undefined
+    const encryptedData = encryptData({
+      cards: mergedCards,
+      categories: [],
+      tags: []
+    }, password)
+    const result = await webdavClient.createBackup(encryptedData, password)
+    if (result.success) {
+      ElMessage.success('智能融合完成，最新数据已生成新的云端备份')
+      if (visible.value) {
+        await loadBackupList()
+      }
     } else {
-      // 首先检查lastModifyTime是否不一致
-      let itemHasChanges = backupItem.lastModifyTime !== currentItem.lastModifyTime
-
-      // 如果lastModifyTime一致，仍然检查其他关键字段是否有变化
-      if (!itemHasChanges) {
-        itemHasChanges = Object.keys(backupItem).some(key => {
-          // 对于特殊字段（如年费达标状态），比较原始值
-          if (key === 'isQualified') {
-            return backupItem[key] !== currentItem[key]
-          }
-          // 排除lastTime和lastModifyTime字段
-          if (key !== 'lastTime' && key !== 'lastModifyTime') {
-            return JSON.stringify(backupItem[key]) !== JSON.stringify(currentItem[key])
-          }
-          return false
-        })
-      }
-
-      if (itemHasChanges) {
-        // 创建一个新的对象来存储差异信息
-        const diffItem = { ...currentItem, _status: 'modified', _diff: {} }
-
-        // 检查每个字段的差异
-        Object.keys(backupItem).forEach(key => {
-          // 对于特殊字段（如年费达标状态），比较原始值
-          if (key === 'isQualified') {
-            if (backupItem[key] !== currentItem[key]) {
-              diffItem._diff[key] = {
-                cloud: backupItem[key],
-                local: currentItem[key]
-              }
-            }
-          } else if (JSON.stringify(backupItem[key]) !== JSON.stringify(currentItem[key])) {
-            diffItem._diff[key] = {
-              cloud: backupItem[key],
-              local: currentItem[key]
-            }
-          }
-        })
-
-        comparedData.push(diffItem)
-        hasChanges = true
-      }
+      ElMessage.warning(`本地智能融合已完成，但同步云端失败：${result.message}`)
     }
-  })
-
-  // 检查新增的数据
-  currentData.forEach(currentItem => {
-    if (!backupMap.has(currentItem.id)) {
-      comparedData.push({
-        ...currentItem,
-        _status: 'added'
-      })
-      hasChanges = true
-    }
-  })
-
-  if (!hasChanges) {
-    comparisonData.value = []
-    compareStatus.value = 'match'
-    activeFilter.value = 'diff'
-    compareDialogVisible.value = true
-    ElMessage.success('本地数据与云端数据一致')
-    return
+    compareDialogVisible.value = false
+  } catch (error) {
+    const message = localMerged ? '本地智能融合已完成，但同步云端失败' : '智能融合失败'
+    ElMessage.error(`${message}：${error.message}`)
+  } finally {
+    resolvingComparison.value = false
+    comparisonPassword.value = ''
   }
+}
 
-  comparisonData.value = comparedData
-  compareStatus.value = 'diff'
-  activeFilter.value = 'diff'
-  compareDialogVisible.value = true
+const handleForceCloudOverwrite = async () => {
+  try {
+    await ElMessageBox.confirm(
+      '确定使用云端备份强制覆盖本地数据吗？本地未同步的更新将丢失。',
+      '确认覆盖本地数据',
+      {
+        confirmButtonText: '强制覆盖',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+    persistLocalCards(comparedCloudCards.value)
+    compareDialogVisible.value = false
+    comparisonPassword.value = ''
+    ElMessage.success('已使用云端备份覆盖本地数据')
+  } catch (error) {
+    if (error !== 'cancel' && error !== 'close') {
+      ElMessage.error('覆盖本地数据失败：' + error.message)
+    }
+  }
 }
 
 // 取消密码输入
 const handleRestoreCancel = () => {
   restoreDialogVisible.value = false
-  awaitingPassword.value = false
-  // 取消恢复时，关闭并重置进度状态
-  progressVisible.value = false
-  progress.value = 0
-  currentOperation.value = ''
+  currentBackup.value = null
+  comparisonPassword.value = ''
+  finishRestoreProgress()
   restoreForm.value.password = ''
 }
 
@@ -803,42 +951,7 @@ const handleDelete = async (backup) => {
 
 // 比对数据
 const handleCompare = async (backup) => {
-  compareStatus.value = 'idle'
-  comparisonData.value = []
-  const runComparison = (data) => {
-    try {
-      compareData(data)
-    } catch (error) {
-      ElMessage.error('处理备份数据失败：' + error.message)
-    }
-  }
-
-  try {
-    backup.comparing = true
-    const result = await webdavClient.restoreBackup(backup.filename)
-
-    if (!result.success) {
-      ElMessage.error(result.message)
-      return
-    }
-
-    const content = result.data
-
-    if (typeof content === 'string' && (content.startsWith('encrypted:') || content.startsWith('default:'))) {
-      if (content.startsWith('default:')) {
-        runComparison(decryptData(content))
-      } else {
-        currentBackup.value = { content, type: 'compare', backup }
-        restoreDialogVisible.value = true
-      }
-    } else {
-      runComparison(content)
-    }
-  } catch (error) {
-    ElMessage.error('比对失败：' + error.message)
-  } finally {
-    backup.comparing = false
-  }
+  await downloadAndCompareBackup(backup)
 }
 
 // 获取表格单元格的类名
@@ -989,6 +1102,34 @@ const open = async (data) => {
   }
 }
 
+// 页面首次就绪后，仅自动比对一次最新云端备份
+const checkLatestBackupOnStartup = async () => {
+  if (startupComparisonAttempted.value || isLocked.value) return
+  startupComparisonAttempted.value = true
+
+  try {
+    const config = webdavClient.loadConfig()
+    if (!config) return
+
+    if (!webdavClient.client) {
+      await webdavClient.initialize(config)
+    }
+
+    const result = await webdavClient.getBackupList()
+    if (!result.success || result.data.length === 0) return
+
+    const latestBackup = [...result.data].sort((a, b) => {
+      return new Date(b.lastmod) - new Date(a.lastmod)
+    })[0]
+    await downloadAndCompareBackup(latestBackup, {
+      automatic: true,
+      showMatch: false
+    })
+  } catch (error) {
+    console.warn('自动比对最新云端备份失败：', error)
+  }
+}
+
 // 更新进度
 const updateProgress = (type, value) => {
   progress.value = Math.round(value)
@@ -1025,7 +1166,8 @@ watch(isLocked, (locked) => {
 
 defineExpose({
   open,
-  closeAll
+  closeAll,
+  checkLatestBackupOnStartup
 })
 </script>
 
@@ -1106,6 +1248,22 @@ defineExpose({
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+.password-hint,
+.automatic-compare-hint {
+  margin-bottom: 12px;
+}
+
+.compared-backup-name {
+  color: var(--el-text-color-secondary);
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+
+.version-tag {
+  align-self: center;
+  margin-top: 4px;
 }
 
 .source-item {
