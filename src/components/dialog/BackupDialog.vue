@@ -1,26 +1,23 @@
 <template>
   <el-dialog
     v-model="visible"
-    title="云端备份管理"
+    title="webdav云备份管理"
     width="600px"
     :close-on-click-modal="false"
     :append-to-body="true"
     :z-index="2000"
-    class="backup-dialog-shell"
     draggable
     @closed="handleClosed"
   >
     <div class="backup-dialog">
       <div class="backup-header" v-if="!progressVisible">
-        <div class="backup-primary-actions">
-          <el-button
-            type="success"
-            @click="handlePublishV3"
-            :disabled="!isConnected || loading || publishingV3"
-          >
-            同步当前数据
-          </el-button>
-        </div>
+        <el-button
+          type="primary"
+          @click="showBackupDialog"
+          :disabled="!isConnected || loading"
+        >
+          创建备份
+        </el-button>
         <div class="connection-status">
           <el-tag :type="isConnected ? 'success' : 'danger'" size="small">
             {{ isConnected ? '已连接' : '未连接' }}
@@ -45,11 +42,8 @@
               class="backup-item"
             >
               <div class="backup-info">
-                <div class="backup-name">{{ formatBackupDisplayName(backup) }}</div>
+                <div class="backup-name">{{ backup.filename }}</div>
                 <div class="backup-meta">
-                  <el-tag :type="isAutomaticSyncBackup(backup.filename) ? 'success' : 'warning'" size="small">
-                    {{ isAutomaticSyncBackup(backup.filename) ? '自动同步' : '手动备份' }}
-                  </el-tag>
                   <el-tag type="success" size="small">{{ formatDate(backup.lastmod) }}</el-tag>
                   <el-tag type="info" size="small">{{ formatSize(backup.size) }}</el-tag>
                 </div>
@@ -65,7 +59,7 @@
                         <el-icon><document-copy /></el-icon>比对
                       </el-dropdown-item>
                       <el-dropdown-item @click="handleRestore(backup)" :loading="backup.restoring">
-                        <el-icon><refresh-right /></el-icon>恢复
+                        <el-icon><refresh-right /></el-icon>恢复 / 融合
                       </el-dropdown-item>
                       <el-dropdown-item @click="handleRename(backup)" :loading="backup.renaming">
                         <el-icon><edit /></el-icon>重命名
@@ -91,6 +85,62 @@
     </template>
   </el-dialog>
 
+  <!-- 创建备份对话框 -->
+  <el-dialog
+    v-model="backupDialogVisible"
+    title="创建备份"
+    width="400px"
+    draggable
+    append-to-body
+  >
+    <el-form :model="backupForm" label-width="80px" ref="backupFormRef">
+      <el-form-item label="加密方式">
+        <el-radio-group v-model="backupForm.useCustomPassword">
+          <el-radio :label="false">默认加密</el-radio>
+          <el-radio :label="true">自定义密码</el-radio>
+        </el-radio-group>
+      </el-form-item>
+      <template v-if="backupForm.useCustomPassword">
+        <el-form-item
+          label="密码"
+          prop="password"
+          :rules="[
+            { required: true, message: '请输入密码', trigger: 'blur' },
+            { min: 6, message: '密码长度不能小于6位', trigger: 'blur' }
+          ]"
+        >
+          <el-input
+            v-model="backupForm.password"
+            type="password"
+            show-password
+            placeholder="请输入密码"
+          />
+        </el-form-item>
+        <el-form-item
+          label="确认密码"
+          prop="confirmPassword"
+          :rules="[
+            { required: true, message: '请再次输入密码', trigger: 'blur' },
+            { validator: validatePassword, trigger: 'blur' }
+          ]"
+        >
+          <el-input
+            v-model="backupForm.confirmPassword"
+            type="password"
+            show-password
+            placeholder="请再次输入密码"
+          />
+        </el-form-item>
+      </template>
+    </el-form>
+    <template #footer>
+      <span class="dialog-footer">
+        <el-button @click="backupDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="handleBackupConfirm">确定</el-button>
+      </span>
+    </template>
+  </el-dialog>
+
   <!-- 恢复备份密码输入对话框 -->
   <el-dialog
     v-model="restoreDialogVisible"
@@ -99,6 +149,14 @@
     draggable
     append-to-body
   >
+    <el-alert
+      v-if="currentBackup && currentBackup.automatic"
+      title="正在自动比对最新云端备份，请输入该备份的解密密码"
+      type="warning"
+      :closable="false"
+      show-icon
+      class="password-hint"
+    />
     <el-form :model="restoreForm" label-width="80px">
       <el-form-item
         label="密码"
@@ -146,27 +204,37 @@
     v-model="compareDialogVisible"
     title="备份数据比对"
     width="90%"
-    top="4vh"
     append-to-body
     :close-on-click-modal="false"
     class="compare-dialog"
   >
     <div class="compare-container">
+      <el-alert
+        v-if="comparisonIsAutomatic && compareStatus === 'diff'"
+        title="检测到最新云端备份与本地数据不一致，请选择智能融合或以云端数据覆盖本地"
+        type="warning"
+        :closable="false"
+        show-icon
+        class="automatic-compare-hint"
+      />
+      <div v-if="comparedBackup" class="compared-backup-name">
+        当前比对备份：{{ comparedBackup.filename }}
+      </div>
       <div class="compare-toolbar">
         <div class="summary-tags">
-          <el-tag size="small" type="info" effect="plain" class="summary-tag summary-total">总计 {{ diffSummary.total }}</el-tag>
-          <el-tag size="small" type="success" effect="plain" class="summary-tag summary-added">新增 {{ diffSummary.added }}</el-tag>
-          <el-tag size="small" type="danger" effect="plain" class="summary-tag summary-deleted">删除 {{ diffSummary.deleted }}</el-tag>
-          <el-tag size="small" type="warning" effect="plain" class="summary-tag summary-modified">修改 {{ diffSummary.modified }}</el-tag>
-          <el-tag size="small" effect="plain" class="summary-tag summary-fields">字段差异 {{ diffSummary.modifiedFields }}</el-tag>
+          <el-tag size="small" type="info">总计 {{ diffSummary.total }}</el-tag>
+          <el-tag size="small" type="success">新增 {{ diffSummary.added }}</el-tag>
+          <el-tag size="small" type="danger">删除 {{ diffSummary.deleted }}</el-tag>
+          <el-tag size="small" type="warning">修改 {{ diffSummary.modified }}</el-tag>
+          <el-tag size="small">字段差异 {{ diffSummary.modifiedFields }}</el-tag>
         </div>
         <div class="toolbar-actions">
           <el-radio-group v-model="activeFilter" size="small" class="filter-switch">
-            <el-radio-button value="all">全部</el-radio-button>
-            <el-radio-button value="diff">只看差异</el-radio-button>
-            <el-radio-button value="modified">仅修改</el-radio-button>
-            <el-radio-button value="added">仅新增</el-radio-button>
-            <el-radio-button value="deleted">仅删除</el-radio-button>
+            <el-radio-button label="all">全部</el-radio-button>
+            <el-radio-button label="diff">只看差异</el-radio-button>
+            <el-radio-button label="modified">仅修改</el-radio-button>
+            <el-radio-button label="added">仅新增</el-radio-button>
+            <el-radio-button label="deleted">仅删除</el-radio-button>
           </el-radio-group>
           <div class="legend">
             <span class="legend-item legend-modified">修改</span>
@@ -196,7 +264,7 @@
           border 
           stripe
           style="width: 100%"
-          height="100%"
+          height="600px"
           :cell-class-name="getTableCellClass"
           header-row-class-name="compare-header"
         >
@@ -221,11 +289,20 @@
                     {{ row._status !== 'deleted' ? '✅' : '❌' }}
                   </span>
                 </div>
+                <el-tag
+                  v-if="row._status === 'modified'"
+                  :type="getVersionTagType(row._versionState)"
+                  size="small"
+                  effect="plain"
+                  class="version-tag"
+                >
+                  {{ getVersionStateText(row._versionState) }}
+                </el-tag>
               </div>
             </template>
           </el-table-column>
           <el-table-column
-            v-for="col in comparisonTableColumns"
+            v-for="col in tableColumns"
             :key="col.value"
             :prop="col.value"
             :label="col.label"
@@ -254,6 +331,22 @@
     </div>
     <template #footer>
       <span class="dialog-footer">
+        <el-button
+          v-if="compareStatus === 'diff'"
+          type="primary"
+          :loading="resolvingComparison"
+          @click="handleSmartMerge"
+        >
+          智能双向融合（保留最新）
+        </el-button>
+        <el-button
+          v-if="compareStatus === 'diff'"
+          type="warning"
+          :disabled="resolvingComparison"
+          @click="handleForceCloudOverwrite"
+        >
+          云端数据强制覆盖本地
+        </el-button>
         <el-button @click="compareDialogVisible = false">关闭</el-button>
       </span>
     </template>
@@ -261,33 +354,36 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, nextTick, inject, watch } from 'vue'
+import { ref, computed, onMounted, inject, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { handleNetworkError, handleEncryptionError, handleValidationError } from '@/utils/errorHandler'
 import { webdavClient } from '@/utils/webdav'
-import { decryptData } from '@/utils/encryption'
+import { encryptData, decryptData } from '@/utils/encryption'
 import { Delete, ArrowDown, DocumentCopy, RefreshRight, Edit } from '@element-plus/icons-vue'
 import { creditCardOptions } from '@/config/creditCardOptions'
 import { useAutoLock } from '@/composables/useAutoLock'
-import { backupPayloadInfo } from '@/utils/backupPayload'
-import { cardsEqualForSync, comparableCardForSync } from '@/utils/syncProtocol'
-import { formatCardTimestamp } from '@/utils/cardTimestamp'
-import { migrateCardData } from '@/utils/cardDataMigration'
-import {
-  RESTORE_IDENTITY_DECISIONS,
-  cardNumberFingerprint,
-  resolveRestoreIdentityConflicts
-} from '@/utils/restoreIdentityResolver'
 
-const emit = defineEmits(['update', 'showConfig', 'publishV3'])
+const emit = defineEmits(['update', 'showConfig'])
 const visible = ref(false)
 const loading = ref(false)
-const publishingV3 = ref(false)
+const backingUp = ref(false)
 const backupList = ref([])
 const cardData = ref([])
 const isConnected = ref(false)  // 添加连接状态
 const providedAutoLock = inject('autoLock', null)
 const { isLocked } = providedAutoLock || useAutoLock()
+
+// 备份表单相关
+const backupDialogVisible = ref(false)
+const backupFormRef = ref(null)
+const backupForm = ref({
+  useCustomPassword: false,
+  password: '',
+  confirmPassword: ''
+})
+
+// 暂存的自定义密码
+const tempCustomPassword = ref('')
 
 // 恢复表单相关
 const restoreDialogVisible = ref(false)
@@ -301,14 +397,13 @@ const compareDialogVisible = ref(false)
 const comparisonData = ref([])
 const compareStatus = ref('idle')
 const activeFilter = ref('diff')
+const comparedCloudCards = ref([])
+const comparedBackup = ref(null)
+const comparisonIsAutomatic = ref(false)
+const comparisonPassword = ref('')
+const resolvingComparison = ref(false)
+const startupComparisonAttempted = ref(false)
 const tableColumns = creditCardOptions.tableCustomData
-const hiddenCompareFieldLabels = {
-  id: '卡片标识',
-  isSharedLimit: '共享额度',
-  accountBillDate: '账单日',
-  dueDate: '还款日',
-  billingDaySpendingToNextBill: '账单日消费计入下期'
-}
 
 const filteredComparisonData = computed(() => {
   const data = comparisonData.value || []
@@ -349,23 +444,6 @@ const diffSummary = computed(() => {
   return summary
 })
 
-const comparisonTableColumns = computed(() => {
-  const columns = [...tableColumns]
-  const existing = new Set(columns.map(column => column.value))
-  comparisonData.value.forEach((item) => {
-    Object.keys(item._diff || {}).forEach((key) => {
-      if (!existing.has(key)) {
-        columns.push({
-          label: hiddenCompareFieldLabels[key] || key,
-          value: key
-        })
-        existing.add(key)
-      }
-    })
-  })
-  return columns
-})
-
 // 重命名对话框
 const renameDialogVisible = ref(false)
 const renameForm = ref({
@@ -382,11 +460,12 @@ const awaitingPassword = ref(false)
 
 const closeAll = () => {
   visible.value = false
+  backupDialogVisible.value = false
   restoreDialogVisible.value = false
   renameDialogVisible.value = false
   compareDialogVisible.value = false
   loading.value = false
-  publishingV3.value = false
+  backingUp.value = false
   progressVisible.value = false
   progress.value = 0
   progressStatus.value = ''
@@ -395,20 +474,13 @@ const closeAll = () => {
   comparisonData.value = []
   compareStatus.value = 'idle'
   activeFilter.value = 'diff'
+  comparedCloudCards.value = []
+  comparedBackup.value = null
+  comparisonIsAutomatic.value = false
+  comparisonPassword.value = ''
+  resolvingComparison.value = false
   currentBackup.value = null
   restoreForm.value.password = ''
-}
-
-const handlePublishV3 = () => {
-  if (!isConnected.value || loading.value || publishingV3.value) return
-  publishingV3.value = true
-  ElMessage.info('正在同步当前数据...')
-  emit('publishV3', async () => {
-    publishingV3.value = false
-    if (visible.value && isConnected.value) {
-      await loadBackupList()
-    }
-  })
 }
 
 // 进度文本（computed）
@@ -417,6 +489,15 @@ const progressText = computed(() => {
     ? `正在备份... ${progress.value}%`
     : `正在恢复... ${progress.value}%`
 })
+
+// 验证密码一致性
+const validatePassword = (rule, value, callback) => {
+  if (value !== backupForm.value.password) {
+    callback(new Error('两次输入的密码不一致'))
+  } else {
+    callback()
+  }
+}
 
 // 格式化日期
 const formatDate = (date) => {
@@ -443,18 +524,6 @@ const formatSize = (bytes) => {
   return (bytes / Math.pow(k, i)).toFixed(2) + ' ' + sizes[i]
 }
 
-const isAutomaticSyncBackup = (filename = '') => {
-  return filename.includes('[SyncV3]') && filename.includes('[自]')
-}
-
-const formatBackupDisplayName = (backup) => {
-  if (!backup?.filename) return '云端备份'
-  if (!isAutomaticSyncBackup(backup.filename)) return backup.filename
-
-  const cardCount = backup.filename.match(/---\((\d+)\)/)?.[1]
-  return cardCount ? `自动同步备份（${cardCount} 张卡片）` : '自动同步备份'
-}
-
 // 加载备份列表
 const loadBackupList = async () => {
   loading.value = true
@@ -475,214 +544,288 @@ const loadBackupList = async () => {
   }
 }
 
-// 恢复备份
-const handleRestore = async (backup) => {
+// 显示创建备份对话框
+const showBackupDialog = () => {
+  backupForm.value = {
+    useCustomPassword: false,
+    password: '',
+    confirmPassword: ''
+  }
+  backupDialogVisible.value = true
+}
+
+// 创建备份
+const handleBackupConfirm = async () => {
+  backupDialogVisible.value = false
+  if (backupForm.value.useCustomPassword) {
+    try {
+      await backupFormRef.value.validate()
+    } catch (error) {
+      ElMessage.error('表单验证失败')
+      return
+    }
+  }
+
+  backingUp.value = true
+  progressVisible.value = true
+  progress.value = 0
+  currentOperation.value = 'backup'
   try {
-    await ElMessageBox.confirm(
-      '恢复备份将覆盖当前所有数据，是否继续？',
-      '警告',
-      {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'warning'
-      }
+    // 获取当前数据
+    const data = {
+      cards: cardData.value,
+      categories: [], // 如果需要备份其他数据，可以在这里添加
+      tags: []
+    }
+
+    // 如果使用自定义密码，先暂存密码
+    if (backupForm.value.useCustomPassword) {
+      tempCustomPassword.value = backupForm.value.password
+    }
+
+    // 加密数据
+    const encryptedData = encryptData(
+      data,
+      backupForm.value.useCustomPassword ? backupForm.value.password : undefined
     )
 
-    backup.restoring = true
-    progressVisible.value = true
-    progress.value = 0
-    currentOperation.value = 'restore'
-    
-    const result = await webdavClient.restoreBackup(backup.filename)
+    const result = await webdavClient.createBackup(encryptedData, tempCustomPassword.value)
     if (result.success) {
-      try {
-        // 检查数据是否加密
-        const content = result.data
-        if (typeof content === 'string' && (content.startsWith('encrypted:') || content.startsWith('default:'))) {
-          // 如果是默认加密，直接解密
-          if (content.startsWith('default:')) {
-            const decryptedData = decryptData(content)
-            await handleRestoreSuccess(decryptedData)
-          } else {
-            // 如果是自定义密码加密，显示密码输入对话框
-            currentBackup.value = content
-            awaitingPassword.value = true
-            restoreDialogVisible.value = true
-          }
-        } else {
-          // 未加密数据直接使用
-          await handleRestoreSuccess(content)
-        }
-      } catch (error) {
-        ElMessage.error('处理备份数据失败：' + error.message)
-      }
+      progress.value = 100
+      ElMessage.success(result.message)
+      await loadBackupList()
     } else {
       ElMessage.error(result.message)
     }
   } catch (error) {
-    if (error !== 'cancel') {
-      handleNetworkError(error, '恢复备份')
-    }
+    ElMessage.error(error.message)
   } finally {
-    backup.restoring = false
-    loading.value = false
-    // 仅当不在等待密码时，才重置/关闭进度显示
-    if (!awaitingPassword.value && progressVisible.value) {
-      progressVisible.value = false
-      progress.value = 0
-      currentOperation.value = ''
-    }
+    backingUp.value = false
+    progressVisible.value = false
+    progress.value = 0
+    // 清除暂存的密码
+    tempCustomPassword.value = ''
   }
 }
 
-// 处理恢复成功
-const handleRestoreSuccess = async (data) => {
-  try {
-    const cards = await cardsForRestore(data)
-    if (!cards) {
-      progressVisible.value = false
-      progress.value = 0
-      currentOperation.value = ''
-      awaitingPassword.value = false
-      restoreDialogVisible.value = false
-      restoreForm.value.password = ''
+const extractCards = (data) => {
+  const parsedData = typeof data === 'string' ? JSON.parse(data) : data
+  if (Array.isArray(parsedData)) return parsedData
+  if (Array.isArray(parsedData?.cards)) return parsedData.cards
+  if (Array.isArray(parsedData?.data)) return parsedData.data
+  return []
+}
+
+const getStoredCards = () => {
+  const storedData = JSON.parse(localStorage.getItem('cardData') || '[]')
+  return Array.isArray(storedData) ? storedData : []
+}
+
+// 同时兼容 Web 端斜杠格式、Mac 端横杠格式以及 ISO 时间格式
+const getModifyTimestamp = (value) => {
+  if (!value) return null
+  const dateValue = String(value).trim()
+  const matched = dateValue.match(/^(\d{4})[-/](\d{1,2})[-/](\d{1,2})[ T](\d{1,2}):(\d{1,2})(?::(\d{1,2}))?/)
+  if (matched) {
+    return new Date(
+      Number(matched[1]),
+      Number(matched[2]) - 1,
+      Number(matched[3]),
+      Number(matched[4]),
+      Number(matched[5]),
+      Number(matched[6] || 0)
+    ).getTime()
+  }
+
+  const timestamp = new Date(dateValue).getTime()
+  return Number.isNaN(timestamp) ? null : timestamp
+}
+
+const compareModifyTime = (localItem, cloudItem) => {
+  const localTimestamp = getModifyTimestamp(localItem?.lastModifyTime)
+  const cloudTimestamp = getModifyTimestamp(cloudItem?.lastModifyTime)
+  if (localTimestamp !== null && cloudTimestamp !== null) {
+    return Math.sign(localTimestamp - cloudTimestamp)
+  }
+  if (localTimestamp !== null) return 1
+  if (cloudTimestamp !== null) return -1
+  return 0
+}
+
+const isSameFieldValue = (field, localValue, cloudValue) => {
+  if (field === 'lastModifyTime') {
+    const localTimestamp = getModifyTimestamp(localValue)
+    const cloudTimestamp = getModifyTimestamp(cloudValue)
+    if (localTimestamp !== null && cloudTimestamp !== null && localTimestamp === cloudTimestamp) {
+      return true
+    }
+  }
+  return JSON.stringify(localValue) === JSON.stringify(cloudValue)
+}
+
+const getVersionState = (localItem, cloudItem) => {
+  const compared = compareModifyTime(localItem, cloudItem)
+  if (compared > 0) return 'localNewer'
+  if (compared < 0) return 'cloudNewer'
+  return 'sameTime'
+}
+
+const getVersionStateText = (state) => {
+  if (state === 'localNewer') return '本地更新'
+  if (state === 'cloudNewer') return '云端更新'
+  return '时间相同，保留本地'
+}
+
+const getVersionTagType = (state) => {
+  if (state === 'localNewer') return 'primary'
+  if (state === 'cloudNewer') return 'success'
+  return 'info'
+}
+
+const finishRestoreProgress = () => {
+  progressVisible.value = false
+  progress.value = 0
+  currentOperation.value = ''
+  awaitingPassword.value = false
+}
+
+const persistLocalCards = (cards) => {
+  cardData.value = cards
+  localStorage.setItem('cardData', JSON.stringify(cards))
+  emit('update', cards)
+}
+
+const mergeLatestCards = (localCards, cloudCards) => {
+  const mergedMap = new Map(localCards.map(card => [card.id, card]))
+
+  cloudCards.forEach(cloudCard => {
+    const localCard = mergedMap.get(cloudCard.id)
+    if (!localCard || compareModifyTime(localCard, cloudCard) < 0) {
+      mergedMap.set(cloudCard.id, cloudCard)
+    }
+  })
+
+  return Array.from(mergedMap.values())
+}
+
+// 根据解密后的数据进行比对，并展示解决冲突的入口
+const compareData = (decryptedData, backup, options = {}) => {
+  const { automatic = false, showMatch = true } = options
+  const backupData = extractCards(decryptedData)
+  const currentData = getStoredCards()
+  const currentMap = new Map(currentData.map(item => [item.id, item]))
+  const backupMap = new Map(backupData.map(item => [item.id, item]))
+  const comparedData = []
+
+  comparedCloudCards.value = backupData
+  comparedBackup.value = backup || null
+  comparisonIsAutomatic.value = automatic
+
+  backupData.forEach(backupItem => {
+    const currentItem = currentMap.get(backupItem.id)
+    if (!currentItem) {
+      comparedData.push({
+        ...backupItem,
+        _status: 'deleted'
+      })
       return
     }
 
-    cardData.value = cards
-    emit('update', cardData.value)
-    ElMessage.success('数据恢复成功')
-    
-    // 关闭所有对话框
-    restoreDialogVisible.value = false
-    visible.value = false
-    restoreForm.value.password = ''
-    // 重置进度与状态
-    progressVisible.value = false
+    const diff = {}
+    const fields = new Set([...Object.keys(backupItem), ...Object.keys(currentItem)])
+    fields.forEach(field => {
+      if (!field.startsWith('_') && !isSameFieldValue(field, currentItem[field], backupItem[field])) {
+        diff[field] = {
+          cloud: backupItem[field],
+          local: currentItem[field]
+        }
+      }
+    })
+
+    if (Object.keys(diff).length > 0) {
+      comparedData.push({
+        ...currentItem,
+        _status: 'modified',
+        _versionState: getVersionState(currentItem, backupItem),
+        _diff: diff
+      })
+    }
+  })
+
+  currentData.forEach(currentItem => {
+    if (!backupMap.has(currentItem.id)) {
+      comparedData.push({
+        ...currentItem,
+        _status: 'added'
+      })
+    }
+  })
+
+  comparisonData.value = comparedData
+  activeFilter.value = 'diff'
+
+  if (comparedData.length === 0) {
+    compareStatus.value = 'match'
+    if (showMatch) {
+      compareDialogVisible.value = true
+      ElMessage.success('本地数据与云端数据一致')
+    }
+    return
+  }
+
+  compareStatus.value = 'diff'
+  compareDialogVisible.value = true
+  if (automatic) {
+    ElMessage.warning('最新云端备份与本地数据存在差异，请选择处理方式')
+  }
+}
+
+const downloadAndCompareBackup = async (backup, options = {}) => {
+  const { automatic = false, showMatch = true, action = 'compare' } = options
+  const loadingField = action === 'restore' ? 'restoring' : 'comparing'
+
+  compareStatus.value = 'idle'
+  comparisonData.value = []
+  comparisonPassword.value = ''
+  backup[loadingField] = true
+
+  if (!automatic && action === 'restore') {
+    progressVisible.value = true
     progress.value = 0
-    currentOperation.value = ''
-    awaitingPassword.value = false
+    currentOperation.value = 'restore'
+  }
+
+  try {
+    const result = await webdavClient.restoreBackup(backup.filename)
+    if (!result.success) {
+      ElMessage.error(result.message)
+      return
+    }
+
+    const content = result.data
+    if (typeof content === 'string' && content.startsWith('default:')) {
+      compareData(decryptData(content), backup, { automatic, showMatch })
+    } else if (typeof content === 'string' && content.startsWith('encrypted:')) {
+      currentBackup.value = { content, backup, automatic, showMatch }
+      awaitingPassword.value = true
+      restoreDialogVisible.value = true
+    } else {
+      compareData(content, backup, { automatic, showMatch })
+    }
   } catch (error) {
-    handleEncryptionError(error, '解析备份数据')
+    const operation = automatic ? '自动比对最新备份' : '处理备份数据'
+    ElMessage.error(`${operation}失败：${error.message}`)
+  } finally {
+    backup[loadingField] = false
+    if (!awaitingPassword.value) {
+      finishRestoreProgress()
+    }
   }
 }
 
-const cardsForRestore = async (data) => {
-  const payloadInfo = backupPayloadInfo(data)
-  if (!payloadInfo.isRecognized) {
-    throw new Error('此备份文件不是可识别的账本格式，可能文件已损坏或不是本应用生成的备份。')
-  }
-  if (!payloadInfo.isLegacy) {
-    return payloadInfo.cards
-  }
-
-  const backupCards = payloadInfo.cards
-    .map(card => migrateCardData(card))
-    .filter(Boolean)
-
-  return resolveRestoreIdentityConflicts(
-    backupCards,
-    Array.isArray(cardData.value) ? cardData.value : [],
-    requestRestoreIdentityDecision
-  )
-}
-
-const requestRestoreIdentityDecision = async ({ incoming, existing }) => {
-  const firstChoice = await confirmSameCard(incoming, existing)
-  if (!firstChoice) return null
-
-  if (firstChoice === 'separate') {
-    const confirmed = await confirmSeparateCard(incoming, existing)
-    return confirmed ? RESTORE_IDENTITY_DECISIONS.KEEP_SEPARATE : null
-  }
-
-  const keepChoice = await chooseDataToKeep(incoming, existing)
-  if (!keepChoice) return null
-
-  const confirmed = await confirmSameCardChoice(incoming, existing, keepChoice)
-  if (!confirmed) return null
-
-  return keepChoice === 'incoming'
-    ? RESTORE_IDENTITY_DECISIONS.KEEP_INCOMING
-    : RESTORE_IDENTITY_DECISIONS.KEEP_CURRENT
-}
-
-const confirmSameCard = async (incoming, existing) => {
-  try {
-    await ElMessageBox.confirm(
-      `备份中的「${formatCardForPrompt(incoming)}」和当前卡包里的「${formatCardForPrompt(existing)}」卡号相同。\n\n请确认它们是不是同一张卡。`,
-      '发现卡号相同的卡片',
-      {
-        confirmButtonText: '是，同一张卡',
-        cancelButtonText: '不是，作为新卡保存',
-        distinguishCancelAndClose: true,
-        type: 'warning'
-      }
-    )
-    return 'same'
-  } catch (action) {
-    return action === 'cancel' ? 'separate' : null
-  }
-}
-
-const chooseDataToKeep = async () => {
-  try {
-    await ElMessageBox.confirm(
-      '这张卡在当前卡包和备份里都有记录。请选择恢复后保留哪一份内容。',
-      '选择保留哪份数据',
-      {
-        confirmButtonText: '使用备份中的数据',
-        cancelButtonText: '保留当前卡包中的数据',
-        distinguishCancelAndClose: true,
-        type: 'info'
-      }
-    )
-    return 'incoming'
-  } catch (action) {
-    return action === 'cancel' ? 'current' : null
-  }
-}
-
-const confirmSameCardChoice = async (incoming, existing, keepChoice) => {
-  const keepText = keepChoice === 'incoming' ? '备份中的内容' : '当前卡包中的内容'
-  try {
-    await ElMessageBox.confirm(
-      `将把「${formatCardForPrompt(incoming)}」和「${formatCardForPrompt(existing)}」视为同一张卡，并保留${keepText}。\n\n确认后不会额外生成重复卡片。`,
-      '再次确认',
-      {
-        confirmButtonText: '确认',
-        cancelButtonText: '返回检查',
-        type: 'warning'
-      }
-    )
-    return true
-  } catch {
-    return false
-  }
-}
-
-const confirmSeparateCard = async (incoming, existing) => {
-  try {
-    await ElMessageBox.confirm(
-      `将把备份中的「${formatCardForPrompt(incoming)}」作为另一张卡保存，与当前卡包里的「${formatCardForPrompt(existing)}」分开管理。\n\n确认后这两张卡会同时保留。`,
-      '再次确认',
-      {
-        confirmButtonText: '确认作为新卡保存',
-        cancelButtonText: '返回检查',
-        type: 'warning'
-      }
-    )
-    return true
-  } catch {
-    return false
-  }
-}
-
-const formatCardForPrompt = (card) => {
-  const alias = String(card?.alias || '').trim()
-  const name = alias ? `${card?.bank || '未知银行'} - ${alias}` : (card?.bank || '未知银行')
-  const digits = cardNumberFingerprint(card?.cardNumber)
-  return digits.length >= 4 ? `${name} 尾号 ${digits.slice(-4)}` : name
+// 恢复操作先展示差异，由用户决定融合或强制覆盖
+const handleRestore = async (backup) => {
+  await downloadAndCompareBackup(backup, { action: 'restore' })
 }
 
 // 确认密码输入后的处理
@@ -693,110 +836,84 @@ const handleRestoreConfirm = async () => {
   }
 
   try {
-    if (typeof currentBackup.value === 'object' && currentBackup.value.type === 'compare') {
-      // 比对逻辑
-      const decryptedData = decryptData(currentBackup.value.content, restoreForm.value.password)
-      compareData(decryptedData, currentBackup.value.backup)
-      restoreDialogVisible.value = false
-      restoreForm.value.password = ''
-    } else {
-      // 恢复逻辑
-      const decryptedData = decryptData(currentBackup.value, restoreForm.value.password)
-      await handleRestoreSuccess(decryptedData)
-    }
+    const context = currentBackup.value
+    const password = restoreForm.value.password
+    const decryptedData = decryptData(context.content, password)
+    comparisonPassword.value = password
+    compareData(decryptedData, context.backup, {
+      automatic: context.automatic,
+      showMatch: context.showMatch
+    })
+    restoreDialogVisible.value = false
+    restoreForm.value.password = ''
+    currentBackup.value = null
+    finishRestoreProgress()
   } catch (error) {
     handleEncryptionError(error, '解密备份')
   }
 }
 
-// 根据解密后的数据进行比对，并展示结果
-const compareData = (decryptedData) => {
-  const payloadInfo = backupPayloadInfo(decryptedData)
-  if (!payloadInfo.isRecognized) {
-    throw new Error('此备份文件不是可识别的账本格式，可能文件已损坏或不是本应用生成的备份。')
-  }
-  const backupData = payloadInfo.cards
-  const currentData = Array.isArray(cardData.value) ? cardData.value : []
+const handleSmartMerge = async () => {
+  resolvingComparison.value = true
+  let localMerged = false
+  try {
+    const mergedCards = mergeLatestCards(getStoredCards(), comparedCloudCards.value)
+    persistLocalCards(mergedCards)
+    localMerged = true
 
-  // 创建Map用于快速查找
-  const currentMap = new Map(currentData.map(item => [item.id, item]))
-  const backupMap = new Map(backupData.map(item => [item.id, item]))
-  const comparedData = []
-  let hasChanges = false
-
-  // 检查删除和修改的数据
-  backupData.forEach(backupItem => {
-    const currentItem = currentMap.get(backupItem.id)
-    if (!currentItem) {
-      // 已删除的数据
-      comparedData.push({
-        ...backupItem,
-        _status: 'deleted'
-      })
-      hasChanges = true
-    } else {
-      const itemHasChanges = !cardsEqualForSync(backupItem, currentItem)
-
-      if (itemHasChanges) {
-        // 创建一个新的对象来存储差异信息
-        const diffItem = { ...currentItem, _status: 'modified', _diff: {} }
-        const backupComparable = comparableCardForSync(backupItem)
-        const currentComparable = comparableCardForSync(currentItem)
-        const keys = new Set([
-          ...Object.keys(backupComparable),
-          ...Object.keys(currentComparable)
-        ])
-
-        // 检查每个字段的差异
-        keys.forEach(key => {
-          if (JSON.stringify(backupComparable[key]) !== JSON.stringify(currentComparable[key])) {
-            diffItem._diff[key] = {
-              cloud: backupComparable[key],
-              local: currentComparable[key]
-            }
-          }
-        })
-
-        comparedData.push(diffItem)
-        hasChanges = true
+    const password = comparisonPassword.value || undefined
+    const encryptedData = encryptData({
+      cards: mergedCards,
+      categories: [],
+      tags: []
+    }, password)
+    const result = await webdavClient.createBackup(encryptedData, password)
+    if (result.success) {
+      ElMessage.success('智能融合完成，最新数据已生成新的云端备份')
+      if (visible.value) {
+        await loadBackupList()
       }
+    } else {
+      ElMessage.warning(`本地智能融合已完成，但同步云端失败：${result.message}`)
     }
-  })
-
-  // 检查新增的数据
-  currentData.forEach(currentItem => {
-    if (!backupMap.has(currentItem.id)) {
-      comparedData.push({
-        ...currentItem,
-        _status: 'added'
-      })
-      hasChanges = true
-    }
-  })
-
-  if (!hasChanges) {
-    comparisonData.value = []
-    compareStatus.value = 'match'
-    activeFilter.value = 'diff'
-    compareDialogVisible.value = true
-    ElMessage.success('本地数据与云端数据一致')
-    return
+    compareDialogVisible.value = false
+  } catch (error) {
+    const message = localMerged ? '本地智能融合已完成，但同步云端失败' : '智能融合失败'
+    ElMessage.error(`${message}：${error.message}`)
+  } finally {
+    resolvingComparison.value = false
+    comparisonPassword.value = ''
   }
+}
 
-  comparisonData.value = comparedData
-  compareStatus.value = 'diff'
-  activeFilter.value = 'diff'
-  compareDialogVisible.value = true
+const handleForceCloudOverwrite = async () => {
+  try {
+    await ElMessageBox.confirm(
+      '确定使用云端备份强制覆盖本地数据吗？本地未同步的更新将丢失。',
+      '确认覆盖本地数据',
+      {
+        confirmButtonText: '强制覆盖',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+    persistLocalCards(comparedCloudCards.value)
+    compareDialogVisible.value = false
+    comparisonPassword.value = ''
+    ElMessage.success('已使用云端备份覆盖本地数据')
+  } catch (error) {
+    if (error !== 'cancel' && error !== 'close') {
+      ElMessage.error('覆盖本地数据失败：' + error.message)
+    }
+  }
 }
 
 // 取消密码输入
 const handleRestoreCancel = () => {
   restoreDialogVisible.value = false
-  awaitingPassword.value = false
-  // 取消恢复时，关闭并重置进度状态
-  progressVisible.value = false
-  progress.value = 0
-  currentOperation.value = ''
+  currentBackup.value = null
+  comparisonPassword.value = ''
+  finishRestoreProgress()
   restoreForm.value.password = ''
 }
 
@@ -834,42 +951,7 @@ const handleDelete = async (backup) => {
 
 // 比对数据
 const handleCompare = async (backup) => {
-  compareStatus.value = 'idle'
-  comparisonData.value = []
-  const runComparison = (data) => {
-    try {
-      compareData(data)
-    } catch (error) {
-      ElMessage.error('处理备份数据失败：' + error.message)
-    }
-  }
-
-  try {
-    backup.comparing = true
-    const result = await webdavClient.restoreBackup(backup.filename)
-
-    if (!result.success) {
-      ElMessage.error(result.message)
-      return
-    }
-
-    const content = result.data
-
-    if (typeof content === 'string' && (content.startsWith('encrypted:') || content.startsWith('default:'))) {
-      if (content.startsWith('default:')) {
-        runComparison(decryptData(content))
-      } else {
-        currentBackup.value = { content, type: 'compare', backup }
-        restoreDialogVisible.value = true
-      }
-    } else {
-      runComparison(content)
-    }
-  } catch (error) {
-    ElMessage.error('比对失败：' + error.message)
-  } finally {
-    backup.comparing = false
-  }
+  await downloadAndCompareBackup(backup)
 }
 
 // 获取表格单元格的类名
@@ -892,10 +974,9 @@ const getColumnWidth = (columnValue) => {
     case 'cardNumber': return '250'
     case 'valid': return '120'
     case 'cvv': return '120'
-    case 'limit': return '160'
+    case 'limit': return '100'
     case 'nextAnnualFeeCollectionTime': return '150'
     case 'lastTime': return '170'
-    case 'lastModifyTime': return '220'
     case 'isQualified': return '100'
     case 'equity': return '200'
     case 'remark': return '200'
@@ -918,8 +999,7 @@ const formatColumnValue = (value, columnType) => {
       }
     case 'nextAnnualFeeCollectionTime':
     case 'lastTime':
-    case 'lastModifyTime':
-      return value ? formatCardTimestamp(value) : '-'
+      return value ? formatDate(value) : '-'
     default:
       return value
   }
@@ -960,8 +1040,10 @@ const handleRenameConfirm = async () => {
 // 对话框关闭时的处理
 const handleClosed = () => {
   backupList.value = []
+  backupForm.value.password = ''
+  backupForm.value.useCustomPassword = false
   restoreForm.value.password = ''
-  publishingV3.value = false
+  backingUp.value = false
   progressVisible.value = false
   progress.value = 0
   currentOperation.value = ''
@@ -982,7 +1064,7 @@ const open = async (data) => {
     // 检查 WebDAV 配置
     const config = await webdavClient.loadConfig()
     if (!config) {
-      ElMessage.warning('未完成云同步设置，请先配置')
+      ElMessage.warning('未配置 WebDAV 服务器信息，请先配置')
       emit('showConfig')
       visible.value = false
       return
@@ -992,7 +1074,7 @@ const open = async (data) => {
     if (!webdavClient.client) {
       const initialized = await webdavClient.initialize(config)
       if (!initialized) {
-        ElMessage.error('云同步初始化失败')
+        ElMessage.error('WebDAV 客户端初始化失败')
         emit('showConfig')
         visible.value = false
         return
@@ -1003,7 +1085,7 @@ const open = async (data) => {
     loading.value = true
     const result = await webdavClient.testConnection()
     if (result.success) {
-      ElMessage.success('已成功连接到云端')
+      ElMessage.success('已成功连接到 WebDAV 服务器')
       isConnected.value = true  // 设置连接状态
       await loadBackupList()
     } else {
@@ -1012,11 +1094,39 @@ const open = async (data) => {
       visible.value = false
     }
   } catch (error) {
-    ElMessage.error('连接云端失败：' + error.message)
+    ElMessage.error('连接 WebDAV 服务器失败：' + error.message)
     emit('showConfig')
     visible.value = false
   } finally {
     loading.value = false
+  }
+}
+
+// 页面首次就绪后，仅自动比对一次最新云端备份
+const checkLatestBackupOnStartup = async () => {
+  if (startupComparisonAttempted.value || isLocked.value) return
+  startupComparisonAttempted.value = true
+
+  try {
+    const config = webdavClient.loadConfig()
+    if (!config) return
+
+    if (!webdavClient.client) {
+      await webdavClient.initialize(config)
+    }
+
+    const result = await webdavClient.getBackupList()
+    if (!result.success || result.data.length === 0) return
+
+    const latestBackup = [...result.data].sort((a, b) => {
+      return new Date(b.lastmod) - new Date(a.lastmod)
+    })[0]
+    await downloadAndCompareBackup(latestBackup, {
+      automatic: true,
+      showMatch: false
+    })
+  } catch (error) {
+    console.warn('自动比对最新云端备份失败：', error)
   }
 }
 
@@ -1056,7 +1166,8 @@ watch(isLocked, (locked) => {
 
 defineExpose({
   open,
-  closeAll
+  closeAll,
+  checkLatestBackupOnStartup
 })
 </script>
 
@@ -1075,48 +1186,16 @@ defineExpose({
   border-bottom: 1px solid var(--el-border-color-lighter);
 }
 
-.backup-primary-actions {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex-wrap: wrap;
-
-  :deep(.el-button) {
-    border-radius: 8px;
-    font-weight: 500;
-  }
-}
-
 .backup-list-container {
   flex: 1;
   border: 1px solid var(--el-border-color-lighter);
   border-radius: 4px;
   background-color: var(--el-bg-color);
-  overflow: hidden;
 }
 
 .backup-list {
-  position: relative;
   padding: 16px;
   min-height: 200px;
-
-  :deep(.el-loading-mask) {
-    background-color: var(--app-loading-mask-bg, rgba(248, 250, 252, 0.72));
-    backdrop-filter: blur(8px) saturate(110%);
-    -webkit-backdrop-filter: blur(8px) saturate(110%);
-  }
-
-  :deep(.el-loading-spinner .circular) {
-    color: var(--app-loading-spinner-color, var(--el-color-primary));
-  }
-
-  :deep(.el-empty) {
-    background: transparent;
-  }
-
-  :deep(.el-empty__description p) {
-    color: var(--el-text-color-secondary);
-  }
 }
 
 .backup-item {
@@ -1152,11 +1231,6 @@ defineExpose({
   color: var(--el-text-color-secondary);
   display: flex;
   gap: 12px;
-
-  :deep(.el-tag) {
-    border-radius: 999px;
-    font-weight: 500;
-  }
 }
 
 .backup-actions {
@@ -1174,6 +1248,22 @@ defineExpose({
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+.password-hint,
+.automatic-compare-hint {
+  margin-bottom: 12px;
+}
+
+.compared-backup-name {
+  color: var(--el-text-color-secondary);
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+
+.version-tag {
+  align-self: center;
+  margin-top: 4px;
 }
 
 .source-item {
@@ -1204,71 +1294,6 @@ defineExpose({
   margin-left: 16px;
 }
 
-:global(.backup-dialog-shell.el-dialog .el-dialog__header) {
-  background: transparent !important;
-  border-bottom: none !important;
-  padding: 18px 24px 10px !important;
-  margin: 0 !important;
-}
-
-:global(.backup-dialog-shell.el-dialog .el-dialog__title) {
-  color: var(--el-color-primary) !important;
-}
-
-:global(.backup-dialog-shell.el-dialog .el-dialog__headerbtn) {
-  top: 14px;
-}
-
-:global(.backup-dialog-shell.el-dialog .el-dialog__body) {
-  padding-top: 10px !important;
-}
-
-:global(html.dark) .backup-list {
-  background: rgba(15, 23, 42, 0.28);
-
-  :deep(.el-loading-mask) {
-    background-color: var(--app-loading-mask-bg, rgba(3, 7, 18, 0.78));
-  }
-}
-
-:global(html.dark) .backup-primary-actions :deep(.el-button--success) {
-  background: rgba(16, 185, 129, 0.12);
-  border-color: rgba(16, 185, 129, 0.34);
-  color: #7dd3bd;
-  box-shadow: none;
-
-  &:hover,
-  &:focus {
-    background: rgba(16, 185, 129, 0.18);
-    border-color: rgba(16, 185, 129, 0.46);
-    color: #99f6d4;
-  }
-}
-
-:global(html.dark) .backup-meta :deep(.el-tag) {
-  background: rgba(15, 23, 42, 0.58);
-  border-color: rgba(148, 163, 184, 0.22);
-  color: rgba(226, 232, 240, 0.82);
-}
-
-:global(html.dark) .backup-meta :deep(.el-tag--success) {
-  background: rgba(16, 185, 129, 0.10);
-  border-color: rgba(16, 185, 129, 0.28);
-  color: #7dd3bd;
-}
-
-:global(html.dark) .backup-meta :deep(.el-tag--warning) {
-  background: rgba(245, 158, 11, 0.10);
-  border-color: rgba(245, 158, 11, 0.28);
-  color: #f8d98a;
-}
-
-:global(html.dark) .backup-meta :deep(.el-tag--info) {
-  background: rgba(14, 165, 233, 0.10);
-  border-color: rgba(14, 165, 233, 0.24);
-  color: #8fd8f8;
-}
-
 .compare-toolbar {
   display: flex;
   justify-content: space-between;
@@ -1285,11 +1310,6 @@ defineExpose({
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-}
-
-.summary-tag {
-  border-radius: 999px;
-  font-weight: 500;
 }
 
 .toolbar-actions {
@@ -1322,73 +1342,6 @@ defineExpose({
   color: var(--el-text-color-regular);
 }
 
-:global(html.dark) .filter-switch :deep(.el-radio-button__inner) {
-  background: rgba(15, 23, 42, 0.70);
-  border-color: rgba(14, 165, 233, 0.22);
-  color: rgba(226, 232, 240, 0.78);
-  box-shadow: none;
-}
-
-:global(html.dark) .filter-switch :deep(.el-radio-button__original-radio:checked + .el-radio-button__inner) {
-  background: rgba(14, 165, 233, 0.18);
-  border-color: rgba(14, 165, 233, 0.42);
-  color: #93e7ff;
-  box-shadow: none;
-}
-
-:global(html.dark) .summary-tag {
-  background: rgba(15, 23, 42, 0.66);
-  border-color: rgba(148, 163, 184, 0.22);
-  color: rgba(226, 232, 240, 0.82);
-  box-shadow: none;
-}
-
-:global(html.dark) .summary-added {
-  background: rgba(16, 185, 129, 0.10);
-  border-color: rgba(16, 185, 129, 0.28);
-  color: #7dd3bd;
-}
-
-:global(html.dark) .summary-deleted {
-  background: rgba(244, 63, 94, 0.10);
-  border-color: rgba(244, 63, 94, 0.30);
-  color: #fda4af;
-}
-
-:global(html.dark) .summary-modified {
-  background: rgba(245, 158, 11, 0.10);
-  border-color: rgba(245, 158, 11, 0.30);
-  color: #f8d98a;
-}
-
-:global(html.dark) .summary-fields,
-:global(html.dark) .summary-total {
-  background: rgba(14, 165, 233, 0.10);
-  border-color: rgba(14, 165, 233, 0.26);
-  color: #8fd8f8;
-}
-
-:global(html.dark) .legend-item {
-  background: rgba(15, 23, 42, 0.62);
-  border-color: rgba(148, 163, 184, 0.22);
-  color: rgba(226, 232, 240, 0.78);
-}
-
-:global(html.dark) .legend-modified {
-  border-color: rgba(245, 158, 11, 0.30);
-  color: #f8d98a;
-}
-
-:global(html.dark) .legend-added {
-  border-color: rgba(16, 185, 129, 0.30);
-  color: #7dd3bd;
-}
-
-:global(html.dark) .legend-deleted {
-  border-color: rgba(244, 63, 94, 0.30);
-  color: #fda4af;
-}
-
 .legend-modified {
   border-color: #f3d19e;
   color: #d48806;
@@ -1404,113 +1357,45 @@ defineExpose({
   color: #c45656;
 }
 
-.compare-container {
-  display: flex;
-  flex-direction: column;
-  min-height: 0;
-  height: min(760px, calc(100vh - 220px));
-  max-height: calc(100vh - 220px);
-  overflow: hidden;
-}
-
 .compare-container .table-wrapper {
-  flex: 1 1 auto;
-  min-height: 0;
   margin-top: 8px;
-  overflow: hidden;
-  border: 1px solid var(--el-border-color-lighter);
-  border-radius: 4px;
 }
 
 .compare-empty {
   margin: 16px 0;
 }
 
-:global(.compare-dialog.el-dialog),
-:global(.compare-dialog .el-dialog) {
-  display: flex;
-  flex-direction: column;
-  max-height: calc(100vh - 48px);
-  margin: 24px auto !important;
-}
-
-:global(.compare-dialog .el-dialog__header),
-:global(.compare-dialog.el-dialog .el-dialog__header),
-:global(.compare-dialog .el-dialog__footer),
-:global(.compare-dialog.el-dialog .el-dialog__footer) {
-  flex: 0 0 auto;
-}
-
-:global(.compare-dialog .el-dialog__body),
-:global(.compare-dialog.el-dialog .el-dialog__body) {
-  flex: 1 1 auto;
-  min-height: 0;
-  overflow: hidden;
-  padding-top: 0;
-  padding-bottom: 0;
-}
-
-:global(.compare-dialog .el-table),
-:global(.compare-dialog.el-dialog .el-table) {
-  height: 100% !important;
-}
-
-:global(.compare-dialog .el-table__inner-wrapper),
-:global(.compare-dialog.el-dialog .el-table__inner-wrapper) {
-  height: 100%;
-}
-
-:global(.compare-dialog .el-table .cell),
-:global(.compare-dialog.el-dialog .el-table .cell) {
-  line-height: 1.45;
-  word-break: normal;
+:deep(.compare-header th) {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: var(--el-bg-color);
 }
 
 .diff-content {
-  display: grid;
-  grid-template-rows: repeat(2, auto);
-  gap: 6px;
+  display: flex;
+  gap: 12px;
   padding: 8px;
-  min-width: 140px;
-  background-color: rgba(245, 158, 11, 0.08);
-  border: 1px solid rgba(245, 158, 11, 0.18);
+  background-color: #fdf6ec;
   border-radius: 4px;
 }
 
 .diff-item {
-  display: grid;
-  grid-template-columns: 48px minmax(0, 1fr);
-  align-items: start;
-  gap: 8px;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .diff-label {
   color: #909399;
   font-size: 12px;
-  line-height: 1.45;
-  white-space: nowrap;
 }
 
 .diff-value {
   color: #303133;
   font-weight: 500;
-  line-height: 1.45;
-  word-break: normal;
-  overflow-wrap: anywhere;
-  text-align: left;
-}
-
-:global(html.dark) .diff-content {
-  background: rgba(245, 158, 11, 0.09);
-  border-color: rgba(245, 158, 11, 0.22);
-}
-
-:global(html.dark) .diff-label {
-  color: rgba(203, 213, 225, 0.70);
-}
-
-:global(html.dark) .diff-value {
-  color: rgba(241, 245, 249, 0.92);
+  word-break: break-all;
 }
 
 .progress-text {
