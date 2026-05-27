@@ -10,7 +10,7 @@ NC='\033[0m' # 无颜色
 echo -e "${YELLOW}=== 开始打包 macOS 原生信用卡管理客户端 ===${NC}"
 
 # 1. 自动利用 sips 和 iconutil 生成系统级 .icns 图标
-ICON_PNG="/Users/yuangy/.gemini/antigravity/brain/fef3b05a-cb7e-4268-8a5a-e5fd66a3bbbb/macos_app_icon_1779544958337.png"
+ICON_PNG="$(dirname "$0")/Resources/AppIcon.png"
 if [ -f "$ICON_PNG" ]; then
     echo -e "${GREEN}发现精美 App 图标，开始制作 macOS 原生图标包 (.icns)...${NC}"
     mkdir -p build/AppIcon.iconset
