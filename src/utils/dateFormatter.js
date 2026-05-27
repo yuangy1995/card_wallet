@@ -26,3 +26,5 @@ export const formatDateToChinese = (date = new Date()) => {
 export const getCurrentTimeFormatted = () => {
   return formatDateToChinese(new Date())
 }
+
+export const getCurrentTimestamp = () => Date.now()

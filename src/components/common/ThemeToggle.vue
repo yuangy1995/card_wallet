@@ -29,9 +29,7 @@ export default {
       const { isDarkMode, toggleTheme } = useGlobalTheme()
 
       const handleThemeChange = () => {
-        console.log('Theme toggle clicked')
         if (toggleTheme) {
-          console.log('Calling toggleTheme')
           toggleTheme()
         } else {
           console.error('toggleTheme is not available')

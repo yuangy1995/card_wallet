@@ -11,7 +11,7 @@
             :percentage="progress" 
             :stroke-width="6"
             :show-text="false"
-            color="#409eff"
+            color="var(--app-loading-spinner-color, #409eff)"
           />
           <span class="progress-text">{{ progress }}%</span>
         </div>
@@ -54,12 +54,13 @@ defineProps({
   left: 0;
   right: 0;
   bottom: 0;
-  background: rgba(255, 255, 255, 0.9);
+  background: var(--app-loading-mask-bg, rgba(248, 250, 252, 0.72));
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 1000;
-  backdrop-filter: blur(2px);
+  backdrop-filter: blur(8px) saturate(110%);
+  -webkit-backdrop-filter: blur(8px) saturate(110%);
   
   &.full-screen {
     position: fixed;
@@ -72,9 +73,10 @@ defineProps({
     align-items: center;
     text-align: center;
     padding: 2rem;
-    background: white;
-    border-radius: 8px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    background: var(--app-loading-card-bg, var(--el-bg-color-overlay, #ffffff));
+    border: 1px solid var(--app-loading-card-border, var(--el-border-color-lighter));
+    border-radius: 12px;
+    box-shadow: var(--app-loading-card-shadow, 0 14px 36px rgba(15, 23, 42, 0.14));
     
     @media (max-width: 480px) {
       padding: 1.5rem;
@@ -82,13 +84,13 @@ defineProps({
     }
     
     .loading-spinner {
-      color: #409eff;
+      color: var(--app-loading-spinner-color, #409eff);
       animation: spin 1s linear infinite;
     }
     
     .loading-text {
       margin: 1rem 0 0 0;
-      color: #606266;
+      color: var(--app-loading-text-color, var(--el-text-color-regular));
       font-size: 14px;
       
       @media (max-width: 480px) {
@@ -108,9 +110,19 @@ defineProps({
         display: block;
         margin-top: 0.5rem;
         font-size: 12px;
-        color: #909399;
+        color: var(--app-loading-text-color, var(--el-text-color-secondary));
       }
     }
+  }
+}
+
+:global(html.dark) .loading-overlay {
+  background: var(--app-loading-mask-bg, rgba(3, 7, 18, 0.78));
+
+  .loading-content {
+    background: var(--app-loading-card-bg, rgba(15, 23, 42, 0.96));
+    border-color: var(--app-loading-card-border, rgba(0, 242, 254, 0.22));
+    box-shadow: var(--app-loading-card-shadow, 0 20px 54px rgba(0, 0, 0, 0.55));
   }
 }
 

@@ -1,3 +1,5 @@
+import { nowCardTimestamp } from '@/utils/cardTimestamp'
+
 /**
  * 信用卡数据默认值配置
  * Web端和移动端都应使用此配置确保一致性
@@ -32,11 +34,11 @@ export const DEFAULT_CARD_DATA = {
   // 年费信息
   annualFee: 0,
   isQualified: '2',  // 默认未达标
-  nextAnnualFeeCollectionTime: '',
+  nextAnnualFeeCollectionTime: null,
   
   // 时间追踪
-  lastTime: '',
-  lastModifyTime: '',
+  lastTime: null,
+  lastModifyTime: null,
   
   // 附加信息
   equity: '',
@@ -80,9 +82,9 @@ export const FIELD_TYPES = {
   billingDaySpendingToNextBill: 'boolean',
   annualFee: 'number',
   isQualified: 'string',
-  nextAnnualFeeCollectionTime: 'string',
-  lastTime: 'string',
-  lastModifyTime: 'string',
+  nextAnnualFeeCollectionTime: 'number',
+  lastTime: 'number',
+  lastModifyTime: 'number',
   equity: 'string',
   remark: 'string'
 }
@@ -93,13 +95,10 @@ export const FIELD_TYPES = {
  * @returns {Object} 完整的卡片数据
  */
 export function createNewCardData(partialData = {}) {
-  const now = new Date()
-  const timestamp = now.toISOString().slice(0, 19).replace('T', ' ')
-  
   return {
     ...DEFAULT_CARD_DATA,
     id: crypto.randomUUID(),
-    lastModifyTime: timestamp,
+    lastModifyTime: nowCardTimestamp(),
     ...partialData
   }
 }

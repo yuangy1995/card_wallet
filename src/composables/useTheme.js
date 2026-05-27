@@ -20,8 +20,6 @@ export function useTheme() {
 
   // 应用主题
   const applyTheme = () => {
-    console.log('Applying theme:', isDarkMode.value ? 'dark' : 'light')
-    
     // 应用到 document.documentElement (html)
     const root = document.documentElement
     const body = document.body
@@ -45,16 +43,11 @@ export function useTheme() {
       body.style.backgroundColor = ''
       body.style.color = ''
     }
-    
-    console.log('Root classes:', root.className)
-    console.log('Body classes:', body.className)
   }
 
   // 切换主题
   const toggleTheme = () => {
-    console.log('Toggle theme called, current:', isDarkMode.value)
     isDarkMode.value = !isDarkMode.value
-    console.log('New theme:', isDarkMode.value)
     localStorage.setItem('app-theme', isDarkMode.value ? 'dark' : 'light')
     applyTheme()
   }
@@ -80,7 +73,6 @@ export function useTheme() {
 
   // 监听主题状态变化
   watch(isDarkMode, (newValue) => {
-    console.log('Theme changed to:', newValue ? 'dark' : 'light')
     applyTheme()
     // 更新 Element Plus 主题
     if (newValue) {
@@ -92,7 +84,6 @@ export function useTheme() {
 
   // 初始化
   onMounted(() => {
-    console.log('Theme composable mounted')
     loadTheme()
     watchSystemTheme()
   })

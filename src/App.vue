@@ -5,86 +5,104 @@
         v-model="searchForm"
         :options="creditCardOptions"
         class="search-form"
-      />
+      >
+        <template #header-extra>
+          <div class="sync-status-bar">
+            <div class="sync-status-pill" :class="`is-${syncStatus.type || 'info'}`" :title="syncStatus.message">
+              <span class="sync-state">{{ syncStateText }}</span>
+              <span v-if="syncLastTimeText" class="sync-meta">{{ syncLastTimeText }}</span>
+              <span v-if="syncCountdownText" class="sync-meta">{{ syncCountdownText }}</span>
+            </div>
+            <el-button
+              class="sync-now-button"
+              type="primary"
+              plain
+              size="small"
+              :loading="syncStatus.isSyncing"
+              @click="handleImmediateSync"
+            >
+              立即同步
+            </el-button>
+          </div>
+        </template>
+      </SearchForm>
       <div class="button-container">
         
         <el-radio-group v-model="viewMode" size="small" class="view-mode-selector mobile-responsive">
-          <el-radio-button label="table">
+          <el-radio-button value="table">
             <el-icon><Menu /></el-icon>表格模式
           </el-radio-button>
-          <el-radio-button label="card">
+          <el-radio-button value="card">
             <el-icon><CreditCard /></el-icon>卡片模式
           </el-radio-button>
         </el-radio-group>
         
-        <el-button-group class="button-group mobile-responsive">
-          <el-button type="primary" @click="addCreditCard">
-            <el-icon>
-              <Plus />
-            </el-icon>新增信用卡
-          </el-button>
-          <el-button type="success" @click="exportData">
-            <el-icon>
-              <Share />
-            </el-icon>导出数据
-          </el-button>
-          <el-button type="warning" @click="importData">
-            <el-icon>
-              <FolderOpened />
-            </el-icon>导入数据
-          </el-button>
-          <el-button type="primary" @click="showStatistics">
-            <el-icon>
-              <TrendCharts />
-            </el-icon>统计分析
-          </el-button>
-          <el-button type="warning" @click="manualCheckAnnualFees">
-            <el-icon>
-              <Calendar />
-            </el-icon>检测年费情况
-          </el-button>
-          <el-button type="primary" @click="showWebDAVConfig">
-            <el-icon>
-              <Connection />
-            </el-icon>WebDAV配置
-          </el-button>
-          <el-button @click="handleBackup">
-            <el-icon>
-              <Upload />
-            </el-icon>云备份
-          </el-button>
-          <el-button type="warning" @click="showLocalBackup">
-            <el-icon>
-              <DocumentCopy />
-            </el-icon>本地备份
-          </el-button>
-          <el-button type="info" @click="openTableCustom">
-            <el-icon>
-              <Setting />
-            </el-icon>自定义列
-          </el-button>
-          <el-button type="danger" @click="confirmClearData">
-            <el-icon>
-              <Delete />
-            </el-icon>清除所有数据
-          </el-button>
-          <el-button type="warning" @click="generateRandomData">
-            <el-icon>
-              <Star />
-            </el-icon>生成随机数据
-          </el-button>
-          <el-button type="info" @click="showHelp">
-            <el-icon>
-              <QuestionFilled />
-            </el-icon>使用帮助
-          </el-button>
-          <!-- 开发测试：导出脱敏数据 -->
-          <el-button v-if="isDev" type="danger" @click="exportDesensitizedData">
-            <el-icon>
-              <CopyDocument />
-            </el-icon>导出脱敏数据
-          </el-button>
-        </el-button-group>
+        <div class="toolbar-actions">
+          <el-button-group class="button-group mobile-responsive">
+            <el-button type="primary" @click="addCreditCard">
+              <el-icon>
+                <Plus />
+              </el-icon>新增信用卡
+            </el-button>
+            <el-button type="primary" @click="handleBackup">
+              <el-icon>
+                <Upload />
+              </el-icon>云端备份
+            </el-button>
+            <el-button type="primary" @click="showStatistics">
+              <el-icon>
+                <TrendCharts />
+              </el-icon>统计分析
+            </el-button>
+            <el-button type="warning" @click="manualCheckAnnualFees">
+              <el-icon>
+                <Calendar />
+              </el-icon>年费提醒
+            </el-button>
+          </el-button-group>
+
+          <el-dropdown
+            class="more-actions"
+            trigger="click"
+            popper-class="main-more-dropdown"
+            @command="handleMoreAction"
+          >
+            <el-button>
+              更多<el-icon class="el-icon--right"><ArrowDown /></el-icon>
+            </el-button>
+            <template #dropdown>
+              <el-dropdown-menu>
+                <el-dropdown-item command="cloudSettings">
+                  <el-icon><Connection /></el-icon>云同步设置
+                </el-dropdown-item>
+                <el-dropdown-item command="exportData">
+                  <el-icon><Share /></el-icon>导出数据
+                </el-dropdown-item>
+                <el-dropdown-item command="importData">
+                  <el-icon><FolderOpened /></el-icon>导入数据
+                </el-dropdown-item>
+                <el-dropdown-item command="localBackup">
+                  <el-icon><DocumentCopy /></el-icon>本机备份
+                </el-dropdown-item>
+                <el-dropdown-item command="tableCustom">
+                  <el-icon><Setting /></el-icon>自定义列
+                </el-dropdown-item>
+                <el-dropdown-item command="help">
+                  <el-icon><QuestionFilled /></el-icon>使用帮助
+                </el-dropdown-item>
+                <el-dropdown-item command="clearData" divided class="danger-dropdown-item">
+                  <el-icon><Delete /></el-icon>清除所有数据
+                </el-dropdown-item>
+                <el-dropdown-item v-if="isDev" command="generateTestData">
+                  <el-icon><Star /></el-icon>生成测试数据
+                </el-dropdown-item>
+                <el-dropdown-item v-if="isDev" command="exportDesensitizedData">
+                  <el-icon><CopyDocument /></el-icon>导出脱敏数据
+                </el-dropdown-item>
+              </el-dropdown-menu>
+            </template>
+          </el-dropdown>
+        </div>
 
         <!-- 主题与安全锁控制集成胶囊 -->
         <div class="theme-toggle-container">
@@ -166,7 +184,7 @@
       </el-dialog>
       <HelpPage ref="helpPage" />
       <WebDAVConfigDialog ref="webDAVConfig" />
-      <BackupDialog ref="backup" @update="handleBackupUpdate" @showConfig="showWebDAVConfig" />
+      <BackupDialog ref="backup" @update="handleBackupUpdate" @showConfig="showWebDAVConfig" @publishV3="publishCurrentV3Snapshot" />
       <LocalBackupDialog v-model="localBackupVisible" @restore="handleLocalBackupRestore" ref="localBackup" />
       
       <!-- 全局加载覆盖层 -->
@@ -222,7 +240,8 @@ import {
   Menu,
   CreditCard,
   Sunny,
-  Moon
+  Moon,
+  ArrowDown
 } from '@element-plus/icons-vue'
 import CreditCardTable from '@/components/table/CreditCardTable.vue'
 import BatchOperationToolbar from '@/components/toolbar/BatchOperationToolbar.vue'
@@ -251,7 +270,7 @@ import SearchForm from '@/components/search/SearchForm.vue'
 import { generateMockData } from '@/utils/mockData'
 import { encryptData, decryptData } from '@/utils/encryption'
 import { formatDate, daysBetween } from '@/utils/dateUtils'
-import { getCurrentTimeFormatted } from '@/utils/dateFormatter'
+import { getCurrentTimeFormatted, getCurrentTimestamp } from '@/utils/dateFormatter'
 import { BACKUP_CONSTANTS, STORAGE_KEYS } from '@/config/constants'
 import { saveCardData, getCardData, saveBackupData, getBackupData, saveTableColumns, getTableColumns, CardDataStorage } from '@/utils/storage'
 import { autoMigrateLocalData } from '@/utils/cardDataMigration'
@@ -262,12 +281,26 @@ import { useAutoLock } from '@/composables/useAutoLock'
 import { PasswordManager } from '@/utils/passwordManager'
 import { getBankDisplayName } from '@/utils/bankNameFormatter'
 import { normalizeCountryValue, normalizeBankValue } from '@/utils/referenceDataUtils'
+import { webdavSyncService } from '@/utils/webdavSyncService'
+import { formatCardTimestamp, normalizeCardTimeFields } from '@/utils/cardTimestamp'
 
 // 主题控制
 const { isDarkMode, toggleTheme } = useTheme()
 
 // 状态管理
 const cardData = ref([])
+const syncStatus = ref({
+  message: '正在准备云同步...',
+  type: 'info',
+  pending: false,
+  isSyncing: false,
+  nextSyncAt: null,
+  lastSuccessfulSyncAt: null,
+  lastFailedSyncAt: null,
+  intervalMs: 5 * 60 * 1000
+})
+const syncCountdownNow = ref(Date.now())
+let syncCountdownTimer = null
 const selectedRows = ref([])
 const creditCardTableRef = ref(null)
 const creditCardCardListRef = ref(null)
@@ -275,6 +308,48 @@ const creditCardCardListRef = ref(null)
 const viewMode = ref(localStorage.getItem('creditCardViewMode') || 'table')
 watch(viewMode, (newValue) => {
   localStorage.setItem('creditCardViewMode', newValue)
+})
+
+const formatDuration = (milliseconds) => {
+  const totalSeconds = Math.max(0, Math.ceil(milliseconds / 1000))
+  const hours = Math.floor(totalSeconds / 3600)
+  const minutes = Math.floor((totalSeconds % 3600) / 60)
+  const seconds = totalSeconds % 60
+
+  if (hours > 0) {
+    return `${hours}小时${String(minutes).padStart(2, '0')}分`
+  }
+  if (minutes > 0) {
+    return `${minutes}分${String(seconds).padStart(2, '0')}秒`
+  }
+  return `${seconds}秒`
+}
+
+const syncStateText = computed(() => {
+  if (syncStatus.value.isSyncing) return '正在同步'
+  if (syncStatus.value.type === 'success') return '更新成功'
+  if (syncStatus.value.lastFailedSyncAt && ['warning', 'danger'].includes(syncStatus.value.type)) return '更新失败'
+  if ((syncStatus.value.message || '').includes('设置')) return '未设置云同步'
+  if (['warning', 'danger'].includes(syncStatus.value.type)) return '需要处理'
+  if (syncStatus.value.pending) return '等待同步'
+  return '云同步待命'
+})
+
+const syncLastTimeText = computed(() => {
+  const isFailureState = syncStatus.value.lastFailedSyncAt && ['warning', 'danger'].includes(syncStatus.value.type)
+  const time = isFailureState
+    ? syncStatus.value.lastFailedSyncAt
+    : (syncStatus.value.lastSuccessfulSyncAt || syncStatus.value.lastFailedSyncAt)
+  if (!time) return '尚未同步'
+  const label = isFailureState || !syncStatus.value.lastSuccessfulSyncAt ? '最近失败' : '最近更新'
+  return `${label}：${formatCardTimestamp(time)}`
+})
+
+const syncCountdownText = computed(() => {
+  if (syncStatus.value.isSyncing) return ''
+  if (!syncStatus.value.nextSyncAt) return ''
+  const remaining = syncStatus.value.nextSyncAt - syncCountdownNow.value
+  return `下次自动同步：${formatDuration(remaining)}后`
 })
 
 const showTableCustomDialog = ref(false)
@@ -360,7 +435,6 @@ const visibleColumns = computed(() => {
 const debouncedSearchForm = useDebouncedRef(searchForm, 300)
 
 const tableData = computed(() => {
-  console.log('Computing tableData, cardData length:', cardData.value.length)
   const form = debouncedSearchForm.value
   const filtered = cardData.value.filter(card => {
     // 币种匹配
@@ -528,7 +602,6 @@ const tableData = computed(() => {
     grouped.push(processedCard);
   });
 
-  console.log('Filtered and grouped tableData length:', grouped.length)
   return grouped
 })
 
@@ -546,8 +619,30 @@ const hideLoading = () => {
   loadingState.value.visible = false
 }
 
+const persistSyncedMutation = async (options = {}) => {
+  await webdavSyncService.commitCards(cardData.value, options)
+}
+
+const publishCurrentV3Snapshot = async (afterPublish) => {
+  try {
+    await webdavSyncService.synchronize(true)
+  } finally {
+    if (typeof afterPublish === 'function') {
+      await afterPublish()
+    }
+  }
+}
+
+const handleImmediateSync = () => {
+  publishCurrentV3Snapshot()
+}
+
 // 初始化数据
 onMounted(async () => {
+  syncCountdownTimer = window.setInterval(() => {
+    syncCountdownNow.value = Date.now()
+  }, 1000)
+
   showLoading('正在初始化应用...')
   
   try {
@@ -561,7 +656,7 @@ onMounted(async () => {
     showLoading('正在加载数据...')
     const result = CardDataStorage.getCardData(true)
     const migrationInfo = result.migrationInfo
-    cardData.value = result.data
+    cardData.value = result.data.map(card => normalizeCardTimeFields(card, { fillLastModifyTime: true }))
     
     // 检查并为没有 ID 的卡片生成唯一 ID
     let hasChanges = false
@@ -576,6 +671,16 @@ onMounted(async () => {
     if (hasChanges) {
       saveCardData(cardData.value)
     }
+
+    await webdavSyncService.start(
+      cardData.value,
+      (syncedCards) => {
+        cardData.value = syncedCards.map(card => normalizeCardTimeFields(card, { fillLastModifyTime: true }))
+      },
+      (newStatus) => {
+        syncStatus.value = newStatus
+      }
+    )
 
     // 判断应用是否处于锁定状态，锁定时跳过弹窗类检测
     const appIsLocked = PasswordManager.hasPassword() && 
@@ -639,7 +744,7 @@ const checkAnnualFeeQualified = async () => {
                       ${card.bank.replace(/\(.*?\)/g, "").trim()} - ${card.alias}
                     </div>
                     <div class="annual-fee-card-time">
-                      下次年费收取时间：${card.nextAnnualFeeCollectionTime}
+                      下次年费收取时间：${formatCardTimestamp(card.nextAnnualFeeCollectionTime)}
                     </div>
                     <div class="annual-fee-card-countdown">
                       距离收取年费：${Math.ceil((new Date(card.nextAnnualFeeCollectionTime) - new Date()) / (1000 * 60 * 60 * 24))} 天
@@ -672,7 +777,7 @@ const checkAnnualFeeQualified = async () => {
           }
         })
         // 保存更新后的数据
-        saveCardData(cardData.value)
+        await persistSyncedMutation()
         ElMessage.success('已将符合条件的卡片更新为未达标状态')
       }
     } catch (e) {
@@ -706,7 +811,7 @@ const confirmDelete = async () => {
     if (index > -1) {
       const cardName = cardToDelete.value.cardName
       cardData.value.splice(index, 1)
-      localStorage.setItem('cardData', JSON.stringify(cardData.value))
+      await persistSyncedMutation({ deletedCardIds: [cardToDelete.value.id] })
       
       deleteDialogVisible.value = false
       
@@ -744,7 +849,7 @@ const confirmAdd = async (data) => {
     
     creditCardData.value.dialogFormVisible = false
     // 添加最后修改时间
-    data.lastModifyTime = getCurrentTimeFormatted()
+    data.lastModifyTime = getCurrentTimestamp()
     
     if (status.value === 'add') {
       cardData.value.push(data)
@@ -766,12 +871,12 @@ const confirmAdd = async (data) => {
           cardData.value[idx].limit = data.limit
           cardData.value[idx].type = data.type
           cardData.value[idx].lastTime = data.lastTime
-          cardData.value[idx].lastModifyTime = getCurrentTimeFormatted()
+          cardData.value[idx].lastModifyTime = getCurrentTimestamp()
         }
       })
     }
     
-    localStorage.setItem('cardData', JSON.stringify(cardData.value))
+    await persistSyncedMutation()
     
     // 更好的成功反馈
     ElMessage({
@@ -807,11 +912,43 @@ const importData = () => {
   importExportDialogVisible.value = true
 }
 
-const handleImportData = (data) => {
+const handleMoreAction = async (command) => {
+  switch (command) {
+    case 'cloudSettings':
+      showWebDAVConfig()
+      break
+    case 'exportData':
+      exportData()
+      break
+    case 'importData':
+      importData()
+      break
+    case 'localBackup':
+      showLocalBackup()
+      break
+    case 'tableCustom':
+      openTableCustom()
+      break
+    case 'help':
+      showHelp()
+      break
+    case 'clearData':
+      confirmClearData()
+      break
+    case 'generateTestData':
+      await generateRandomData()
+      break
+    case 'exportDesensitizedData':
+      exportDesensitizedData()
+      break
+  }
+}
+
+const handleImportData = async (data) => {
   const rawList = Array.isArray(data) ? data : []
   const migrationResult = autoMigrateLocalData(rawList)
   cardData.value = migrationResult.data || []
-  saveCardData(cardData.value)
+  await persistSyncedMutation({ replace: true })
 }
 
 const viewDetails = (row) => {
@@ -918,13 +1055,11 @@ const manualCheckAnnualFees = async () => {
   }
 }
 
-const generateRandomData = () => {
+const generateRandomData = async () => {
   const mockData = generateMockData(50)
-  console.log('Generated mock data:', mockData.length, 'items')
   cardData.value = mockData
-  console.log('cardData.value updated:', cardData.value.length, 'items')
-  ElMessage.success('成功生成 50 条随机数据')
-  saveCardData(cardData.value)
+  ElMessage.success('成功生成 50 条测试数据')
+  await persistSyncedMutation({ replace: true })
 }
 
 // 批量操作相关函数
@@ -960,7 +1095,7 @@ const handleBatchDelete = async (rows) => {
   try {
     const idsToDelete = rows.map(row => row.id)
     cardData.value = cardData.value.filter(card => !idsToDelete.includes(card.id))
-    saveCardData(cardData.value)
+    await persistSyncedMutation({ deletedCardIds: idsToDelete })
     clearSelection()
     ElMessage.success(`成功删除 ${rows.length} 张信用卡`)
   } catch (error) {
@@ -991,16 +1126,16 @@ const handleBatchExport = (rows) => {
   }
 }
 
-const handleBatchUpdateStatus = ({ rows, status }) => {
+const handleBatchUpdateStatus = async ({ rows, status }) => {
   try {
     const idsToUpdate = rows.map(row => row.id)
     cardData.value.forEach(card => {
       if (idsToUpdate.includes(card.id)) {
         card.isQualified = status
-        card.lastModifyTime = getCurrentTimeFormatted()
+        card.lastModifyTime = getCurrentTimestamp()
       }
     })
-    saveCardData(cardData.value)
+    await persistSyncedMutation()
     clearSelection()
     const statusText = status === '1' ? '达标' : '未达标'
     ElMessage.success(`成功将 ${rows.length} 张信用卡标记为${statusText}`)
@@ -1030,8 +1165,9 @@ const confirmClearData = async () => {
         type: 'warning',
       }
     )
+    const deletedCardIds = cardData.value.map(card => card.id)
     cardData.value = []
-    localStorage.setItem('cardData', JSON.stringify([]))
+    await persistSyncedMutation({ deletedCardIds, replace: true })
     ElMessage.success('所有数据已清除')
   } catch {
   }
@@ -1045,7 +1181,7 @@ const handleCvvVisibility = ({ id, isVisible }) => {
   cardData.value.find(card => card.id === id).showCVV = isVisible
 }
 
-const setAnnualFeeQualified = (cardId) => {
+const setAnnualFeeQualified = async (cardId) => {
   const card = cardData.value.find(c => c.id === cardId)
   if (card) {
     card.isQualified = '1'
@@ -1055,13 +1191,13 @@ const setAnnualFeeQualified = (cardId) => {
       const nextDate = new Date(card.nextAnnualFeeCollectionTime)
       if (!isNaN(nextDate.getTime())) {
         nextDate.setFullYear(nextDate.getFullYear() + 1)
-        card.nextAnnualFeeCollectionTime = nextDate.toISOString().split('T')[0]
+        card.nextAnnualFeeCollectionTime = nextDate.getTime()
       }
     }
 
     // 添加最后修改时间并保存
-    card.lastModifyTime = getCurrentTimeFormatted()
-    saveCardData(cardData.value)
+    card.lastModifyTime = getCurrentTimestamp()
+    await persistSyncedMutation()
   }
 }
 
@@ -1128,6 +1264,20 @@ const showMigrationReport = async (migrationInfo) => {
   // 有迁移，显示详细弹窗
   const summary = migrationInfo.summary
   const details = migrationInfo.details || []
+  const hasErrors = (summary?.errors || 0) > 0
+
+  // 成功迁移属于后台兼容升级，不用打断用户；只有失败时才需要弹窗处理。
+  if (!hasErrors) {
+    if (isTestEnv) {
+      ElMessage({
+        type: 'success',
+        message: `数据已自动升级完成，共处理 ${summary?.success || 0} 张卡片`,
+        duration: 3000,
+        showClose: true
+      })
+    }
+    return
+  }
   
   // 构建详细的HTML内容
   let htmlContent = '<div style="max-height: 70vh; overflow-y: auto;">'
@@ -1246,7 +1396,7 @@ const showMigrationReport = async (migrationInfo) => {
   try {
     await ElMessageBox.alert(
       htmlContent,
-      '🔄 数据迁移完成',
+      '数据已整理完成',
       {
         confirmButtonText: '我知道了',
         dangerouslyUseHTMLString: true,
@@ -1254,15 +1404,11 @@ const showMigrationReport = async (migrationInfo) => {
         showClose: true,
         closeOnClickModal: false,
         closeOnPressEscape: false,
-        distinguishCancelAndClose: true,
-        callback: (action) => {
-          console.log('迁移报告已关闭')
-        }
+        distinguishCancelAndClose: true
       }
     )
   } catch (error) {
-    // 用户关闭弹窗
-    console.log('用户关闭了迁移报告')
+    // 用户关闭弹窗，无需额外处理
   }
 }
 
@@ -1270,9 +1416,9 @@ const handleBackup = () => {
   backup.value?.open(cardData.value)
 }
 
-const handleBackupUpdate = (data) => {
-  cardData.value = data
-  localStorage.setItem('cardData', JSON.stringify(data))
+const handleBackupUpdate = async (data) => {
+  cardData.value = data.map(card => normalizeCardTimeFields(card, { fillLastModifyTime: true }))
+  await persistSyncedMutation({ replace: true })
 }
 
 const autoBackup = () => {
@@ -1298,9 +1444,9 @@ const resetAutoBackupTimer = () => {
   }, 60000) // 1分钟后自动备份
 }
 
-const handleLocalBackupRestore = (data) => {
-  cardData.value = data
-  localStorage.setItem('cardData', JSON.stringify(data))
+const handleLocalBackupRestore = async (data) => {
+  cardData.value = data.map(card => normalizeCardTimeFields(card, { fillLastModifyTime: true }))
+  await persistSyncedMutation({ replace: true })
 }
 
 const showLocalBackup = () => {
@@ -1347,6 +1493,10 @@ onUnmounted(() => {
   if (backupTimer) {
     clearTimeout(backupTimer)
   }
+  if (syncCountdownTimer) {
+    clearInterval(syncCountdownTimer)
+  }
+  webdavSyncService.stop()
 })
 
 // 安全功能状态
@@ -1401,7 +1551,7 @@ const handleForgotPasswordOption = (option) => {
 const handleResetAllData = async () => {
   try {
     await ElMessageBox.confirm(
-      '此操作将清除所有数据，包括信用卡信息、WebDAV配置和本地备份。确定继续吗？',
+      '此操作将清除所有数据，包括信用卡信息、云同步配置和本机备份。确定继续吗？',
       '警告',
       {
         confirmButtonText: '确定清除',
@@ -1516,8 +1666,6 @@ const exportDesensitizedData = async () => {
     await navigator.clipboard.writeText(jsonStr)
     
     ElMessage.success(`已复制 ${desensitizedData.length} 张卡片的脱敏数据到剪贴板`)
-    
-    console.log('📋 脱敏数据已复制到剪贴板，长度:', jsonStr.length, '字符')
   } catch (error) {
     console.error('导出脱敏数据失败:', error)
     ElMessage.error('复制失败，请手动复制')
@@ -1663,16 +1811,165 @@ onMounted(() => {
 }
 
 .button-container {
-  display: flex;
-  flex-direction: column;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  gap: 12px;
+  gap: 10px 14px;
   position: relative;
-  
-  @media (min-width: 768px) {
-    flex-direction: row;
-    justify-content: space-between;
+}
+
+.toolbar-actions {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-width: 0;
+  justify-self: center;
+}
+
+.view-mode-selector {
+  justify-self: start;
+}
+
+.theme-toggle-container {
+  justify-self: end;
+}
+
+.button-group {
+  min-width: 0;
+}
+
+.more-actions {
+  flex: 0 0 auto;
+}
+
+.sync-status-bar {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  max-width: 860px;
+  padding: 0;
+  line-height: 1;
+
+  .sync-status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    max-width: min(720px, 58vw);
+    min-width: 0;
+    padding: 5px 12px;
+    border: 1px solid rgba(64, 158, 255, 0.28);
+    border-radius: 999px;
+    background: rgba(64, 158, 255, 0.08);
+    color: var(--el-color-primary);
+    overflow: hidden;
+    white-space: nowrap;
   }
+
+  .sync-state {
+    flex: 0 0 auto;
+    font-size: 13px;
+    font-weight: 700;
+  }
+
+  .sync-meta {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-size: 12px;
+    color: var(--el-text-color-secondary);
+  }
+
+  .sync-status-pill.is-success {
+    background: rgba(103, 194, 58, 0.10);
+    border-color: rgba(103, 194, 58, 0.32);
+    color: var(--el-color-success);
+  }
+
+  .sync-status-pill.is-warning {
+    background: rgba(230, 162, 60, 0.10);
+    border-color: rgba(230, 162, 60, 0.34);
+    color: var(--el-color-warning);
+  }
+
+  .sync-status-pill.is-danger {
+    background: rgba(245, 108, 108, 0.10);
+    border-color: rgba(245, 108, 108, 0.34);
+    color: var(--el-color-danger);
+  }
+
+  .el-button {
+    flex: 0 0 auto;
+  }
+}
+
+@media (max-width: 1200px) {
+  .button-container {
+    grid-template-columns: 1fr;
+  }
+
+  .toolbar-actions,
+  .view-mode-selector,
+  .theme-toggle-container {
+    justify-content: center;
+    justify-self: center;
+    margin-left: 0;
+  }
+}
+
+@media (max-width: 900px) {
+  .sync-status-bar {
+    max-width: 100%;
+
+    .sync-status-pill {
+      max-width: calc(100vw - 170px);
+    }
+  }
+
+  .toolbar-actions {
+    flex-wrap: wrap;
+  }
+}
+
+html.dark .sync-status-bar {
+  .sync-status-pill {
+    background: rgba(0, 242, 254, 0.08);
+    border-color: rgba(0, 242, 254, 0.24);
+    color: rgba(114, 236, 255, 0.92);
+  }
+
+  .sync-status-pill.is-success {
+    background: rgba(103, 194, 58, 0.10);
+    border-color: rgba(103, 194, 58, 0.26);
+    color: rgba(149, 221, 119, 0.94);
+  }
+
+  .sync-status-pill.is-warning {
+    background: rgba(230, 162, 60, 0.10);
+    border-color: rgba(230, 162, 60, 0.28);
+    color: rgba(239, 190, 104, 0.94);
+  }
+
+  .sync-status-pill.is-danger {
+    background: rgba(245, 108, 108, 0.10);
+    border-color: rgba(245, 108, 108, 0.28);
+    color: rgba(248, 139, 139, 0.94);
+  }
+
+  .sync-meta {
+    color: rgba(226, 232, 240, 0.72);
+  }
+}
+
+:global(.main-more-dropdown .el-dropdown-menu__item) {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+:global(.main-more-dropdown .danger-dropdown-item) {
+  color: var(--el-color-danger);
 }
 
 /* 迁移报告弹窗样式 */

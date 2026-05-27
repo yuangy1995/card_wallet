@@ -1,23 +1,12 @@
+import { formatCardTimestamp } from '@/utils/cardTimestamp'
+
 /**
  * 格式化日期的工具函数
  * @param {string} dateString - 要格式化的日期字符串
  * @returns {string} - 格式化后的日期字符串
  */
 export function formatDate(dateString) {
-  if (!dateString) return '-';
-  
-  const date = new Date(dateString);
-  if (isNaN(date.getTime())) return '-';
-  
-  return date.toLocaleString('zh-CN', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-    hour12: false
-  });
+  return formatCardTimestamp(dateString)
 }
 
 /**

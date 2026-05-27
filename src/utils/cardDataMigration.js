@@ -4,6 +4,7 @@
  */
 
 import { DEFAULT_CARD_DATA, REQUIRED_FIELDS, FIELD_TYPES } from '@/config/defaultCardData'
+import { CARD_TIMESTAMP_FIELDS, normalizeCardTimeFields, nowCardTimestamp, toCardTimestamp } from '@/utils/cardTimestamp'
 
 /**
  * 转换有效期格式：YYYY-MM-DD 或 YYYY-MM 转为 MM/YY
@@ -113,8 +114,9 @@ export function migrateCardData(oldCard, trackChanges = false) {
   const migratedCard = { ...DEFAULT_CARD_DATA }
   
   // 1. 处理ID字段
-  if (oldCard.id) {
-    migratedCard.id = String(oldCard.id)
+  const stableId = firstStringValue(oldCard, ['id', 'cardId', '_id', 'uuid'])
+  if (stableId) {
+    migratedCard.id = stableId
   } else {
     // 如果没有ID，生成一个新的UUID
     migratedCard.id = crypto.randomUUID()
@@ -124,12 +126,33 @@ export function migrateCardData(oldCard, trackChanges = false) {
   // 2. 复制基本字符串字段
   const stringFields = [
     'country', 'bank', 'alias', 'level', 'cardNumber', 
-    'cvv', 'type', 'isQualified', 'nextAnnualFeeCollectionTime',
-    'lastTime', 'lastModifyTime', 'equity', 'remark'
+    'cvv', 'type', 'isQualified', 'equity', 'remark'
   ]
   stringFields.forEach(field => {
     if (oldCard[field] !== undefined && oldCard[field] !== null) {
       migratedCard[field] = String(oldCard[field])
+    }
+  })
+
+  CARD_TIMESTAMP_FIELDS.forEach(field => {
+    const oldValue = oldCard[field]
+    const fallback = field === 'lastModifyTime' ? nowCardTimestamp() : null
+    const normalizedValue = toCardTimestamp(oldValue, fallback)
+    migratedCard[field] = normalizedValue
+
+    const valueWasMissing = oldValue === undefined || oldValue === null || oldValue === ''
+    const shouldTrackTimestampChange = field === 'lastModifyTime'
+      ? oldValue !== normalizedValue
+      : !valueWasMissing && oldValue !== normalizedValue
+    if (trackChanges && shouldTrackTimestampChange) {
+      changes.push({
+        field,
+        oldValue,
+        newValue: normalizedValue,
+        reason: valueWasMissing
+          ? '添加时间戳'
+          : '时间字段统一转换为毫秒时间戳'
+      })
     }
   })
   
@@ -213,7 +236,7 @@ export function migrateCardData(oldCard, trackChanges = false) {
   
   // 7. 如果没有lastModifyTime，添加当前时间
   if (!migratedCard.lastModifyTime) {
-    const timestamp = new Date().toISOString().slice(0, 19).replace('T', ' ')
+    const timestamp = nowCardTimestamp()
     migratedCard.lastModifyTime = timestamp
     
     if (trackChanges) {
@@ -308,6 +331,16 @@ export function migrateCardDataBatch(oldCards, trackChanges = false) {
     details,
     success: errors.length === 0
   }
+}
+
+function firstStringValue(source, keys) {
+  for (const key of keys) {
+    const value = source?.[key]
+    if (value === undefined || value === null) continue
+    const normalized = String(value).trim()
+    if (normalized) return normalized
+  }
+  return ''
 }
 
 /**
@@ -425,7 +458,7 @@ export function validateCardDataBatch(cards) {
 export function sanitizeCardData(card) {
   try {
     // 使用迁移函数来修复数据
-    return migrateCardData(card)
+    return normalizeCardTimeFields(migrateCardData(card), { fillLastModifyTime: true })
   } catch (error) {
     console.error('修复卡片数据失败:', error)
     // 返回一个包含错误信息的最小化卡片数据
@@ -433,7 +466,7 @@ export function sanitizeCardData(card) {
       ...DEFAULT_CARD_DATA,
       id: card.id || crypto.randomUUID(),
       remark: `数据修复失败: ${error.message}`,
-      lastModifyTime: new Date().toISOString().slice(0, 19).replace('T', ' ')
+      lastModifyTime: nowCardTimestamp()
     }
   }
 }
@@ -456,6 +489,9 @@ export function needsMigration(card) {
   // 检查账单日/还款日是否为Number类型
   if (typeof card.accountBillDate === 'number') return true
   if (typeof card.dueDate === 'number') return true
+
+  if (!card.lastModifyTime) return true
+  if (CARD_TIMESTAMP_FIELDS.some(field => card[field] && typeof card[field] !== 'number')) return true
   
   return false
 }
@@ -492,14 +528,10 @@ export function autoMigrateLocalData(cards, trackChanges = false) {
     }
   }
   
-  console.log(`检测到 ${needsMigrationCount}/${cards.length} 条数据需要迁移`)
-  
   // 执行迁移（追踪变化用于详细报告）
   const result = migrateCardDataBatch(cards, true)
   
-  if (result.success) {
-    console.log(`成功迁移 ${result.data.length} 条数据`)
-  } else {
+  if (!result.success) {
     console.error('迁移过程中出现错误:', result.errors)
   }
   

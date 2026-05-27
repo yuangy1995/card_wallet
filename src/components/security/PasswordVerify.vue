@@ -36,6 +36,19 @@
               解锁
             </el-button>
           </el-form-item>
+
+          <el-form-item v-if="platformUnlockEnabled">
+            <el-button
+              class="platform-unlock-btn"
+              @click="handlePlatformUnlock"
+              :loading="platformUnlockLoading"
+              :disabled="!platformUnlockAvailable || loading"
+              size="large"
+            >
+              <el-icon><Unlock /></el-icon>
+              {{ platformUnlockAvailable ? '使用 Touch ID / Windows Hello 解锁' : '系统解锁不可用' }}
+            </el-button>
+          </el-form-item>
         </el-form>
         
         <div class="links">
@@ -58,9 +71,11 @@
 </template>
 
 <script setup>
-import { ref, computed, nextTick, watch } from 'vue'
+import { ref, computed, nextTick, watch, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
+import { Unlock } from '@element-plus/icons-vue'
 import { PasswordManager } from '@/utils/passwordManager'
+import { PlatformAuthenticator } from '@/utils/platformAuthenticator'
 
 const props = defineProps({
   modelValue: {
@@ -73,6 +88,9 @@ const emit = defineEmits(['update:modelValue', 'verified', 'forgot-password'])
 
 const password = ref('')
 const loading = ref(false)
+const platformUnlockLoading = ref(false)
+const platformUnlockEnabled = ref(false)
+const platformUnlockAvailable = ref(false)
 const passwordInput = ref(null)
 
 const show = computed({
@@ -81,6 +99,21 @@ const show = computed({
 })
 
 const failedAttempts = computed(() => PasswordManager.getFailedAttempts())
+
+const refreshPlatformUnlockState = async () => {
+  platformUnlockEnabled.value = PlatformAuthenticator.isStored()
+  platformUnlockAvailable.value = await PlatformAuthenticator.isAvailable()
+}
+
+const getPlatformUnlockErrorMessage = (error) => {
+  if (error?.name === 'NotAllowedError') {
+    return '未完成本机身份验证，请使用密码解锁'
+  }
+  if (error?.name === 'SecurityError') {
+    return '当前页面环境不支持系统解锁，请使用密码解锁'
+  }
+  return error?.message || '系统解锁失败，请使用密码解锁'
+}
 
 const handleVerify = async () => {
   if (!password.value.trim()) {
@@ -133,6 +166,26 @@ const handleVerify = async () => {
   }
 }
 
+const handlePlatformUnlock = async () => {
+  platformUnlockLoading.value = true
+  try {
+    await PlatformAuthenticator.authenticate()
+    ElMessage.success({
+      message: '解锁成功',
+      zIndex: 100000
+    })
+    password.value = ''
+    emit('verified')
+  } catch (error) {
+    ElMessage.error({
+      message: getPlatformUnlockErrorMessage(error),
+      zIndex: 100000
+    })
+  } finally {
+    platformUnlockLoading.value = false
+  }
+}
+
 const showForgotPassword = () => {
   emit('forgot-password')
 }
@@ -140,6 +193,7 @@ const showForgotPassword = () => {
 watch(show, (val) => {
   if (val) {
     password.value = ''
+    refreshPlatformUnlockState()
     nextTick(() => {
       passwordInput.value?.focus()
       setTimeout(() => {
@@ -148,6 +202,10 @@ watch(show, (val) => {
       }, 50)
     })
   }
+})
+
+onMounted(() => {
+  refreshPlatformUnlockState()
 })
 </script>
 
@@ -224,6 +282,22 @@ watch(show, (val) => {
   background: #008f99 !important;
   box-shadow: 0 4px 14px rgba(0, 168, 180, 0.3) !important;
   transform: translateY(-1px);
+}
+
+.password-form :deep(.platform-unlock-btn) {
+  width: 100%;
+  border: 1px solid rgba(0, 168, 180, 0.28) !important;
+  background: rgba(0, 168, 180, 0.06) !important;
+  color: #007780 !important;
+  box-shadow: none !important;
+  font-weight: 600;
+  border-radius: 6px !important;
+}
+
+.password-form :deep(.platform-unlock-btn:hover) {
+  background: rgba(0, 168, 180, 0.12) !important;
+  border-color: rgba(0, 168, 180, 0.45) !important;
+  color: #005a61 !important;
 }
 
 .links {
@@ -307,6 +381,19 @@ watch(show, (val) => {
     background: linear-gradient(135deg, rgba(0, 242, 254, 0.4) 0%, rgba(218, 34, 255, 0.2) 100%) !important;
     box-shadow: 0 0 15px rgba(0, 242, 254, 0.4), 0 0 30px rgba(218, 34, 255, 0.15) !important;
     transform: translateY(-2px);
+  }
+
+  .password-form :deep(.platform-unlock-btn) {
+    border-color: rgba(0, 242, 254, 0.24) !important;
+    background: rgba(0, 242, 254, 0.08) !important;
+    color: rgba(226, 232, 240, 0.88) !important;
+    box-shadow: none !important;
+  }
+
+  .password-form :deep(.platform-unlock-btn:hover) {
+    border-color: rgba(0, 242, 254, 0.42) !important;
+    background: rgba(0, 242, 254, 0.14) !important;
+    color: #9ffbff !important;
   }
 
   .links :deep(.el-button) {

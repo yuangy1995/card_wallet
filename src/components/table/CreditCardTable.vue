@@ -4,7 +4,7 @@
       :data="tableData" 
       style="width: 100%" 
       border
-      height="calc(100vh - 250px)"
+      height="100%"
       @row-dblclick="handleRowDoubleClick"
       class="mobile-optimized"
       @row-contextmenu="handleContextMenu"
@@ -52,7 +52,7 @@
           </template>
           <template v-else-if="column.value === 'lastTime'" #default="{ row }">
             <div v-if="row.lastTime" style="display: flex; flex-direction: column; align-items: center;">
-              <span>{{ row.lastTime }}</span>
+              <span>{{ formatCardTimestamp(row.lastTime) }}</span>
               <span style="color: #909399; font-size: 12px;">
                 ({{ getDaysFromNow(row.lastTime).text }}{{ getDaysFromNow(row.lastTime).days }}天)
               </span>
@@ -61,7 +61,7 @@
           </template>
           <template v-else-if="column.value === 'lastModifyTime'" #default="{ row }">
             <div v-if="row.lastModifyTime" style="display: flex; flex-direction: column; align-items: center;">
-              <span>{{ row.lastModifyTime }}</span>
+              <span>{{ formatCardTimestamp(row.lastModifyTime) }}</span>
             </div>
             <span v-else>-</span>
           </template>
@@ -82,7 +82,7 @@
                 <span>- -</span>
               </template>
               <template v-else>
-                <span>{{ row.nextAnnualFeeCollectionTime || '-' }}</span>
+                <span>{{ formatCardTimestamp(row.nextAnnualFeeCollectionTime) }}</span>
                 <span v-if="row.nextAnnualFeeCollectionTime" style="color: #909399; font-size: 12px;">
                   (距离收取年费{{ getDaysFromNow(row.nextAnnualFeeCollectionTime).text }}{{ getDaysFromNow(row.nextAnnualFeeCollectionTime).days }}天)
                 </span>
@@ -134,6 +134,7 @@ import { daysBetween } from '../../utils/dateUtils'
 import { getDaysFromNow, formatValidDate } from '../../utils/dateCalculator'
 import { creditCardOptions } from '@/config/creditCardOptions'
 import { cardDataCache } from '@/utils/cache'
+import { formatCardTimestamp } from '@/utils/cardTimestamp'
 
 // 获取卡片类型权重
 function getCardTypeWeight(cardNumber) {
@@ -544,7 +545,7 @@ export default {
       if (selectedRow.value.nextAnnualFeeCollectionTime) {
         const nextDate = new Date(selectedRow.value.nextAnnualFeeCollectionTime)
         nextDate.setFullYear(nextDate.getFullYear() + 1)
-        selectedRow.value.nextAnnualFeeCollectionTime = nextDate.toISOString().split('T')[0]
+        selectedRow.value.nextAnnualFeeCollectionTime = nextDate.getTime()
       }
       emit('annual-fee-qualified', selectedRow.value.id)
       contextMenuVisible.value = false
@@ -761,6 +762,7 @@ export default {
       getColumnClass,
       sortMethods,
       formatValidDate,
+      formatCardTimestamp,
       getDaysFromNow,
       handleRowDoubleClick,
       handleContextMenu,
@@ -791,6 +793,7 @@ export default {
 <style lang="scss" scoped>
 .credit-card-table {
   width: 100%;
+  min-height: 0;
   position: relative;
 }
 

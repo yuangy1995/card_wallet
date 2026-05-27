@@ -105,7 +105,7 @@
             </div>
             <div class="info-item">
               <span class="label">下次年费时间</span>
-              <span class="value warning-text" v-if="card.isQualified !== '3'">{{ card.nextAnnualFeeCollectionTime || '-' }}</span>
+              <span class="value warning-text" v-if="card.isQualified !== '3'">{{ formatCardTimestamp(card.nextAnnualFeeCollectionTime) }}</span>
               <span class="value info-text" v-else>终身免年费</span>
             </div>
           </div>
@@ -124,8 +124,8 @@
 
           <!-- 提额与更新时间 -->
           <div class="time-info">
-            <div>上次提额时间: <span>{{ card.lastTime || '暂无提额记录' }}</span></div>
-            <div>上次修改时间: <span>{{ card.lastModifyTime || '-' }}</span></div>
+            <div>上次提额时间: <span>{{ card.lastTime ? formatCardTimestamp(card.lastTime) : '暂无提额记录' }}</span></div>
+            <div>上次修改时间: <span>{{ formatCardTimestamp(card.lastModifyTime) }}</span></div>
           </div>
 
           <!-- 权益与备注简述 -->
@@ -160,6 +160,7 @@ import { View, Hide, Refresh, Edit, Star, Notebook, Delete } from '@element-plus
 import { getBankDisplayName } from '@/utils/bankNameFormatter'
 import { getDaysFromNow } from '@/utils/dateCalculator'
 import { ElMessage } from 'element-plus'
+import { formatCardTimestamp } from '@/utils/cardTimestamp'
 
 const props = defineProps({
   card: {

@@ -145,7 +145,7 @@ export const generateCreditCard = () => {
   const lastTime = randomDate(
     new Date(now.getFullYear() - 2, now.getMonth()),
     now
-  ).toISOString().slice(0, 10)
+  ).getTime()
 
   // 生成别名（使用银行名称、卡等级和币种）
   const alias = `${bankName}${cardLevel}(${currencyCode})`
@@ -164,7 +164,7 @@ export const generateCreditCard = () => {
   dueDate = dueDate.toString()
   
   // 生成最后修改时间
-  const lastModifyTime = now.toISOString().slice(0, 19).replace('T', ' ')
+  const lastModifyTime = now.getTime()
   
   return {
     id: crypto.randomUUID(), // 使用UUID
@@ -177,7 +177,7 @@ export const generateCreditCard = () => {
     limit: randomInt(...(limitRanges[baseLevel] || limitRanges['普卡'])),
     type: currencyCode,
     annualFee: randomInt(...(annualFeeRanges[currencyCode] || annualFeeRanges['CNY'])),
-    nextAnnualFeeCollectionTime: nextAnnualFeeDate.toISOString().slice(0, 10),
+    nextAnnualFeeCollectionTime: nextAnnualFeeDate.getTime(),
     lastTime,
     isQualified,
     level: cardLevel,

@@ -1,24 +1,22 @@
 <template>
   <div class="security-lock-controls" v-if="showButtons">
-    <el-tooltip content="锁定应用" placement="bottom">
-      <el-button 
-        class="control-btn lock-btn"
-        type="warning" 
-        :icon="Lock" 
-        circle 
-        @click="lockApp"
-      />
-    </el-tooltip>
-    
-    <el-tooltip content="密码设置" placement="bottom">
-      <el-button 
-        class="control-btn settings-btn"
-        type="primary" 
-        :icon="Setting" 
-        circle 
-        @click="showPasswordSettings"
-      />
-    </el-tooltip>
+    <el-button
+      class="control-btn lock-btn"
+      type="warning"
+      :icon="Lock"
+      circle
+      aria-label="锁定应用"
+      @click="lockApp"
+    />
+
+    <el-button
+      class="control-btn settings-btn"
+      type="primary"
+      :icon="Setting"
+      circle
+      aria-label="密码设置"
+      @click="showPasswordSettings"
+    />
   </div>
 </template>
 

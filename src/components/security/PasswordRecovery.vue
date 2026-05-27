@@ -115,22 +115,6 @@ const generateQuestions = () => {
     return
   }
 
-  // 开发环境调试：显示所有卡片数据
-  if (import.meta.env.DEV) {
-    console.group('🎯 密码找回 - 生成验证问题')
-    console.log('可用卡片数据:', cardData.value.map(card => ({
-      id: card.id,
-      cardNumber: card.cardNumber,
-      bankName: card.bank,  // 使用正确的字段名
-      alias: card.alias,
-      region: card.country,  // 使用正确的字段名
-      cvv: card.cvv,
-      expiryDate: card.valid,  // 使用正确的字段名
-      creditLimit: card.limit  // 使用正确的字段名
-    })))
-    console.groupEnd()
-  }
-
   const newQuestions = []
   
   // 问题1：输入任意卡片的卡号
@@ -342,13 +326,6 @@ const verifyAnswers = async () => {
         errors.push(`问题 ${index + 1}`)
       }
       
-      // 开发环境调试信息
-      if (import.meta.env.DEV) {
-        console.log(`问题 ${index + 1}: ${question.question}`)
-        console.log(`用户答案: "${answers.value[index]}"`)
-        console.log(`期望答案: "${getExpectedAnswer(question)}"`)
-        console.log(`验证结果: ${isCorrect ? '✅ 正确' : '❌ 错误'}`)
-      }
     })
     
     // 更新每个问题的验证状态

@@ -124,6 +124,7 @@ import { BACKUP_CONSTANTS } from '@/config/constants'
 import { ElMessage } from 'element-plus'
 import { creditCardOptions } from '@/config/creditCardOptions'
 import { useAutoLock } from '@/composables/useAutoLock'
+import { formatCardTimestamp } from '@/utils/cardTimestamp'
 
 const props = defineProps({
   modelValue: {
@@ -162,15 +163,7 @@ const closeAll = () => {
 
 // 格式化日期
 const formatDate = (timestamp) => {
-  const date = new Date(timestamp)
-  return date.toLocaleString('zh-CN', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit'
-  })
+  return formatCardTimestamp(timestamp)
 }
 
 // 加载备份列表
@@ -281,6 +274,10 @@ const formatColumnValue = (value, columnType) => {
       return value.toLocaleString()
     case 'valid':
       return typeof value === 'string' ? value : (value ?? '-')
+    case 'nextAnnualFeeCollectionTime':
+    case 'lastTime':
+    case 'lastModifyTime':
+      return formatCardTimestamp(value)
     default:
       return value
   }
@@ -312,7 +309,6 @@ const confirmRestore = () => {
   if (!selectedBackup.value) return
   
   try {
-    localStorage.setItem('cardData', JSON.stringify(selectedBackup.value.data))
     emit('restore', selectedBackup.value.data)
     // 不显示恢复成功消息，避免与 BackupDialog 中的恢复消息重复
     restoreConfirmVisible.value = false

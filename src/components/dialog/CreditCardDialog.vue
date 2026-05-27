@@ -297,6 +297,7 @@ import { ElMessage } from 'element-plus'
 import { creditCardOptions } from '@/config/creditCardOptions'
 import { QuestionFilled } from '@element-plus/icons-vue'
 import { useAutoLock } from '@/composables/useAutoLock'
+import { formatTimestampForDateInput, timestampFromDateInput } from '@/utils/cardTimestamp'
 
 // 信用卡类型识别
 const CARD_TYPES = {
@@ -564,6 +565,8 @@ export default {
           // 确保数值类型字段正确
           data.limit = Number(data.limit) || 0
           data.annualFee = Number(data.annualFee) || 0
+          data.nextAnnualFeeCollectionTime = formatTimestampForDateInput(data.nextAnnualFeeCollectionTime)
+          data.lastTime = formatTimestampForDateInput(data.lastTime)
           // 统一账单日和还款日的数据类型为String
           data.accountBillDate = data.accountBillDate ? String(data.accountBillDate) : ''
           data.dueDate = data.dueDate ? String(data.dueDate) : ''
@@ -693,6 +696,10 @@ export default {
         }
         // 处理提交数据
         const submitData = { ...formData.value }
+        submitData.nextAnnualFeeCollectionTime = submitData.isQualified === '3'
+          ? null
+          : timestampFromDateInput(submitData.nextAnnualFeeCollectionTime)
+        submitData.lastTime = timestampFromDateInput(submitData.lastTime)
         
         // 保持有效期为 MM/YY 格式存储
         // 不再转换为 YYYY-MM-DD 格式

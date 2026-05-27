@@ -113,7 +113,6 @@ export class CardDataStorage {
     const migrationResult = autoMigrateLocalData(rawData)
     
     if (migrationResult.migrated) {
-      console.log('数据迁移完成:', migrationResult.summary)
       // 自动保存迁移后的数据
       this.saveCardData(migrationResult.data)
       

@@ -1,3 +1,41 @@
+.el-loading-mask {
+  background-color: var(--app-loading-mask-bg, rgba(248, 250, 252, 0.72)) !important;
+  backdrop-filter: blur(8px) saturate(110%);
+  -webkit-backdrop-filter: blur(8px) saturate(110%);
+}
+
+.el-loading-spinner .circular .path {
+  stroke: var(--app-loading-spinner-color, #2563eb) !important;
+}
+
+.el-loading-spinner i {
+  color: var(--app-loading-spinner-color, #2563eb) !important;
+}
+
+.el-loading-spinner .el-loading-text {
+  color: var(--app-loading-text-color, #334155) !important;
+}
+
+:root {
+  --app-loading-mask-bg: rgba(248, 250, 252, 0.72);
+  --app-loading-card-bg: rgba(255, 255, 255, 0.94);
+  --app-loading-card-border: rgba(148, 163, 184, 0.24);
+  --app-loading-card-shadow: 0 18px 44px rgba(15, 23, 42, 0.16);
+  --app-loading-spinner-color: #2563eb;
+  --app-loading-text-color: #334155;
+}
+
+html.dark,
+body.dark,
+.dark {
+  --app-loading-mask-bg: rgba(3, 7, 18, 0.78);
+  --app-loading-card-bg: linear-gradient(180deg, rgba(15, 23, 42, 0.96), rgba(8, 13, 30, 0.96));
+  --app-loading-card-border: rgba(0, 242, 254, 0.22);
+  --app-loading-card-shadow: 0 20px 54px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(0, 242, 254, 0.08);
+  --app-loading-spinner-color: #4ddcff;
+  --app-loading-text-color: rgba(226, 232, 240, 0.9);
+}
+
 .main_body {
   width: 100vw;
   height: 100vh;
@@ -69,15 +107,16 @@
     border-radius: 12px !important;
     margin-bottom: 12px;
     flex-shrink: 0;
-    display: flex;
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr) auto;
     align-items: center;
-    flex-wrap: wrap;
-    gap: 10px;
+    gap: 10px 14px;
   }
 
   /* 表格底层容器去除毛玻璃透明层，回归纯正洁净白底以提供极致文本清晰度 */
   .table-container {
     flex: 1;
+    min-height: 0;
     overflow: hidden;
     background: #ffffff !important;
     border: none !important;

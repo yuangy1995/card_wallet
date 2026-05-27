@@ -149,6 +149,7 @@ export class PasswordManager {
     StorageManager.remove(this.LOCK_STATE_KEY)
     StorageManager.remove(this.FAILED_ATTEMPTS_KEY)
     StorageManager.remove(this.LAST_ACTIVITY_KEY)
+    StorageManager.remove('platform_unlock_credential')
   }
 
   /**
@@ -169,7 +170,8 @@ export class PasswordManager {
           'cardData',
           'cardDataBackups', 
           'webdav_config',
-          'tableCustomColumns'
+          'tableCustomColumns',
+          'platform_unlock_credential'
         ]
         
         keysToRemove.forEach(key => {

@@ -208,6 +208,21 @@ export class WebDAVClient {
     }
   }
 
+  async uploadSyncSnapshot(snapshot) {
+    if (!this.client) {
+      throw new Error('WebDAV 客户端未初始化');
+    }
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const activeCount = snapshot.records.filter(record => record.state === 'active').length;
+    const filename = `${timestamp}---(${activeCount})[SyncV3][Web][自].json`;
+    const encryptedSnapshot = encryptData(snapshot);
+    await this.client.putFileContents(`/credit-card-backup/${filename}`, encryptedSnapshot, {
+      overwrite: true,
+      contentLength: true
+    });
+    return filename;
+  }
+
   // 获取备份列表
   async getBackupList() {
     if (!this.client) {

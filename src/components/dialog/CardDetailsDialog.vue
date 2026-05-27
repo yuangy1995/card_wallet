@@ -35,7 +35,7 @@
             <el-tag v-if="cardInfo.isQualified === '3'" type="info">终免年费</el-tag>
           </el-descriptions-item>
           <el-descriptions-item label="下次年费收取时间" :span="2">
-            {{ cardInfo.nextAnnualFeeCollectionTime }}
+            {{ nextAnnualFeeCollectionTimeDisplay }}
           </el-descriptions-item>
           <el-descriptions-item label="上次提额日期" :span="2">
             <div style="white-space: pre-line">{{ lastTimeDisplay }}</div>
@@ -87,7 +87,7 @@
             <el-tag v-if="cardInfo.isQualified === '3'" type="info">终免年费</el-tag>
           </el-descriptions-item>
           <el-descriptions-item label="下次年费收取时间">
-            {{ cardInfo.nextAnnualFeeCollectionTime }}
+            {{ nextAnnualFeeCollectionTimeDisplay }}
           </el-descriptions-item>
           <el-descriptions-item label="上次提额日期">
             <div style="white-space: pre-line">{{ lastTimeDisplay }}</div>
@@ -123,6 +123,7 @@
 import { inject, watch } from 'vue'
 import { getDaysFromNow } from '../../utils/dateCalculator'
 import { useAutoLock } from '@/composables/useAutoLock'
+import { formatCardTimestamp } from '@/utils/cardTimestamp'
 
 export default {
   name: 'CardDetailsDialog',
@@ -163,12 +164,16 @@ export default {
     lastTimeDisplay() {
       if (!this.cardInfo.lastTime) return '-'
       const { days, text } = getDaysFromNow(this.cardInfo.lastTime)
-      return `${this.cardInfo.lastTime}\n(${text}${days}天)`
+      return `${formatCardTimestamp(this.cardInfo.lastTime)}\n(${text}${days}天)`
     },
     lastModifyTime() {
       if (!this.cardInfo.lastModifyTime) return '-'
-      const { days, text } = getDaysFromNow(this.cardInfo.lastModifyTime)
-      return this.cardInfo.lastModifyTime
+      return formatCardTimestamp(this.cardInfo.lastModifyTime)
+    },
+    nextAnnualFeeCollectionTimeDisplay() {
+      return this.cardInfo.nextAnnualFeeCollectionTime
+        ? formatCardTimestamp(this.cardInfo.nextAnnualFeeCollectionTime)
+        : '-'
     }
   },
 

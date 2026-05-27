@@ -6,6 +6,9 @@
           <span>查询条件</span>
           <AutoLockCountdown />
         </div>
+        <div class="search-header-extra">
+          <slot name="header-extra" />
+        </div>
         <div class="search-actions">
           <el-button link type="primary" @click="toggleCollapse" size="small">
             {{ isCollapse ? '展开' : '收起' }}
@@ -184,10 +187,21 @@ export default {
       display: flex;
       align-items: center;
       gap: 8px;
+      flex: 0 0 auto;
+    }
+
+    .search-header-extra {
+      flex: 1 1 auto;
+      min-width: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 0 12px;
     }
 
     .search-actions {
       display: flex;
+      flex: 0 0 auto;
       gap: 8px;
 
       :deep(.el-button) {
@@ -232,6 +246,20 @@ export default {
   .is-reverse {
     transform: rotate(180deg);
     transition: transform 0.3s ease;
+  }
+
+  @media (max-width: 900px) {
+    .search-header {
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .search-header-extra {
+      order: 3;
+      flex-basis: 100%;
+      justify-content: flex-start;
+      padding: 0;
+    }
   }
 }
 </style>

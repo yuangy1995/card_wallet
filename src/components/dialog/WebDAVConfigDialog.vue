@@ -1,7 +1,7 @@
 <template>
   <el-dialog
     v-model="dialogVisible"
-    title="WebDAV 配置"
+    title="云同步设置"
     width="500px"
     :close-on-click-modal="false"
     :append-to-body="true"
@@ -22,10 +22,10 @@
         </el-radio-group>
       </el-form-item>
       
-      <el-form-item label="服务器" prop="host">
+      <el-form-item label="云端地址" prop="host">
         <el-input
           v-model="form.host"
-          placeholder="请输入IP地址或域名，如：example.com 或 192.168.1.100"
+          placeholder="请输入域名或 IP 地址，如：example.com"
         />
       </el-form-item>
       
@@ -38,19 +38,19 @@
         />
       </el-form-item>
       
-      <el-form-item label="路径" prop="path">
+      <el-form-item label="存储路径" prop="path">
         <el-input
           v-model="form.path"
-          placeholder="可选，如：/webdav"
+          placeholder="可选，如：/backup"
         >
           <template #prepend>/</template>
         </el-input>
       </el-form-item>
 
-      <el-form-item label="用户名" prop="username">
+      <el-form-item label="账号" prop="username">
         <el-input
           v-model="form.username"
-          placeholder="请输入用户名"
+          placeholder="请输入账号"
         />
       </el-form-item>
 
@@ -75,7 +75,7 @@
       <span class="dialog-footer">
         <el-button @click="dialogVisible = false">取消</el-button>
         <el-button type="primary" @click="testConnection">测试连接</el-button>
-        <el-button type="success" @click="saveConfig">保存配置</el-button>
+        <el-button type="success" @click="saveConfig">保存设置</el-button>
       </span>
     </template>
   </el-dialog>
@@ -135,7 +135,7 @@ const rules = {
     { required: true, message: '请选择连接方式', trigger: 'change' }
   ],
   host: [
-    { required: true, message: '请输入服务器地址', trigger: 'blur' },
+    { required: true, message: '请输入云端地址', trigger: 'blur' },
     { pattern: /^[a-zA-Z0-9][-a-zA-Z0-9.]*[a-zA-Z0-9]$|^(?:[0-9]{1,3}\.){3}[0-9]{1,3}$/, message: '请输入有效的域名或IP地址', trigger: 'blur' }
   ],
   port: [
@@ -146,7 +146,7 @@ const rules = {
     { pattern: /^[/]?[a-zA-Z0-9/-_.]*$/, message: '路径格式不正确', trigger: 'blur' }
   ],
   username: [
-    { required: true, message: '请输入用户名', trigger: 'blur' }
+    { required: true, message: '请输入账号', trigger: 'blur' }
   ],
   password: [
     { required: true, message: '请输入密码', trigger: 'blur' }
@@ -185,7 +185,7 @@ const testConnection = async () => {
     await formRef.value.validate()
     
     // 初始化客户端
-    const initialized = webdavClient.initialize({
+    const initialized = await webdavClient.initialize({
       url: fullUrl.value,
       username: form.username,
       password: form.password,
@@ -206,7 +206,7 @@ const testConnection = async () => {
         // 证书错误且未开启忽略证书，询问用户是否继续
         try {
           await ElMessageBox.confirm(
-            `服务器证书验证失败：${result.originalError}\n\n` +
+            `云端证书验证失败：${result.originalError}\n\n` +
             '是否忽略证书验证并继续连接？\n' +
             '注意：继续连接可能存在安全风险。',
             '证书警告',
@@ -249,7 +249,7 @@ const saveConfig = async () => {
     })
 
     if (saved) {
-      ElMessage.success('配置保存成功')
+      ElMessage.success('云同步设置已保存')
       dialogVisible.value = false
     } else {
       ElMessage.error('保存配置失败：' + error.message)

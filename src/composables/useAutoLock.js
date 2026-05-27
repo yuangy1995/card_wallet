@@ -61,7 +61,6 @@ export function useAutoLock() {
     PasswordManager.lockApp()
     isLocked.value = true
     clearLockTimer()
-    console.log('应用已自动锁定')
   }
 
   // 解锁应用
@@ -69,7 +68,6 @@ export function useAutoLock() {
     PasswordManager.unlockApp()
     isLocked.value = false
     resetLockTimer()
-    console.log('应用已解锁')
   }
 
   // 清除定时器
