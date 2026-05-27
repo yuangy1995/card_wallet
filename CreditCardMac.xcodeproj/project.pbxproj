@@ -24,6 +24,7 @@
 		8ED96BF4A23D6AE89E140F67 /* CardModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2438DA162090A1129CF9648 /* CardModels.swift */; };
 		993C0ADB9F297F319223F488 /* CreditCardApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20F3767139B02295E47C77A /* CreditCardApp.swift */; };
 		9A901A8A5576595768F5A2F5 /* CardGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CE1C3496FC3E3897DCA53DF /* CardGridView.swift */; };
+		9E843F31258561127ECB39F7 /* AppIcon.png in Resources */ = {isa = PBXBuildFile; fileRef = 2E1BEA69AFB1F1626694B014 /* AppIcon.png */; };
 		AC34415F142959F1BA9C9EA3 /* SyncModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 852CD8E0C8F1F82A9AC867D7 /* SyncModels.swift */; };
 		B6099858631471B3850F36C9 /* CardEditView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17B42F329DCF8EE986256FE0 /* CardEditView.swift */; };
 		BCBFBE825C1C49CD46465EF0 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1428934F7025C070B87C31B9 /* SettingsView.swift */; };
@@ -53,6 +54,7 @@
 		17B42F329DCF8EE986256FE0 /* CardEditView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardEditView.swift; sourceTree = "<group>"; };
 		200646141CEE66C6830FEA09 /* WebDAVBridgeService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebDAVBridgeService.swift; sourceTree = "<group>"; };
 		20EB037E98B817601677ED26 /* LockScreenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LockScreenView.swift; sourceTree = "<group>"; };
+		2E1BEA69AFB1F1626694B014 /* AppIcon.png */ = {isa = PBXFileReference; lastKnownFileType = image.png; path = AppIcon.png; sourceTree = "<group>"; };
 		32F787EC39436C1745C35653 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		3335A637AC44C646EB35A049 /* DateCalculatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DateCalculatorTests.swift; sourceTree = "<group>"; };
 		36EA37FCF17EA8F9A43FD7D4 /* CloudKitSyncService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudKitSyncService.swift; sourceTree = "<group>"; };
@@ -143,6 +145,7 @@
 			isa = PBXGroup;
 			children = (
 				32F787EC39436C1745C35653 /* .gitkeep */,
+				2E1BEA69AFB1F1626694B014 /* AppIcon.png */,
 				41C92BECFAFA8B4024698F6B /* CreditCardMac.entitlements */,
 			);
 			path = Resources;
@@ -204,6 +207,7 @@
 			buildConfigurationList = 172642DDF6D459BBD19D1542 /* Build configuration list for PBXNativeTarget "CreditCardMac" */;
 			buildPhases = (
 				D59DBD37A28FD42FC9CCA624 /* Sources */,
+				1FDE2ACA58AA939C2E6DEF19 /* Resources */,
 				CC0BE61C98F9221F84E074A5 /* Frameworks */,
 			);
 			buildRules = (
@@ -251,6 +255,17 @@
 			);
 		};
 /* End PBXProject section */
+
+/* Begin PBXResourcesBuildPhase section */
+		1FDE2ACA58AA939C2E6DEF19 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				9E843F31258561127ECB39F7 /* AppIcon.png in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
 		595CB31B264885E03EA3E62A /* Sources */ = {
