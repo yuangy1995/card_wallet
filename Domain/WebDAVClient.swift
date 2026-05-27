@@ -138,9 +138,7 @@ public class WebDAVClient {
             return
         }
         
-        // 备份路径: url + credit-card-backup/filename
-        let fileUrlStr = urlStr + "credit-card-backup/" + filename.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed)!
-        guard let url = URL(string: fileUrlStr) else {
+        guard let url = backupFileURL(baseURLString: urlStr, filename: filename) else {
             completion(.failure(WebDAVError.invalidURL))
             return
         }
@@ -248,8 +246,7 @@ public class WebDAVClient {
             return
         }
         
-        let fileUrlStr = urlStr + "credit-card-backup/" + filename.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed)!
-        guard let url = URL(string: fileUrlStr) else {
+        guard let url = backupFileURL(baseURLString: urlStr, filename: filename) else {
             completion(.failure(WebDAVError.invalidURL))
             return
         }
@@ -296,8 +293,7 @@ public class WebDAVClient {
             return
         }
         
-        let fileUrlStr = urlStr + "credit-card-backup/" + filename.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed)!
-        guard let url = URL(string: fileUrlStr) else {
+        guard let url = backupFileURL(baseURLString: urlStr, filename: filename) else {
             completion(.failure(WebDAVError.invalidURL))
             return
         }
@@ -340,10 +336,8 @@ public class WebDAVClient {
             return
         }
         
-        let oldFileUrlStr = urlStr + "credit-card-backup/" + oldFilename.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed)!
-        let newFileUrlStr = urlStr + "credit-card-backup/" + newFilename.addingPercentEncoding(withAllowedCharacters: .urlPathAllowed)!
-        
-        guard let url = URL(string: oldFileUrlStr) else {
+        guard let url = backupFileURL(baseURLString: urlStr, filename: oldFilename),
+              let newURL = backupFileURL(baseURLString: urlStr, filename: newFilename) else {
             completion(.failure(WebDAVError.invalidURL))
             return
         }
@@ -356,7 +350,7 @@ public class WebDAVClient {
         request.setValue("Basic \(base64Auth)", forHTTPHeaderField: "Authorization")
         
         // 关键 WebDAV 头：Destination 目标绝对地址与 Overwrite 覆盖控制
-        request.setValue(newFileUrlStr, forHTTPHeaderField: "Destination")
+        request.setValue(newURL.absoluteString, forHTTPHeaderField: "Destination")
         request.setValue("T", forHTTPHeaderField: "Overwrite")
         
         let task = URLSession.shared.dataTask(with: request) { _, response, error in
@@ -438,6 +432,15 @@ public class WebDAVClient {
             mkcolTask.resume()
         }
         task.resume()
+    }
+
+    private func backupFileURL(baseURLString: String, filename: String) -> URL? {
+        guard let baseURL = URL(string: baseURLString) else {
+            return nil
+        }
+        return baseURL
+            .appendingPathComponent("credit-card-backup", isDirectory: true)
+            .appendingPathComponent(filename, isDirectory: false)
     }
 }
 

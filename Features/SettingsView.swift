@@ -421,8 +421,9 @@ public struct SettingsView: View {
             DiffPreviewView(
                 currentCards: currentCards,
                 backupCards: request.backupCards,
-                onConfirmRestore: {
-                    onDataRestored(request.backupCards)
+                requiresIdentityReview: request.requiresIdentityReview,
+                onConfirmRestore: { restoredCards in
+                    onDataRestored(restoredCards)
                 },
                 onConfirmMerge: { mergedCards in
                     onDataRestored(mergedCards)
@@ -461,7 +462,7 @@ public struct SettingsView: View {
         switch result {
         case .success(let cards):
             // 并不直接覆盖，而是拉起 Diff 页面
-            self.diffPreviewRequest = DiffPreviewRequest(backupCards: cards)
+            self.diffPreviewRequest = DiffPreviewRequest(backupCards: cards, requiresIdentityReview: true)
         case .failure(let error):
             // 假如报错，可能使用了自定义密码加密，拉起密码弹窗进行安全解密
             print("本地恢复报错: \(error.localizedDescription)")

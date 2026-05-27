@@ -226,16 +226,9 @@ public class DataMigrationManager {
     public static func migrateSingleCard(_ rawDict: [String: Any]) -> SharedCard {
         let dict = rawDict
         
-        // 1. UUID/ID 缺失补全与类型高宽容度兼容提取
-        var idStr = ""
-        if let rawId = dict["id"] {
-            if let strId = rawId as? String {
-                idStr = strId.trimmingCharacters(in: .whitespacesAndNewlines)
-            } else {
-                // 💡 如果是 Int, Double 等数值型 ID，高精还原为 String 格式，防范转型失败引致的卡片 ID 重生成错配！
-                idStr = String(describing: rawId).trimmingCharacters(in: .whitespacesAndNewlines)
-            }
-        }
+        // 1. UUID/ID 缺失补全与类型高宽容度兼容提取。
+        // 历史同步数据可能把身份字段放在 cardId/_id/uuid，迁移时必须优先保留，不能重生成。
+        let idStr = firstStringValue(in: dict, keys: ["id", "cardId", "_id", "uuid"]) ?? ""
         let finalId = idStr.isEmpty ? UUID().uuidString : idStr
         
         // 2. 基本字段规范化为 String
@@ -307,5 +300,84 @@ public class DataMigrationManager {
     /// - Returns: 洗清整洁后的 SharedCard 数组
     public static func migrateCardsBatch(_ rawArray: [[String: Any]]) -> [SharedCard] {
         return rawArray.map { migrateSingleCard($0) }
+    }
+
+    private static func firstStringValue(in dict: [String: Any], keys: [String]) -> String? {
+        for key in keys {
+            guard let rawValue = dict[key], !(rawValue is NSNull) else { continue }
+            let stringValue: String
+            if let value = rawValue as? String {
+                stringValue = value
+            } else if let value = rawValue as? NSNumber {
+                stringValue = value.stringValue
+            } else {
+                stringValue = String(describing: rawValue)
+            }
+            let trimmed = stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+            if !trimmed.isEmpty {
+                return trimmed
+            }
+        }
+        return nil
+    }
+
+    public static func cardsFromBackupJSON(_ jsonString: String) -> [SharedCard]? {
+        let cleaned = jsonString.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let cards = decodeV3SnapshotCards(from: cleaned) {
+            return cards
+        }
+
+        guard let parsedObject = recursivelyParseJSON(cleaned) else {
+            return nil
+        }
+
+        if let dict = parsedObject as? [String: Any],
+           dict["schemaVersion"] as? String == WebDAVSyncSnapshotV3.schemaVersion,
+           let data = try? JSONSerialization.data(withJSONObject: dict),
+           let snapshot = try? JSONDecoder().decode(WebDAVSyncSnapshotV3.self, from: data) {
+            return CardSyncMergeEngine.activeCards(from: snapshot.records)
+        }
+
+        var rawCards: [[String: Any]] = []
+        var foundCardContainer = false
+        if let array = parsedObject as? [[String: Any]] {
+            rawCards = array
+            foundCardContainer = true
+        } else if let dict = parsedObject as? [String: Any] {
+            if let cardsArray = dict["cards"] as? [[String: Any]] {
+                rawCards = cardsArray
+                foundCardContainer = true
+            } else if let cardsArray = dict["data"] as? [[String: Any]] {
+                rawCards = cardsArray
+                foundCardContainer = true
+            }
+        }
+
+        guard foundCardContainer else {
+            return nil
+        }
+        return migrateCardsBatch(rawCards)
+    }
+
+    public static func backupJSONIsV3Snapshot(_ jsonString: String) -> Bool {
+        let cleaned = jsonString.trimmingCharacters(in: .whitespacesAndNewlines)
+        if decodeV3SnapshotCards(from: cleaned) != nil {
+            return true
+        }
+        guard let parsedObject = recursivelyParseJSON(cleaned),
+              let dict = parsedObject as? [String: Any],
+              dict["records"] is [[String: Any]] else {
+            return false
+        }
+        return dict["schemaVersion"] as? String == WebDAVSyncSnapshotV3.schemaVersion
+    }
+
+    private static func decodeV3SnapshotCards(from jsonString: String) -> [SharedCard]? {
+        guard let data = jsonString.data(using: .utf8),
+              let snapshot = try? JSONDecoder().decode(WebDAVSyncSnapshotV3.self, from: data),
+              snapshot.schemaVersion == WebDAVSyncSnapshotV3.schemaVersion else {
+            return nil
+        }
+        return CardSyncMergeEngine.activeCards(from: snapshot.records)
     }
 }

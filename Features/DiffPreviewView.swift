@@ -4,9 +4,11 @@ import AppKit
 public struct DiffPreviewRequest: Identifiable {
     public let id = UUID()
     public let backupCards: [SharedCard]
+    public let requiresIdentityReview: Bool
     
-    public init(backupCards: [SharedCard]) {
+    public init(backupCards: [SharedCard], requiresIdentityReview: Bool = false) {
         self.backupCards = backupCards
+        self.requiresIdentityReview = requiresIdentityReview
     }
 }
 
@@ -49,8 +51,9 @@ public struct DiffPreviewView: View {
     
     let currentCards: [SharedCard]
     let backupCards: [SharedCard]
+    let requiresIdentityReview: Bool
     
-    let onConfirmRestore: () -> Void
+    let onConfirmRestore: ([SharedCard]) -> Void
     let onConfirmMerge: ([SharedCard]) -> Void
     
     @State private var diffs: [CardDiffResult] = []
@@ -63,11 +66,13 @@ public struct DiffPreviewView: View {
     public init(
         currentCards: [SharedCard],
         backupCards: [SharedCard],
-        onConfirmRestore: @escaping () -> Void,
+        requiresIdentityReview: Bool = false,
+        onConfirmRestore: @escaping ([SharedCard]) -> Void,
         onConfirmMerge: @escaping ([SharedCard]) -> Void
     ) {
         self.currentCards = currentCards
         self.backupCards = backupCards
+        self.requiresIdentityReview = requiresIdentityReview
         self.onConfirmRestore = onConfirmRestore
         self.onConfirmMerge = onConfirmMerge
     }
@@ -82,7 +87,7 @@ public struct DiffPreviewView: View {
                         .foregroundColor(.cyan)
                     
                     VStack(alignment: .leading, spacing: 4) {
-                        Text("账本数据差异对比与同步 (Diff)")
+                        Text("备份数据对比与恢复")
                             .font(.title2)
                             .bold()
                             .foregroundColor(.primary)
@@ -121,9 +126,9 @@ public struct DiffPreviewView: View {
                 
                 Divider()
                 
-                // 底部操作区 (带智能大融合与强力覆盖警告拦截)
+                // 底部操作区
                 HStack(spacing: 14) {
-                    // 仅在有差异时才显示智能融合和覆盖选项
+                    // 仅在有差异时才显示融合和覆盖选项
                     if !diffs.isEmpty {
                         Button(action: {
                             performSmartMerge()
@@ -131,15 +136,15 @@ public struct DiffPreviewView: View {
                             HStack(spacing: 6) {
                                 Image(systemName: "sparkles")
                                     .font(.system(size: 11, weight: .bold))
-                                Text("智能双向融合 (保留最新)")
+                                Text("保留较新的数据")
                             }
                         }
                         .buttonStyle(.borderedProminent)
                         .tint(.cyan)
                         .disabled(isProcessing || processSuccess)
-                        .help("智能对比双方每张信用卡的修改时间，自动保留最新修改的卡片数据并合并去重，随后同步至云端。")
+                        .help("对比每张信用卡的修改时间，保留较新的卡片数据。")
                         
-                        Button("单向覆盖恢复 (备份为主)") {
+                        Button("使用此备份覆盖") {
                             showOverwriteConfirmation()
                         }
                         .buttonStyle(.bordered)
@@ -160,8 +165,8 @@ public struct DiffPreviewView: View {
                 .padding(16)
                 .background(Color(.windowBackgroundColor))
             }
-            
-            // 💡 磨砂加载同步过场微面板盖层
+
+            // 磨砂加载同步过场面板
             if isProcessing {
                 VStack(spacing: 20) {
                     ProgressView()
@@ -169,10 +174,10 @@ public struct DiffPreviewView: View {
                         .scaleEffect(1.3)
                         .padding(.bottom, 10)
                     
-                    Text("系统正在进行精密数据合并与同步...")
+                    Text("正在处理数据...")
                         .font(.headline)
                         .foregroundColor(.primary)
-                    Text("正在将最新账本无损融合写入本地沙盒，并自动同步拉平云端备份...")
+                    Text("正在保存本地数据，并同步到云端。")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                         .multilineTextAlignment(.center)
@@ -188,7 +193,7 @@ public struct DiffPreviewView: View {
                         .foregroundColor(.green)
                         .symbolEffect(.bounce, value: processSuccess) // macOS 14+ 专属高拟物回弹效果！
                     
-                    Text("同步大融合完成")
+                    Text("同步完成")
                         .font(.title3)
                         .bold()
                         .foregroundColor(.primary)
@@ -200,7 +205,7 @@ public struct DiffPreviewView: View {
                         .lineSpacing(4)
                         .padding(.horizontal, 50)
                     
-                    Button("好的 (确定)") {
+                    Button("知道了") {
                         dismiss()
                     }
                     .buttonStyle(.borderedProminent)
@@ -219,47 +224,51 @@ public struct DiffPreviewView: View {
         }
     }
     
-    // 💡 智能双向大融合调用入口
+    // 双向合并调用入口
     private func performSmartMerge() {
+        guard let reviewedBackupCards = reviewedBackupCardsForRestore() else { return }
+
         withAnimation(.easeInOut(duration: 0.3)) {
             isProcessing = true
         }
         
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
-            let merged = generateMergedCards()
+            let merged = generateMergedCards(backupCards: reviewedBackupCards)
             onConfirmMerge(merged)
             
             withAnimation(.easeInOut(duration: 0.3)) {
                 isProcessing = false
-                successMessage = "智能双向大融合已成功！\n\n所有信用卡已智能合并，本地已升级为最新版本，并且已极其安全地将新账本静默上传拉平至您的 WebDAV 云端备份。"
+                successMessage = "已保留较新的卡片数据，并同步到云端。"
                 processSuccess = true
             }
         }
     }
     
-    // 💡 单向强制覆盖调用入口
+    // 单向覆盖调用入口
     private func executeRestoreAction() {
+        guard let reviewedBackupCards = reviewedBackupCardsForRestore() else { return }
+
         withAnimation(.easeInOut(duration: 0.3)) {
             isProcessing = true
         }
         
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
-            onConfirmRestore()
+            onConfirmRestore(reviewedBackupCards)
             
             withAnimation(.easeInOut(duration: 0.3)) {
                 isProcessing = false
-                successMessage = "一键覆盖恢复成功！\n\n本地所有信用卡数据已完全回滚、还原为该选中的备份包版本。"
+                successMessage = "已按所选备份恢复本地卡片数据，并同步到云端。"
                 processSuccess = true
             }
         }
     }
     
-    // 💡 极细致的差异分析比对与时间戳排序引擎 (Diff Calculator)
+    // 差异分析与时间排序
     private func calculateDiff() {
         var results: [CardDiffResult] = []
         
-        let currentMap = Dictionary(uniqueKeysWithValues: currentCards.map { ($0.id, $0) })
-        let backupMap = Dictionary(uniqueKeysWithValues: backupCards.map { ($0.id, $0) })
+        let currentMap = cardsByID(currentCards)
+        let backupMap = cardsByID(backupCards)
         
         // 1. 寻找被删掉的卡 (备份有，当前无) -> 恢复后将重新找回 (高亮绿色)
         for (id, backupCard) in backupMap {
@@ -365,12 +374,12 @@ public struct DiffPreviewView: View {
         self.diffs = results
     }
     
-    // 💡 智能双向大融合算法 (Smart Bidirectional Merge)
-    private func generateMergedCards() -> [SharedCard] {
+    // 双向合并算法
+    private func generateMergedCards(backupCards: [SharedCard]) -> [SharedCard] {
         var merged: [SharedCard] = []
         
-        let currentMap = Dictionary(uniqueKeysWithValues: currentCards.map { ($0.id, $0) })
-        let backupMap = Dictionary(uniqueKeysWithValues: backupCards.map { ($0.id, $0) })
+        let currentMap = cardsByID(currentCards)
+        let backupMap = cardsByID(backupCards)
         
         // 所有卡片的 ID 集合
         let allIds = Set(currentMap.keys).union(backupMap.keys)
@@ -398,11 +407,106 @@ public struct DiffPreviewView: View {
         return merged
     }
 
+    private func cardsByID(_ cards: [SharedCard]) -> [String: SharedCard] {
+        cards.reduce(into: [:]) { result, card in
+            guard !card.id.isEmpty else { return }
+            if let existing = result[card.id],
+               DataMigrationManager.compareLastModifyTime(local: existing.lastModifyTime, backup: card.lastModifyTime) != .orderedAscending {
+                return
+            }
+            result[card.id] = card
+        }
+    }
+
+    private func reviewedBackupCardsForRestore() -> [SharedCard]? {
+        guard requiresIdentityReview else {
+            return backupCards
+        }
+
+        return CardRestoreIdentityResolver.resolve(
+            incomingCards: backupCards,
+            existingCards: currentCards
+        ) { match in
+            requestIdentityDecision(for: match)
+        }
+    }
+
+    private func requestIdentityDecision(for match: CardRestoreIdentityResolver.PotentialMatch) -> CardRestoreIdentityResolver.Decision? {
+        let firstAlert = NSAlert()
+        firstAlert.messageText = "发现卡号相同的卡片"
+        firstAlert.informativeText = "备份中的「\(cardDisplayName(match.incoming))」和当前卡包里的「\(cardDisplayName(match.existing))」卡号相同。\n\n请确认它们是不是同一张卡。"
+        firstAlert.addButton(withTitle: "是，同一张卡")
+        firstAlert.addButton(withTitle: "不是，作为新卡保存")
+        firstAlert.addButton(withTitle: "先不处理")
+        firstAlert.alertStyle = .warning
+
+        switch firstAlert.runModal() {
+        case .alertFirstButtonReturn:
+            return requestSameCardDecision(for: match)
+        case .alertSecondButtonReturn:
+            return confirmSeparateCard(for: match) ? .keepSeparate : nil
+        default:
+            return nil
+        }
+    }
+
+    private func requestSameCardDecision(for match: CardRestoreIdentityResolver.PotentialMatch) -> CardRestoreIdentityResolver.Decision? {
+        let chooseAlert = NSAlert()
+        chooseAlert.messageText = "选择保留哪份数据"
+        chooseAlert.informativeText = "这张卡在当前卡包和备份里都有记录。请选择恢复后保留哪一份内容。"
+        chooseAlert.addButton(withTitle: "保留当前卡包中的数据")
+        chooseAlert.addButton(withTitle: "使用备份中的数据")
+        chooseAlert.addButton(withTitle: "先不处理")
+        chooseAlert.alertStyle = .informational
+
+        let decision: CardRestoreIdentityResolver.Decision
+        let sourceText: String
+        switch chooseAlert.runModal() {
+        case .alertFirstButtonReturn:
+            decision = .keepCurrent
+            sourceText = "当前卡包中的内容"
+        case .alertSecondButtonReturn:
+            decision = .keepIncoming
+            sourceText = "备份中的内容"
+        default:
+            return nil
+        }
+
+        let confirmAlert = NSAlert()
+        confirmAlert.messageText = "再次确认"
+        confirmAlert.informativeText = "将把「\(cardDisplayName(match.incoming))」和「\(cardDisplayName(match.existing))」视为同一张卡，并保留\(sourceText)。\n\n确认后不会额外生成重复卡片。"
+        confirmAlert.addButton(withTitle: "确认")
+        confirmAlert.addButton(withTitle: "返回检查")
+        confirmAlert.alertStyle = .warning
+
+        return confirmAlert.runModal() == .alertFirstButtonReturn ? decision : nil
+    }
+
+    private func confirmSeparateCard(for match: CardRestoreIdentityResolver.PotentialMatch) -> Bool {
+        let confirmAlert = NSAlert()
+        confirmAlert.messageText = "再次确认"
+        confirmAlert.informativeText = "将把备份中的「\(cardDisplayName(match.incoming))」作为另一张卡保存，与当前卡包里的「\(cardDisplayName(match.existing))」分开管理。\n\n确认后这两张卡会同时保留。"
+        confirmAlert.addButton(withTitle: "确认作为新卡保存")
+        confirmAlert.addButton(withTitle: "返回检查")
+        confirmAlert.alertStyle = .warning
+        return confirmAlert.runModal() == .alertFirstButtonReturn
+    }
+
+    private func cardDisplayName(_ card: SharedCard) -> String {
+        let alias = (card.alias ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        let name = alias.isEmpty ? card.bank : "\(card.bank) - \(alias)"
+        let digits = CardRestoreIdentityResolver.cardNumberFingerprint(card.cardNumber)
+        guard digits.count >= 4 else {
+            return name
+        }
+        return "\(name) 尾号 \(String(digits.suffix(4)))"
+    }
+
     private func formatModifyTime(_ timestamp: Double) -> String {
         DateCalculator.formatTimestampDateTime(timestamp, placeholder: "未记录")
     }
     
-    // 💡 针对单向覆盖恢复的 macOS 原生强力安全拦截警告框
+    // 针对单向覆盖恢复的安全确认
     private func showOverwriteConfirmation() {
         let localNewerCount = diffs.filter { $0.versionState == .localNewer }.count
         if localNewerCount > 0 {
@@ -410,10 +514,10 @@ public struct DiffPreviewView: View {
             let suffix = diffs.filter { $0.versionState == .localNewer }.count > 3 ? "等" : ""
             
             let alert = NSAlert()
-            alert.messageText = "⚠️ 数据覆盖安全警示 (本地存在较新卡片)"
-            alert.informativeText = "检测到本地有 \(localNewerCount) 张信用卡的数据比当前准备恢复的备份版本还要新（如：\(localNewerBanks)\(suffix)）。\n\n继续强行恢复会导致这部分本地最新修改被完全抹除，并被云端旧版覆盖！\n\n是否确认要强行覆盖恢复？"
-            alert.addButton(withTitle: "取消 (安全返回)")
-            alert.addButton(withTitle: "确定强制覆盖")
+            alert.messageText = "本地存在较新的卡片"
+            alert.informativeText = "检测到本地有 \(localNewerCount) 张信用卡比当前备份更新（如：\(localNewerBanks)\(suffix)）。\n\n继续使用此备份覆盖会丢失这些本地修改。是否继续？"
+            alert.addButton(withTitle: "取消")
+            alert.addButton(withTitle: "继续覆盖")
             alert.alertStyle = .critical
             
             let response = alert.runModal()
@@ -458,7 +562,7 @@ struct DiffCardRow: View {
                         HStack(spacing: 3) {
                             Image(systemName: "sparkles")
                                 .font(.system(size: 8))
-                            Text("本地更新")
+                            Text("本地较新，合并会保留本地")
                         }
                         .font(.system(size: 9, weight: .bold))
                         .foregroundColor(.blue)
@@ -470,7 +574,7 @@ struct DiffCardRow: View {
                         HStack(spacing: 3) {
                             Image(systemName: "icloud.and.arrow.down.fill")
                                 .font(.system(size: 8))
-                            Text("备份更新")
+                            Text("云端较新，合并会采用云端")
                         }
                         .font(.system(size: 9, weight: .bold))
                         .foregroundColor(.green)
@@ -493,7 +597,7 @@ struct DiffCardRow: View {
                     HStack(spacing: 4) {
                         Image(systemName: "square.and.pencil")
                             .font(.system(size: 9))
-                        Text("本地修改时间：\(diff.localModifyTime)")
+                        Text("本地当前修改时间：\(diff.localModifyTime)")
                     }
                     .font(.system(size: 10))
                     .foregroundColor(diff.versionState == .localNewer ? .blue.opacity(0.8) : .secondary)
@@ -501,7 +605,7 @@ struct DiffCardRow: View {
                     HStack(spacing: 4) {
                         Image(systemName: "icloud.fill")
                             .font(.system(size: 9))
-                        Text("备份修改时间：\(diff.backupModifyTime)")
+                        Text("云端备份修改时间：\(diff.backupModifyTime)")
                     }
                     .font(.system(size: 10))
                     .foregroundColor(diff.versionState == .backupNewer ? .green.opacity(0.8) : .secondary)
@@ -531,28 +635,12 @@ struct DiffCardRow: View {
             if diff.changeType == .modified {
                 VStack(alignment: .leading, spacing: 6) {
                     ForEach(diff.fieldChanges) { change in
-                        HStack(spacing: 8) {
-                            Text("\(change.fieldName):")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                                .frame(width: 70, alignment: .leading)
-                            Text(change.oldValue)
-                                .font(.caption)
-                                .strikethrough()
-                                .foregroundColor(.red.opacity(0.8))
-                            Image(systemName: "arrow.right")
-                                .font(.system(size: 10))
-                                .foregroundColor(.secondary)
-                            Text(change.newValue)
-                                .font(.caption)
-                                .bold()
-                                .foregroundColor(.green)
-                        }
+                        FieldComparisonRow(change: change, versionState: diff.versionState)
                     }
                 }
                 .padding(.horizontal, 10)
                 .padding(.vertical, 8)
-                .background(Color.yellow.opacity(0.04))
+                .background(Color.primary.opacity(0.035))
                 .cornerRadius(6)
             }
         }
@@ -571,6 +659,61 @@ struct DiffCardRow: View {
         case .deleted: return .green.opacity(0.3)
         case .modified: return .yellow.opacity(0.3)
         }
+    }
+}
+
+private struct FieldComparisonRow: View {
+    let change: CardDiffResult.FieldChange
+    let versionState: CardDiffResult.VersionState
+
+    var body: some View {
+        HStack(alignment: .center, spacing: 10) {
+            Text(change.fieldName)
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .frame(width: 70, alignment: .leading)
+
+            valueBlock(title: "本地当前", value: change.oldValue, isWinner: versionState == .localNewer)
+
+            Image(systemName: "arrow.left.arrow.right")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundColor(.secondary.opacity(0.8))
+
+            valueBlock(title: "云端备份", value: change.newValue, isWinner: versionState == .backupNewer)
+        }
+    }
+
+    private func valueBlock(title: String, value: String, isWinner: Bool) -> some View {
+        VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: 4) {
+                Text(title)
+                if isWinner {
+                    Text("将保留")
+                        .font(.system(size: 8, weight: .bold))
+                        .padding(.horizontal, 4)
+                        .padding(.vertical, 1)
+                        .background(Color.blue.opacity(0.12))
+                        .cornerRadius(3)
+                }
+            }
+            .font(.system(size: 9, weight: .medium))
+            .foregroundColor(isWinner ? .blue : .secondary)
+
+            Text(value)
+                .font(.system(size: 12, weight: isWinner ? .bold : .regular, design: .rounded))
+                .foregroundColor(isWinner ? .primary : .secondary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+        }
+        .frame(minWidth: 110, alignment: .leading)
+        .padding(.horizontal, 8)
+        .padding(.vertical, 6)
+        .background(isWinner ? Color.blue.opacity(0.08) : Color.primary.opacity(0.04))
+        .cornerRadius(6)
+        .overlay(
+            RoundedRectangle(cornerRadius: 6)
+                .stroke(isWinner ? Color.blue.opacity(0.18) : Color.primary.opacity(0.08), lineWidth: 1)
+        )
     }
 }
 

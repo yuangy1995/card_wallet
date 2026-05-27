@@ -54,6 +54,14 @@ public struct CardSyncRecord: Codable, Identifiable, Hashable {
     public var state: CardSyncState
     public var card: SharedCard?
 
+    private enum CodingKeys: String, CodingKey {
+        case cardId
+        case mutationId
+        case changedAt
+        case state
+        case card
+    }
+
     public init(
         cardId: String,
         mutationId: String = UUID().uuidString,
@@ -65,8 +73,33 @@ public struct CardSyncRecord: Codable, Identifiable, Hashable {
         self.mutationId = mutationId
         self.changedAt = SyncTimestamp.normalized(changedAt)
         self.state = state
-        self.card = state == .active ? card : nil
+        if state == .active {
+            var normalizedCard = card
+            normalizedCard?.id = cardId
+            self.card = normalizedCard
+        } else {
+            self.card = nil
+        }
         self.card?.lastModifyTime = SyncTimestamp.milliseconds(from: self.changedAt)
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let cardId = try container.decode(String.self, forKey: .cardId)
+        let mutationId = try container.decodeIfPresent(String.self, forKey: .mutationId) ?? UUID().uuidString
+        let changedAt = try container.decodeIfPresent(String.self, forKey: .changedAt) ?? SyncTimestamp.now()
+        let state = try container.decode(CardSyncState.self, forKey: .state)
+        let card = try container.decodeIfPresent(SharedCard.self, forKey: .card)
+        self.init(cardId: cardId, mutationId: mutationId, changedAt: changedAt, state: state, card: card)
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(cardId, forKey: .cardId)
+        try container.encode(mutationId, forKey: .mutationId)
+        try container.encode(changedAt, forKey: .changedAt)
+        try container.encode(state, forKey: .state)
+        try container.encodeIfPresent(card, forKey: .card)
     }
 
     public static func active(_ card: SharedCard, changedAt: String = SyncTimestamp.now()) -> CardSyncRecord {
@@ -110,6 +143,9 @@ public enum CardSyncMergeEngine {
     public static func merge(_ recordSets: [[CardSyncRecord]]) -> [CardSyncRecord] {
         var winningRecords: [String: CardSyncRecord] = [:]
         for record in recordSets.flatMap({ $0 }) {
+            guard !record.cardId.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+                continue
+            }
             if let existing = winningRecords[record.cardId] {
                 winningRecords[record.cardId] = winner(existing, record)
             } else {
@@ -139,6 +175,106 @@ public enum CardSyncMergeEngine {
     }
 }
 
+public enum CardRestoreIdentityResolver {
+    public enum Decision: Equatable {
+        case keepCurrent
+        case keepIncoming
+        case keepSeparate
+    }
+
+    public struct PotentialMatch {
+        public let incoming: SharedCard
+        public let existing: SharedCard
+
+        public init(incoming: SharedCard, existing: SharedCard) {
+            self.incoming = incoming
+            self.existing = existing
+        }
+    }
+
+    public static func cardNumberFingerprint(_ cardNumber: String) -> String {
+        String(cardNumber.filter { $0.isNumber })
+    }
+
+    public static func resolve(
+        incomingCards: [SharedCard],
+        existingCards: [SharedCard],
+        makeNewID: () -> String = { UUID().uuidString },
+        decide: (PotentialMatch) -> Decision?
+    ) -> [SharedCard]? {
+        var existingByID: [String: SharedCard] = [:]
+        var existingByFingerprint: [String: SharedCard] = [:]
+
+        for card in existingCards {
+            if !card.id.isEmpty {
+                existingByID[card.id] = card
+            }
+            let fingerprint = cardNumberFingerprint(card.cardNumber)
+            if fingerprint.count >= 8, existingByFingerprint[fingerprint] == nil {
+                existingByFingerprint[fingerprint] = card
+            }
+        }
+
+        var orderedIDs: [String] = []
+        var resolvedByID: [String: SharedCard] = [:]
+
+        func appendOrReplace(_ card: SharedCard) {
+            var cardToStore = card
+            if cardToStore.id.isEmpty {
+                let usedIDs = Set(existingByID.keys).union(Set(resolvedByID.keys))
+                cardToStore.id = freshID(excluding: usedIDs)
+            }
+            if resolvedByID[cardToStore.id] == nil {
+                orderedIDs.append(cardToStore.id)
+            }
+            resolvedByID[cardToStore.id] = cardToStore
+        }
+
+        func freshID(excluding usedIDs: Set<String>) -> String {
+            var candidate = makeNewID()
+            while candidate.isEmpty || usedIDs.contains(candidate) {
+                candidate = makeNewID()
+            }
+            return candidate
+        }
+
+        for incoming in incomingCards {
+            if existingByID[incoming.id] != nil {
+                appendOrReplace(incoming)
+                continue
+            }
+
+            let fingerprint = cardNumberFingerprint(incoming.cardNumber)
+            guard fingerprint.count >= 8,
+                  let existing = existingByFingerprint[fingerprint] else {
+                appendOrReplace(incoming)
+                continue
+            }
+
+            guard let decision = decide(PotentialMatch(incoming: incoming, existing: existing)) else {
+                return nil
+            }
+
+            switch decision {
+            case .keepCurrent:
+                appendOrReplace(existing)
+            case .keepIncoming:
+                var adjusted = incoming
+                adjusted.id = existing.id
+                appendOrReplace(adjusted)
+            case .keepSeparate:
+                appendOrReplace(existing)
+                var separated = incoming
+                let usedIDs = Set(existingByID.keys).union(Set(resolvedByID.keys))
+                separated.id = freshID(excluding: usedIDs)
+                appendOrReplace(separated)
+            }
+        }
+
+        return orderedIDs.compactMap { resolvedByID[$0] }
+    }
+}
+
 public struct SyncLedger: Codable {
     public var records: [CardSyncRecord]
     public var processedWebDAVSnapshotIDs: Set<String>
@@ -146,6 +282,15 @@ public struct SyncLedger: Codable {
     public var cloudKitStateData: Data?
     public var pendingWebDAVUpload: Bool
     public var pendingCloudKitUpload: Bool
+
+    private enum CodingKeys: String, CodingKey {
+        case records
+        case processedWebDAVSnapshotIDs
+        case lastWebDAVSnapshotFilename
+        case cloudKitStateData
+        case pendingWebDAVUpload
+        case pendingCloudKitUpload
+    }
 
     public init(
         records: [CardSyncRecord] = [],
@@ -161,5 +306,26 @@ public struct SyncLedger: Codable {
         self.cloudKitStateData = cloudKitStateData
         self.pendingWebDAVUpload = pendingWebDAVUpload
         self.pendingCloudKitUpload = pendingCloudKitUpload
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        let records = try container.decodeIfPresent([CardSyncRecord].self, forKey: .records) ?? []
+        self.records = CardSyncMergeEngine.merge([records])
+        self.processedWebDAVSnapshotIDs = try container.decodeIfPresent(Set<String>.self, forKey: .processedWebDAVSnapshotIDs) ?? []
+        self.lastWebDAVSnapshotFilename = try container.decodeIfPresent(String.self, forKey: .lastWebDAVSnapshotFilename)
+        self.cloudKitStateData = try container.decodeIfPresent(Data.self, forKey: .cloudKitStateData)
+        self.pendingWebDAVUpload = try container.decodeIfPresent(Bool.self, forKey: .pendingWebDAVUpload) ?? false
+        self.pendingCloudKitUpload = try container.decodeIfPresent(Bool.self, forKey: .pendingCloudKitUpload) ?? false
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(records, forKey: .records)
+        try container.encode(processedWebDAVSnapshotIDs, forKey: .processedWebDAVSnapshotIDs)
+        try container.encodeIfPresent(lastWebDAVSnapshotFilename, forKey: .lastWebDAVSnapshotFilename)
+        try container.encodeIfPresent(cloudKitStateData, forKey: .cloudKitStateData)
+        try container.encode(pendingWebDAVUpload, forKey: .pendingWebDAVUpload)
+        try container.encode(pendingCloudKitUpload, forKey: .pendingCloudKitUpload)
     }
 }

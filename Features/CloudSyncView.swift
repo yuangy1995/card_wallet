@@ -34,6 +34,7 @@ public struct CloudSyncView: View {
     
     // Diff 预览控制
     @State private var diffPreviewRequest: DiffPreviewRequest?
+    @State private var compareErrorMessage = ""
     
     // 密码弹窗控制 (针对云端加密备份解密)
     @State private var showingPasswordPrompt = false
@@ -228,7 +229,7 @@ public struct CloudSyncView: View {
                         .font(.caption)
                         .foregroundColor(cloudKitService.isAvailable ? .green : .secondary)
 
-                    Text("CloudKit 需要有效 Apple Developer Team、已授权的 iCloud container 与签名构建；不可用时本地和 WebDAV 仍正常工作。")
+                    Text("iCloud 同步需要使用已开启云能力的正式构建；不可用时，本地和云端备份同步仍可正常使用。")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -237,9 +238,9 @@ public struct CloudSyncView: View {
                 Section(header: HStack(spacing: 6) {
                     Image(systemName: "icloud.circle.fill")
                         .foregroundColor(.cyan)
-                    Text("Mac 自动收敛桥接")
+                    Text("自动同步")
                 }) {
-                    Toggle("启用 WebDAV v3 自动桥接", isOn: $enableWebDAVBridge)
+                    Toggle("启用云端自动同步", isOn: $enableWebDAVBridge)
                         .onChange(of: enableWebDAVBridge) { _, enabled in
                             syncCoordinator.setWebDAVBridgeEnabled(enabled)
                         }
@@ -263,7 +264,7 @@ public struct CloudSyncView: View {
                         .font(.caption)
                         .foregroundColor(.secondary)
 
-                    Button("立即执行一次收敛") {
+                    Button("立即同步一次") {
                         WebDAVBridgeService.shared.synchronize(forceUpload: true)
                     }
                     .disabled(!enableWebDAVBridge || bridgeService.isSyncing)
@@ -458,13 +459,24 @@ public struct CloudSyncView: View {
         } message: {
             Text("文件：\(pendingDeleteFilename)\n\n删除后无法从云端恢复此备份，请确认是否继续。")
         }
+        .alert("无法打开备份比对", isPresented: Binding(
+            get: { !compareErrorMessage.isEmpty },
+            set: { if !$0 { compareErrorMessage = "" } }
+        )) {
+            Button("知道了", role: .cancel) {
+                compareErrorMessage = ""
+            }
+        } message: {
+            Text(compareErrorMessage)
+        }
         // Diff 对比弹窗
         .sheet(item: $diffPreviewRequest) { request in
             DiffPreviewView(
                 currentCards: currentCards,
                 backupCards: request.backupCards,
-                onConfirmRestore: {
-                    onDataRestored(request.backupCards)
+                requiresIdentityReview: request.requiresIdentityReview,
+                onConfirmRestore: { restoredCards in
+                    onDataRestored(restoredCards)
                 },
                 onConfirmMerge: { mergedCards in
                     onDataRestored(mergedCards)
@@ -698,7 +710,7 @@ public struct CloudSyncView: View {
                 case .success(let content):
                     self.processDownloadedContent(content, filename: filename)
                 case .failure(let error):
-                    print("下载云端备份失败: \(error.localizedDescription)")
+                    self.compareErrorMessage = "下载云端备份失败：\(error.localizedDescription)"
                 }
             }
         }
@@ -722,45 +734,23 @@ public struct CloudSyncView: View {
             let jsonString = try CryptoManager.decrypt(cipherText: rawCipherPendingDecrypt, password: decryptPassword)
             self.completeRestoreWithJSON(jsonString)
         } catch {
-            print("密码解密失败: \(error.localizedDescription)")
-        }
-    }
-    
-    private func recursivelyParseJSON(_ jsonString: String) -> Any? {
-        guard let data = jsonString.data(using: .utf8) else { return nil }
-        do {
-            let parsed = try JSONSerialization.jsonObject(with: data, options: [])
-            if let str = parsed as? String {
-                return recursivelyParseJSON(str)
-            }
-            return parsed
-        } catch {
-            return nil
+            compareErrorMessage = "密码解密失败：\(error.localizedDescription)"
         }
     }
     
     private func completeRestoreWithJSON(_ jsonString: String) {
-        let cleaned = jsonString.trimmingCharacters(in: .whitespacesAndNewlines)
-        
-        guard let parsedObject = recursivelyParseJSON(cleaned) else {
-            print("❌ 无法解析备份 JSON 数据：\(jsonString)")
+        guard let cards = DataMigrationManager.cardsFromBackupJSON(jsonString) else {
+            compareErrorMessage = "此备份文件不是可识别的账本格式，可能文件已损坏或不是本应用生成的备份。"
             return
         }
-        
-        var rawCards: [[String: Any]] = []
-        
-        if let array = parsedObject as? [[String: Any]] {
-            rawCards = array
-        } else if let dict = parsedObject as? [String: Any] {
-            if let cardsArray = dict["cards"] as? [[String: Any]] {
-                rawCards = cardsArray
-            } else if let cardsArray = dict["data"] as? [[String: Any]] {
-                rawCards = cardsArray
-            }
+        let requiresIdentityReview = !DataMigrationManager.backupJSONIsV3Snapshot(jsonString)
+        self.diffPreviewRequest = nil
+        DispatchQueue.main.async {
+            self.diffPreviewRequest = DiffPreviewRequest(
+                backupCards: cards,
+                requiresIdentityReview: requiresIdentityReview
+            )
         }
-        
-        let migrated = DataMigrationManager.migrateCardsBatch(rawCards)
-        self.diffPreviewRequest = DiffPreviewRequest(backupCards: migrated)
     }
     
     private func requestDeleteCloud(_ filename: String) {

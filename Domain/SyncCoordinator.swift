@@ -53,11 +53,12 @@ public final class SyncCoordinator: ObservableObject {
 
     @discardableResult
     public func commit(cards: [SharedCard], deletedCardIDs: Set<String> = []) -> [SharedCard] {
-        let existingByID = Dictionary(uniqueKeysWithValues: ledger.records.map { ($0.cardId, $0) })
+        let normalizedCards = cards.map(normalizedCard)
+        let existingByID = latestRecordsByID(ledger.records)
         var events: [CardSyncRecord] = []
-        let inputIDs = Set(cards.map(\.id))
+        let inputIDs = Set(normalizedCards.map(\.id))
 
-        for card in cards {
+        for card in normalizedCards {
             if let existing = existingByID[card.id], existing.state == .active, existing.card == card {
                 continue
             }
@@ -71,9 +72,10 @@ public final class SyncCoordinator: ObservableObject {
 
     @discardableResult
     public func restore(cards: [SharedCard]) -> [SharedCard] {
-        let restoredIDs = Set(cards.map(\.id))
+        let normalizedCards = cards.map(normalizedCard)
+        let restoredIDs = Set(normalizedCards.map(\.id))
         let existingActiveIDs = Set(ledger.records.filter { $0.state == .active }.map(\.cardId))
-        var events = cards.map { CardSyncRecord.active($0) }
+        var events = normalizedCards.map { CardSyncRecord.active($0) }
         events.append(contentsOf: existingActiveIDs.subtracting(restoredIDs).map { CardSyncRecord.deleted(cardId: $0) })
         return writeLocal(events: events)
     }
@@ -142,5 +144,24 @@ public final class SyncCoordinator: ObservableObject {
 
     private func persistActiveView() {
         LocalStorageManager.write(cards: currentCards)
+    }
+
+    private func latestRecordsByID(_ records: [CardSyncRecord]) -> [String: CardSyncRecord] {
+        records.reduce(into: [:]) { result, record in
+            guard !record.cardId.isEmpty else { return }
+            if let existing = result[record.cardId] {
+                result[record.cardId] = CardSyncMergeEngine.winner(existing, record)
+            } else {
+                result[record.cardId] = record
+            }
+        }
+    }
+
+    private func normalizedCard(_ card: SharedCard) -> SharedCard {
+        var normalized = card
+        if normalized.id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            normalized.id = UUID().uuidString
+        }
+        return normalized
     }
 }
