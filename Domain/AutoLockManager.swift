@@ -9,12 +9,8 @@ public class AutoLockManager {
     /// 当前是否处于模糊锁屏状态
     public var isLocked: Bool = false {
         didSet {
-            // 当锁定状态发生改变时，联动通知云同步管理器起停定时器，降低闲置时的能耗与数据检测
-            if isLocked {
-                CloudSyncManager.shared.stopAutoCheckTimer()
-            } else {
-                CloudSyncManager.shared.startAutoCheckTimer()
-            }
+            // Mac 作为桥接中心，锁定期间暂停远端数据读取与写入。
+            SyncCoordinator.shared.setSuspended(isLocked: isLocked)
         }
     }
     

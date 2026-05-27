@@ -22,7 +22,7 @@ public struct SidebarView: View {
     private var annualFeeAlertCount: Int {
         cards.filter { card in
             guard card.isQualified == "2" else { return false } // 只有未达标的才需要提醒
-            return DateCalculator.isNearAnnualFeeDate(card.nextAnnualFeeCollectionTime)
+            return DateCalculator.isNearAnnualFeeTimestamp(card.nextAnnualFeeCollectionTime)
         }.count
     }
     

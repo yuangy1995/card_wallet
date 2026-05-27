@@ -97,10 +97,10 @@ public struct SharedCard: Codable, Identifiable, Hashable {
     public var annualFee: Double?
     /// 年费达标状态： "1" 已达标， "2" 未达标， "3" 终身免年费
     public var isQualified: String?
-    /// 下次年费收取时间： YYYY-MM-DD 字符串
-    public var nextAnnualFeeCollectionTime: String?
-    /// 上次提额时间： YYYY-MM-DD 字符串
-    public var lastTime: String?
+    /// 下次年费收取时间：毫秒时间戳
+    public var nextAnnualFeeCollectionTime: Double?
+    /// 上次提额时间：毫秒时间戳
+    public var lastTime: Double?
     /// 账单日： 字符串格式 (如 "10")
     public var accountBillDate: String?
     /// 还款日： 字符串格式 (如 "28")
@@ -109,9 +109,34 @@ public struct SharedCard: Codable, Identifiable, Hashable {
     public var billingDaySpendingToNextBill: Bool
     public var equity: String?
     public var remark: String?
-    public var lastModifyTime: String
+    /// 最后修改时间：毫秒时间戳
+    public var lastModifyTime: Double
     public var isSharedLimit: Bool
-    
+
+    private enum CodingKeys: String, CodingKey {
+        case id
+        case country
+        case bank
+        case cardNumber
+        case alias
+        case level
+        case type
+        case limit
+        case cvv
+        case valid
+        case annualFee
+        case isQualified
+        case nextAnnualFeeCollectionTime
+        case lastTime
+        case accountBillDate
+        case dueDate
+        case billingDaySpendingToNextBill
+        case equity
+        case remark
+        case lastModifyTime
+        case isSharedLimit
+    }
+
     public init(
         id: String = UUID().uuidString,
         country: String,
@@ -125,14 +150,14 @@ public struct SharedCard: Codable, Identifiable, Hashable {
         valid: String? = nil,
         annualFee: Double? = 0,
         isQualified: String? = "2",
-        nextAnnualFeeCollectionTime: String? = nil,
-        lastTime: String? = nil,
+        nextAnnualFeeCollectionTime: Double? = nil,
+        lastTime: Double? = nil,
         accountBillDate: String? = nil,
         dueDate: String? = nil,
         billingDaySpendingToNextBill: Bool = true,
         equity: String? = nil,
         remark: String? = nil,
-        lastModifyTime: String = "",
+        lastModifyTime: Double = DataMigrationManager.currentTimestampMilliseconds(),
         isSharedLimit: Bool = true
     ) {
         self.id = id
@@ -156,6 +181,114 @@ public struct SharedCard: Codable, Identifiable, Hashable {
         self.remark = remark
         self.lastModifyTime = lastModifyTime
         self.isSharedLimit = isSharedLimit
+    }
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+
+        self.id = Self.decodeString(container, forKey: .id) ?? UUID().uuidString
+        self.country = Self.decodeString(container, forKey: .country) ?? "中国"
+        self.bank = Self.decodeString(container, forKey: .bank) ?? "未知银行"
+        self.cardNumber = Self.decodeString(container, forKey: .cardNumber) ?? ""
+        self.alias = Self.decodeString(container, forKey: .alias)
+        self.level = Self.decodeString(container, forKey: .level)
+        self.type = Self.decodeString(container, forKey: .type) ?? "CNY"
+        self.limit = Self.decodeDouble(container, forKey: .limit)
+        self.cvv = Self.decodeString(container, forKey: .cvv)
+        self.valid = Self.decodeString(container, forKey: .valid)
+        self.annualFee = Self.decodeDouble(container, forKey: .annualFee)
+        self.isQualified = Self.decodeString(container, forKey: .isQualified) ?? "2"
+        self.nextAnnualFeeCollectionTime = Self.decodeTimestamp(container, forKey: .nextAnnualFeeCollectionTime)
+        self.lastTime = Self.decodeTimestamp(container, forKey: .lastTime)
+        self.accountBillDate = Self.decodeString(container, forKey: .accountBillDate)
+        self.dueDate = Self.decodeString(container, forKey: .dueDate)
+        self.billingDaySpendingToNextBill = Self.decodeBool(container, forKey: .billingDaySpendingToNextBill) ?? true
+        self.equity = Self.decodeString(container, forKey: .equity)
+        self.remark = Self.decodeString(container, forKey: .remark)
+        self.lastModifyTime = Self.decodeTimestamp(container, forKey: .lastModifyTime) ?? DataMigrationManager.currentTimestampMilliseconds()
+        self.isSharedLimit = Self.decodeBool(container, forKey: .isSharedLimit) ?? true
+    }
+
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(country, forKey: .country)
+        try container.encode(bank, forKey: .bank)
+        try container.encode(cardNumber, forKey: .cardNumber)
+        try container.encodeIfPresent(alias, forKey: .alias)
+        try container.encodeIfPresent(level, forKey: .level)
+        try container.encodeIfPresent(type, forKey: .type)
+        try container.encodeIfPresent(limit, forKey: .limit)
+        try container.encodeIfPresent(cvv, forKey: .cvv)
+        try container.encodeIfPresent(valid, forKey: .valid)
+        try container.encodeIfPresent(annualFee, forKey: .annualFee)
+        try container.encodeIfPresent(isQualified, forKey: .isQualified)
+        try container.encodeIfPresent(nextAnnualFeeCollectionTime, forKey: .nextAnnualFeeCollectionTime)
+        try container.encodeIfPresent(lastTime, forKey: .lastTime)
+        try container.encodeIfPresent(accountBillDate, forKey: .accountBillDate)
+        try container.encodeIfPresent(dueDate, forKey: .dueDate)
+        try container.encode(billingDaySpendingToNextBill, forKey: .billingDaySpendingToNextBill)
+        try container.encodeIfPresent(equity, forKey: .equity)
+        try container.encodeIfPresent(remark, forKey: .remark)
+        try container.encode(lastModifyTime, forKey: .lastModifyTime)
+        try container.encode(isSharedLimit, forKey: .isSharedLimit)
+    }
+
+    private static func decodeString(_ container: KeyedDecodingContainer<CodingKeys>, forKey key: CodingKeys) -> String? {
+        if let value = try? container.decode(String.self, forKey: key) {
+            return value
+        }
+        if let value = try? container.decode(Int.self, forKey: key) {
+            return String(value)
+        }
+        if let value = try? container.decode(Double.self, forKey: key) {
+            if value.rounded() == value {
+                return String(Int64(value))
+            }
+            return String(value)
+        }
+        return nil
+    }
+
+    private static func decodeDouble(_ container: KeyedDecodingContainer<CodingKeys>, forKey key: CodingKeys) -> Double? {
+        if let value = try? container.decode(Double.self, forKey: key) {
+            return value
+        }
+        if let value = try? container.decode(Int.self, forKey: key) {
+            return Double(value)
+        }
+        if let value = try? container.decode(String.self, forKey: key) {
+            return Double(value.trimmingCharacters(in: .whitespacesAndNewlines))
+        }
+        return nil
+    }
+
+    private static func decodeTimestamp(_ container: KeyedDecodingContainer<CodingKeys>, forKey key: CodingKeys) -> Double? {
+        if let value = try? container.decode(Double.self, forKey: key) {
+            return DataMigrationManager.timestampMilliseconds(from: value)
+        }
+        if let value = try? container.decode(Int.self, forKey: key) {
+            return DataMigrationManager.timestampMilliseconds(from: value)
+        }
+        if let value = try? container.decode(String.self, forKey: key) {
+            return DataMigrationManager.timestampMilliseconds(from: value)
+        }
+        return nil
+    }
+
+    private static func decodeBool(_ container: KeyedDecodingContainer<CodingKeys>, forKey key: CodingKeys) -> Bool? {
+        if let value = try? container.decode(Bool.self, forKey: key) {
+            return value
+        }
+        if let value = try? container.decode(Int.self, forKey: key) {
+            return value != 0
+        }
+        if let value = try? container.decode(String.self, forKey: key) {
+            let lower = value.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            if ["true", "1", "yes"].contains(lower) { return true }
+            if ["false", "0", "no"].contains(lower) { return false }
+        }
+        return nil
     }
 }
 

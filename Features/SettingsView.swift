@@ -422,18 +422,10 @@ public struct SettingsView: View {
                 currentCards: currentCards,
                 backupCards: request.backupCards,
                 onConfirmRestore: {
-                    // 用户批准差异对比后，一键覆盖写入，并静默同步云端
-                    LocalStorageManager.write(cards: request.backupCards)
                     onDataRestored(request.backupCards)
-                    
-                    CloudSyncManager.shared.triggerSilentAutoUpload(cards: request.backupCards)
                 },
                 onConfirmMerge: { mergedCards in
-                    // 智能双向大融合，写入本地并静默同步云端让两端同时升至最新
-                    LocalStorageManager.write(cards: mergedCards)
                     onDataRestored(mergedCards)
-                    
-                    CloudSyncManager.shared.triggerSilentAutoUpload(cards: mergedCards)
                 }
             )
         }

@@ -10,6 +10,9 @@ private struct CloudDeleteFeedback: Identifiable {
 public struct CloudSyncView: View {
     public var currentCards: [SharedCard]
     public var onDataRestored: ([SharedCard]) -> Void
+    @ObservedObject private var syncCoordinator = SyncCoordinator.shared
+    @ObservedObject private var cloudKitService = CloudKitSyncService.shared
+    @ObservedObject private var bridgeService = WebDAVBridgeService.shared
     
     // WebDAV 配置
     @State private var webdavUrl = ""
@@ -47,9 +50,9 @@ public struct CloudSyncView: View {
     @State private var isUploading = false
     @State private var uploadStatusMessage = ""
     
-    // 💡 后台自动检测与静默云同步配置项
-    @AppStorage("enable_silent_cloud_backup") private var enableSilentCloudBackup = true
-    @AppStorage("enable_auto_check_cloud") private var enableAutoCheckCloud = false
+    // 自动收敛与 iCloud 配置项
+    @AppStorage("enable_icloud_sync") private var enableICloudSync = false
+    @AppStorage("enable_webdav_bridge") private var enableWebDAVBridge = true
     @AppStorage("auto_check_interval") private var autoCheckInterval = 300.0
     
     // 💡 云端备份重命名控制
@@ -211,25 +214,37 @@ public struct CloudSyncView: View {
                     }
                 }
                 
-                // Section 2: 云端备份与自动同步配置
+                Section(header: HStack(spacing: 6) {
+                    Image(systemName: "icloud.fill")
+                        .foregroundColor(.cyan)
+                    Text("iCloud 私有同步")
+                }) {
+                    Toggle("通过 iCloud 同步卡片与删除记录", isOn: $enableICloudSync)
+                        .onChange(of: enableICloudSync) { _, enabled in
+                            syncCoordinator.setICloudEnabled(enabled)
+                        }
+
+                    Text(cloudKitService.statusDescription)
+                        .font(.caption)
+                        .foregroundColor(cloudKitService.isAvailable ? .green : .secondary)
+
+                    Text("CloudKit 需要有效 Apple Developer Team、已授权的 iCloud container 与签名构建；不可用时本地和 WebDAV 仍正常工作。")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+
+                // Section 2: WebDAV 与 iCloud 的 Mac 中心桥接
                 Section(header: HStack(spacing: 6) {
                     Image(systemName: "icloud.circle.fill")
                         .foregroundColor(.cyan)
-                    Text("智能云同步策略与变动感知")
+                    Text("Mac 自动收敛桥接")
                 }) {
-                    Toggle("开启卡片修改后后台静默自动备份至云端", isOn: $enableSilentCloudBackup)
-                        .help("每当在本地修改、删除或新增卡片并保存后，自动在后台静默将数据加密备份到云端。")
-                    
-                    Toggle("开启云端变动实时感知 (自动比对)", isOn: $enableAutoCheckCloud)
-                        .onChange(of: enableAutoCheckCloud) { _, isEnabled in
-                            if isEnabled {
-                                CloudSyncManager.shared.startAutoCheckTimer()
-                            } else {
-                                CloudSyncManager.shared.stopAutoCheckTimer()
-                            }
+                    Toggle("启用 WebDAV v3 自动桥接", isOn: $enableWebDAVBridge)
+                        .onChange(of: enableWebDAVBridge) { _, enabled in
+                            syncCoordinator.setWebDAVBridgeEnabled(enabled)
                         }
                     
-                    if enableAutoCheckCloud {
+                    if enableWebDAVBridge {
                         Picker("检测比对周期", selection: $autoCheckInterval) {
                             Text("每 1 分钟检测一次").tag(60.0)
                             Text("每 5 分钟检测一次 (默认)").tag(300.0)
@@ -239,11 +254,19 @@ public struct CloudSyncView: View {
                         }
                         .pickerStyle(.menu)
                         .onChange(of: autoCheckInterval) { _, _ in
-                            // 重启定时器以应用新周期
-                            CloudSyncManager.shared.startAutoCheckTimer()
+                            WebDAVBridgeService.shared.start()
                         }
                         .transition(.slide)
                     }
+
+                    Text(bridgeService.statusDescription)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+
+                    Button("立即执行一次收敛") {
+                        WebDAVBridgeService.shared.synchronize(forceUpload: true)
+                    }
+                    .disabled(!enableWebDAVBridge || bridgeService.isSyncing)
                 }
                 
                 // Section 3: 云备份文件控制台
@@ -441,17 +464,10 @@ public struct CloudSyncView: View {
                 currentCards: currentCards,
                 backupCards: request.backupCards,
                 onConfirmRestore: {
-                    LocalStorageManager.write(cards: request.backupCards)
                     onDataRestored(request.backupCards)
-                    
-                    // 覆盖恢复后同样自动触发静默备份让云端与本地持平
-                    CloudSyncManager.shared.triggerSilentAutoUpload(cards: request.backupCards)
                 },
                 onConfirmMerge: { mergedCards in
-                    // 智能双向大融合，写入本地并静默同步云端让两端同时升至最新
-                    LocalStorageManager.write(cards: mergedCards)
                     onDataRestored(mergedCards)
-                    CloudSyncManager.shared.triggerSilentAutoUpload(cards: mergedCards)
                 }
             )
         }
@@ -644,8 +660,7 @@ public struct CloudSyncView: View {
                         }
                         self.fetchCloudBackups()
                         
-                        // 连通成功后自动安排轮询定时器
-                        CloudSyncManager.shared.setupTimerFromConfig()
+                        syncCoordinator.setWebDAVBridgeEnabled(true)
                     case .failure(let error):
                         self.connectionSuccess = false
                         self.connectionStatus = "❌ 连接失败: \(error.localizedDescription)"

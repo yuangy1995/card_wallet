@@ -10,23 +10,29 @@
 		0A9B0DA22A4BF770A74C42B4 /* LockScreenView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 20EB037E98B817601677ED26 /* LockScreenView.swift */; };
 		0DE94E07FC272F3E66DDF876 /* KeychainManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = DACEB93357067D2CA17021E7 /* KeychainManager.swift */; };
 		16ABC0F01E9DC11FC27454A3 /* DiffPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2DBBF7D8D26C8222B02037B /* DiffPreviewView.swift */; };
+		198DE8DD44A93011E569BCB6 /* SyncMergeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11DE89E980D44425757FB39C /* SyncMergeTests.swift */; };
 		1C5A43CEDCC2D3A44D2C7628 /* CryptoManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C315C733366CF89A7169E701 /* CryptoManager.swift */; };
 		1F3651DDFEBC3E65FB001C41 /* DateCalculatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3335A637AC44C646EB35A049 /* DateCalculatorTests.swift */; };
 		255726B63F40577332E8447B /* CloudSyncView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F2338F3ED803328C4E1077D /* CloudSyncView.swift */; };
 		5089130E2CEE1C16639FC38D /* StatisticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD62DCC01D3F9364CDEF6227 /* StatisticsView.swift */; };
+		671EBE78C9C86C012ED3A2F6 /* WebDAVBridgeService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200646141CEE66C6830FEA09 /* WebDAVBridgeService.swift */; };
 		719D5E60E3CB62B356D99A1D /* WebDAVClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = C077E02FD8418BB708DC23A1 /* WebDAVClient.swift */; };
 		75FCAAA793B45D0849BF4962 /* CryptoTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B52D59276C9EA2F553833BFF /* CryptoTests.swift */; };
 		761306178F25FE49E1706893 /* CardBrandIcon.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9BBF5A7913BCD1BA08374BBB /* CardBrandIcon.swift */; };
 		7CEBE3188339F7BA759EBB5A /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAB79BAD9E50A9E719ED4B74 /* SidebarView.swift */; };
+		8E2F4E313E72AB835167F3C8 /* CloudKitSyncService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36EA37FCF17EA8F9A43FD7D4 /* CloudKitSyncService.swift */; };
 		8ED96BF4A23D6AE89E140F67 /* CardModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2438DA162090A1129CF9648 /* CardModels.swift */; };
 		993C0ADB9F297F319223F488 /* CreditCardApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20F3767139B02295E47C77A /* CreditCardApp.swift */; };
 		9A901A8A5576595768F5A2F5 /* CardGridView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CE1C3496FC3E3897DCA53DF /* CardGridView.swift */; };
+		AC34415F142959F1BA9C9EA3 /* SyncModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 852CD8E0C8F1F82A9AC867D7 /* SyncModels.swift */; };
 		B6099858631471B3850F36C9 /* CardEditView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17B42F329DCF8EE986256FE0 /* CardEditView.swift */; };
 		BCBFBE825C1C49CD46465EF0 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1428934F7025C070B87C31B9 /* SettingsView.swift */; };
+		BDE3E956350698CA02697D1F /* SyncCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE381F8A352381E90579DBBB /* SyncCoordinator.swift */; };
 		CCE833AC18D1300BF9AD3FF8 /* LocalStorageManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB9349A3CBC3935C505D2A8C /* LocalStorageManager.swift */; };
 		CE4BE30528C126E44A849725 /* DateCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C0278348791C024271E1A98 /* DateCalculator.swift */; };
 		D547E426164B45DADC5BDF9D /* DataMigrationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78703BAB79809F69FC1B7206 /* DataMigrationManager.swift */; };
 		DC012DCCDDDC6B43D8969ADF /* AutoLockManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8CC4D72F0F18F7121E795BC /* AutoLockManager.swift */; };
+		DD84F0DEBBFE70A67AD407DB /* SyncLedgerStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC0FDDFB92ADC90BD0EE7A0D /* SyncLedgerStore.swift */; };
 		EBAF354C03FB20594CFB43ED /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAF19E198886B14379EAD841 /* ContentView.swift */; };
 		FE3CF5414A77B782CC80D2E8 /* CryptoSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 47F951393718AD64162C98B4 /* CryptoSwift */; };
 /* End PBXBuildFile section */
@@ -42,15 +48,20 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
+		11DE89E980D44425757FB39C /* SyncMergeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncMergeTests.swift; sourceTree = "<group>"; };
 		1428934F7025C070B87C31B9 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		17B42F329DCF8EE986256FE0 /* CardEditView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardEditView.swift; sourceTree = "<group>"; };
+		200646141CEE66C6830FEA09 /* WebDAVBridgeService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebDAVBridgeService.swift; sourceTree = "<group>"; };
 		20EB037E98B817601677ED26 /* LockScreenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LockScreenView.swift; sourceTree = "<group>"; };
 		32F787EC39436C1745C35653 /* .gitkeep */ = {isa = PBXFileReference; path = .gitkeep; sourceTree = "<group>"; };
 		3335A637AC44C646EB35A049 /* DateCalculatorTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DateCalculatorTests.swift; sourceTree = "<group>"; };
+		36EA37FCF17EA8F9A43FD7D4 /* CloudKitSyncService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudKitSyncService.swift; sourceTree = "<group>"; };
 		3C0278348791C024271E1A98 /* DateCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DateCalculator.swift; sourceTree = "<group>"; };
+		41C92BECFAFA8B4024698F6B /* CreditCardMac.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = CreditCardMac.entitlements; sourceTree = "<group>"; };
 		580EA1E3A67161B26D4D2D97 /* CreditCardMac.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CreditCardMac.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		78703BAB79809F69FC1B7206 /* DataMigrationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataMigrationManager.swift; sourceTree = "<group>"; };
 		7F2338F3ED803328C4E1077D /* CloudSyncView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudSyncView.swift; sourceTree = "<group>"; };
+		852CD8E0C8F1F82A9AC867D7 /* SyncModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncModels.swift; sourceTree = "<group>"; };
 		8CE1C3496FC3E3897DCA53DF /* CardGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardGridView.swift; sourceTree = "<group>"; };
 		93050015F0352331F4826876 /* CreditCardMacTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CreditCardMacTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		9BBF5A7913BCD1BA08374BBB /* CardBrandIcon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardBrandIcon.swift; sourceTree = "<group>"; };
@@ -63,9 +74,11 @@
 		C315C733366CF89A7169E701 /* CryptoManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CryptoManager.swift; sourceTree = "<group>"; };
 		D20F3767139B02295E47C77A /* CreditCardApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreditCardApp.swift; sourceTree = "<group>"; };
 		DACEB93357067D2CA17021E7 /* KeychainManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainManager.swift; sourceTree = "<group>"; };
+		DC0FDDFB92ADC90BD0EE7A0D /* SyncLedgerStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncLedgerStore.swift; sourceTree = "<group>"; };
 		EAF19E198886B14379EAD841 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		F2438DA162090A1129CF9648 /* CardModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardModels.swift; sourceTree = "<group>"; };
 		F8CC4D72F0F18F7121E795BC /* AutoLockManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoLockManager.swift; sourceTree = "<group>"; };
+		FE381F8A352381E90579DBBB /* SyncCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncCoordinator.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -85,6 +98,7 @@
 			children = (
 				B52D59276C9EA2F553833BFF /* CryptoTests.swift */,
 				3335A637AC44C646EB35A049 /* DateCalculatorTests.swift */,
+				11DE89E980D44425757FB39C /* SyncMergeTests.swift */,
 			);
 			path = Tests;
 			sourceTree = "<group>";
@@ -94,11 +108,16 @@
 			children = (
 				F8CC4D72F0F18F7121E795BC /* AutoLockManager.swift */,
 				F2438DA162090A1129CF9648 /* CardModels.swift */,
+				36EA37FCF17EA8F9A43FD7D4 /* CloudKitSyncService.swift */,
 				C315C733366CF89A7169E701 /* CryptoManager.swift */,
 				78703BAB79809F69FC1B7206 /* DataMigrationManager.swift */,
 				3C0278348791C024271E1A98 /* DateCalculator.swift */,
 				DACEB93357067D2CA17021E7 /* KeychainManager.swift */,
 				AB9349A3CBC3935C505D2A8C /* LocalStorageManager.swift */,
+				FE381F8A352381E90579DBBB /* SyncCoordinator.swift */,
+				DC0FDDFB92ADC90BD0EE7A0D /* SyncLedgerStore.swift */,
+				852CD8E0C8F1F82A9AC867D7 /* SyncModels.swift */,
+				200646141CEE66C6830FEA09 /* WebDAVBridgeService.swift */,
 				C077E02FD8418BB708DC23A1 /* WebDAVClient.swift */,
 			);
 			path = Domain;
@@ -124,6 +143,7 @@
 			isa = PBXGroup;
 			children = (
 				32F787EC39436C1745C35653 /* .gitkeep */,
+				41C92BECFAFA8B4024698F6B /* CreditCardMac.entitlements */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -239,6 +259,7 @@
 			files = (
 				75FCAAA793B45D0849BF4962 /* CryptoTests.swift in Sources */,
 				1F3651DDFEBC3E65FB001C41 /* DateCalculatorTests.swift in Sources */,
+				198DE8DD44A93011E569BCB6 /* SyncMergeTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -251,6 +272,7 @@
 				B6099858631471B3850F36C9 /* CardEditView.swift in Sources */,
 				9A901A8A5576595768F5A2F5 /* CardGridView.swift in Sources */,
 				8ED96BF4A23D6AE89E140F67 /* CardModels.swift in Sources */,
+				8E2F4E313E72AB835167F3C8 /* CloudKitSyncService.swift in Sources */,
 				255726B63F40577332E8447B /* CloudSyncView.swift in Sources */,
 				EBAF354C03FB20594CFB43ED /* ContentView.swift in Sources */,
 				993C0ADB9F297F319223F488 /* CreditCardApp.swift in Sources */,
@@ -264,6 +286,10 @@
 				BCBFBE825C1C49CD46465EF0 /* SettingsView.swift in Sources */,
 				7CEBE3188339F7BA759EBB5A /* SidebarView.swift in Sources */,
 				5089130E2CEE1C16639FC38D /* StatisticsView.swift in Sources */,
+				BDE3E956350698CA02697D1F /* SyncCoordinator.swift in Sources */,
+				DD84F0DEBBFE70A67AD407DB /* SyncLedgerStore.swift in Sources */,
+				AC34415F142959F1BA9C9EA3 /* SyncModels.swift in Sources */,
+				671EBE78C9C86C012ED3A2F6 /* WebDAVBridgeService.swift in Sources */,
 				719D5E60E3CB62B356D99A1D /* WebDAVClient.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -283,6 +309,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Resources/CreditCardMac.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_LSMinimumSystemVersion = 14.0;
@@ -436,6 +463,7 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = Resources/CreditCardMac.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_LSMinimumSystemVersion = 14.0;

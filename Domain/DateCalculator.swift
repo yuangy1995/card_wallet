@@ -8,11 +8,36 @@ public class DateCalculator {
         df.locale = Locale(identifier: "en_US_POSIX")
         return df
     }()
+
+    private static let dateTimeDisplayFormatter: DateFormatter = {
+        let df = DateFormatter()
+        df.dateFormat = "yyyy/MM/dd HH:mm:ss"
+        df.locale = Locale(identifier: "en_US_POSIX")
+        return df
+    }()
     
     /// 将时间戳转换为 YYYY-MM-DD 格式字符串
     public static func timestampToTime(_ timestamp: Double) -> String {
         let date = Date(timeIntervalSince1970: timestamp / 1000.0)
         return isoFormatter.string(from: date)
+    }
+
+    public static func timestamp(from date: Date) -> Double {
+        date.timeIntervalSince1970 * 1000.0
+    }
+
+    public static func date(fromTimestamp timestamp: Double?) -> Date? {
+        DataMigrationManager.date(fromTimestamp: timestamp)
+    }
+
+    public static func formatTimestampDate(_ timestamp: Double?) -> String {
+        guard let date = date(fromTimestamp: timestamp) else { return "" }
+        return isoFormatter.string(from: date)
+    }
+
+    public static func formatTimestampDateTime(_ timestamp: Double?, placeholder: String = "--") -> String {
+        guard let date = date(fromTimestamp: timestamp) else { return placeholder }
+        return dateTimeDisplayFormatter.string(from: date)
     }
     
     /// 计算两个日期字符串之间的天数差
@@ -159,6 +184,19 @@ public class DateCalculator {
         
         return remainingDays <= warningDays && remainingDays >= 0
     }
+
+    /// 检查是否接近年费收取时间（60天内）
+    public static func isNearAnnualFeeTimestamp(_ nextAnnualFeeDate: Double?, warningDays: Int = 60) -> Bool {
+        guard let targetDate = date(fromTimestamp: nextAnnualFeeDate) else { return false }
+
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        let target = calendar.startOfDay(for: targetDate)
+        let components = calendar.dateComponents([.day], from: today, to: target)
+        let remainingDays = components.day ?? 0
+
+        return remainingDays <= warningDays && remainingDays >= 0
+    }
     
     /// 计算给定日期距今的天数，并返回天数和状态词
     public static func getDaysFromNow(_ dateStr: String?) -> (days: Int, text: String) {
@@ -176,6 +214,19 @@ public class DateCalculator {
         let components = calendar.dateComponents([.day], from: d1, to: d2)
         let diffDays = components.day ?? 0
         
+        return (abs(diffDays), diffDays >= 0 ? "还有" : "已过")
+    }
+
+    /// 计算给定时间戳距今的天数，并返回天数和状态词
+    public static func getDaysFromNow(_ timestamp: Double?) -> (days: Int, text: String) {
+        guard let targetDate = date(fromTimestamp: timestamp) else { return (0, "") }
+
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: Date())
+        let target = calendar.startOfDay(for: targetDate)
+        let components = calendar.dateComponents([.day], from: today, to: target)
+        let diffDays = components.day ?? 0
+
         return (abs(diffDays), diffDays >= 0 ? "还有" : "已过")
     }
     

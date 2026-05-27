@@ -272,7 +272,7 @@ public struct DiffPreviewView: View {
                         changeType: .deleted,
                         fieldChanges: [],
                         localModifyTime: "无 (当前本地不存在此卡)",
-                        backupModifyTime: backupCard.lastModifyTime.isEmpty ? "未记录" : backupCard.lastModifyTime,
+                        backupModifyTime: formatModifyTime(backupCard.lastModifyTime),
                         versionState: .backupNewer // 云端独有，视为云端新
                     )
                 )
@@ -289,7 +289,7 @@ public struct DiffPreviewView: View {
                         cardNumber: currentCard.cardNumber,
                         changeType: .added,
                         fieldChanges: [],
-                        localModifyTime: currentCard.lastModifyTime.isEmpty ? "未记录" : currentCard.lastModifyTime,
+                        localModifyTime: formatModifyTime(currentCard.lastModifyTime),
                         backupModifyTime: "无 (云端备份中不存在此卡)",
                         versionState: .localNewer // 本地独有，视为本地新
                     )
@@ -353,8 +353,8 @@ public struct DiffPreviewView: View {
                             cardNumber: currentCard.cardNumber,
                             changeType: .modified,
                             fieldChanges: fieldChanges,
-                            localModifyTime: lTime.isEmpty ? "未记录" : lTime,
-                            backupModifyTime: bTime.isEmpty ? "未记录" : bTime,
+                            localModifyTime: formatModifyTime(lTime),
+                            backupModifyTime: formatModifyTime(bTime),
                             versionState: vState
                         )
                     )
@@ -396,6 +396,10 @@ public struct DiffPreviewView: View {
         }
         
         return merged
+    }
+
+    private func formatModifyTime(_ timestamp: Double) -> String {
+        DateCalculator.formatTimestampDateTime(timestamp, placeholder: "未记录")
     }
     
     // 💡 针对单向覆盖恢复的 macOS 原生强力安全拦截警告框

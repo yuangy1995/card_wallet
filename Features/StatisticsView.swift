@@ -341,34 +341,24 @@ public struct StatisticsView: View {
     
     // MARK: - 🧠 AI 智能财务管家 & 额度资产诊断派生字段
     
-    // 💡 辅助：解析 "YYYY-MM-DD" 并计算与当前时间相差的天数
-    private func daysBetweenToday(and dateString: String?) -> Int? {
-        guard let dateString = dateString?.trimmingCharacters(in: .whitespacesAndNewlines), !dateString.isEmpty else { return nil }
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        if let date = formatter.date(from: dateString) {
-            let calendar = Calendar.current
-            let startOfToday = calendar.startOfDay(for: Date())
-            let startOfTarget = calendar.startOfDay(for: date)
-            let components = calendar.dateComponents([.day], from: startOfToday, to: startOfTarget)
-            return components.day
-        }
-        return nil
+    // 辅助：根据毫秒时间戳计算与当前时间相差的天数
+    private func daysBetweenToday(and timestamp: Double?) -> Int? {
+        guard let date = DateCalculator.date(fromTimestamp: timestamp) else { return nil }
+        let calendar = Calendar.current
+        let startOfToday = calendar.startOfDay(for: Date())
+        let startOfTarget = calendar.startOfDay(for: date)
+        let components = calendar.dateComponents([.day], from: startOfToday, to: startOfTarget)
+        return components.day
     }
 
-    // 💡 辅助：解析 "YYYY-MM-DD" 距今已过去的天数
-    private func daysSinceDate(_ dateString: String?) -> Int? {
-        guard let dateString = dateString?.trimmingCharacters(in: .whitespacesAndNewlines), !dateString.isEmpty else { return nil }
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd"
-        if let date = formatter.date(from: dateString) {
-            let calendar = Calendar.current
-            let startOfToday = calendar.startOfDay(for: Date())
-            let startOfTarget = calendar.startOfDay(for: date)
-            let components = calendar.dateComponents([.day], from: startOfTarget, to: startOfToday)
-            return components.day
-        }
-        return nil
+    // 辅助：根据毫秒时间戳计算距今已过去的天数
+    private func daysSinceTimestamp(_ timestamp: Double?) -> Int? {
+        guard let date = DateCalculator.date(fromTimestamp: timestamp) else { return nil }
+        let calendar = Calendar.current
+        let startOfToday = calendar.startOfDay(for: Date())
+        let startOfTarget = calendar.startOfDay(for: date)
+        let components = calendar.dateComponents([.day], from: startOfTarget, to: startOfToday)
+        return components.day
     }
     
     // 💡 年费流失防御盾结构体
@@ -391,7 +381,7 @@ public struct StatisticsView: View {
         var list: [PendingFeeCard] = []
         for card in cards {
             let isUnqualified = card.isQualified == "2" || (card.isQualified ?? "").isEmpty
-            if isUnqualified, let timeStr = card.nextAnnualFeeCollectionTime, let days = daysBetweenToday(and: timeStr) {
+            if isUnqualified, let days = daysBetweenToday(and: card.nextAnnualFeeCollectionTime) {
                 if days >= 0 && days <= 60 {
                     let currency = (card.type ?? "CNY").uppercased().trimmingCharacters(in: .whitespacesAndNewlines)
                     var symbol = "¥"
@@ -468,7 +458,7 @@ public struct StatisticsView: View {
     private var limitIncreaseRecommendations: [LimitIncreaseRecommendation] {
         var list: [LimitIncreaseRecommendation] = []
         for card in cards {
-            if let lastTimeStr = card.lastTime, let days = daysSinceDate(lastTimeStr) {
+            if let days = daysSinceTimestamp(card.lastTime) {
                 if days >= 180 {
                     list.append(LimitIncreaseRecommendation(cardId: card.id, card: card, daysSince: days))
                 }

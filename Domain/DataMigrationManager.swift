@@ -16,7 +16,7 @@ public class DataMigrationManager {
         
         // 2. 尝试匹配 YYYY-MM-DD 或 YYYY-MM 格式
         let yyyymmddRegex = "^(\\d{4})-(\\d{2})(-\\d{2})?$"
-        if let match = trimmed.range(of: yyyymmddRegex, options: .regularExpression) {
+        if trimmed.range(of: yyyymmddRegex, options: .regularExpression) != nil {
             let components = trimmed.components(separatedBy: "-")
             if components.count >= 2 {
                 let year = components[0]
@@ -80,6 +80,54 @@ public class DataMigrationManager {
         }
         return defaultValue
     }
+
+    /// 将历史字符串日期、ISO 时间、秒级/毫秒级时间戳统一转换为毫秒时间戳
+    public static func timestampMilliseconds(from value: Any?) -> Double? {
+        guard let value = value else { return nil }
+
+        if let doubleVal = value as? Double {
+            return normalizeTimestampNumber(doubleVal)
+        }
+        if let intVal = value as? Int {
+            return normalizeTimestampNumber(Double(intVal))
+        }
+        if let int64Val = value as? Int64 {
+            return normalizeTimestampNumber(Double(int64Val))
+        }
+        if let floatVal = value as? Float {
+            return normalizeTimestampNumber(Double(floatVal))
+        }
+        if let dateVal = value as? Date {
+            return dateVal.timeIntervalSince1970 * 1000.0
+        }
+        if let stringVal = value as? String {
+            let trimmed = stringVal.trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !trimmed.isEmpty else { return nil }
+            if let numeric = Double(trimmed) {
+                return normalizeTimestampNumber(numeric)
+            }
+            if let date = parseLastModifyTime(trimmed) {
+                return date.timeIntervalSince1970 * 1000.0
+            }
+        }
+
+        return nil
+    }
+
+    public static func currentTimestampMilliseconds() -> Double {
+        Date().timeIntervalSince1970 * 1000.0
+    }
+
+    public static func date(fromTimestamp timestamp: Double?) -> Date? {
+        guard let timestamp, timestamp > 0 else { return nil }
+        return Date(timeIntervalSince1970: normalizeTimestampNumber(timestamp) / 1000.0)
+    }
+
+    private static func normalizeTimestampNumber(_ value: Double) -> Double {
+        guard value > 0 else { return value }
+        // 10 位左右按秒级时间戳处理；13 位左右按毫秒时间戳处理
+        return value < 10_000_000_000 ? value * 1000.0 : value
+    }
     
     /// 将 Any 类型的数据安全地转换为 Bool 布尔值
     public static func ensureBool(_ value: Any?, defaultValue: Bool) -> Bool {
@@ -103,6 +151,10 @@ public class DataMigrationManager {
         let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return nil }
 
+        if let numeric = Double(trimmed) {
+            return date(fromTimestamp: numeric)
+        }
+
         let isoFormatter = ISO8601DateFormatter()
         isoFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         if let date = isoFormatter.date(from: trimmed) {
@@ -118,7 +170,9 @@ public class DataMigrationManager {
             "yyyy-MM-dd HH:mm:ss",
             "yyyy/MM/dd HH:mm:ss",
             "yyyy-MM-dd HH:mm:ss.SSS",
-            "yyyy/MM/dd HH:mm:ss.SSS"
+            "yyyy/MM/dd HH:mm:ss.SSS",
+            "yyyy-MM-dd",
+            "yyyy/MM/dd"
         ]
         for format in formats {
             let formatter = DateFormatter()
@@ -136,6 +190,16 @@ public class DataMigrationManager {
     public static func compareLastModifyTime(local: String, backup: String) -> ComparisonResult? {
         guard let localDate = parseLastModifyTime(local),
               let backupDate = parseLastModifyTime(backup) else {
+            return nil
+        }
+
+        return localDate.compare(backupDate)
+    }
+
+    /// 比较本地与备份版本时间；无法可靠解析时返回 nil，由调用方采用保守策略
+    public static func compareLastModifyTime(local: Double, backup: Double) -> ComparisonResult? {
+        guard let localDate = date(fromTimestamp: local),
+              let backupDate = date(fromTimestamp: backup) else {
             return nil
         }
 
@@ -160,7 +224,7 @@ public class DataMigrationManager {
     /// - Parameter rawDict: 解析 JSON 得到的原始卡片字典
     /// - Returns: 100% 标准化、规整的 SharedCard 模型
     public static func migrateSingleCard(_ rawDict: [String: Any]) -> SharedCard {
-        var dict = rawDict
+        let dict = rawDict
         
         // 1. UUID/ID 缺失补全与类型高宽容度兼容提取
         var idStr = ""
@@ -203,20 +267,15 @@ public class DataMigrationManager {
             isQualified = "2"
         }
         
-        let nextAnnualFeeCollectionTime = dict["nextAnnualFeeCollectionTime"] as? String
-        let lastTime = dict["lastTime"] as? String
+        let nextAnnualFeeCollectionTime = timestampMilliseconds(from: dict["nextAnnualFeeCollectionTime"])
+        let lastTime = timestampMilliseconds(from: dict["lastTime"])
         
         // 7. 确保布尔值正确
         let isSharedLimit = ensureBool(dict["isSharedLimit"], defaultValue: true)
         let billingDaySpendingToNextBill = ensureBool(dict["billingDaySpendingToNextBill"], defaultValue: true)
         
-        // 8. 补全最后修改时间 (YYYY-MM-DD HH:mm:ss 格式)
-        var lastModifyTime = (dict["lastModifyTime"] as? String) ?? ""
-        if lastModifyTime.isEmpty {
-            let df = DateFormatter()
-            df.dateFormat = "yyyy-MM-dd HH:mm:ss"
-            lastModifyTime = df.string(from: Date())
-        }
+        // 8. 补全最后修改时间，内部统一使用毫秒时间戳
+        let lastModifyTime = timestampMilliseconds(from: dict["lastModifyTime"]) ?? currentTimestampMilliseconds()
         
         return SharedCard(
             id: finalId,

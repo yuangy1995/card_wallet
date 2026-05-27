@@ -37,17 +37,32 @@ echo -e "${YELLOW}正在刷新并生成 Xcode 工程...${NC}"
 xcodegen generate
 
 # 3. 运行 xcodebuild 编译归档
-echo -e "${YELLOW}正在编译归档并输出可执行包 (CODE_SIGNING_ALLOWED=NO)...${NC}"
 rm -rf build/CreditCardMac.xcarchive
-xcodebuild archive \
-    -project CreditCardMac.xcodeproj \
-    -scheme CreditCardMac \
-    -archivePath ./build/CreditCardMac.xcarchive \
-    CODE_SIGNING_ALLOWED=NO \
-    CODE_SIGNING_REQUIRED=NO \
-    CODE_SIGN_IDENTITY="" \
-    CODE_SIGN_ENTITLEMENTS="" \
-    > /dev/null 2>&1
+if [ "${CLOUDKIT_SIGNED_BUILD:-0}" = "1" ]; then
+    if [ -z "${DEVELOPMENT_TEAM:-}" ]; then
+        echo -e "${RED}CLOUDKIT_SIGNED_BUILD=1 时必须提供 DEVELOPMENT_TEAM，CloudKit 不能使用 ad-hoc 签名验证。${NC}"
+        exit 1
+    fi
+    echo -e "${YELLOW}正在生成带 CloudKit entitlement 的签名归档...${NC}"
+    xcodebuild archive \
+        -project CreditCardMac.xcodeproj \
+        -scheme CreditCardMac \
+        -archivePath ./build/CreditCardMac.xcarchive \
+        DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" \
+        CODE_SIGN_STYLE=Automatic \
+        > /dev/null 2>&1
+else
+    echo -e "${YELLOW}正在编译离线归档；此产物不具备真实 iCloud/CloudKit 验证能力。${NC}"
+    xcodebuild archive \
+        -project CreditCardMac.xcodeproj \
+        -scheme CreditCardMac \
+        -archivePath ./build/CreditCardMac.xcarchive \
+        CODE_SIGNING_ALLOWED=NO \
+        CODE_SIGNING_REQUIRED=NO \
+        CODE_SIGN_IDENTITY="" \
+        CODE_SIGN_ENTITLEMENTS="" \
+        > /dev/null 2>&1
+fi
 
 # 4. 提取生成的 .app 包到规范输出目录 dist/
 APP_PATH="./build/CreditCardMac.xcarchive/Products/Applications/CreditCardMac.app"
@@ -69,8 +84,8 @@ if [ -d "$APP_PATH" ]; then
         touch ./dist/CreditCardMac.app
     fi
     
-    # 💡 6. 施加 Ad-Hoc 本地自签名，彻底解决未签名程序导致 macOS 钥匙串“始终允许”失效、频繁强制弹窗的严重可用性缺陷！
-    if command -v codesign >/dev/null 2>&1; then
+    # 离线构建使用 Ad-Hoc 签名便于本地打开；CloudKit 签名归档不得被覆盖。
+    if [ "${CLOUDKIT_SIGNED_BUILD:-0}" != "1" ] && command -v codesign >/dev/null 2>&1; then
         echo -e "${GREEN}正在为可执行程序施加 Ad-Hoc 本地代码签名 (Ad-Hoc Code Signing)...${NC}"
         codesign --force --deep --sign - ./dist/CreditCardMac.app > /dev/null 2>&1
         echo -e "${GREEN}本地临时自签名注入成功！${NC}"

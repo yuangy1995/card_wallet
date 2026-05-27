@@ -8,6 +8,7 @@ private struct CardEditRequest: Identifiable {
 
 struct ContentView: View {
     @State private var cards: [SharedCard] = []
+    @StateObject private var syncCoordinator = SyncCoordinator.shared
     @State private var selection: NavigationSection? = .allCards
     @State private var searchText = ""
     
@@ -21,14 +22,6 @@ struct ContentView: View {
     
     // 监听自动锁定状态
     @State private var lockManager = AutoLockManager.shared
-    
-    // 💡 共享的 Diff 预览控制 (为自动检测提供前台红绿比对支持)
-    @State private var diffPreviewRequest: DiffPreviewRequest?
-    
-    // 💡 云端最新变动感知警报控制
-    @State private var showingCloudAlert = false
-    @State private var cloudAlertMessage = ""
-    @State private var cloudAlertCards: [SharedCard] = []
     
     var filteredCards: [SharedCard] {
         if searchText.isEmpty {
@@ -63,11 +56,11 @@ struct ContentView: View {
                             StatisticsView(cards: cards)
                         case .cloudSync:
                             CloudSyncView(currentCards: cards, onDataRestored: { restoredCards in
-                                self.cards = restoredCards
+                                self.cards = syncCoordinator.restore(cards: restoredCards)
                             })
                         case .settings:
                             SettingsView(currentCards: cards, onDataRestored: { restoredCards in
-                                self.cards = restoredCards
+                                self.cards = syncCoordinator.restore(cards: restoredCards)
                             })
                         case .none:
                             VStack {
@@ -86,24 +79,10 @@ struct ContentView: View {
         }
         .animation(.easeInOut(duration: 0.3), value: lockManager.isLocked)
         .onAppear {
-            loadCards()
-            
-            // 💡 订阅云端最新账本变动警报，实现高阶云端实时变动感知
-            CloudSyncManager.shared.onCloudChangeDetected = { filename, cloudCards in
-                // 💡 如果系统被锁定了，绝不在前台弹窗打扰，也不要让警报浮在锁屏之后！
-                guard !lockManager.isLocked else { return }
-                
-                self.cloudAlertCards = cloudCards
-                if cloudCards.isEmpty {
-                    self.cloudAlertMessage = "检测到云端存在最新的账本备份：\n\(filename)\n\n此备份采用了自定义密码加密。请前往云同步中心，点击恢复以输入密码进行解密与比对。"
-                } else {
-                    self.cloudAlertMessage = "检测到云端存在更新/不同的账本备份：\n\(filename)\n\n系统已为您在后台静默解密，是否立即前往云端比对中心，进行可视化红绿差异对比？"
-                }
-                self.showingCloudAlert = true
+            syncCoordinator.onCardsChanged = { updatedCards in
+                self.cards = updatedCards
             }
-            
-            // 💡 自动根据偏好设置启动/重置自动检测轮询 Timer
-            CloudSyncManager.shared.setupTimerFromConfig()
+            loadCards()
         }
         // 请求存在后才创建完整表单，避免首次呈现产生空内容窗口
         .sheet(item: $cardEditRequest) { request in
@@ -126,53 +105,18 @@ struct ContentView: View {
                         for i in 0..<cards.count {
                             let itemBank = cards[i].bank.replacingOccurrences(of: "\\(.*\\)", with: "", options: .regularExpression).trimmingCharacters(in: .whitespaces)
                             if cards[i].id != finalCard.id &&
-                               cards[i].country == finalCard.country &&
+                                cards[i].country == finalCard.country &&
                                itemBank == cleanBank &&
                                cards[i].isSharedLimit {
                                 cards[i].limit = finalCard.limit
-                                cards[i].lastModifyTime = DateFormatter.iso8601String(from: Date())
+                                cards[i].lastModifyTime = DateCalculator.timestamp(from: Date())
                             }
                         }
                     }
                     
-                    LocalStorageManager.write(cards: cards)
-                    
-                    // 💡 联动：卡片数据变动保存后，后台非阻塞地静默云端自动备份同步一份最新账本！
-                    CloudSyncManager.shared.triggerSilentAutoUpload(cards: cards)
+                    self.cards = syncCoordinator.commit(cards: cards)
                 }
             )
-        }
-        // 💡 共享的云端数据红绿可视化 Diff 差异比对 Sheet 弹窗
-        .sheet(item: $diffPreviewRequest) { request in
-            DiffPreviewView(
-                currentCards: cards,
-                backupCards: request.backupCards,
-                onConfirmRestore: {
-                    LocalStorageManager.write(cards: request.backupCards)
-                    self.cards = request.backupCards
-                    
-                    // 导入覆盖完毕后，亦自动触发一次静默备份，使云端与本地完美持平
-                    CloudSyncManager.shared.triggerSilentAutoUpload(cards: request.backupCards)
-                },
-                onConfirmMerge: { mergedCards in
-                    // 智能双向大融合，写入本地并静默同步云端让两端同时升至最新
-                    LocalStorageManager.write(cards: mergedCards)
-                    self.cards = mergedCards
-                    CloudSyncManager.shared.triggerSilentAutoUpload(cards: mergedCards)
-                }
-            )
-        }
-        // 💡 触发云端变动警报
-        .alert("云端数据变动感知", isPresented: $showingCloudAlert) {
-            Button("前往比对并恢复") {
-                selection = .cloudSync
-                if !cloudAlertCards.isEmpty {
-                    self.diffPreviewRequest = DiffPreviewRequest(backupCards: cloudAlertCards)
-                }
-            }
-            Button("稍后处理", role: .cancel) {}
-        } message: {
-            Text(cloudAlertMessage)
         }
     }
     
@@ -398,7 +342,7 @@ struct ContentView: View {
             
             let alertCards = cards.filter { card in
                 guard card.isQualified == "2" else { return false }
-                return DateCalculator.isNearAnnualFeeDate(card.nextAnnualFeeCollectionTime)
+                return DateCalculator.isNearAnnualFeeTimestamp(card.nextAnnualFeeCollectionTime)
             }
             
             if alertCards.isEmpty {
@@ -435,7 +379,7 @@ struct ContentView: View {
         let result = LocalStorageManager.read()
         switch result {
         case .success(let loadedCards):
-            self.cards = loadedCards
+            self.cards = syncCoordinator.bootstrap(localCards: loadedCards)
         case .failure(let error):
             print("读取本地数据失败，可能密码错误或数据损坏: \(error.localizedDescription)")
             self.cards = []
@@ -452,10 +396,7 @@ struct ContentView: View {
         
         if alert.runModal() == .alertFirstButtonReturn {
             cards.removeAll { $0.id == card.id }
-            LocalStorageManager.write(cards: cards)
-            
-            // 💡 联动：卡片删除后，后台静默云端自动备份同步一份最新账本！
-            CloudSyncManager.shared.triggerSilentAutoUpload(cards: cards)
+            cards = syncCoordinator.commit(cards: cards, deletedCardIDs: [card.id])
         }
     }
     
@@ -463,12 +404,9 @@ struct ContentView: View {
         if let index = cards.firstIndex(where: { $0.id == card.id }) {
             var updatedCard = cards[index]
             updatedCard.isQualified = status
-            updatedCard.lastModifyTime = DateFormatter.iso8601String(from: Date())
+            updatedCard.lastModifyTime = DateCalculator.timestamp(from: Date())
             cards[index] = updatedCard
-            LocalStorageManager.write(cards: cards)
-            
-            // 💡 联动：卡片年费状态更新后，后台静默云端自动备份同步一份最新账本！
-            CloudSyncManager.shared.triggerSilentAutoUpload(cards: cards)
+            cards = syncCoordinator.commit(cards: cards)
         }
     }
 }

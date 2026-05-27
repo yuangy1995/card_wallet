@@ -315,12 +315,10 @@ public struct CardEditView: View {
         isQualified = card.isQualified ?? "2"
         isUltimateFreeFee = (isQualified == "3")
         
-        let df = DateFormatter()
-        df.dateFormat = "yyyy-MM-dd"
-        if let feeTime = card.nextAnnualFeeCollectionTime, let date = df.date(from: feeTime) {
+        if let date = DateCalculator.date(fromTimestamp: card.nextAnnualFeeCollectionTime) {
             nextAnnualFeeCollectionTime = date
         }
-        if let raiseTime = card.lastTime, let date = df.date(from: raiseTime) {
+        if let date = DateCalculator.date(fromTimestamp: card.lastTime) {
             lastTime = date
         }
         
@@ -389,13 +387,9 @@ public struct CardEditView: View {
             return
         }
         
-        let df = DateFormatter()
-        df.dateFormat = "yyyy-MM-dd"
-        
-        let feeTimeStr = isUltimateFreeFee ? "" : df.string(from: nextAnnualFeeCollectionTime)
-        let lastTimeStr = df.string(from: lastTime)
-        
-        let lastModifyTimeStr = DateFormatter.iso8601String(from: Date())
+        let feeTimeTimestamp = isUltimateFreeFee ? nil : DateCalculator.timestamp(from: nextAnnualFeeCollectionTime)
+        let lastTimeTimestamp = DateCalculator.timestamp(from: lastTime)
+        let lastModifyTimestamp = DateCalculator.timestamp(from: Date())
         
         let finalCard = SharedCard(
             id: cardToEdit?.id ?? UUID().uuidString,
@@ -410,14 +404,14 @@ public struct CardEditView: View {
             valid: valid,
             annualFee: annualFee,
             isQualified: isQualified,
-            nextAnnualFeeCollectionTime: feeTimeStr,
-            lastTime: lastTimeStr,
+            nextAnnualFeeCollectionTime: feeTimeTimestamp,
+            lastTime: lastTimeTimestamp,
             accountBillDate: accountBillDate,
             dueDate: dueDate,
             billingDaySpendingToNextBill: billingDaySpendingToNextBill,
             equity: equity,
             remark: remark,
-            lastModifyTime: lastModifyTimeStr,
+            lastModifyTime: lastModifyTimestamp,
             isSharedLimit: isSharedLimit
         )
         
