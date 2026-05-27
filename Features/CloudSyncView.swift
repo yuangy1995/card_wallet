@@ -42,15 +42,6 @@ public struct CloudSyncView: View {
     @State private var rawCipherPendingDecrypt = ""
     @State private var pendingBackupFilename = ""
     
-    // 上传云端备份控制
-    @State private var showingUploadPrompt = false
-    @State private var uploadEncryptionMode = 0 // 0 代表默认，1 代表自定义密码
-    @State private var uploadPassword = ""
-    @State private var uploadConfirmPassword = ""
-    @State private var uploadPasswordError = ""
-    @State private var isUploading = false
-    @State private var uploadStatusMessage = ""
-    
     // 自动收敛与 iCloud 配置项
     @AppStorage("enable_icloud_sync") private var enableICloudSync = false
     @AppStorage("enable_webdav_bridge") private var enableWebDAVBridge = true
@@ -410,23 +401,9 @@ public struct CloudSyncView: View {
                         }
                     }
                     
-                    HStack(spacing: 12) {
-                        Button(action: {
-                            uploadPassword = ""
-                            uploadConfirmPassword = ""
-                            uploadPasswordError = ""
-                            uploadStatusMessage = ""
-                            showingUploadPrompt = true
-                        }) {
-                            Label("立即加密当前卡片并同步至云端", systemImage: "icloud.and.arrow.up.fill")
-                                .bold()
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .tint(.cyan)
-                        .disabled(isLoadingCloud || currentCards.isEmpty)
-                        
+                    HStack {
                         Button(action: fetchCloudBackups) {
-                            Label("手动刷新云端备份列表", systemImage: "arrow.clockwise")
+                            Label("刷新备份列表", systemImage: "arrow.clockwise")
                         }
                         .buttonStyle(.bordered)
                         .disabled(isLoadingCloud)
@@ -517,83 +494,6 @@ public struct CloudSyncView: View {
             }
             .padding(20)
             .frame(width: 320, height: 180)
-        }
-        // 密码加密上传弹窗
-        .sheet(isPresented: $showingUploadPrompt) {
-            VStack(spacing: 16) {
-                HStack(spacing: 8) {
-                    Image(systemName: "icloud.and.arrow.up.fill")
-                        .font(.title3)
-                        .foregroundColor(.cyan)
-                    Text("打包当前卡片同步至云端")
-                        .font(.headline)
-                }
-                
-                Text("您的卡片账本数据在上传前，将首先在本地进行高强度的 AES-256 军事级加密，并附带 [Mac] 后缀。")
-                    .font(.system(size: 10))
-                    .foregroundColor(.secondary)
-                    .multilineTextAlignment(.center)
-                    .lineSpacing(2)
-                    .padding(.horizontal, 10)
-                
-                Picker("加密保护模式", selection: $uploadEncryptionMode) {
-                    Text("默认安全加密 (推荐)").tag(0)
-                    Text("自定义密码加密").tag(1)
-                }
-                .pickerStyle(.radioGroup)
-                .padding(.vertical, 4)
-                
-                if uploadEncryptionMode == 1 {
-                    VStack(spacing: 8) {
-                        SecureField("设置备份解密密码", text: $uploadPassword)
-                            .textFieldStyle(.roundedBorder)
-                        SecureField("确认解密密码", text: $uploadConfirmPassword)
-                            .textFieldStyle(.roundedBorder)
-                    }
-                    .frame(width: 260)
-                    .transition(.opacity)
-                } else {
-                    Text("💡 说明：默认加密将使用内置高强度物理安全密钥，省心省力，无惧因遗忘密码导致卡包丢失，极其推荐。")
-                        .font(.system(size: 9))
-                        .foregroundColor(.secondary.opacity(0.8))
-                        .frame(width: 260)
-                        .lineSpacing(1.5)
-                        .transition(.opacity)
-                }
-                
-                if !uploadPasswordError.isEmpty {
-                    Text(uploadPasswordError)
-                        .font(.system(size: 10))
-                        .foregroundColor(.red)
-                        .transition(.opacity)
-                }
-                
-                if !uploadStatusMessage.isEmpty {
-                    Text(uploadStatusMessage)
-                        .font(.system(size: 10))
-                        .foregroundColor(.cyan)
-                        .transition(.opacity)
-                }
-                
-                HStack(spacing: 16) {
-                    Button("取消") {
-                        showingUploadPrompt = false
-                    }
-                    .buttonStyle(.bordered)
-                    .disabled(isUploading)
-                    
-                    Button("加密并上传") {
-                        executeUploadBackup()
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(.cyan)
-                    .disabled(isUploading)
-                }
-                .padding(.top, 4)
-            }
-            .padding(20)
-            .frame(width: 340, height: uploadEncryptionMode == 1 ? 320 : 250)
-            .animation(.spring(response: 0.3, dampingFraction: 0.8), value: uploadEncryptionMode)
         }
         // 💡 备份重命名 Sheet
         .sheet(isPresented: $showingRenamePrompt) {
@@ -842,75 +742,6 @@ public struct CloudSyncView: View {
                 .stroke(color.opacity(0.16), lineWidth: 1)
         )
         .padding(.bottom, 4)
-    }
-    
-    private func executeUploadBackup() {
-        if uploadEncryptionMode == 1 {
-            guard !uploadPassword.isEmpty else {
-                uploadPasswordError = "密码不能为空"
-                return
-            }
-            guard uploadPassword == uploadConfirmPassword else {
-                uploadPasswordError = "两次输入的密码不一致"
-                return
-            }
-        }
-        
-        isUploading = true
-        uploadPasswordError = ""
-        uploadStatusMessage = "正在本地进行 AES 物理隔离加密..."
-        
-        let payload = SharedBackupPayload(cards: currentCards)
-        guard let jsonData = try? JSONEncoder().encode(payload),
-              let jsonString = String(data: jsonData, encoding: .utf8) else {
-            isUploading = false
-            uploadStatusMessage = "❌ 卡片数据序列化失败"
-            return
-        }
-        
-        let cipherText: String
-        do {
-            if uploadEncryptionMode == 0 {
-                cipherText = try CryptoManager.encrypt(plainText: jsonString)
-            } else {
-                cipherText = try CryptoManager.encrypt(plainText: jsonString, password: uploadPassword)
-            }
-        } catch {
-            isUploading = false
-            uploadStatusMessage = "❌ 数据高强度加密失败"
-            return
-        }
-        
-        // 💡 生成符合 Web 端格式并且带有 [Mac] 后缀的文件名
-        // 格式: yyyy-MM-dd-HH-mm-ss---(卡片数)[Mac][密].json
-        let df = DateFormatter()
-        df.dateFormat = "yyyy-MM-dd-HH-mm-ss"
-        let timeStr = df.string(from: Date())
-        let isSecret = uploadEncryptionMode == 1 ? "[密]" : ""
-        let filename = "\(timeStr)---(\(currentCards.count))[Mac]\(isSecret).json"
-        
-        uploadStatusMessage = "正在上传加密包至 WebDAV 服务器..."
-        
-        WebDAVClient.shared.uploadBackup(filename: filename, cipherText: cipherText) { result in
-            DispatchQueue.main.async {
-                self.isUploading = false
-                switch result {
-                case .success:
-                    self.showingUploadPrompt = false
-                    self.fetchCloudBackups() // 自动刷新列表呈现最新备份！
-                    
-                    let alert = NSAlert()
-                    alert.messageText = "云端备份成功！"
-                    alert.informativeText = "加密备份文件已成功送达 WebDAV 备份区：\n\(filename)"
-                    alert.alertStyle = .informational
-                    alert.addButton(withTitle: "太棒了")
-                    alert.runModal()
-                    
-                case .failure(let error):
-                    self.uploadStatusMessage = "❌ 上传失败: \(error.localizedDescription)"
-                }
-            }
-        }
     }
     
     private func executeRename() {

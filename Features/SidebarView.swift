@@ -18,6 +18,9 @@ public struct SidebarView: View {
     // 💡 锁定按钮悬浮 Hover 状态
     @State private var isLockHovered = false
     
+    // 💡 退出按钮悬浮 Hover 状态
+    @State private var isQuitHovered = false
+    
     // 计算临近年费的卡片数量
     private var annualFeeAlertCount: Int {
         cards.filter { card in
@@ -72,11 +75,13 @@ public struct SidebarView: View {
         }
         .listStyle(.sidebar)
         .frame(minWidth: 180)
-        // 💡 仅当用户保存了密码，侧边栏底部才居中浮现主动锁定圆形组件，提供橙色呼吸动效与弹性微缩放
+        // 💡 侧边栏底部提供锁屏及退出App功能，提供磨砂背景与优雅悬浮反馈
         .safeAreaInset(edge: .bottom) {
-            if lockManager.hasPassword {
-                HStack {
-                    Spacer()
+            HStack(spacing: 20) {
+                Spacer()
+                
+                // 💡 仅当用户保存了密码，侧边栏底部才居中浮现主动锁定圆形组件
+                if lockManager.hasPassword {
                     Button {
                         lockManager.lock()
                     } label: {
@@ -102,18 +107,46 @@ public struct SidebarView: View {
                     .onHover { hover in
                         isLockHovered = hover
                     }
+                }
+                
+                // 💡 退出应用圆形按钮，提供亮丽的红色悬浮警告
+                Button {
+                    NSApplication.shared.terminate(nil)
+                } label: {
+                    ZStack {
+                        // 优雅的圆形磨砂背景盘
+                        Circle()
+                            .fill(isQuitHovered ? Color.red.opacity(0.18) : Color.primary.opacity(0.04))
+                            .frame(width: 32, height: 32)
+                            .overlay(
+                                Circle()
+                                    .stroke(isQuitHovered ? Color.red.opacity(0.4) : Color.primary.opacity(0.12), lineWidth: 1)
+                            )
+                        
+                        Image(systemName: "power")
+                            .font(.system(size: 12, weight: .bold))
+                            .foregroundColor(isQuitHovered ? .red : .secondary)
+                            .shadow(color: isQuitHovered ? .red.opacity(0.35) : .clear, radius: 4)
+                    }
+                    .scaleEffect(isQuitHovered ? 1.08 : 1.0)
+                    .animation(.spring(response: 0.25, dampingFraction: 0.65), value: isQuitHovered)
+                }
+                .buttonStyle(.plain)
+                .onHover { hover in
+                    isQuitHovered = hover
+                }
+                
+                Spacer()
+            }
+            .padding(.vertical, 10)
+            .background(.thinMaterial) // 自适应窗口毛玻璃
+            .overlay(
+                VStack {
+                    Divider()
+                        .opacity(0.3)
                     Spacer()
                 }
-                .padding(.vertical, 10)
-                .background(.thinMaterial) // 自适应窗口毛玻璃
-                .overlay(
-                    VStack {
-                        Divider()
-                            .opacity(0.3)
-                        Spacer()
-                    }
-                )
-            }
+            )
         }
     }
 }

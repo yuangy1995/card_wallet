@@ -8,6 +8,15 @@ public struct LockScreenView: View {
     @State private var ringScale: CGFloat = 1.0
     @State private var ringOpacity: Double = 0.5
     
+    // 💡 盾牌飘浮与背景光环动画状态
+    @State private var shieldScale: CGFloat = 1.0
+    @State private var shieldOffsetY: CGFloat = 0.0
+    @State private var glowRotation: Double = 0.0
+    
+    // 💡 退出按钮与解锁按钮悬浮 Hover 状态
+    @State private var isExitButtonHovered = false
+    @State private var isUnlockButtonHovered = false
+    
     public var body: some View {
         ZStack {
             // 1. 系统级强磨砂玻璃防窥罩 (Apple ultraThinMaterial)
@@ -16,22 +25,73 @@ public struct LockScreenView: View {
                 .ignoresSafeArea()
             
             // 2. 暗色微弱发光的科技感星空背景 (自适应暗度)
-            Color.black.opacity(0.2)
+            Color.black.opacity(0.25)
                 .ignoresSafeArea()
             
-            VStack(spacing: 24) {
-                // 顶部锁孔状态
-                VStack(spacing: 8) {
-                    Image(systemName: "lock.shield.fill")
-                        .font(.system(size: 40))
-                        .foregroundStyle(
-                            LinearGradient(
-                                colors: [Color.cyan, Color.purple],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
+            // 3. 💡 绚丽的背景霓虹光晕 (Glassmorphism Backing Glow)，溢出磨砂感
+            ZStack {
+                Circle()
+                    .fill(Color.cyan.opacity(0.18))
+                    .frame(width: 280, height: 280)
+                    .blur(radius: 60)
+                    .offset(x: -140, y: -120)
+                
+                Circle()
+                    .fill(Color.purple.opacity(0.18))
+                    .frame(width: 280, height: 280)
+                    .blur(radius: 60)
+                    .offset(x: 140, y: 120)
+            }
+            .ignoresSafeArea()
+            
+            VStack(spacing: 28) {
+                // 顶部锁孔状态与动画盾牌
+                VStack(spacing: 12) {
+                    ZStack {
+                        // 底层流光霓虹圆环 (慢速旋转渐变)
+                        Circle()
+                            .stroke(
+                                AngularGradient(
+                                    colors: [.cyan, .purple, .blue, .cyan],
+                                    center: .center
+                                ),
+                                lineWidth: 2
                             )
-                        )
-                        .shadow(color: .purple.opacity(0.3), radius: 8)
+                            .frame(width: 66, height: 66)
+                            .rotationEffect(.degrees(glowRotation))
+                            .blur(radius: 1.5)
+                            .opacity(0.7)
+                            .scaleEffect(shieldScale * 1.1)
+                        
+                        // 软晕阴影环
+                        Circle()
+                            .fill(
+                                RadialGradient(
+                                    colors: [Color.purple.opacity(0.18), Color.clear],
+                                    center: .center,
+                                    startRadius: 0,
+                                    endRadius: 36
+                                )
+                            )
+                            .frame(width: 74, height: 74)
+                            .scaleEffect(shieldScale)
+                        
+                        // 盾牌主体 (带浮动与精致阴影)
+                        Image(systemName: "lock.shield.fill")
+                            .font(.system(size: 46))
+                            .foregroundStyle(
+                                LinearGradient(
+                                    colors: [Color.cyan, Color.purple],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                )
+                            )
+                            .shadow(color: .purple.opacity(0.4), radius: 10)
+                            .scaleEffect(shieldScale)
+                            .offset(y: shieldOffsetY)
+                    }
+                    .frame(width: 80, height: 80)
+                    .padding(.bottom, 4)
                     
                     Text("系统处于安全保护状态")
                         .font(.headline)
@@ -83,29 +143,45 @@ public struct LockScreenView: View {
                         .padding(.top, -8)
                 }
                 
-                // 下部：密码输入框与错误反馈
+                // 下部：精美密码输入栏与提交微缩放
                 VStack(spacing: 12) {
-                    HStack(spacing: 8) {
-                        SecureField("输入应用安全解锁密码", text: $passwordInput)
-                            .textFieldStyle(.plain)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 6)
-                            .background(Color.primary.opacity(0.04))
-                            .cornerRadius(8)
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 8)
-                                    .stroke(showingError ? Color.red : Color.primary.opacity(0.15), lineWidth: 1.5)
-                            )
-                            .frame(width: 180)
-                            .onSubmit {
-                                executePasswordUnlock()
-                            }
-                        
-                        Button("解锁") {
+                    HStack(spacing: 10) {
+                        HStack(spacing: 6) {
+                            Image(systemName: "key.fill")
+                                .font(.system(size: 11))
+                                .foregroundColor(.secondary)
+                            
+                            SecureField("输入应用安全解锁密码", text: $passwordInput)
+                                .textFieldStyle(.plain)
+                                .font(.system(size: 13))
+                        }
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(Color.primary.opacity(0.04))
+                        .cornerRadius(10)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 10)
+                                .stroke(showingError ? Color.red : Color.primary.opacity(0.12), lineWidth: 1.5)
+                        )
+                        .frame(width: 190)
+                        .onSubmit {
                             executePasswordUnlock()
                         }
-                        .buttonStyle(.borderedProminent)
-                        .tint(.cyan)
+                        
+                        Button {
+                            executePasswordUnlock()
+                        } label: {
+                            Image(systemName: "arrow.right.circle.fill")
+                                .font(.system(size: 26))
+                                .foregroundColor(.cyan)
+                                .shadow(color: .cyan.opacity(0.3), radius: 4)
+                        }
+                        .buttonStyle(.plain)
+                        .scaleEffect(isUnlockButtonHovered ? 1.1 : 1.0)
+                        .animation(.spring(response: 0.2, dampingFraction: 0.6), value: isUnlockButtonHovered)
+                        .onHover { hover in
+                            isUnlockButtonHovered = hover
+                        }
                     }
                     
                     if showingError {
@@ -116,31 +192,54 @@ public struct LockScreenView: View {
                     }
                 }
                 
-                // 最底部：一键退出卡包应用，符合HIG逻辑
+                // 最底部：精致红色发光安全退出胶囊按钮，符合HIG逻辑
                 Button(action: exitApp) {
-                    Text("安全退出系统")
-                        .font(.caption)
-                        .foregroundColor(.secondary.opacity(0.6))
-                        .underline()
+                    HStack(spacing: 6) {
+                        Image(systemName: "power")
+                            .font(.system(size: 11, weight: .bold))
+                        Text("安全退出")
+                            .font(.system(size: 12, weight: .semibold))
+                    }
+                    .foregroundColor(isExitButtonHovered ? .white : .red.opacity(0.85))
+                    .padding(.horizontal, 18)
+                    .padding(.vertical, 8)
+                    .background(
+                        Capsule()
+                            .fill(isExitButtonHovered ? Color.red.opacity(0.85) : Color.red.opacity(0.06))
+                    )
+                    .overlay(
+                        Capsule()
+                            .stroke(isExitButtonHovered ? Color.red.opacity(0.9) : Color.red.opacity(0.25), lineWidth: 1)
+                    )
+                    .shadow(color: isExitButtonHovered ? Color.red.opacity(0.3) : Color.clear, radius: 6)
+                    .scaleEffect(isExitButtonHovered ? 1.05 : 1.0)
+                    .animation(.spring(response: 0.25, dampingFraction: 0.65), value: isExitButtonHovered)
                 }
                 .buttonStyle(.plain)
+                .onHover { hover in
+                    isExitButtonHovered = hover
+                }
             }
-            .frame(width: 300, height: 360)
-            .padding(24)
-            .background(.thinMaterial)
-            .cornerRadius(20)
+            .frame(width: 320)
+            .padding(.horizontal, 24)
+            .padding(.vertical, 32)
+            .background(.ultraThinMaterial)
+            .cornerRadius(24)
             .overlay(
-                RoundedRectangle(cornerRadius: 20)
+                RoundedRectangle(cornerRadius: 24)
                     .stroke(
                         LinearGradient(
-                            colors: [Color.cyan.opacity(0.6), Color.purple.opacity(0.6)],
+                            colors: [Color.cyan.opacity(0.4), Color.purple.opacity(0.4)],
                             startPoint: .topLeading,
                             endPoint: .bottomTrailing
                         ),
-                        lineWidth: 1.5
+                        lineWidth: 1.2
                     )
             )
-            .shadow(color: .black.opacity(0.2), radius: 20)
+            .shadow(color: .black.opacity(0.25), radius: 25)
+            .onAppear {
+                startShieldAnimation()
+            }
         }
     }
     
@@ -151,6 +250,25 @@ public struct LockScreenView: View {
         ) {
             ringScale = 1.15
             ringOpacity = 0.8
+        }
+    }
+    
+    private func startShieldAnimation() {
+        // 呼吸浮动动效
+        withAnimation(
+            .easeInOut(duration: 2.2)
+            .repeatForever(autoreverses: true)
+        ) {
+            shieldScale = 1.06
+            shieldOffsetY = -5.0
+        }
+        
+        // 慢速流光旋转
+        withAnimation(
+            .linear(duration: 8.0)
+            .repeatForever(autoreverses: false)
+        ) {
+            glowRotation = 360.0
         }
     }
     
