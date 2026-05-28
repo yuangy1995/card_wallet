@@ -2063,3 +2063,42 @@ html:not(.dark) {
     }
   }
 }
+
+/* ==========================================================================
+   🔒 极速安全隐私框 (SecureField) 全局暗色高拟真极客重塑
+   ========================================================================== */
+html.dark,
+:root.dark,
+.dark {
+  .secure-field {
+    background: rgba(13, 20, 41, 0.45) !important;
+    border: 1px solid rgba(0, 242, 254, 0.22) !important;
+    box-shadow: inset 0 1px 2px rgba(0, 0, 0, 0.5) !important;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1) !important;
+
+    &:hover {
+      background: rgba(13, 20, 41, 0.7) !important;
+      border-color: rgba(0, 242, 254, 0.45) !important;
+      box-shadow: 0 0 12px rgba(0, 242, 254, 0.22), inset 0 1px 2px rgba(0, 0, 0, 0.5) !important;
+    }
+
+    .secure-text {
+      color: #cbd5e1 !important;
+
+      &.cardNumber.is-clickable:hover {
+        color: var(--el-color-primary) !important;
+        text-shadow: 0 0 10px rgba(0, 242, 254, 0.6) !important;
+      }
+    }
+
+    .secure-icon {
+      color: rgba(148, 163, 184, 0.6) !important;
+
+      &:hover {
+        color: var(--el-color-primary) !important;
+        filter: drop-shadow(0 0 5px rgba(0, 242, 254, 0.6)) !important;
+      }
+    }
+  }
+}
+

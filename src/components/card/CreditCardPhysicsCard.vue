@@ -21,6 +21,45 @@
           </div>
           <div class="card-logo">
             <span class="card-level-badge" :class="card.level">{{ card.level || '普卡' }}</span>
+            <!-- 像素级卡组织矢量 Logo -->
+            <div class="card-brand-logo" v-if="cardOrganization">
+              <!-- Visa -->
+              <svg v-if="cardOrganization === 'visa'" viewBox="0 7.8 24 8.2" class="brand-svg visa" fill="#0073e6" style="color: #0073e6 !important;" aria-label="Visa">
+                <title>Visa</title>
+                <path d="M9.112 8.262L5.97 15.758H3.92L2.374 9.775c-.094-.368-.175-.503-.461-.658C1.447 8.864.677 8.627 0 8.479l.046-.217h3.3a.904.904 0 01.894.764l.817 4.338 2.018-5.102zm8.033 5.049c.008-1.979-2.736-2.088-2.717-2.972.006-.269.262-.555.822-.628a3.66 3.66 0 011.913.336l.34-1.59a5.207 5.207 0 00-1.814-.333c-1.917 0-3.266 1.02-3.278 2.479-.012 1.079.963 1.68 1.698 2.04.756.367 1.01.603 1.006.931-.005.504-.602.725-1.16.734-.975.015-1.54-.263-1.992-.473l-.351 1.642c.453.208 1.289.39 2.156.398 2.037 0 3.37-1.006 3.377-2.564m5.061 2.447H24l-1.565-7.496h-1.656a.883.883 0 00-.826.55l-2.909 6.946h2.036l.405-1.12h2.488zm-2.163-2.656l1.02-2.815.588 2.815zm-8.16-4.84l-1.603 7.496H8.34l1.605-7.496z"/>
+              </svg>
+              
+              <!-- MasterCard -->
+              <svg v-else-if="cardOrganization === 'mastercard'" viewBox="0 0 120 74" class="brand-svg mastercard">
+                <circle cx="37" cy="37" r="37" fill="#eb001b"/>
+                <circle cx="83" cy="37" r="37" fill="#ff5f00" fill-opacity="0.85"/>
+              </svg>
+              
+              <!-- UnionPay (银联) -->
+              <div v-else-if="cardOrganization === 'unionpay'" class="logo-unionpay">
+                <div class="band red-band"></div>
+                <div class="band blue-band"></div>
+                <div class="band cyan-band"></div>
+                <span class="unionpay-text">UnionPay</span>
+              </div>
+              
+              <!-- AMEX (美国运通) -->
+              <div v-else-if="cardOrganization === 'amex'" class="logo-amex">
+                <span class="amex-text">AMEX</span>
+              </div>
+              
+              <!-- JCB -->
+              <div v-else-if="cardOrganization === 'jcb'" class="logo-jcb">
+                <div class="jcb-block j-block">J</div>
+                <div class="jcb-block c-block">C</div>
+                <div class="jcb-block b-block">B</div>
+              </div>
+              
+              <!-- Discover (兜底) -->
+              <div v-else-if="cardOrganization === 'discover'" class="logo-discover">
+                <span class="discover-text">DISCOVER</span>
+              </div>
+            </div>
           </div>
         </div>
 
@@ -28,9 +67,27 @@
         <div class="card-body">
           <div class="card-alias">{{ card.alias || '未命名卡片' }}</div>
           <div class="card-number-row">
-            <span class="number-segment" v-for="(seg, idx) in formattedCardNumber" :key="idx">
-              {{ seg }}
-            </span>
+            <el-tooltip
+              placement="top"
+              :disabled="!cardNumberVisible"
+              effect="dark"
+              popper-class="copy-tooltip-popper"
+            >
+              <template #content>
+                <span style="color: #ffffff !important; font-weight: 600; font-size: 12px; letter-spacing: 0.5px;">
+                  点击卡号一键复制
+                </span>
+              </template>
+              <div 
+                class="number-segments-wrapper"
+                :class="{ 'is-clickable': cardNumberVisible }"
+                @click.stop="copyCardNumber"
+              >
+                <span class="number-segment" v-for="(seg, idx) in formattedCardNumber" :key="idx">
+                  {{ seg }}
+                </span>
+              </div>
+            </el-tooltip>
             <el-button
               type="primary"
               link
@@ -187,6 +244,30 @@ const toggleCardNumber = () => {
   emit('card-number-visibility', { id: props.card.id, isVisible: cardNumberVisible.value })
 }
 
+// 复制卡号逻辑 (仅在卡号全部展示时允许点击复制，写入纯卡号并提示)
+const copyCardNumber = () => {
+  if (!cardNumberVisible.value) return
+  
+  const num = props.card.cardNumber || ''
+  if (!num) return
+  
+  // 去除所有空格，提取纯净卡号供方便粘贴
+  const cleanNum = num.replace(/\s/g, '')
+  
+  navigator.clipboard.writeText(cleanNum).then(() => {
+    ElMessage.success('卡号复制成功')
+  }).catch(() => {
+    // 降级兼容处理，确保 100% 成功
+    const input = document.createElement('input')
+    input.value = cleanNum
+    document.body.appendChild(input)
+    input.select()
+    document.execCommand('copy')
+    document.body.removeChild(input)
+    ElMessage.success('卡号复制成功')
+  })
+}
+
 // 切换 CVV 防窥
 const toggleCvv = () => {
   cvvVisible.value = !cvvVisible.value
@@ -255,6 +336,33 @@ const themeClass = computed(() => {
     return 'theme-gold'
   }
   return 'theme-classic'
+})
+
+// 智能识别卡组织品牌
+const cardOrganization = computed(() => {
+  // 1. 优先按卡等级与别名中的显式卡组织识别，对齐 Mac 端表现
+  const level = (props.card.level || '').toLowerCase()
+  const alias = (props.card.alias || '').toLowerCase()
+
+  if (level.includes('visa') || alias.includes('visa') || level.includes('维萨')) return 'visa'
+  if (level.includes('mastercard') || level.includes('master') || alias.includes('mastercard') || alias.includes('master') || level.includes('万事达')) return 'mastercard'
+  if (level.includes('amex') || level.includes('american express') || alias.includes('amex') || level.includes('运通') || alias.includes('运通')) return 'amex'
+  if (level.includes('unionpay') || level.includes('银联') || alias.includes('unionpay') || alias.includes('银联')) return 'unionpay'
+  if (level.includes('jcb') || alias.includes('jcb')) return 'jcb'
+  if (level.includes('discover') || level.includes('发现') || alias.includes('discover')) return 'discover'
+
+  // 2. 未明确标注卡组织时，根据卡号 BIN 号正则识别
+  const num = (props.card.cardNumber || '').replace(/\D/g, '')
+  if (num) {
+    if (num.startsWith('4')) return 'visa'
+    if (/^5[1-5]/.test(num) || /^222[1-9]|^22[3-9]|^2[3-6]|^27[0-1]|^2720/.test(num)) return 'mastercard'
+    if (num.startsWith('34') || num.startsWith('37')) return 'amex'
+    if (num.startsWith('62')) return 'unionpay'
+    if (num.startsWith('35')) return 'jcb'
+    if (/^6011|^65/.test(num)) return 'discover'
+  }
+
+  return ''
 })
 
 // 格式化卡号，带眼球防窥
@@ -369,6 +477,8 @@ const calculateInterestFree = (billStr, dueStr) => {
 .physics-card-front {
   background-size: 200% 200%;
   position: relative;
+  z-index: 5;
+  pointer-events: auto;
 
   /* 基础科技风 */
   &.theme-classic {
@@ -450,8 +560,9 @@ const calculateInterestFree = (billStr, dueStr) => {
 .card-header {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
+  align-items: center;
   z-index: 3;
+  width: 100%;
 
   .bank-info {
     display: flex;
@@ -473,15 +584,199 @@ const calculateInterestFree = (billStr, dueStr) => {
     }
   }
 
-  .card-level-badge {
-    font-size: 11px;
-    padding: 2px 8px;
-    border-radius: 4px;
-    background: rgba(255, 255, 255, 0.1);
-    color: #fff;
-    border: 1px solid rgba(255, 255, 255, 0.2);
-    font-weight: 600;
-    letter-spacing: 0.5px;
+  .card-logo {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+
+    .card-level-badge {
+      font-size: 11px;
+      padding: 2px 8px;
+      border-radius: 4px;
+      background: rgba(255, 255, 255, 0.1);
+      color: #fff;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      font-weight: 600;
+      letter-spacing: 0.5px;
+    }
+
+    /* 像素级卡组织矢量 Logo 容器 */
+    .card-brand-logo {
+      display: flex;
+      align-items: center;
+      height: 20px;
+      overflow: visible;
+
+      .brand-svg {
+        height: 100%;
+        width: auto;
+        display: block;
+
+        &.visa {
+          color: #0073e6 !important;
+          fill: #0073e6 !important;
+          height: 9.5px; /* 精调高度，等比例将宽度控制在约 28px，达成视觉最佳对齐 */
+          width: auto;
+          filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.45));
+        }
+
+        &.mastercard {
+          height: 20px;
+          filter: drop-shadow(0 2px 4px rgba(0, 0, 0, 0.4));
+        }
+      }
+
+      /* 维萨卡标：对齐 Mac 端的 serif 加粗斜体渐变字样 */
+      .logo-visa {
+        display: inline-flex;
+        align-items: center;
+        font-family: Georgia, 'Times New Roman', serif;
+        font-size: 20px;
+        font-weight: 800;
+        font-style: italic;
+        line-height: 1;
+        letter-spacing: 0;
+        white-space: nowrap;
+        color: #00abff;
+        background: linear-gradient(135deg, #2563eb 0%, #00c8ff 100%);
+        background-clip: text;
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        filter: drop-shadow(0 0 4px rgba(37, 99, 235, 0.3));
+      }
+
+      /* 银联 (UnionPay) 纯 CSS 矢量 */
+      .logo-unionpay {
+        display: flex;
+        position: relative;
+        width: 48px;
+        height: 20px;
+        border-radius: 3px;
+        background: rgba(255, 255, 255, 0.08);
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        overflow: hidden;
+        box-sizing: border-box;
+        align-items: center;
+        justify-content: center;
+        padding: 2px;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+        
+        .band {
+          position: absolute;
+          top: 0;
+          bottom: 0;
+          width: 35%;
+          transform: skewX(-20deg);
+          
+          &.red-band {
+            background: #ff2a3a;
+            left: -5%;
+          }
+          &.blue-band {
+            background: #003087;
+            left: 30%;
+          }
+          &.cyan-band {
+            background: #00a4e4;
+            left: 65%;
+          }
+        }
+        
+        .unionpay-text {
+          position: relative;
+          z-index: 5;
+          font-size: 8px;
+          font-weight: 900;
+          color: #fff;
+          font-style: italic;
+          text-shadow: 0 1px 2px rgba(0, 0, 0, 0.8);
+          letter-spacing: -0.3px;
+        }
+      }
+
+      /* 运通 (AMEX) */
+      .logo-amex {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 35px;
+        height: 20px;
+        background: #006fcf;
+        border-radius: 3px;
+        border: 1px solid #fff;
+        box-sizing: border-box;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+        
+        .amex-text {
+          font-family: 'Arial Black', sans-serif;
+          font-size: 8px;
+          font-weight: 900;
+          color: #fff;
+          letter-spacing: -0.2px;
+        }
+      }
+
+      /* JCB */
+      .logo-jcb {
+        display: flex;
+        gap: 1px;
+        align-items: center;
+        justify-content: center;
+        width: 38px;
+        height: 20px;
+        padding: 1.5px;
+        box-sizing: border-box;
+        background: rgba(255, 255, 255, 0.08);
+        border-radius: 3px;
+        border: 1px solid rgba(255, 255, 255, 0.15);
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+        
+        .jcb-block {
+          flex: 1;
+          height: 100%;
+          border-radius: 1.5px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-family: 'Arial Black', sans-serif;
+          font-size: 8px;
+          font-weight: 900;
+          color: #fff;
+          
+          &.j-block {
+            background: #003580;
+          }
+          &.c-block {
+            background: #d31115;
+          }
+          &.b-block {
+            background: #008137;
+          }
+        }
+      }
+
+      /* Discover */
+      .logo-discover {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 48px;
+        height: 20px;
+        background: #ff6a00;
+        border-radius: 3px;
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        box-sizing: border-box;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+        
+        .discover-text {
+          font-family: sans-serif;
+          font-size: 8px;
+          font-weight: 900;
+          color: #fff;
+          letter-spacing: -0.2px;
+        }
+      }
+    }
   }
 }
 
@@ -508,6 +803,24 @@ const calculateInterestFree = (billStr, dueStr) => {
     align-items: center;
     gap: 12px;
     text-shadow: 0 2px 5px rgba(0, 0, 0, 0.6);
+
+    .number-segments-wrapper {
+      display: flex;
+      gap: 10px;
+      cursor: default;
+      user-select: none;
+      transition: all 0.25s ease;
+
+      &.is-clickable {
+        cursor: copy; /* 可点击复制样式 */
+
+        &:hover {
+          color: var(--el-color-primary) !important;
+          text-shadow: 0 0 10px rgba(0, 242, 254, 0.6) !important;
+          transform: scale(1.02);
+        }
+      }
+    }
 
     .visibility-btn {
       color: rgba(255, 255, 255, 0.6) !important;
@@ -595,7 +908,12 @@ const calculateInterestFree = (billStr, dueStr) => {
 
 .physics-card-wrapper.is-flipped {
   .physics-card-front {
-    pointer-events: none; /* 翻转后禁止正面鼠标响应，保障背部完全响应交互 */
+    z-index: 1 !important;
+    pointer-events: none !important; /* 翻转后禁止正面鼠标响应，保障背部完全响应交互 */
+  }
+  .physics-card-back {
+    z-index: 10 !important;
+    pointer-events: auto !important; /* 翻转后让背部拥有最高点击层级并响应交互 */
   }
 }
 
@@ -604,7 +922,8 @@ const calculateInterestFree = (billStr, dueStr) => {
   background: linear-gradient(135deg, rgba(13, 20, 41, 0.95) 0%, rgba(6, 9, 18, 0.98) 100%);
   transform: rotateY(180deg);
   border-color: rgba(0, 242, 254, 0.2);
-  z-index: 4;
+  z-index: 1; /* 初始未翻转时降低层叠层级，不挡住正面 */
+  pointer-events: none; /* 初始未翻转时禁用背部鼠标响应，彻底解决正面盲区 */
 
   .back-header {
     display: flex;
@@ -769,6 +1088,22 @@ const calculateInterestFree = (billStr, dueStr) => {
       height: 28px;
       border-radius: 4px;
     }
+  }
+}
+</style>
+
+<style lang="scss">
+/* 全局样式：定制卡号复制 Tooltip 气泡 popper 的高质感霓虹发光样式 */
+.el-popper.is-dark.copy-tooltip-popper {
+  background: rgba(13, 20, 41, 0.9) !important;
+  border: 1px solid rgba(0, 242, 254, 0.35) !important;
+  box-shadow: 0 4px 15px rgba(0, 242, 254, 0.25) !important;
+  backdrop-filter: blur(10px) !important;
+  
+  .el-popper__arrow::before {
+    background: rgba(13, 20, 41, 0.9) !important;
+    border-right-color: rgba(0, 242, 254, 0.35) !important;
+    border-bottom-color: rgba(0, 242, 254, 0.35) !important;
   }
 }
 </style>

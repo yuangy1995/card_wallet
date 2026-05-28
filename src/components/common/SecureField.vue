@@ -1,6 +1,23 @@
 <template>
   <div class="secure-field">
-    <span :class="['secure-text', type]">{{ displayValue }}</span>
+    <el-tooltip
+      placement="top"
+      :disabled="!visible || type !== 'cardNumber'"
+      effect="dark"
+      popper-class="copy-tooltip-popper"
+    >
+      <template #content>
+        <span style="color: #ffffff !important; font-weight: 600; font-size: 12px; letter-spacing: 0.5px;">
+          点击卡号一键复制
+        </span>
+      </template>
+      <span 
+        :class="['secure-text', type, { 'is-clickable': visible && type === 'cardNumber' }]"
+        @click.stop="copyValue"
+      >
+        {{ displayValue }}
+      </span>
+    </el-tooltip>
     <el-icon class="secure-icon" @click="toggleVisibility">
       <component :is="visible ? Hide : View" />
     </el-icon>
@@ -10,7 +27,7 @@
 <script>
 import { ref, computed, onUnmounted } from 'vue'
 import { View, Hide } from '@element-plus/icons-vue'
-import { ElNotification } from 'element-plus'
+import { ElNotification, ElMessage } from 'element-plus'
 
 export default {
   name: 'SecureField',
@@ -118,6 +135,34 @@ export default {
       }
     }
 
+    // 复制卡号逻辑 (仅在卡号全部展示时允许点击复制，写入纯卡号并提示)
+    const copyValue = () => {
+      if (!visible.value || props.type !== 'cardNumber') return
+      
+      const cleanNum = props.value.replace(/\D/g, '')
+      if (!cleanNum) return
+      
+      navigator.clipboard.writeText(cleanNum).then(() => {
+        ElMessage.success('卡号复制成功')
+      }).catch(() => {
+        // 降级兼容处理，确保 100% 成功
+        const input = document.createElement('input')
+        input.value = cleanNum
+        document.body.appendChild(input)
+        input.select()
+        try {
+          document.execCommand('copy')
+          ElMessage.success('卡号复制成功')
+        } catch (err) {
+          ElNotification.error({
+            title: '复制失败',
+            message: '请手动复制卡号'
+          })
+        }
+        document.body.removeChild(input)
+      })
+    }
+
     // 组件销毁时清除定时器
     onUnmounted(() => {
       if (timer) {
@@ -130,6 +175,7 @@ export default {
       visible,
       displayValue,
       toggleVisibility,
+      copyValue,
       View,
       Hide
     }
@@ -166,6 +212,17 @@ export default {
 
 .secure-text.cardNumber {
   min-width: 150px;
+  user-select: none;
+}
+
+.secure-text.cardNumber.is-clickable {
+  cursor: copy; /* 可点击复制样式 */
+}
+
+.secure-text.cardNumber.is-clickable:hover {
+  color: var(--el-color-primary) !important;
+  text-shadow: 0 0 10px rgba(0, 242, 254, 0.6) !important;
+  transform: scale(1.02);
 }
 
 .secure-text.cvv {
