@@ -709,11 +709,12 @@ defineExpose({
   }
 
   &.is-collapsed {
-    border-left-color: var(--el-text-color-secondary) !important;
+    border-left: 1px solid rgba(0, 242, 254, 0.15) !important;
     opacity: 0.85;
 
     &:hover {
       opacity: 1;
+      border-left-color: rgba(0, 242, 254, 0.35) !important;
     }
   }
 
@@ -1044,6 +1045,142 @@ defineExpose({
       transition: transform 0.2s ease, color 0.2s ease !important;
       margin-right: 0 !important;
       font-size: 14px;
+    }
+  }
+}
+
+/* ==========================================================================
+   ☀️ 亮色模式（白色主题）卡片列表组件高拟真极简视觉重塑
+   ========================================================================== */
+:global(html:not(.dark)) {
+  .card-list-actions {
+    background: rgba(255, 255, 255, 0.72) !important;
+    border: 1px solid rgba(86, 114, 190, 0.16) !important;
+    box-shadow: 0 4px 12px rgba(86, 114, 190, 0.04) !important;
+    backdrop-filter: blur(10px) !important;
+
+    .selection-status {
+      .tech-checkbox {
+        :deep(.el-checkbox__label) {
+          color: #334155 !important;
+        }
+      }
+
+      .actions-tips {
+        text-shadow: none !important;
+        color: #008fa0 !important;
+
+        .pulse-dot {
+          background: #008fa0 !important;
+          box-shadow: 0 0 0 0 rgba(0, 143, 160, 0.4) !important;
+        }
+      }
+    }
+  }
+
+  /* 一键折叠/展开亮色实体按钮重塑 */
+  .group-collapse-actions {
+    .collapse-action-btn {
+      color: #334155 !important;
+      background: rgba(255, 255, 255, 0.95) !important;
+      border: 1px solid rgba(86, 114, 190, 0.24) !important;
+      box-shadow: 0 1px 3px rgba(86, 114, 190, 0.06) !important;
+
+      &:hover {
+        color: #008fa0 !important;
+        border-color: #008fa0 !important;
+        background: rgba(0, 143, 160, 0.06) !important;
+        box-shadow: 0 0 10px rgba(0, 143, 160, 0.15) !important;
+      }
+
+      &.expand-btn {
+        border-color: rgba(86, 114, 190, 0.28) !important;
+
+        &:hover {
+          color: #008fa0 !important;
+          border-color: #008fa0 !important;
+          background: rgba(0, 143, 160, 0.08) !important;
+          box-shadow: 0 0 12px rgba(0, 143, 160, 0.2) !important;
+        }
+      }
+    }
+  }
+
+  /* 下拉筛选选择框亮色重塑 */
+  .card-group-sort-filters {
+    .filter-item {
+      .filter-label {
+        color: #334155 !important;
+      }
+    }
+
+    .tech-select {
+      :deep(.el-input__wrapper) {
+        background-color: rgba(255, 255, 255, 0.9) !important;
+        border: 1px solid rgba(86, 114, 190, 0.22) !important;
+        box-shadow: none !important;
+
+        &:hover,
+        &.is-focus {
+          border-color: #008fa0 !important;
+          box-shadow: 0 0 8px rgba(0, 143, 160, 0.12) !important;
+        }
+      }
+
+      :deep(.el-input__inner) {
+        color: #334155 !important;
+      }
+
+      :deep(.el-select__caret) {
+        color: rgba(51, 65, 85, 0.6) !important;
+      }
+    }
+  }
+
+  /* 分组头部晶莹白卡片重塑 */
+  .card-group-header {
+    background: rgba(255, 255, 255, 0.8) !important;
+    border: 1px solid rgba(86, 114, 190, 0.15) !important;
+    border-left: 4px solid #008fa0 !important;
+    box-shadow: 0 4px 15px rgba(86, 114, 190, 0.04) !important;
+
+    &:hover {
+      border-color: rgba(86, 114, 190, 0.3) !important;
+      background: rgba(255, 255, 255, 0.95) !important;
+      box-shadow: 0 6px 20px rgba(86, 114, 190, 0.08) !important;
+    }
+
+    &.is-collapsed {
+      border-left-color: #94a3b8 !important;
+    }
+
+    .collapse-arrow {
+      color: rgba(100, 116, 139, 0.6) !important;
+    }
+
+    .group-title-wrapper {
+      .group-icon-lead {
+        color: #008fa0 !important;
+        filter: drop-shadow(0 1px 2px rgba(0, 143, 160, 0.15)) !important;
+      }
+
+      .group-title {
+        color: #1e293b !important;
+        text-shadow: none !important;
+      }
+
+      .group-badge {
+        background: rgba(0, 143, 160, 0.08) !important;
+        color: #008fa0 !important;
+        border: 1px solid rgba(0, 143, 160, 0.2) !important;
+      }
+    }
+
+    .group-limit-pill {
+      background: rgba(16, 185, 129, 0.06) !important;
+      border: 1px solid rgba(16, 185, 129, 0.2) !important;
+      color: #10b981 !important;
+      box-shadow: 0 1px 4px rgba(16, 185, 129, 0.03) !important;
     }
   }
 }

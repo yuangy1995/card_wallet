@@ -87,6 +87,7 @@ body.dark,
       border-color: rgba(0, 242, 254, 0.26) !important;
       color: rgba(226, 232, 240, 0.88) !important;
       box-shadow: none !important;
+      transition: none !important;
     }
 
     .el-radio-button__original-radio:checked + .el-radio-button__inner {
@@ -95,6 +96,7 @@ body.dark,
       color: #9ffbff !important;
       box-shadow: inset 0 0 0 1px rgba(0, 242, 254, 0.18) !important;
       text-shadow: none !important;
+      transition: none !important;
     }
   }
 
@@ -1142,8 +1144,8 @@ body.dark,
    ========================================================================== */
 html:not(.dark),
 html:not(.dark) body {
-  background-color: #5672be !important; /* 完美恢复上一版极具经典质感与奢华感的温和靛蓝科技底色 */
-  background-image: linear-gradient(135deg, #627ec7 0%, #5672be 100%) !important; /* 柔和优雅的微光渐变，彻底解决包含块边缘漏白 */
+  background-color: #f8fafc !important; /* 极致通透、温和素雅的亮白底色，彻底告别沉重死板的硬靛蓝 */
+  background-image: linear-gradient(135deg, #f8fafc 0%, #edf2f7 100%) !important; /* 苹果级清爽亮白淡灰微光渐变 */
   background-attachment: fixed !important;
   color: #1e293b !important;
   font-family: 'Outfit', 'Inter', -apple-system, sans-serif;
@@ -1157,6 +1159,140 @@ html:not(.dark) {
   .main_body {
     background-color: transparent !important;
     background-image: none !important;
+  }
+
+  /* ==========================================================================
+     💳 亮色模式卡片列表 (CreditCardCardList) 极简温润白晶样式全局重塑
+     ========================================================================== */
+  .card-list-actions {
+    background: rgba(255, 255, 255, 0.72) !important;
+    border: 1px solid rgba(86, 114, 190, 0.16) !important;
+    box-shadow: 0 4px 12px rgba(86, 114, 190, 0.04) !important;
+    backdrop-filter: blur(10px) !important;
+
+    .selection-status {
+      .tech-checkbox {
+        .el-checkbox__label {
+          color: #334155 !important;
+        }
+      }
+
+      .actions-tips {
+        text-shadow: none !important;
+        color: #008fa0 !important;
+
+        .pulse-dot {
+          background: #008fa0 !important;
+          box-shadow: 0 0 0 0 rgba(0, 143, 160, 0.4) !important;
+        }
+      }
+    }
+  }
+
+  /* 一键折叠/展开亮色实体按钮重塑 */
+  .group-collapse-actions {
+    .collapse-action-btn {
+      color: #334155 !important;
+      background: rgba(255, 255, 255, 0.95) !important;
+      border: 1px solid rgba(86, 114, 190, 0.24) !important;
+      box-shadow: 0 1px 3px rgba(86, 114, 190, 0.06) !important;
+
+      &:hover {
+        color: #008fa0 !important;
+        border-color: #008fa0 !important;
+        background: rgba(0, 143, 160, 0.06) !important;
+        box-shadow: 0 0 10px rgba(0, 143, 160, 0.15) !important;
+      }
+
+      &.expand-btn {
+        border-color: rgba(86, 114, 190, 0.28) !important;
+
+        &:hover {
+          color: #008fa0 !important;
+          border-color: #008fa0 !important;
+          background: rgba(0, 143, 160, 0.08) !important;
+          box-shadow: 0 0 12px rgba(0, 143, 160, 0.2) !important;
+        }
+      }
+    }
+  }
+
+  /* 下拉过滤选择框亮色重塑 */
+  .card-group-sort-filters {
+    .filter-item {
+      .filter-label {
+        color: #334155 !important;
+      }
+    }
+
+    .tech-select {
+      .el-input__wrapper {
+        background-color: rgba(255, 255, 255, 0.9) !important;
+        border: 1px solid rgba(86, 114, 190, 0.22) !important;
+        box-shadow: none !important;
+
+        &:hover,
+        &.is-focus {
+          border-color: #008fa0 !important;
+          box-shadow: 0 0 8px rgba(0, 143, 160, 0.12) !important;
+        }
+      }
+
+      .el-input__inner {
+        color: #334155 !important;
+      }
+
+      .el-select__caret {
+        color: rgba(51, 65, 85, 0.6) !important;
+      }
+    }
+  }
+
+  /* 分组头部晶莹温润白卡片重塑 */
+  .card-group-header {
+    background: rgba(255, 255, 255, 0.8) !important;
+    border: 1px solid rgba(86, 114, 190, 0.15) !important;
+    border-left: 4px solid #008fa0 !important;
+    box-shadow: 0 4px 15px rgba(86, 114, 190, 0.04) !important;
+
+    &:hover {
+      border-color: rgba(86, 114, 190, 0.3) !important;
+      background: rgba(255, 255, 255, 0.95) !important;
+      box-shadow: 0 6px 20px rgba(86, 114, 190, 0.08) !important;
+    }
+
+    &.is-collapsed {
+      border-left: 1px solid rgba(86, 114, 190, 0.15) !important;
+    }
+
+    .collapse-arrow {
+      color: rgba(100, 116, 139, 0.6) !important;
+    }
+
+    .group-title-wrapper {
+      .group-icon-lead {
+        color: #008fa0 !important;
+        filter: drop-shadow(0 1px 2px rgba(0, 143, 160, 0.15)) !important;
+      }
+
+      .group-title {
+        color: #1e293b !important;
+        text-shadow: none !important;
+      }
+
+      .group-badge {
+        background: rgba(0, 143, 160, 0.08) !important;
+        color: #008fa0 !important;
+        border: 1px solid rgba(0, 143, 160, 0.2) !important;
+      }
+    }
+
+    .group-limit-pill {
+      background: rgba(16, 185, 129, 0.06) !important;
+      border: 1px solid rgba(16, 185, 129, 0.2) !important;
+      color: #10b981 !important;
+      box-shadow: 0 1px 4px rgba(16, 185, 129, 0.03) !important;
+    }
   }
 
   /* 调整亮色模式下 Element Plus 全局颜色以符合精致科技风 */

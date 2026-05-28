@@ -103,8 +103,8 @@ body.dark,
 .main_body {
   width: 100vw;
   height: 100vh;
-  /* 恢复上一版经典的极简温和高档靛蓝科技底色 */
-  background-color: #5672be !important;
+  /* 亮色模式下极致通透、温和素雅的浅灰淡蓝渐变，完美承载极简苹果美学 */
+  background: linear-gradient(135deg, #f4f6fa 0%, #e9edf5 100%) !important;
   padding: 20px;
   box-sizing: border-box;
   display: flex;
@@ -207,6 +207,8 @@ body.dark,
           line-height: 1 !important;
           box-sizing: border-box !important;
           vertical-align: middle !important;
+          /* 核心自愈：彻底根除状态切换与主题过渡时的延迟及瞬时双高亮闪烁 Bug */
+          transition: none !important;
 
           .el-icon {
             margin: 0 !important;
@@ -216,6 +218,7 @@ body.dark,
             justify-content: center !important;
             transform: none !important;
             top: auto !important;
+            transition: none !important;
           }
 
           /* 确保按钮内的文字也是 inline-flex 并垂直居中 */
@@ -223,6 +226,7 @@ body.dark,
             display: inline-flex !important;
             align-items: center !important;
             line-height: 1 !important;
+            transition: none !important;
           }
         }
       }
@@ -512,16 +516,16 @@ body.dark,
     }
   }
 
-  /* 表格底层容器去除毛玻璃透明层，回归纯正洁净白底以提供极致文本清晰度 */
+  /* 表格底层容器去除累赘的白色圆角框与 padding，实现直铺悬浮以提供极致扁平化极简视觉 */
   .table-container {
     flex: 1;
     min-height: 0;
     overflow: hidden;
-    background: #ffffff !important;
+    background: transparent !important;
     border: none !important;
-    box-shadow: 0 8px 32px 0 rgba(15, 23, 42, 0.05) !important;
-    border-radius: 12px !important;
-    padding: 4px;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    padding: 0 !important;
 
     :deep(.el-table) {
       height: 100%;
