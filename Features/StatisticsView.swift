@@ -339,6 +339,26 @@ public struct StatisticsView: View {
         ].filter { $0.count > 0 }
     }
     
+    private var cardExpiryStats: DateCalculator.CardExpiryStats {
+        DateCalculator.cardExpiryStats(for: cards)
+    }
+    
+    private var cardExpiryRiskText: String {
+        if cardExpiryStats.expiredCards > 0 {
+            return "已过期 \(cardExpiryStats.expiredCards) 张"
+        }
+        if cardExpiryStats.soonExpiring > 0 {
+            return "6个月内到期 \(cardExpiryStats.soonExpiring) 张"
+        }
+        return "有效期正常"
+    }
+    
+    private var cardExpiryRiskColor: Color {
+        if cardExpiryStats.expiredCards > 0 { return .red }
+        if cardExpiryStats.soonExpiring > 0 { return .orange }
+        return .green
+    }
+    
     // MARK: - 🧠 AI 智能财务管家 & 额度资产诊断派生字段
     
     // 辅助：根据毫秒时间戳计算与当前时间相差的天数
@@ -788,7 +808,16 @@ public struct StatisticsView: View {
                             iconColor: .blue
                         )
                         
-                        // 卡片 4：年费磨损健康度
+                        // 卡片 4：有效期风险
+                        InsightCard(
+                            title: "卡片有效期风险",
+                            value: cardExpiryRiskText,
+                            description: "已过期 \(cardExpiryStats.expiredCards) 张 / 6个月内 \(cardExpiryStats.soonExpiring) 张 / 正常 \(cardExpiryStats.normalCards) 张",
+                            iconName: "calendar.badge.exclamationmark",
+                            iconColor: cardExpiryRiskColor
+                        )
+                        
+                        // 卡片 5：年费磨损健康度
                         InsightCard(
                             title: "年费磨损健康度",
                             value: annualFeeHealthText,
@@ -1187,7 +1216,7 @@ struct MetricCard: View {
     }
 }
 
-// 💡 2x2 高端智能财务分析透视卡片组件
+// 💡 高端智能财务分析透视卡片组件
 struct InsightCard: View {
     let title: String
     let value: String

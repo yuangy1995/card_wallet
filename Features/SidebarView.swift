@@ -21,11 +21,10 @@ public struct SidebarView: View {
     // 💡 退出按钮悬浮 Hover 状态
     @State private var isQuitHovered = false
     
-    // 计算临近年费的卡片数量
+    // 计算需要处理的年费提醒卡片数量
     private var annualFeeAlertCount: Int {
         cards.filter { card in
-            guard card.isQualified == "2" else { return false } // 只有未达标的才需要提醒
-            return DateCalculator.isNearAnnualFeeTimestamp(card.nextAnnualFeeCollectionTime)
+            DateCalculator.annualFeeDetection(for: card) != nil
         }.count
     }
     
@@ -41,11 +40,11 @@ public struct SidebarView: View {
                     Label("所有信用卡", systemImage: "creditcard")
                 }
                 
-                // 💡 智能到期角标：如果真的存在临近卡片，展现惊艳的红色急需角标！
+                // 💡 年费提醒角标：存在待处理卡片时显示急需处理数量
                 if annualFeeAlertCount > 0 {
                     NavigationLink(value: NavigationSection.annualFeeAlert) {
                         HStack {
-                            Label("临近年费卡", systemImage: "clock.badge.exclamationmark")
+                            Label("年费提醒卡", systemImage: "clock.badge.exclamationmark")
                                 .foregroundColor(.orange)
                             Spacer()
                             Text("\(annualFeeAlertCount)")

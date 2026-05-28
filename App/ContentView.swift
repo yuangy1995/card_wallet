@@ -19,6 +19,7 @@ struct ContentView: View {
     
     // 编辑弹窗请求，创建弹窗时一并携带模式和目标卡片
     @State private var cardEditRequest: CardEditRequest?
+    @State private var hasCheckedAnnualFeeStatus = false
     
     // 监听自动锁定状态
     @State private var lockManager = AutoLockManager.shared
@@ -83,6 +84,12 @@ struct ContentView: View {
                 self.cards = updatedCards
             }
             loadCards()
+            runInitialAnnualFeeCheckIfNeeded()
+        }
+        .onChange(of: lockManager.isLocked) { _, isLocked in
+            if !isLocked {
+                runInitialAnnualFeeCheckIfNeeded()
+            }
         }
         // 请求存在后才创建完整表单，避免首次呈现产生空内容窗口
         .sheet(item: $cardEditRequest) { request in
@@ -326,7 +333,7 @@ struct ContentView: View {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .font(.title2)
                         .foregroundColor(.orange)
-                    Text("临近年费卡片")
+                    Text("年费提醒卡片")
                         .font(.title2)
                         .bold()
                         .foregroundColor(.orange)
@@ -341,8 +348,7 @@ struct ContentView: View {
                 .background(Color.white.opacity(0.1))
             
             let alertCards = cards.filter { card in
-                guard card.isQualified == "2" else { return false }
-                return DateCalculator.isNearAnnualFeeTimestamp(card.nextAnnualFeeCollectionTime)
+                DateCalculator.annualFeeDetection(for: card) != nil
             }
             
             if alertCards.isEmpty {
@@ -350,7 +356,7 @@ struct ContentView: View {
                     Image(systemName: "checkmark.shield.fill")
                         .font(.system(size: 48))
                         .foregroundColor(.green.opacity(0.6))
-                    Text("非常好！目前没有任何信用卡临近收取年费且未达标。")
+                    Text("目前没有任何需要处理的年费提醒。")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                 }
@@ -386,6 +392,55 @@ struct ContentView: View {
         }
     }
     
+    private func runInitialAnnualFeeCheckIfNeeded() {
+        guard !hasCheckedAnnualFeeStatus, !lockManager.isLocked else { return }
+        hasCheckedAnnualFeeStatus = true
+        checkAnnualFeeQualifiedStatus()
+    }
+    
+    private func checkAnnualFeeQualifiedStatus() {
+        let warningCards = cards.filter { card in
+            guard card.isQualified != "3",
+                  card.isQualified != "2",
+                  let diffDays = DateCalculator.annualFeeRemainingDays(card.nextAnnualFeeCollectionTime) else {
+                return false
+            }
+            return diffDays <= 60 && diffDays >= 0
+        }
+        
+        guard !warningCards.isEmpty else { return }
+        
+        let cardList = warningCards.prefix(8).map { card in
+            let dateText = DateCalculator.formatTimestampDate(card.nextAnnualFeeCollectionTime)
+            let daysText = DateCalculator.annualFeeRemainingDays(card.nextAnnualFeeCollectionTime) ?? 0
+            return "• \(card.bank) - \(card.alias ?? "无别名")：\(dateText)，剩余 \(daysText) 天"
+        }.joined(separator: "\n")
+        let extraText = warningCards.count > 8 ? "\n另有 \(warningCards.count - 8) 张卡片也需要处理。" : ""
+        
+        let alert = NSAlert()
+        alert.messageText = "年费达标状态检测"
+        alert.informativeText = """
+        检测到以下卡片临近年费收取时间不足 60 天。
+        
+        \(cardList)\(extraText)
+        
+        如果去年已达标但今年尚未完成达标，建议更新为未达标以避免遗漏年费。
+        """
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "更新为未达标")
+        alert.addButton(withTitle: "取消")
+        
+        if alert.runModal() == .alertFirstButtonReturn {
+            let warningIDs = Set(warningCards.map(\.id))
+            let nowTimestamp = DateCalculator.timestamp(from: Date())
+            for index in cards.indices where warningIDs.contains(cards[index].id) {
+                cards[index].isQualified = "2"
+                cards[index].lastModifyTime = nowTimestamp
+            }
+            cards = syncCoordinator.commit(cards: cards)
+        }
+    }
+    
     private func deleteCard(_ card: SharedCard) {
         let alert = NSAlert()
         alert.messageText = "确认要删除此信用卡吗？"
@@ -404,6 +459,13 @@ struct ContentView: View {
         if let index = cards.firstIndex(where: { $0.id == card.id }) {
             var updatedCard = cards[index]
             updatedCard.isQualified = status
+            if status == "1" {
+                updatedCard.nextAnnualFeeCollectionTime = DateCalculator.timestampByAddingOneYear(
+                    updatedCard.nextAnnualFeeCollectionTime
+                )
+            } else if status == "3" {
+                updatedCard.nextAnnualFeeCollectionTime = nil
+            }
             updatedCard.lastModifyTime = DateCalculator.timestamp(from: Date())
             cards[index] = updatedCard
             cards = syncCoordinator.commit(cards: cards)

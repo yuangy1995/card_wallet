@@ -1,6 +1,28 @@
 import Foundation
 
 public class DateCalculator {
+    public enum AnnualFeeDetectionKind {
+        case unqualified
+        case warning
+        case overdue
+    }
+    
+    public struct AnnualFeeDetectionResult {
+        public let kind: AnnualFeeDetectionKind
+        public let days: Int
+    }
+    
+    public enum CardExpiryStatus {
+        case expired
+        case soonExpiring
+        case normal
+    }
+    
+    public struct CardExpiryStats {
+        public let expiredCards: Int
+        public let soonExpiring: Int
+        public let normalCards: Int
+    }
     
     private static let isoFormatter: DateFormatter = {
         let df = DateFormatter()
@@ -28,6 +50,14 @@ public class DateCalculator {
 
     public static func date(fromTimestamp timestamp: Double?) -> Date? {
         DataMigrationManager.date(fromTimestamp: timestamp)
+    }
+    
+    public static func timestampByAddingOneYear(_ timestamp: Double?) -> Double? {
+        guard let date = date(fromTimestamp: timestamp),
+              let nextYearDate = Calendar.current.date(byAdding: .year, value: 1, to: date) else {
+            return timestamp
+        }
+        return self.timestamp(from: nextYearDate)
     }
 
     public static func formatTimestampDate(_ timestamp: Double?) -> String {
@@ -105,7 +135,7 @@ public class DateCalculator {
         guard !accountBillDate.isEmpty, !dueDate.isEmpty else { return "" }
         
         let offset = dateType == "next" ? 1 : 0
-        guard let billDateStr = completeDay(dayString: accountBillDate, monthOffset: offset) else { return "" }
+        guard completeDay(dayString: accountBillDate, monthOffset: offset) != nil else { return "" }
         
         guard let billDayNum = Int(accountBillDate), let dueDayNum = Int(dueDate) else { return "" }
         
@@ -187,15 +217,54 @@ public class DateCalculator {
 
     /// 检查是否接近年费收取时间（60天内）
     public static func isNearAnnualFeeTimestamp(_ nextAnnualFeeDate: Double?, warningDays: Int = 60) -> Bool {
-        guard let targetDate = date(fromTimestamp: nextAnnualFeeDate) else { return false }
-
-        let calendar = Calendar.current
-        let today = calendar.startOfDay(for: Date())
-        let target = calendar.startOfDay(for: targetDate)
-        let components = calendar.dateComponents([.day], from: today, to: target)
-        let remainingDays = components.day ?? 0
-
+        guard let remainingDays = annualFeeRemainingDays(nextAnnualFeeDate) else { return false }
         return remainingDays <= warningDays && remainingDays >= 0
+    }
+    
+    /// 按 Web 端 Math.ceil((扣费日 - 当前时间) / 1天) 的方式计算年费剩余天数
+    public static func annualFeeRemainingDays(_ nextAnnualFeeDate: Double?, now: Date = Date()) -> Int? {
+        guard let targetDate = date(fromTimestamp: nextAnnualFeeDate) else { return nil }
+        return Int(ceil(targetDate.timeIntervalSince(now) / (24 * 60 * 60)))
+    }
+    
+    /// Web 端年费检测逻辑：未达标未来卡、60天内临近卡、近60天已过期卡
+    public static func annualFeeDetection(
+        isQualified: String?,
+        nextAnnualFeeDate: Double?,
+        warningDays: Int = 60,
+        now: Date = Date()
+    ) -> AnnualFeeDetectionResult? {
+        guard isQualified != "3",
+              let diffDays = annualFeeRemainingDays(nextAnnualFeeDate, now: now) else {
+            return nil
+        }
+        
+        if isQualified == "2", diffDays > 0 {
+            return AnnualFeeDetectionResult(kind: .unqualified, days: diffDays)
+        }
+        
+        if diffDays <= warningDays, diffDays > 0, isQualified != "2" {
+            return AnnualFeeDetectionResult(kind: .warning, days: diffDays)
+        }
+        
+        if diffDays <= 0, diffDays > -warningDays {
+            return AnnualFeeDetectionResult(kind: .overdue, days: abs(diffDays))
+        }
+        
+        return nil
+    }
+    
+    public static func annualFeeDetection(
+        for card: SharedCard,
+        warningDays: Int = 60,
+        now: Date = Date()
+    ) -> AnnualFeeDetectionResult? {
+        annualFeeDetection(
+            isQualified: card.isQualified,
+            nextAnnualFeeDate: card.nextAnnualFeeCollectionTime,
+            warningDays: warningDays,
+            now: now
+        )
     }
     
     /// 计算给定日期距今的天数，并返回天数和状态词
@@ -233,5 +302,62 @@ public class DateCalculator {
     /// 有效期格式 MM/YY 转换
     public static func formatValidDate(_ dateStr: String?) -> String {
         return DataMigrationManager.convertValidToMMYY(dateStr)
+    }
+    
+    /// Web 端卡片有效期检测逻辑：MM/YY 按该月第一天作为到期日期，6个月内视为即将到期
+    public static func cardExpiryStatus(valid: String?, now: Date = Date()) -> CardExpiryStatus? {
+        let normalized = DataMigrationManager.convertValidToMMYY(valid)
+        guard !normalized.isEmpty else { return nil }
+        
+        let parts = normalized.split(separator: "/")
+        guard parts.count == 2,
+              let month = Int(parts[0]),
+              let year = Int(parts[1]),
+              (1...12).contains(month) else {
+            return nil
+        }
+        
+        var components = DateComponents()
+        components.year = 2000 + year
+        components.month = month
+        components.day = 1
+        
+        guard let expiryDate = Calendar.current.date(from: components),
+              let sixMonthsLater = Calendar.current.date(byAdding: .month, value: 6, to: now) else {
+            return nil
+        }
+        
+        if expiryDate < now {
+            return .expired
+        }
+        if expiryDate < sixMonthsLater {
+            return .soonExpiring
+        }
+        return .normal
+    }
+    
+    public static func cardExpiryStats(for cards: [SharedCard], now: Date = Date()) -> CardExpiryStats {
+        var expiredCards = 0
+        var soonExpiring = 0
+        var normalCards = 0
+        
+        for card in cards {
+            switch cardExpiryStatus(valid: card.valid, now: now) {
+            case .expired:
+                expiredCards += 1
+            case .soonExpiring:
+                soonExpiring += 1
+            case .normal:
+                normalCards += 1
+            case .none:
+                continue
+            }
+        }
+        
+        return CardExpiryStats(
+            expiredCards: expiredCards,
+            soonExpiring: soonExpiring,
+            normalCards: normalCards
+        )
     }
 }
