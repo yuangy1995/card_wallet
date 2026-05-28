@@ -8,7 +8,7 @@
   >
     <div
       class="physics-card-wrapper"
-      :class="{ 'is-flipped': isFlipped }"
+      :class="{ 'is-flipped': isFlipped, 'is-hovering': isHovering }"
       :style="cardStyle"
     >
       <!-- 正面：精美拟物卡片 -->
@@ -199,7 +199,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onUnmounted } from 'vue'
 import { View, Hide, Refresh, Star, Notebook, Delete } from '@element-plus/icons-vue'
 import { getBankDisplayName } from '@/utils/bankNameFormatter'
 import { getDaysFromNow } from '@/utils/dateCalculator'
@@ -229,9 +229,9 @@ const cvvVisible = ref(false)
 
 // 3D 鼠标倾斜计算
 const cardContainerRef = ref(null)
-const sheenX = ref(0)
-const sheenY = ref(0)
 const isHovering = ref(false)
+let pendingPointerEvent = null
+let sheenFrameId = null
 
 // 翻转卡片
 const flipCard = () => {
@@ -284,22 +284,45 @@ const setAnnualFeeQualified = () => {
 const handleMouseMove = (e) => {
   if (!cardContainerRef.value || isFlipped.value) return
   isHovering.value = true
+  pendingPointerEvent = {
+    clientX: e.clientX,
+    clientY: e.clientY
+  }
 
-  const rect = cardContainerRef.value.getBoundingClientRect()
-  const width = rect.width
-  const height = rect.height
+  if (sheenFrameId) return
 
-  // 鼠标相对中心点坐标
-  const mouseX = e.clientX - rect.left - width / 2
-  const mouseY = e.clientY - rect.top - height / 2
+  // 鼠标高光只需要逐帧更新 CSS 变量，避免每次移动都触发组件重渲染。
+  sheenFrameId = window.requestAnimationFrame(() => {
+    sheenFrameId = null
+    const currentEvent = pendingPointerEvent
+    const container = cardContainerRef.value
+    if (!container || !currentEvent) return
 
-  // 反光中心点映射 (高光跟随鼠标保留)
-  sheenX.value = (mouseX / (width / 2)) * 100
-  sheenY.value = (mouseY / (height / 2)) * 100
+    const rect = container.getBoundingClientRect()
+    const width = rect.width
+    const height = rect.height
+
+    // 鼠标相对中心点坐标
+    const mouseX = currentEvent.clientX - rect.left - width / 2
+    const mouseY = currentEvent.clientY - rect.top - height / 2
+
+    // 反光中心点映射 (高光跟随鼠标保留)
+    container.style.setProperty('--sheen-x', `${(mouseX / (width / 2)) * 100}px`)
+    container.style.setProperty('--sheen-y', `${(mouseY / (height / 2)) * 100}px`)
+  })
 }
 
 const handleMouseLeave = () => {
   isHovering.value = false
+  pendingPointerEvent = null
+  if (sheenFrameId) {
+    window.cancelAnimationFrame(sheenFrameId)
+    sheenFrameId = null
+  }
+  if (cardContainerRef.value) {
+    cardContainerRef.value.style.removeProperty('--sheen-x')
+    cardContainerRef.value.style.removeProperty('--sheen-y')
+  }
 }
 
 // 计算卡片行内倾斜样式 (采用立体 Z 轴凸起，无偏角，支持完美整体平整凸起)
@@ -314,9 +337,13 @@ const cardStyle = computed(() => {
   // 这将实现卡片完美、平整的“整体凸起”浮雕特效，彻底消除某一个角（如左上角）不凸起低陷的视觉问题
   return {
     transform: isFlipped.value ? 'rotateY(180deg) translateZ(45px)' : 'translateZ(45px)',
-    '--sheen-x': `${sheenX.value}px`,
-    '--sheen-y': `${sheenY.value}px`,
     transition: 'transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)'
+  }
+})
+
+onUnmounted(() => {
+  if (sheenFrameId) {
+    window.cancelAnimationFrame(sheenFrameId)
   }
 })
 
@@ -450,6 +477,10 @@ const calculateInterestFree = (billStr, dueStr) => {
   transform-style: preserve-3d;
   transform-origin: center center;
   cursor: pointer;
+}
+
+.physics-card-wrapper.is-hovering,
+.physics-card-wrapper.is-flipped {
   will-change: transform;
 }
 

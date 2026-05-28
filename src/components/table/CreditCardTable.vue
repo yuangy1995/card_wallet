@@ -797,6 +797,25 @@ export default {
   position: relative;
 }
 
+:global(html.dark),
+:global(body.dark) {
+  --table-fixed-header-bg: linear-gradient(180deg, rgba(18, 28, 57, 0.98) 0%, rgba(11, 16, 33, 0.98) 100%);
+  --table-fixed-header-color: #111b35;
+  --table-fixed-body-bg: #121626;
+  --table-fixed-hover-bg: #121626;
+  --table-fixed-shadow: 10px 0 22px rgba(0, 0, 0, 0.45);
+  --table-fixed-border-color: rgba(0, 242, 254, 0.24);
+}
+
+:global(html:not(.dark)) {
+  --table-fixed-header-bg: linear-gradient(180deg, #f0f4f8 0%, #e2e8f0 100%);
+  --table-fixed-header-color: #f0f4f8;
+  --table-fixed-body-bg: #ffffff;
+  --table-fixed-hover-bg: #ffffff;
+  --table-fixed-shadow: 10px 0 18px rgba(15, 23, 42, 0.08);
+  --table-fixed-border-color: rgba(0, 168, 180, 0.22);
+}
+
 .context-menu {
   position: fixed;
   z-index: 3000;
@@ -835,6 +854,45 @@ export default {
   --el-table-text-color: var(--el-text-color-regular);
   --el-table-header-text-color: var(--el-text-color-secondary);
   --el-table-row-hover-bg-color: var(--el-fill-color-light);
+
+  .el-table__cell {
+    overflow: hidden;
+  }
+
+  .el-table__cell > .cell {
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  /* 固定列必须是不透明背景，否则横向滚动时普通列会从下面透出来。 */
+  &.el-table .el-table__header-wrapper .el-table__header tr th.el-table-fixed-column--left.el-table__cell {
+    background: var(--table-fixed-header-bg) !important;
+    background-color: var(--table-fixed-header-color) !important;
+    background-clip: padding-box !important;
+    z-index: 7 !important;
+  }
+
+  &.el-table .el-table__body-wrapper .el-table__body tr td.el-table-fixed-column--left.el-table__cell {
+    background: var(--table-fixed-body-bg) !important;
+    background-color: var(--table-fixed-body-bg) !important;
+    background-clip: padding-box !important;
+    z-index: 6 !important;
+  }
+
+  &.el-table .el-table__body-wrapper .el-table__body tr:hover > td.el-table-fixed-column--left.el-table__cell,
+  &.el-table .el-table__body-wrapper .el-table__body tr.hover-row > td.el-table-fixed-column--left.el-table__cell,
+  &.el-table .el-table__body-wrapper .el-table__body tr.current-row > td.el-table-fixed-column--left.el-table__cell {
+    background: var(--table-fixed-hover-bg) !important;
+    background-color: var(--table-fixed-hover-bg) !important;
+  }
+
+  .el-table-fixed-column--left.is-last-column {
+    border-right: 1px solid var(--table-fixed-border-color) !important;
+
+    &::before {
+      box-shadow: var(--table-fixed-shadow) !important;
+    }
+  }
   
   th {
     background-color: var(--el-fill-color-light);

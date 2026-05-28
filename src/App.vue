@@ -340,7 +340,6 @@ import PasswordVerify from '@/components/security/PasswordVerify.vue'
 import ForgotPassword from '@/components/security/ForgotPassword.vue'
 import PasswordRecovery from '@/components/security/PasswordRecovery.vue'
 import FloatingLockButton from '@/components/security/FloatingLockButton.vue'
-import AutoLockCountdown from '@/components/security/AutoLockCountdown.vue'
 
 import { creditCardOptions } from '@/config/creditCardOptions'
 import SearchForm from '@/components/search/SearchForm.vue'
@@ -1246,6 +1245,9 @@ const manualCheckAnnualFees = async () => {
 const generateRandomData = async () => {
   const mockData = generateMockData(50)
   cardData.value = mockData
+  resetSearchForm(false)
+  quickSearchQuery.value = ''
+  clearSelection()
   ElMessage.success('成功生成 50 条测试数据')
   await persistSyncedMutation({ replace: true })
 }

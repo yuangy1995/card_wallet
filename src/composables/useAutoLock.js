@@ -11,10 +11,21 @@ export function useAutoLock() {
   const countdownTimer = ref(null)
   const activityEvents = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click']
   const hasPassword = ref(PasswordManager.hasPassword())
+  const ACTIVITY_THROTTLE_INTERVAL = 1000
+  let lastActivityUpdateTime = 0
+  let activityListenersActive = false
+  let visibilityChangeHandler = null
+  let storageChangeHandler = null
   
   // 更新活动时间并重置定时器
-  const updateActivity = () => {
+  const updateActivity = (eventOrForce = false) => {
     if (PasswordManager.hasPassword() && !PasswordManager.isAppLocked()) {
+      const force = eventOrForce === true
+      const now = Date.now()
+      if (!force && now - lastActivityUpdateTime < ACTIVITY_THROTTLE_INTERVAL) {
+        return
+      }
+      lastActivityUpdateTime = now
       PasswordManager.updateLastActivity()
       resetLockTimer()
     }
@@ -98,13 +109,17 @@ export function useAutoLock() {
 
   // 添加活动监听器
   const addActivityListeners = () => {
+    if (activityListenersActive) return
+    activityListenersActive = true
     activityEvents.forEach(event => {
-      document.addEventListener(event, updateActivity, true)
+      document.addEventListener(event, updateActivity, { capture: true, passive: true })
     })
   }
 
   // 移除活动监听器
   const removeActivityListeners = () => {
+    if (!activityListenersActive) return
+    activityListenersActive = false
     activityEvents.forEach(event => {
       document.removeEventListener(event, updateActivity, true)
     })
@@ -116,7 +131,7 @@ export function useAutoLock() {
     if (PasswordManager.hasPassword()) {
       addActivityListeners()
       if (!isLocked.value) {
-        resetLockTimer()
+        updateActivity(true)
       }
     }
   }
@@ -124,6 +139,14 @@ export function useAutoLock() {
   // 销毁
   const destroy = () => {
     removeActivityListeners()
+    if (visibilityChangeHandler) {
+      document.removeEventListener('visibilitychange', visibilityChangeHandler)
+      visibilityChangeHandler = null
+    }
+    if (storageChangeHandler) {
+      window.removeEventListener('storage', storageChangeHandler)
+      storageChangeHandler = null
+    }
     clearLockTimer()
     hasPassword.value = false
   }
@@ -139,7 +162,7 @@ export function useAutoLock() {
   const initAfterPasswordSet = () => {
     hasPassword.value = true
     addActivityListeners()
-    resetLockTimer()
+    updateActivity(true)
     isLocked.value = false
   }
 
@@ -147,18 +170,20 @@ export function useAutoLock() {
     init()
     
     // 监听页面可见性变化
-    document.addEventListener('visibilitychange', () => {
+    visibilityChangeHandler = () => {
       if (document.visibilityState === 'visible') {
         checkLockStatus()
       }
-    })
+    }
+    document.addEventListener('visibilitychange', visibilityChangeHandler)
 
     // 监听存储变化（多标签页同步）
-    window.addEventListener('storage', (e) => {
+    storageChangeHandler = (e) => {
       if (e.key === PasswordManager.LOCK_STATE_KEY) {
         checkLockStatus()
       }
-    })
+    }
+    window.addEventListener('storage', storageChangeHandler)
   })
 
   onUnmounted(() => {
