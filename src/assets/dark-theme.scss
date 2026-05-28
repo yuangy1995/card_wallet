@@ -104,17 +104,17 @@ body.dark,
     border: 1px solid rgba(0, 242, 254, 0.35) !important;
     box-shadow: 0 4px 16px rgba(0, 242, 254, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.04) !important;
     color: #ffffff !important;
-    
+
     .countdown-text {
       color: #ffffff !important;
       font-weight: 700 !important;
       text-shadow: 0 1px 2px rgba(0, 4, 15, 0.95) !important;
     }
-    
+
     .countdown-icon {
       color: #00f2fe !important;
     }
-    
+
     .time-highlight {
       color: #ffc400 !important; /* 核心读秒时间保持极致醒目的电光金黄色 */
       font-weight: 850 !important;
@@ -131,7 +131,7 @@ body.dark,
     border-radius: 12px !important;
     box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4) !important;
     transition: background-color 0.25s cubic-bezier(0.25, 0.8, 0.25, 1), border-color 0.25s cubic-bezier(0.25, 0.8, 0.25, 1), box-shadow 0.25s cubic-bezier(0.25, 0.8, 0.25, 1);
-    
+
     &:hover {
       border-color: rgba(0, 242, 254, 0.38) !important;
       box-shadow: 0 8px 32px 0 rgba(0, 242, 254, 0.1), 0 4px 16px 0 rgba(0, 0, 0, 0.3) !important;
@@ -142,12 +142,12 @@ body.dark,
   .search-form {
     @extend .glass-panel;
     margin-bottom: 16px;
-    
+
     :deep(.el-card__header) {
       border-bottom: 1px solid rgba(0, 242, 254, 0.12);
       background: rgba(0, 0, 0, 0.2) !important;
     }
-    
+
     :deep(.el-card__body) {
       background: transparent !important;
     }
@@ -220,35 +220,35 @@ body.dark,
         &:active:not(.is-disabled) {
           transform: translateY(1px) scale(0.97);
         }
-        
+
         &.el-button--primary {
           border-color: rgba(0, 242, 254, 0.45) !important;
           background: linear-gradient(135deg, rgba(0, 242, 254, 0.25) 0%, rgba(218, 34, 255, 0.1) 100%) !important;
-          
+
           &:hover:not(.is-disabled) {
             border-color: var(--el-color-primary) !important;
             background: linear-gradient(135deg, rgba(0, 242, 254, 0.4) 0%, rgba(218, 34, 255, 0.2) 100%) !important;
             box-shadow: 0 0 15px rgba(0, 242, 254, 0.4), 0 0 30px rgba(218, 34, 255, 0.15);
           }
         }
-        
+
         &.el-button--success {
           border-color: rgba(0, 255, 196, 0.3) !important;
           background: rgba(0, 255, 196, 0.08) !important;
           color: #00ffc4;
-          
+
           &:hover:not(.is-disabled) {
             border-color: #00ffc4 !important;
             background: rgba(0, 255, 196, 0.2) !important;
             box-shadow: 0 0 15px rgba(0, 255, 196, 0.4);
           }
         }
-        
+
         &.el-button--warning {
           border-color: rgba(241, 196, 15, 0.3) !important;
           background: rgba(241, 196, 15, 0.08) !important;
           color: #f1c40f;
-          
+
           &:hover:not(.is-disabled) {
             border-color: #f1c40f !important;
             background: rgba(241, 196, 15, 0.2) !important;
@@ -260,7 +260,7 @@ body.dark,
           border-color: rgba(255, 8, 68, 0.3) !important;
           background: rgba(255, 8, 68, 0.08) !important;
           color: #ff0844;
-          
+
           &:hover:not(.is-disabled) {
             border-color: #ff0844 !important;
             background: rgba(255, 8, 68, 0.2) !important;
@@ -298,7 +298,7 @@ body.dark,
       &::before, &::after {
         display: none !important;
       }
-      
+
       .el-table__inner-wrapper::after {
         display: none !important;
       }
@@ -310,7 +310,7 @@ body.dark,
 
       .el-table__header {
         background: linear-gradient(180deg, rgba(18, 28, 57, 0.95) 0%, rgba(11, 16, 33, 0.95) 100%) !important;
-        
+
         tr {
           background: transparent !important;
         }
@@ -332,11 +332,11 @@ body.dark,
       /* 单元格的科技感和动态 hover */
       .el-table__body {
         background: transparent !important;
-        
+
         tr {
           background: #121626 !important; /* 表格内部每一行均设定为 100% 不透明纯正蓝黑色，保障文字清晰度 */
           transition: background-color 0.25s ease, box-shadow 0.25s ease;
-          
+
           td {
             border-bottom: 1px solid rgba(0, 242, 254, 0.18) !important;
             border-right: 1px solid rgba(0, 242, 254, 0.1) !important;
@@ -351,7 +351,7 @@ body.dark,
           &.hovered-group-row {
             background: rgba(0, 242, 254, 0.08) !important;
             box-shadow: inset 5px 0 0 #00f2fe, inset 0 0 20px rgba(0, 242, 254, 0.15) !important;
-            
+
             td {
               color: #ffffff !important;
               text-shadow: 0 0 8px rgba(255, 255, 255, 0.2);
@@ -360,21 +360,21 @@ body.dark,
           }
         }
       }
-      
+
       /* 固定列的背景色与融合处理（彻底解决白色块残留） */
       .el-table__fixed,
       .el-table__fixed-right {
         background: rgba(13, 20, 41, 0.95) !important;
         border-color: rgba(0, 242, 254, 0.2) !important;
         box-shadow: 8px 0 20px rgba(0, 0, 0, 0.4);
-        
+
         .el-table__fixed-header-wrapper th {
           background: rgba(10, 15, 32, 0.98) !important;
         }
-        
+
         tr {
           background: rgba(13, 20, 41, 0.95) !important;
-          
+
           &:hover,
           &.hovered-group-row {
             background: rgba(0, 242, 254, 0.12) !important;
@@ -393,29 +393,29 @@ body.dark,
       box-shadow: 0 10px 30px rgba(0, 242, 254, 0.3) !important;
       overflow: hidden;
       animation: menuFadeIn 0.2s cubic-bezier(0.25, 0.8, 0.25, 1);
-      
+
       .el-menu {
         background: transparent !important;
         border: none !important;
       }
-      
+
       .el-menu-item {
         color: var(--el-text-color-regular) !important;
         height: 38px !important;
         line-height: 38px !important;
         font-size: 13px !important;
         transition: background-color 0.2s ease, color 0.2s ease !important;
-        
+
         &:hover {
           background: rgba(0, 242, 254, 0.15) !important;
           color: var(--el-color-primary) !important;
-          
+
           .el-icon {
             color: var(--el-color-primary) !important;
             transform: scale(1.15);
           }
         }
-        
+
         .el-icon {
           color: var(--el-text-color-secondary) !important;
           transition: transform 0.2s ease, color 0.2s ease !important;
@@ -433,7 +433,7 @@ body.dark,
     backdrop-filter: blur(15px) !important;
     box-shadow: 0 4px 20px rgba(0, 242, 254, 0.15) !important;
     margin-bottom: 16px !important;
-    
+
     .selection-info {
       color: var(--el-color-primary) !important;
       font-weight: 600;
@@ -451,13 +451,13 @@ body.dark,
     border-radius: 16px !important;
     overflow: hidden;
     animation: dialogPop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-    
+
     .el-dialog__header {
-      background: rgba(0, 0, 0, 0.25) !important;
+      background: transparent !important;
       border-bottom: none !important;
       padding: 18px 24px !important;
       margin: 0 !important;
-      
+
       .el-dialog__title {
         color: var(--el-color-primary) !important;
         font-weight: 700;
@@ -465,7 +465,7 @@ body.dark,
         text-shadow: 0 0 10px rgba(0, 242, 254, 0.4);
       }
     }
-    
+
     .el-dialog__body {
       background: transparent !important;
       color: var(--el-text-color-primary);
@@ -473,7 +473,7 @@ body.dark,
     }
 
     .el-dialog__footer {
-      background: rgba(0, 0, 0, 0.15) !important;
+      background: transparent !important;
       border-top: none !important;
       padding: 12px 24px 16px !important;
     }
@@ -485,7 +485,7 @@ body.dark,
       color: var(--el-text-color-secondary) !important;
       font-weight: 500;
     }
-    
+
     .el-input,
     .el-select,
     .el-textarea {
@@ -496,7 +496,7 @@ body.dark,
         box-shadow: none !important;
         transition: background-color 0.25s ease, border-color 0.25s ease, box-shadow 0.25s ease !important;
         border-radius: 6px !important;
-        
+
         .el-input__inner {
           color: var(--el-text-color-primary) !important;
         }
@@ -519,13 +519,216 @@ body.dark,
   /* 统计图表深色样式 */
   .statistics-container {
     background-color: transparent !important;
-    
+
     .chart-container {
       background: rgba(13, 20, 41, 0.6) !important;
       border: 1px solid rgba(0, 242, 254, 0.15) !important;
       border-radius: 12px;
       padding: 20px;
       backdrop-filter: blur(10px);
+    }
+
+    // 重塑暗色模式下的 ElCard，让它呈现蓝黑磨砂玻璃感而绝非亮白
+    .el-card {
+      background: rgba(13, 20, 41, 0.6) !important;
+      border: 1px solid rgba(0, 242, 254, 0.18) !important;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3) !important;
+
+      .el-card__header {
+        border-bottom: 1px solid rgba(0, 242, 254, 0.12) !important;
+        color: #00f2fe !important;
+        font-weight: 700 !important;
+        background: transparent !important;
+      }
+
+      .el-card__body {
+        color: #cbd5e1 !important;
+      }
+    }
+
+    // 额度共享列表和独立列表重塑（彻底告别刺眼的纯白底）
+    .limit-item {
+      color: #cbd5e1 !important;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.25) !important;
+
+      &.shared {
+        background: linear-gradient(135deg, rgba(16, 185, 129, 0.12) 0%, rgba(37, 99, 235, 0.08) 100%) !important;
+        border: 1px solid rgba(16, 185, 129, 0.25) !important;
+        border-left: 4px solid #10b981 !important;
+      }
+
+      &.independent {
+        background: linear-gradient(135deg, rgba(245, 158, 11, 0.12) 0%, rgba(218, 34, 255, 0.06) 100%) !important;
+        border: 1px solid rgba(245, 158, 11, 0.25) !important;
+        border-left: 4px solid #fbbf24 !important;
+      }
+
+      .bank-info {
+        .bank-name {
+          color: #f1f5f9 !important; // 高对比度高亮白字，完美解决看不清的问题
+        }
+
+        .card-count, .card-alias {
+          color: #94a3b8 !important;
+        }
+      }
+
+      .limit-amount {
+        color: #00f2fe !important;
+        text-shadow: 0 0 8px rgba(0, 242, 254, 0.3);
+      }
+    }
+
+    // 空状态
+    .empty-state {
+      background: rgba(255, 255, 255, 0.03) !important;
+      color: #94a3b8 !important;
+    }
+
+    // 币种汇总
+    .currency-total {
+      background: rgba(255, 255, 255, 0.04) !important;
+      border: 1px solid rgba(0, 242, 254, 0.12) !important;
+      box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2) !important;
+
+      .currency-name {
+        color: #94a3b8 !important;
+      }
+
+      .currency-amount {
+        color: #00f2fe !important;
+        text-shadow: 0 0 6px rgba(0, 242, 254, 0.2);
+      }
+    }
+
+    // 卡片等级进度条
+    .level-stats {
+      .level-item {
+        .level-info {
+          .level-name {
+            color: #f1f5f9 !important;
+          }
+          .level-count {
+            color: #94a3b8 !important;
+          }
+        }
+        .level-bar {
+          background: rgba(255, 255, 255, 0.06) !important;
+
+          .level-progress {
+            background: linear-gradient(90deg, #00f2fe, #da22ff) !important;
+          }
+        }
+      }
+    }
+
+    // 年费摘要
+    .annual-summary-item {
+      background: rgba(255, 255, 255, 0.04) !important;
+      border: 1px solid rgba(0, 242, 254, 0.12) !important;
+
+      .summary-label {
+        color: #94a3b8 !important;
+      }
+
+      .summary-value {
+        color: #00f2fe !important;
+      }
+    }
+
+    // 有效期分析与年费状态条目（黄、红、绿高对比度底）
+    .expiry-stats {
+      .expiry-item {
+        &.warning {
+          background: rgba(245, 158, 11, 0.12) !important;
+          border: 1px solid rgba(245, 158, 11, 0.25) !important;
+          color: #fbbf24 !important;
+        }
+
+        &.danger {
+          background: rgba(239, 68, 68, 0.12) !important;
+          border: 1px solid rgba(239, 68, 68, 0.25) !important;
+          color: #f87171 !important;
+        }
+
+        &.success {
+          background: rgba(16, 185, 129, 0.12) !important;
+          border: 1px solid rgba(16, 185, 129, 0.25) !important;
+          color: #34d399 !important;
+        }
+      }
+    }
+
+    // 提额
+    .raise-limit-stats {
+      .raise-stat-item {
+        background: rgba(255, 255, 255, 0.04) !important;
+        border: 1px solid rgba(0, 242, 254, 0.12) !important;
+
+        .stat-label {
+          color: #cbd5e1 !important;
+        }
+
+        .stat-value {
+          color: #00f2fe !important;
+        }
+      }
+    }
+
+    // 年费状态分析
+    .annual-stat-item {
+      border: 1px solid transparent !important;
+      box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2) !important;
+
+      &.normal {
+        background: rgba(37, 99, 235, 0.12) !important;
+        border-color: rgba(37, 99, 235, 0.25) !important;
+        color: #60a5fa !important;
+      }
+
+      &.warning {
+        background: rgba(245, 158, 11, 0.12) !important;
+        border-color: rgba(245, 158, 11, 0.25) !important;
+        color: #fbbf24 !important;
+      }
+
+      &.danger {
+        background: rgba(239, 68, 68, 0.12) !important;
+        border-color: rgba(239, 68, 68, 0.25) !important;
+        color: #f87171 !important;
+      }
+
+      &.success {
+        background: rgba(16, 185, 129, 0.12) !important;
+        border-color: rgba(16, 185, 129, 0.25) !important;
+        color: #34d399 !important;
+      }
+    }
+
+    // 表格卡片的 Element-Plus 表格自适应暗色
+    .table-card {
+      .el-table {
+        background-color: transparent !important;
+
+        tr {
+          background-color: rgba(13, 20, 41, 0.4) !important;
+
+          &:hover {
+            background-color: rgba(0, 242, 254, 0.08) !important;
+          }
+
+          td {
+            border-bottom: 1px solid rgba(0, 242, 254, 0.12) !important;
+            color: #cbd5e1 !important;
+          }
+        }
+
+        th {
+          background-color: rgba(18, 28, 57, 0.95) !important;
+          color: #00f2fe !important;
+          border-bottom: 1px solid rgba(0, 242, 254, 0.2) !important;
+        }
+      }
     }
   }
 
@@ -536,27 +739,27 @@ body.dark,
       background-color: rgba(241, 196, 15, 0.06) !important;
       border-left: 4px solid #f1c40f !important;
     }
-    
+
     &.reminder-row > td {
       --el-table-tr-bg-color: rgba(254, 252, 232, 0.03) !important;
       background-color: rgba(254, 252, 232, 0.03) !important;
       border-left: 4px solid #fcf8e3 !important;
     }
-    
+
     &.danger-row > td {
       --el-table-tr-bg-color: rgba(255, 8, 68, 0.06) !important;
       background-color: rgba(255, 8, 68, 0.06) !important;
       border-left: 4px solid #ff0844 !important;
     }
-    
+
     &.warning-row:hover > td {
       background-color: rgba(241, 196, 15, 0.12) !important;
     }
-    
+
     &.reminder-row:hover > td {
       background-color: rgba(254, 252, 232, 0.08) !important;
     }
-    
+
     &.danger-row:hover > td {
       background-color: rgba(255, 8, 68, 0.12) !important;
     }
@@ -575,7 +778,7 @@ body.dark,
   ::-webkit-scrollbar-thumb {
     background: rgba(0, 242, 254, 0.25);
     border-radius: 4px;
-    
+
     &:hover {
       background: var(--el-color-primary);
       box-shadow: 0 0 8px var(--el-color-primary);
@@ -588,7 +791,7 @@ body.dark,
       background: rgba(0, 242, 254, 0.1) !important;
       border-color: rgba(0, 242, 254, 0.3) !important;
       color: #00f2fe !important;
-      
+
       .el-tag__close {
         color: #00f2fe !important;
         &:hover {
@@ -610,35 +813,35 @@ body.dark,
   border: 1px solid rgba(0, 242, 254, 0.25) !important;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 0 10px rgba(0, 242, 254, 0.1) !important;
   backdrop-filter: blur(15px) !important;
-  
+
   .el-popper__arrow::before {
     background: rgba(10, 15, 32, 0.95) !important;
     border-color: rgba(0, 242, 254, 0.25) !important;
   }
-  
+
   .el-select-dropdown__item {
     color: #cbd5e1 !important;
     font-weight: 500;
-    
+
     &:hover,
     &.hover {
       background-color: rgba(0, 242, 254, 0.12) !important;
       color: #00f2fe !important;
       text-shadow: 0 0 8px rgba(0, 242, 254, 0.3);
     }
-    
+
     &.selected {
       color: #00ffc4 !important;
       background-color: rgba(0, 255, 196, 0.08) !important;
       font-weight: 700;
     }
-    
+
     &.is-disabled {
       color: #486581 !important;
       background-color: transparent !important;
     }
   }
-  
+
   .el-select-dropdown__empty {
     color: #627d98 !important;
   }
@@ -646,13 +849,13 @@ body.dark,
   /* 级联下拉项或者其他下拉菜单 */
   .el-dropdown-menu__item {
     color: #cbd5e1 !important;
-    
+
     &:hover,
     &:focus {
       background-color: rgba(0, 242, 254, 0.12) !important;
       color: #00f2fe !important;
     }
-    
+
     &.is-disabled {
       color: #486581 !important;
     }
@@ -662,16 +865,20 @@ body.dark,
 /* ================= 酷炫的 3D 物理卡片与翻转特效 (Card Layout CSS) ================= */
 .perspective-container {
   perspective: 1200px;
-  transform-style: preserve-3d;
+  height: 230px;
+  position: relative;
+  isolation: isolate;
 }
 
 .physics-card-wrapper {
   width: 100%;
-  height: 200px;
+  height: 230px;
   cursor: pointer;
   transform-style: preserve-3d;
-  transition: transform 0.6s cubic-bezier(0.2, 0.85, 0.4, 1.27);
+  transform-origin: center center;
+  transition: transform 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
   position: relative;
+  will-change: transform;
 
   &.is-flipped {
     transform: rotateY(180deg);
@@ -680,6 +887,7 @@ body.dark,
 
 .physics-card-face {
   position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   backface-visibility: hidden;
@@ -690,6 +898,8 @@ body.dark,
   overflow: hidden;
   box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
   border: 1px solid rgba(255, 255, 255, 0.08);
+  transition: border-color 0.3s ease, box-shadow 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+  transform-style: flat;
 }
 
 .physics-card-front {
@@ -697,7 +907,7 @@ body.dark,
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  
+
   /* 漫反射光斑 Sheen */
   &::before {
     content: '';
@@ -719,6 +929,12 @@ body.dark,
   display: flex;
   flex-direction: column;
   justify-content: space-between;
+}
+
+.physics-card-wrapper.is-flipped {
+  .physics-card-front {
+    pointer-events: none;
+  }
 }
 
 /* ================= 关键帧动画 ================= */
@@ -767,27 +983,27 @@ body.dark,
     border-radius: 12px !important;
     box-shadow: 0 15px 40px rgba(0, 0, 0, 0.6), 0 0 1px 1px rgba(0, 242, 254, 0.2) !important;
     animation: dialogPop 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
-    
+
     .el-message-box__title {
       color: var(--el-color-primary) !important;
       font-weight: 700;
       text-shadow: 0 0 8px rgba(0, 242, 254, 0.3);
     }
-    
+
     .el-message-box__content {
       color: var(--el-text-color-regular) !important;
     }
-    
+
     .el-message-box__btns {
       background: rgba(0, 0, 0, 0.2) !important;
       border-top: none !important;
       padding: 12px 20px !important;
-      
+
       .el-button {
         border-radius: 4px;
       }
     }
-    
+
     .el-message-box__content,
     .el-message-box__btns {
       border-color: rgba(255, 255, 255, 0.08) !important;
@@ -815,7 +1031,7 @@ body.dark,
     padding: 12px;
     margin-bottom: 8px;
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
-    
+
     &:hover {
       border-color: rgba(0, 242, 254, 0.4) !important;
       background: rgba(255, 255, 255, 0.07) !important;
@@ -843,7 +1059,7 @@ body.dark,
     .manual-check-section-title {
       font-size: 16px;
       font-weight: bold;
-      
+
       &.unqualified {
         color: #f1c40f !important;
         text-shadow: 0 0 8px rgba(241, 196, 15, 0.4) !important;
@@ -869,27 +1085,27 @@ body.dark,
     transition: background-color 0.25s cubic-bezier(0.25, 0.8, 0.25, 1), border-color 0.25s cubic-bezier(0.25, 0.8, 0.25, 1), transform 0.25s cubic-bezier(0.25, 0.8, 0.25, 1), box-shadow 0.25s cubic-bezier(0.25, 0.8, 0.25, 1);
     border: 1px solid transparent;
     box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3) !important;
-    
+
     .manual-check-card-title {
       font-weight: bold;
       font-size: 14px;
       margin-bottom: 4px;
       color: #f1f5f9 !important;
     }
-    
+
     .manual-check-card-desc {
       color: #cbd5e1 !important;
       margin-top: 4px;
       font-size: 13px;
     }
-    
+
     &:hover {
       box-shadow: 0 4px 20px rgba(0, 242, 254, 0.25) !important;
       background: rgba(255, 255, 255, 0.08) !important;
       border-color: rgba(0, 242, 254, 0.3) !important;
       transform: translateY(-2px);
     }
-    
+
     &.unqualified {
       background: rgba(241, 196, 15, 0.08) !important;
       border-color: rgba(241, 196, 15, 0.22) !important;
@@ -898,7 +1114,7 @@ body.dark,
         font-weight: 600;
       }
     }
-    
+
     &.warning {
       background: rgba(241, 196, 15, 0.08) !important;
       border-color: rgba(241, 196, 15, 0.22) !important;
@@ -907,7 +1123,7 @@ body.dark,
         font-weight: 600;
       }
     }
-    
+
     &.overdue {
       background: rgba(255, 8, 68, 0.08) !important;
       border-color: rgba(255, 8, 68, 0.22) !important;
@@ -937,7 +1153,7 @@ html:not(.dark) {
   .app-container {
     background-color: transparent !important;
   }
-  
+
   .main_body {
     background-color: transparent !important;
     background-image: none !important;
@@ -947,7 +1163,7 @@ html:not(.dark) {
   --el-color-primary: #00a8b4; /* 稳重的极客蓝 */
   --el-color-success: #2ecc71;
   --el-color-danger: #e74c3c;
-  
+
   /* 顶部搜索框与卡片面板 - 提亮为 100% 不透明纯白色卡片以展现极致清晰的黑字 */
   .search-form {
     background: #ffffff !important;
@@ -957,7 +1173,7 @@ html:not(.dark) {
     border-radius: 12px !important;
     box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05) !important;
     margin-bottom: 16px;
-    
+
     :deep(.el-card__header) {
       background: rgba(0, 168, 180, 0.04) !important;
       border-bottom: 1px solid rgba(0, 168, 180, 0.15) !important;
@@ -967,14 +1183,14 @@ html:not(.dark) {
     .search-title {
       color: #1e293b !important;
       font-weight: 700;
-      
+
       span {
         color: #1e293b !important;
       }
-      
+
       :deep(.auto-lock-countdown) {
         color: #d97706 !important; /* 精致暖金色 */
-        
+
         .countdown-icon,
         .countdown-text {
           color: #d97706 !important;
@@ -988,16 +1204,16 @@ html:not(.dark) {
         &.el-button--primary {
           color: #007780 !important; /* 精致青蓝色 */
           font-weight: 700 !important;
-          
+
           &:hover {
             color: #005a61 !important;
           }
         }
-        
+
         &.el-button--danger {
           color: #be123c !important; /* 精致深红色 */
           font-weight: 700 !important;
-          
+
           &:hover {
             color: #9f1239 !important;
           }
@@ -1030,7 +1246,7 @@ html:not(.dark) {
       border-radius: 6px !important;
       font-weight: 600;
       transition: background-color 0.25s cubic-bezier(0.25, 0.8, 0.25, 1), border-color 0.25s cubic-bezier(0.25, 0.8, 0.25, 1), transform 0.25s cubic-bezier(0.25, 0.8, 0.25, 1), box-shadow 0.25s cubic-bezier(0.25, 0.8, 0.25, 1);
-      
+
       &:hover {
         border-color: #00a8b4 !important;
         background: rgba(0, 168, 180, 0.08) !important;
@@ -1063,7 +1279,7 @@ html:not(.dark) {
       &::before, &::after {
         display: none !important;
       }
-      
+
       .el-table__inner-wrapper::after {
         display: none !important;
       }
@@ -1075,7 +1291,7 @@ html:not(.dark) {
 
       .el-table__header {
         background: linear-gradient(180deg, #f0f4f8 0%, #e2e8f0 100%) !important;
-        
+
         tr {
           background: transparent !important;
         }
@@ -1095,11 +1311,11 @@ html:not(.dark) {
       /* 单元格精细渐变与 hover */
       .el-table__body {
         background: transparent !important;
-        
+
         tr {
           background: #ffffff !important; /* 恢复每一行 100% 不透明纯正洁净白色，消灭背景蓝色透射干扰 */
           transition: background-color 0.25s ease, box-shadow 0.25s ease;
-          
+
           td {
             border-bottom: 1px solid rgba(86, 114, 190, 0.18) !important;
             border-right: 1px solid rgba(86, 114, 190, 0.1) !important;
@@ -1114,7 +1330,7 @@ html:not(.dark) {
           &.hovered-group-row {
             background: rgba(0, 168, 180, 0.08) !important;
             box-shadow: inset 5px 0 0 #00a8b4, inset 0 0 15px rgba(0, 168, 180, 0.08) !important;
-            
+
             td {
               color: #007780 !important;
               font-weight: 600;
@@ -1130,14 +1346,14 @@ html:not(.dark) {
         background: rgba(255, 255, 255, 0.95) !important;
         border-color: rgba(0, 168, 180, 0.2) !important;
         box-shadow: 6px 0 15px rgba(0, 0, 0, 0.02);
-        
+
         .el-table__fixed-header-wrapper th {
           background: rgba(240, 244, 248, 0.98) !important;
         }
-        
+
         tr {
           background: rgba(255, 255, 255, 0.95) !important;
-          
+
           &:hover,
           &.hovered-group-row {
             background: rgba(0, 168, 180, 0.12) !important;
@@ -1154,18 +1370,18 @@ html:not(.dark) {
       border: 1px solid rgba(0, 168, 180, 0.35) !important;
       border-radius: 8px !important;
       box-shadow: 0 10px 25px rgba(0, 0, 0, 0.08) !important;
-      
+
       .el-menu {
         background: transparent !important;
         border: none !important;
       }
-      
+
       .el-menu-item {
         color: #2c3e50 !important;
         height: 38px !important;
         line-height: 38px !important;
         font-size: 13px !important;
-        
+
         &:hover {
           background: rgba(0, 168, 180, 0.18) !important;
           color: #00a8b4 !important;
@@ -1188,11 +1404,11 @@ html:not(.dark) {
     .selection-info {
       color: #2c3e50 !important; /* 深蓝灰文本 */
       font-weight: 500;
-      
+
       span {
         color: #1e293b !important;
       }
-      
+
       .el-icon {
         color: #00a8b4 !important; /* 极客蓝小图标 */
       }
@@ -1201,7 +1417,7 @@ html:not(.dark) {
       .el-button.is-link {
         color: #007780 !important; /* 稍深的精致青蓝色，确保可读性 */
         font-weight: 700 !important;
-        
+
         &:hover {
           color: #005a61 !important;
           text-decoration: underline;
@@ -1214,13 +1430,13 @@ html:not(.dark) {
       .el-button {
         border-radius: 6px !important;
         font-weight: 600;
-        
+
         // 批量删除
         &.el-button--danger {
           background: #be123c !important;
           border-color: #be123c !important;
           color: #ffffff !important;
-          
+
           &:hover {
             background: #9f1239 !important;
             border-color: #9f1239 !important;
@@ -1232,7 +1448,7 @@ html:not(.dark) {
           background: #007780 !important;
           border-color: #007780 !important;
           color: #ffffff !important;
-          
+
           &:hover {
             background: #005a61 !important;
             border-color: #005a61 !important;
@@ -1262,14 +1478,14 @@ html:not(.dark) {
     border-radius: 8px !important;
     box-shadow: 0 8px 32px rgba(86, 114, 190, 0.08) !important; /* 优雅微影 */
     margin-bottom: 12px !important;
-    
+
     // 全选多选框的文字和图标在白底下的对比度优化
     .tech-checkbox {
       :deep(.el-checkbox__label) {
         color: #1e293b !important; /* 深灰黑色文字，对比度极佳 */
         font-weight: 600 !important;
       }
-      
+
       :deep(.el-checkbox__inner) {
         border-color: rgba(0, 168, 180, 0.4) !important;
         background-color: #ffffff !important;
@@ -1286,7 +1502,7 @@ html:not(.dark) {
     .actions-tips {
       color: #007780 !important; /* 精致青蓝色，获得高对比度 */
       text-shadow: none !important; /* 亮色下移除发光阴影以保持整洁 */
-      
+
       .pulse-dot {
         background: #00a8b4 !important;
         box-shadow: 0 0 0 0 rgba(0, 168, 180, 0.4) !important;
@@ -1310,7 +1526,7 @@ html:not(.dark) {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  
+
   &:hover {
     transform: translateY(-1.5px);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
@@ -1326,7 +1542,7 @@ html:not(.dark) {
       text-shadow: 0 0 6px rgba(0, 255, 196, 0.4);
       box-shadow: 0 0 10px rgba(0, 255, 196, 0.1) !important;
     }
-    
+
     &.el-tag--danger {
       background: rgba(255, 8, 68, 0.1) !important;
       border-color: rgba(255, 8, 68, 0.35) !important;
@@ -1334,7 +1550,7 @@ html:not(.dark) {
       text-shadow: 0 0 6px rgba(255, 8, 68, 0.4);
       box-shadow: 0 0 10px rgba(255, 8, 68, 0.1) !important;
     }
-    
+
     &.el-tag--info {
       background: rgba(0, 242, 254, 0.08) !important;
       border-color: rgba(0, 242, 254, 0.3) !important;
@@ -1352,13 +1568,13 @@ html:not(.dark) {
       border-color: rgba(46, 204, 113, 0.3) !important;
       color: #27ae60 !important;
     }
-    
+
     &.el-tag--danger {
       background: rgba(231, 76, 60, 0.08) !important;
       border-color: rgba(231, 76, 60, 0.3) !important;
       color: #c0392b !important;
     }
-    
+
     &.el-tag--info {
       background: rgba(0, 168, 180, 0.08) !important;
       border-color: rgba(0, 168, 180, 0.3) !important;
@@ -1658,38 +1874,38 @@ html.dark {
       background: rgba(255, 255, 255, 0.03) !important;
       color: #cbd5e1 !important;
       transition: all 0.25s ease !important;
-      
+
       &:hover:not(.is-disabled) {
         background: rgba(255, 255, 255, 0.08) !important;
         border-color: rgba(255, 255, 255, 0.2) !important;
         color: #ffffff !important;
       }
-      
+
       &.el-button--primary {
         background: rgba(0, 242, 254, 0.12) !important;
         border: 1px solid rgba(0, 242, 254, 0.3) !important;
         color: #00f2fe !important;
         text-shadow: 0 0 8px rgba(0, 242, 254, 0.3) !important;
-        
+
         &:hover:not(.is-disabled) {
           background: rgba(0, 242, 254, 0.2) !important;
           border-color: rgba(0, 242, 254, 0.5) !important;
           box-shadow: 0 0 12px rgba(0, 242, 254, 0.3) !important;
           color: #ffffff !important;
         }
-        
+
         &.is-disabled {
           background: rgba(0, 242, 254, 0.04) !important;
           border-color: rgba(0, 242, 254, 0.1) !important;
           color: rgba(0, 242, 254, 0.3) !important;
         }
       }
-      
+
       &.el-button--success {
         background: rgba(0, 255, 196, 0.08) !important;
         border: 1px solid rgba(0, 255, 196, 0.25) !important;
         color: #00ffc4 !important;
-        
+
         &:hover:not(.is-disabled) {
           background: rgba(0, 255, 196, 0.15) !important;
           border-color: rgba(0, 255, 196, 0.4) !important;
@@ -1697,12 +1913,12 @@ html.dark {
           color: #ffffff !important;
         }
       }
-      
+
       &.el-button--warning {
         background: rgba(241, 196, 15, 0.08) !important;
         border: 1px solid rgba(241, 196, 15, 0.25) !important;
         color: #f1c40f !important;
-        
+
         &:hover:not(.is-disabled) {
           background: rgba(241, 196, 15, 0.15) !important;
           border-color: rgba(241, 196, 15, 0.4) !important;
@@ -1710,12 +1926,12 @@ html.dark {
           color: #ffffff !important;
         }
       }
-      
+
       &.el-button--danger {
         background: rgba(255, 8, 68, 0.08) !important;
         border: 1px solid rgba(255, 8, 68, 0.25) !important;
         color: #ff0844 !important;
-        
+
         &:hover:not(.is-disabled) {
           background: rgba(255, 8, 68, 0.15) !important;
           border-color: rgba(255, 8, 68, 0.4) !important;
@@ -1730,15 +1946,15 @@ html.dark {
   .el-empty {
     padding: 30px 0 !important;
     background: transparent !important;
-    
+
     .el-empty__image {
       /* 给 SVG 添加极其轻柔的滤镜，使其在深色模式下呈现柔和的蓝光/暗光质感，消灭刺眼白块 */
       filter: invert(0.9) hue-rotate(180deg) opacity(0.65) !important;
     }
-    
+
     .el-empty__description {
       margin-top: 12px !important;
-      
+
       p {
         color: rgba(255, 255, 255, 0.45) !important;
         font-size: 13px !important;
@@ -1761,7 +1977,7 @@ html:not(.dark) {
       color: #334155 !important;
       transition: all 0.25s cubic-bezier(0.25, 0.8, 0.25, 1) !important;
       font-weight: 600 !important;
-      
+
       &:hover:not(.is-disabled) {
         background: rgba(255, 255, 255, 0.9) !important;
         border-color: rgba(86, 114, 190, 0.35) !important;
@@ -1769,35 +1985,35 @@ html:not(.dark) {
         transform: translateY(-1px);
         box-shadow: 0 4px 12px rgba(86, 114, 190, 0.08) !important;
       }
-      
+
       &:active:not(.is-disabled) {
         transform: translateY(1px) scale(0.98);
       }
-      
+
       &.el-button--primary {
         background: rgba(0, 168, 180, 0.06) !important;
         border: 1px solid rgba(0, 168, 180, 0.28) !important;
         color: #007780 !important;
-        
+
         &:hover:not(.is-disabled) {
           background: rgba(0, 168, 180, 0.15) !important;
           border-color: rgba(0, 168, 180, 0.5) !important;
           box-shadow: 0 4px 12px rgba(0, 168, 180, 0.15) !important;
           color: #005a61 !important;
         }
-        
+
         &.is-disabled {
           background: rgba(0, 168, 180, 0.02) !important;
           border-color: rgba(0, 168, 180, 0.1) !important;
           color: rgba(0, 168, 180, 0.3) !important;
         }
       }
-      
+
       &.el-button--success {
         background: rgba(46, 204, 113, 0.06) !important;
         border: 1px solid rgba(46, 204, 113, 0.28) !important;
         color: #27ae60 !important;
-        
+
         &:hover:not(.is-disabled) {
           background: rgba(46, 204, 113, 0.15) !important;
           border-color: rgba(46, 204, 113, 0.5) !important;
@@ -1805,12 +2021,12 @@ html:not(.dark) {
           color: #1e8449 !important;
         }
       }
-      
+
       &.el-button--warning {
         background: rgba(230, 162, 60, 0.06) !important;
         border: 1px solid rgba(230, 162, 60, 0.28) !important;
         color: #d97706 !important;
-        
+
         &:hover:not(.is-disabled) {
           background: rgba(230, 162, 60, 0.15) !important;
           border-color: rgba(230, 162, 60, 0.5) !important;
@@ -1818,12 +2034,12 @@ html:not(.dark) {
           color: #b45309 !important;
         }
       }
-      
+
       &.el-button--danger {
         background: rgba(231, 76, 60, 0.06) !important;
         border: 1px solid rgba(231, 76, 60, 0.28) !important;
         color: #c0392b !important;
-        
+
         &:hover:not(.is-disabled) {
           background: rgba(231, 76, 60, 0.15) !important;
           border-color: rgba(231, 76, 60, 0.5) !important;
@@ -1831,12 +2047,12 @@ html:not(.dark) {
           color: #962d22 !important;
         }
       }
-      
+
       &.el-button--info {
         background: rgba(127, 140, 141, 0.06) !important;
         border: 1px solid rgba(127, 140, 141, 0.28) !important;
         color: #7f8c8d !important;
-        
+
         &:hover:not(.is-disabled) {
           background: rgba(127, 140, 141, 0.15) !important;
           border-color: rgba(127, 140, 141, 0.5) !important;

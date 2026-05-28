@@ -5,13 +5,13 @@
       <div class="control-center-panel">
         <!-- 第一行：工具与操作控制栏 -->
         <div class="toolbar-row">
-          
+
           <!-- 左侧区：控制中心标题、表格模式切换、展开筛选 -->
           <div class="toolbar-left">
             <span class="panel-title">
               <el-icon><Setting /></el-icon>控制中心
             </span>
-            
+
             <!-- 表格模式/卡片模式选择器 -->
             <el-radio-group v-model="viewMode" size="small" class="view-mode-selector mobile-responsive">
               <el-radio-button value="table">
@@ -21,15 +21,15 @@
                 <el-icon><CreditCard /></el-icon>卡片
               </el-radio-button>
             </el-radio-group>
-            
+
             <div class="divider-line"></div>
-            
+
             <!-- 筛选开关与重置 -->
             <el-button-group class="filter-btn-group mobile-responsive">
-              <el-button 
-                type="primary" 
+              <el-button
+                type="primary"
                 :plain="isSearchCollapsed"
-                size="small" 
+                size="small"
                 @click="isSearchCollapsed = !isSearchCollapsed"
               >
                 <el-icon><Filter v-if="isSearchCollapsed" /><ArrowUp v-else /></el-icon>
@@ -39,9 +39,9 @@
                 重置
               </el-button>
             </el-button-group>
-            
+
             <div class="divider-line"></div>
-            
+
             <!-- 全局万能搜索框 -->
             <div class="omni-search-box mobile-responsive">
               <el-input
@@ -57,14 +57,28 @@
               </el-input>
             </div>
           </div>
-          
+
           <!-- 中间区：云同步小药丸胶囊 -->
           <div class="toolbar-center">
-            <div class="sync-status-pill" :class="`is-${syncStatus.type || 'info'}`" :title="syncStatus.message">
-              <span class="sync-state">{{ syncStateText }}</span>
-              <span v-if="syncLastTimeText" class="sync-meta">{{ syncLastTimeText }}</span>
-              <span v-if="syncCountdownText" class="sync-meta">{{ syncCountdownText }}</span>
-            </div>
+            <el-tooltip placement="bottom" effect="dark" :show-after="100" popper-class="sync-status-tooltip-popper">
+              <template #content>
+                <div class="sync-tooltip-content" style="font-size: 12px; line-height: 1.6; padding: 4px; color: #ffffff !important;">
+                  <div style="font-weight: bold; margin-bottom: 6px; display: flex; align-items: center; gap: 6px; color: #ffffff !important;">
+                    <span class="sync-status-dot-tooltip" :class="`is-${syncStatus.type || 'info'}`" style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background-color: currentColor;"></span>
+                    <span style="color: #ffffff !important;">云同步状态：{{ syncStateText }}</span>
+                  </div>
+                  <div v-if="syncLastTimeText" style="margin-bottom: 2px; color: rgba(255, 255, 255, 0.95) !important;">{{ syncLastTimeText }}</div>
+                  <div v-if="syncCountdownText" style="margin-bottom: 2px; color: rgba(255, 255, 255, 0.95) !important;">{{ syncCountdownText }}</div>
+                  <div v-if="syncStatus.message" style="margin-top: 6px; border-top: 1px solid rgba(255,255,255,0.15); padding-top: 4px; color: rgba(255, 255, 255, 0.75) !important; max-width: 280px; word-break: break-all;">
+                    {{ syncStatus.message }}
+                  </div>
+                </div>
+              </template>
+              <div class="sync-status-pill" :class="`is-${syncStatus.type || 'info'}`">
+                <span class="sync-status-dot"></span>
+                <span class="sync-state">{{ syncStateText }}</span>
+              </div>
+            </el-tooltip>
             <el-button
               class="sync-now-button"
               type="primary"
@@ -76,7 +90,7 @@
               立即同步
             </el-button>
           </div>
-          
+
           <!-- 右侧区：常用操作按钮组、主题与安全锁胶囊 -->
           <div class="toolbar-right">
             <el-button-group class="button-group mobile-responsive">
@@ -115,7 +129,7 @@
                   <el-dropdown-item command="annualFeeRemind" class="mobile-only-menu-item">
                     <el-icon><Calendar /></el-icon>年费提醒
                   </el-dropdown-item>
-                  
+
                   <el-dropdown-item command="cloudSettings">
                     <el-icon><Connection /></el-icon>云同步设置
                   </el-dropdown-item>
@@ -161,7 +175,7 @@
               </el-button>
             </div>
           </div>
-          
+
         </div>
 
         <!-- 第二行：可折叠展示的纯无边界筛选表单 -->
@@ -191,19 +205,19 @@
       />
 
       <Transition name="view-fade" mode="out-in">
-        <CreditCardTable 
+        <CreditCardTable
           v-if="viewMode === 'table'"
-          :table-data="tableData" 
-          :visible-columns="visibleColumns" 
+          :table-data="tableData"
+          :visible-columns="visibleColumns"
           :selected-rows="selectedRows"
           @edit="editCreditCard"
-          @delete="deleteCard" 
-          @card-number-visibility="handleCardNumberVisibility" 
+          @delete="deleteCard"
+          @card-number-visibility="handleCardNumberVisibility"
           @cvv-visibility="handleCvvVisibility"
-          @view-details="viewDetails" 
-          @annual-fee-qualified="setAnnualFeeQualified" 
+          @view-details="viewDetails"
+          @annual-fee-qualified="setAnnualFeeQualified"
           @selection-change="handleSelectionChange"
-          :row-class-name="getRowClassName" 
+          :row-class-name="getRowClassName"
           ref="creditCardTableRef"
         />
         <CreditCardCardList
@@ -245,9 +259,9 @@
       <WebDAVConfigDialog ref="webDAVConfig" />
       <BackupDialog ref="backup" @update="handleBackupUpdate" @showConfig="showWebDAVConfig" @publishV3="publishCurrentV3Snapshot" />
       <LocalBackupDialog v-model="localBackupVisible" @restore="handleLocalBackupRestore" ref="localBackup" />
-      
+
       <!-- 全局加载覆盖层 -->
-      <LoadingOverlay 
+      <LoadingOverlay
         :visible="loadingState.visible"
         :text="loadingState.text"
         :progress="loadingState.progress"
@@ -255,22 +269,22 @@
       />
     </div>
         <!-- 安全功能组件 -->
-        <PasswordSetup 
-      v-model="showPasswordSetup" 
+        <PasswordSetup
+      v-model="showPasswordSetup"
       @password-set="handlePasswordSet"
     />
-    
-    <PasswordVerify 
-      v-model="showPasswordVerify" 
+
+    <PasswordVerify
+      v-model="showPasswordVerify"
       @verified="handlePasswordVerified"
       @forgot-password="showForgotPasswordDialog = true"
     />
-    
+
     <ForgotPassword
       v-model="showForgotPasswordDialog"
       @option-selected="handleForgotPasswordOption"
     />
-    
+
     <PasswordRecovery
       v-model="showPasswordRecovery"
       @recovery-success="handleRecoverySuccess"
@@ -371,6 +385,8 @@ const creditCardCardListRef = ref(null)
 const viewMode = ref(localStorage.getItem('creditCardViewMode') || 'table')
 watch(viewMode, (newValue) => {
   localStorage.setItem('creditCardViewMode', newValue)
+  // 视图切换时，自动清除所有批量勾选状态，防范多视图数据和渲染不同步的 Bug
+  clearSelection()
 })
 
 const formatDuration = (milliseconds) => {
@@ -566,28 +582,28 @@ const debouncedSearchForm = useDebouncedRef(searchForm, 300)
 
 const tableData = computed(() => {
   const query = debouncedQuickSearchQuery.value ? debouncedQuickSearchQuery.value.trim().toLowerCase() : ''
-  
+
   let filtered = []
   if (query) {
     // 存在万能检索条件时：对卡片所有相关字段执行全局模糊检索
     filtered = cardData.value.filter(card => {
       const bankMatch = card.bank && card.bank.toLowerCase().includes(query)
       const aliasMatch = card.alias && card.alias.toLowerCase().includes(query)
-      
+
       // 卡号去除多余的分隔符进行容错检索
       const cleanQuery = query.replace(/[\s-]/g, '')
       const cleanCardNumber = card.cardNumber ? card.cardNumber.replace(/[\s-]/g, '').toLowerCase() : ''
       const cardNumberMatch = cleanCardNumber.includes(cleanQuery)
-      
+
       const levelMatch = card.level && card.level.toLowerCase().includes(query)
       const typeMatch = card.type && card.type.toLowerCase().includes(query)
       const countryMatch = card.country && card.country.toLowerCase().includes(query)
       const equityMatch = card.equity && card.equity.toLowerCase().includes(query)
       const remarkMatch = card.remark && card.remark.toLowerCase().includes(query)
-      
+
       // 额度检索
       const limitMatch = card.limit && card.limit.toString().includes(query)
-      
+
       return bankMatch || aliasMatch || cardNumberMatch || levelMatch || typeMatch || countryMatch || equityMatch || remarkMatch || limitMatch
     })
   } else {
@@ -595,52 +611,52 @@ const tableData = computed(() => {
     const form = debouncedSearchForm.value
     filtered = cardData.value.filter(card => {
       // 币种匹配
-      const matchType = !form.type || 
+      const matchType = !form.type ||
                        (card.type && (form.type.includes(card.type) ||
                        card.type.includes(form.type)));
-      
+
       // 银行匹配
-      const matchBank = !form.bank || 
+      const matchBank = !form.bank ||
                        (card.bank && (form.bank.includes(card.bank) ||
                        card.bank.includes(form.bank)));
-      
+
       // 卡片等级匹配
-      const matchLevel = !form.level || 
+      const matchLevel = !form.level ||
                         (card.level && (form.level.includes(card.level) ||
                         card.level.includes(form.level)));
-      
+
       // 年费达标状态匹配
-      const matchStatus = !form.isQualified || 
-                         form.isQualified.length === 0 || 
+      const matchStatus = !form.isQualified ||
+                         form.isQualified.length === 0 ||
                          form.isQualified.includes(card.isQualified);
-      
+
       // 别名搜索
-      const matchAlias = !form.alias || 
+      const matchAlias = !form.alias ||
                         (card.alias && card.alias.toLowerCase().includes(form.alias.toLowerCase()));
-      
+
       // 国家匹配
-      const matchCountry = !form.country || 
+      const matchCountry = !form.country ||
                           (card.country && (form.country.includes(card.country) ||
                           card.country.includes(form.country)));
-      
+
       // 卡号匹配 - 去除空格和其他格式字符进行匹配
-      const matchCardNumber = !form.cardNumber || 
-                             (card.cardNumber && 
+      const matchCardNumber = !form.cardNumber ||
+                             (card.cardNumber &&
                               card.cardNumber.replace(/[\s-]/g, '').includes(form.cardNumber.replace(/[\s-]/g, '')));
-      
+
       // 额度匹配
-      const matchLimit = !form.limit || 
+      const matchLimit = !form.limit ||
                         (card.limit && card.limit.toString().includes(form.limit));
-      
+
       // 权益匹配
-      const matchEquity = !form.equity || 
+      const matchEquity = !form.equity ||
                          (card.equity && card.equity.toLowerCase().includes(form.equity.toLowerCase()));
-      
+
       // 备注匹配
-      const matchRemark = !form.remark || 
+      const matchRemark = !form.remark ||
                          (card.remark && card.remark.toLowerCase().includes(form.remark.toLowerCase()));
-      
-      return matchType && matchBank && matchLevel && matchStatus && matchAlias && 
+
+      return matchType && matchBank && matchLevel && matchStatus && matchAlias &&
              matchCountry && matchCardNumber && matchLimit && matchEquity && matchRemark;
     });
   }
@@ -650,13 +666,13 @@ const tableData = computed(() => {
     // 首先按国家排序
     const countryCompare = (a.country || '').localeCompare(b.country || '', 'zh-CN');
     if (countryCompare !== 0) return countryCompare;
-    
+
     // 然后按银行排序（去除括号部分）
     const bankA = (a.bank || '').replace(/\(.*?\)/g, "").trim();
     const bankB = (b.bank || '').replace(/\(.*?\)/g, "").trim();
     const bankCompare = bankA.localeCompare(bankB, 'zh-CN');
     if (bankCompare !== 0) return bankCompare;
-    
+
     // 最后按别名排序
     return (a.alias || '').localeCompare(b.alias || '', 'zh-CN');
   });
@@ -666,31 +682,31 @@ const tableData = computed(() => {
   let currentCountry = null;
   let currentBank = null;
   let currentSharedLimit = null;
-  
+
   // 第一遍遍历，计算每个分组的行数
   const countryGroups = new Map();
   const bankGroups = new Map();
   const sharedLimitGroups = new Map();
   const sharedLastTimeGroups = new Map();
-  
+
   sorted.forEach(card => {
     const country = normalizeCountryValue(card.country || '');
     const bank = normalizeBankValue(card.bank || '');
     const countryBankKey = `${country}-${bank}`;
     const sharedLimitKey = card.isSharedLimit ? `${country}-${bank}-shared` : `${card.id}-individual`;
-    
+
     // 统计国家分组
     if (!countryGroups.has(country)) {
       countryGroups.set(country, 0);
     }
     countryGroups.set(country, countryGroups.get(country) + 1);
-    
+
     // 统计银行分组
     if (!bankGroups.has(countryBankKey)) {
       bankGroups.set(countryBankKey, 0);
     }
     bankGroups.set(countryBankKey, bankGroups.get(countryBankKey) + 1);
-    
+
     // 统计额度分组（只有共享额度的才合并）
     if (card.isSharedLimit) {
       if (!sharedLimitGroups.has(sharedLimitKey)) {
@@ -704,16 +720,16 @@ const tableData = computed(() => {
       sharedLastTimeGroups.set(sharedLimitKey, sharedLastTimeGroups.get(sharedLimitKey) + 1);
     }
   });
-  
+
   // 第二遍遍历，生成显示数据
   sorted.forEach((card, index) => {
     const country = normalizeCountryValue(card.country || '');
     const bank = normalizeBankValue(card.bank || '');
     const countryBankKey = `${country}-${bank}`;
     const sharedLimitKey = card.isSharedLimit ? `${country}-${bank}-shared` : `${card.id}-individual`;
-    
+
     const processedCard = { ...card };
-    
+
     // 处理国家列合并
     if (country !== currentCountry) {
       currentCountry = country;
@@ -723,7 +739,7 @@ const tableData = computed(() => {
       processedCard.countryRowSpan = 0;
       processedCard.showCountry = false;
     }
-    
+
     // 处理银行列合并
     if (countryBankKey !== currentBank) {
       currentBank = countryBankKey;
@@ -733,7 +749,7 @@ const tableData = computed(() => {
       processedCard.bankRowSpan = 0;
       processedCard.showBank = false;
     }
-    
+
     // 处理额度列合并（只有共享额度的才合并）
     if (card.isSharedLimit) {
       if (sharedLimitKey !== currentSharedLimit) {
@@ -756,7 +772,7 @@ const tableData = computed(() => {
       processedCard.showLastTime = true;
       currentSharedLimit = null; // 重置共享额度状态
     }
-    
+
     grouped.push(processedCard);
   });
 
@@ -802,7 +818,7 @@ onMounted(async () => {
   }, 1000)
 
   showLoading('正在初始化应用...')
-  
+
   try {
     // 加载列配置
     const storedColumns = getTableColumns()
@@ -815,7 +831,7 @@ onMounted(async () => {
     const result = CardDataStorage.getCardData(true)
     const migrationInfo = result.migrationInfo
     cardData.value = result.data.map(card => normalizeCardTimeFields(card, { fillLastModifyTime: true }))
-    
+
     // 检查并为没有 ID 的卡片生成唯一 ID
     let hasChanges = false
     cardData.value.forEach(card => {
@@ -824,7 +840,7 @@ onMounted(async () => {
         hasChanges = true
       }
     })
-    
+
     // 如果有卡片被添加了 ID，更新本地存储
     if (hasChanges) {
       saveCardData(cardData.value)
@@ -841,7 +857,7 @@ onMounted(async () => {
     )
 
     // 判断应用是否处于锁定状态，锁定时跳过弹窗类检测
-    const appIsLocked = PasswordManager.hasPassword() && 
+    const appIsLocked = PasswordManager.hasPassword() &&
       (PasswordManager.isAppLocked() || PasswordManager.shouldAutoLock())
 
     if (appIsLocked) {
@@ -853,11 +869,11 @@ onMounted(async () => {
         // 检查年费达标状态
         showLoading('正在检查年费状态...')
         await checkAnnualFeeQualified()
-        
+
         // 自动检查年费情况
         await manualCheckAnnualFees()
       }
-      
+
       // 显示迁移报告（需要在所有loading完成后）
       hideLoading()
       await nextTick()
@@ -959,21 +975,21 @@ const openTableCustom = () => {
 
 const confirmDelete = async () => {
   if (!cardToDelete.value.id) return
-  
+
   showLoading('正在删除信用卡...')
-  
+
   try {
     // 模拟删除延时
     await new Promise(resolve => setTimeout(resolve, 300))
-    
+
     const index = cardData.value.findIndex(item => item.id === cardToDelete.value.id)
     if (index > -1) {
       const cardName = cardToDelete.value.cardName
       cardData.value.splice(index, 1)
       await persistSyncedMutation({ deletedCardIds: [cardToDelete.value.id] })
-      
+
       deleteDialogVisible.value = false
-      
+
       // 更好的删除反馈
       ElMessage({
         message: `信用卡 "${cardName}" 已删除`,
@@ -1001,15 +1017,15 @@ const editCreditCard = (row) => {
 
 const confirmAdd = async (data) => {
   showLoading(status.value === 'add' ? '正在添加信用卡...' : '正在保存修改...')
-  
+
   try {
     // 模拟保存延时
     await new Promise(resolve => setTimeout(resolve, 500))
-    
+
     creditCardData.value.dialogFormVisible = false
     // 添加最后修改时间
     data.lastModifyTime = getCurrentTimestamp()
-    
+
     if (status.value === 'add') {
       cardData.value.push(data)
     } else {
@@ -1018,13 +1034,13 @@ const confirmAdd = async (data) => {
         cardData.value[index] = data
       }
     }
-    
+
     // 如果是共享额度，同步更新所有同银行共享额度的卡片
     if (data.isSharedLimit && data.bank && data.country) {
       const currentBank = (data.bank || '').replace(/\(.*?\)/g, "").trim()
       cardData.value.forEach((card, idx) => {
-        if (card.id !== data.id && 
-            card.isSharedLimit === true && 
+        if (card.id !== data.id &&
+            card.isSharedLimit === true &&
             card.country === data.country &&
             (card.bank || '').replace(/\(.*?\)/g, "").trim() === currentBank) {
           cardData.value[idx].limit = data.limit
@@ -1034,9 +1050,9 @@ const confirmAdd = async (data) => {
         }
       })
     }
-    
+
     await persistSyncedMutation()
-    
+
     // 更好的成功反馈
     ElMessage({
       message: status.value === 'add' ? '信用卡添加成功！' : '信用卡信息更新成功！',
@@ -1147,7 +1163,7 @@ const manualCheckAnnualFees = async () => {
         unqualifiedCards.push({...card, diffDays})
       }
     }
-    
+
     // 检查年费时间
     if (!card.nextAnnualFeeCollectionTime || card.isQualified === '3') return
 
@@ -1281,16 +1297,16 @@ const handleBatchExport = (rows) => {
       const { ...exportData } = row
       return exportData
     })
-    
+
     const encryptedData = encryptData(JSON.stringify(dataToExport))
     const blob = new Blob([encryptedData], { type: 'text/plain' })
     const url = URL.createObjectURL(blob)
-    
+
     const link = document.createElement('a')
     link.href = url
     link.download = `credit_cards_batch_${getCurrentTimeFormatted()}.dat`
     link.click()
-    
+
     URL.revokeObjectURL(url)
     ElMessage.success(`成功导出 ${rows.length} 张信用卡数据`)
   } catch (error) {
@@ -1378,13 +1394,13 @@ const getRowClassName = ({ row }) => {
   if (row.isQualified === '2') {
     return 'warning-row'
   }
-  
+
   // 如果有下次年费收取时间且不是终免年费
   if (row.nextAnnualFeeCollectionTime && row.isQualified !== '3') {
     const now = new Date()
     const dueDate = new Date(row.nextAnnualFeeCollectionTime)
     const diffDays = Math.ceil((dueDate - now) / (1000 * 60 * 60 * 24))
-    
+
     // 如果已超过年费收取期限，显示危险样式（红色）
     if (diffDays <= 0) {
       return 'danger-row'
@@ -1394,7 +1410,7 @@ const getRowClassName = ({ row }) => {
       return 'reminder-row'
     }
   }
-  
+
   return ''
 }
 
@@ -1414,12 +1430,12 @@ const showWebDAVConfig = () => {
 // 显示数据迁移报告
 const showMigrationReport = async (migrationInfo) => {
   if (!migrationInfo) return
-  
+
   // 判断是否为测试环境（通过 hostname 或环境变量）
-  const isTestEnv = window.location.hostname === 'localhost' || 
+  const isTestEnv = window.location.hostname === 'localhost' ||
                      window.location.hostname === '127.0.0.1' ||
                      import.meta.env.DEV
-  
+
   // 如果没有迁移，只在测试环境下提示
   if (!migrationInfo.migrated) {
     if (isTestEnv) {
@@ -1432,7 +1448,7 @@ const showMigrationReport = async (migrationInfo) => {
     }
     return
   }
-  
+
   // 有迁移，显示详细弹窗
   const summary = migrationInfo.summary
   const details = migrationInfo.details || []
@@ -1450,27 +1466,27 @@ const showMigrationReport = async (migrationInfo) => {
     }
     return
   }
-  
+
   // 构建详细的HTML内容
   let htmlContent = '<div style="max-height: 70vh; overflow-y: auto;">'
-  
+
   // 概览部分
   htmlContent += '<div style="margin-bottom: 20px; padding: 15px; background: #f0f9ff; border-radius: 8px; border-left: 4px solid #3b82f6;">'
   htmlContent += '<h3 style="margin: 0 0 10px 0; color: #1e40af;">📊 迁移概览</h3>'
   htmlContent += `<p style="margin: 5px 0;"><strong>总卡片数:</strong> ${summary.total}</p>`
   htmlContent += `<p style="margin: 5px 0;"><strong>需要迁移:</strong> ${summary.migrated}</p>`
   htmlContent += `<p style="margin: 5px 0;"><strong>成功迁移:</strong> <span style="color: #16a34a;">${summary.success}</span></p>`
-  
+
   if (summary.errors > 0) {
     htmlContent += `<p style="margin: 5px 0;"><strong>失败数量:</strong> <span style="color: #dc2626;">${summary.errors}</span></p>`
   }
   htmlContent += '</div>'
-  
+
   // 失败的卡片
   if (summary.errors > 0 && summary.errorDetails && summary.errorDetails.length > 0) {
     htmlContent += '<div style="margin-bottom: 20px;">'
     htmlContent += '<h3 style="color: #dc2626; margin-bottom: 10px;">❌ 迁移失败的卡片</h3>'
-    
+
     summary.errorDetails.forEach((error, index) => {
       htmlContent += '<div style="margin-bottom: 10px; padding: 12px; background: #fef2f2; border-radius: 6px; border-left: 4px solid #dc2626;">'
       htmlContent += `<p style="margin: 0 0 5px 0; font-weight: bold;">卡片 #${index + 1}</p>`
@@ -1483,20 +1499,20 @@ const showMigrationReport = async (migrationInfo) => {
     })
     htmlContent += '</div>'
   }
-  
+
   // 成功迁移的卡片详情（仅测试环境显示）
   if (isTestEnv && details.length > 0) {
     htmlContent += '<div style="margin-bottom: 20px;">'
     htmlContent += '<h3 style="color: #16a34a; margin-bottom: 10px;">✅ 成功迁移的卡片详情</h3>'
     htmlContent += '<p style="color: #666; font-size: 12px; margin-bottom: 10px;">以下列出所有字段变更的详细信息</p>'
-    
+
     details.forEach((detail, idx) => {
       const cardInfo = detail.cardInfo
       const changes = detail.changes
-      
+
       htmlContent += '<div style="margin-bottom: 15px; padding: 12px; background: #f0fdf4; border-radius: 6px; border-left: 4px solid #16a34a;">'
       htmlContent += `<h4 style="margin: 0 0 10px 0; color: #15803d;">卡片 #${idx + 1}</h4>`
-      
+
       // 卡片基本信息
       htmlContent += '<div style="margin-bottom: 10px; padding: 8px; background: white; border-radius: 4px;">'
       if (cardInfo.bank) {
@@ -1510,29 +1526,29 @@ const showMigrationReport = async (migrationInfo) => {
         htmlContent += `<p style="margin: 3px 0; font-size: 13px;"><strong>卡号:</strong> ${masked}</p>`
       }
       htmlContent += '</div>'
-      
+
       // 字段变更详情
       htmlContent += '<div style="margin-top: 10px;">'
       htmlContent += `<p style="margin: 0 0 8px 0; font-weight: bold; color: #15803d;">变更字段 (${changes.length}个):</p>`
-      
+
       changes.forEach((change, changeIdx) => {
         htmlContent += '<div style="margin-bottom: 8px; padding: 8px; background: #fefce8; border-radius: 4px; font-size: 12px;">'
         htmlContent += `<p style="margin: 0 0 4px 0;"><strong>字段:</strong> <code style="background: #fef9c3; padding: 2px 6px; border-radius: 3px;">${change.field}</code></p>`
-        
+
         // 显示旧值
         if (change.oldValue === undefined) {
           htmlContent += '<p style="margin: 4px 0; color: #666;">旧值: <span style="color: #999; font-style: italic;">未定义</span></p>'
         } else {
           htmlContent += `<p style="margin: 4px 0; color: #666;">旧值: <code>${JSON.stringify(change.oldValue)}</code></p>`
         }
-        
+
         // 显示新值
         if (change.newValue === undefined) {
           htmlContent += '<p style="margin: 4px 0; color: #666;">新值: <span style="color: #999; font-style: italic;">已删除</span></p>'
         } else {
           htmlContent += `<p style="margin: 4px 0; color: #16a34a;">新值: <code>${JSON.stringify(change.newValue)}</code></p>`
         }
-        
+
         htmlContent += `<p style="margin: 4px 0 0 0; color: #854d0e; font-style: italic;">原因: ${change.reason}</p>`
         htmlContent += '</div>'
       })
@@ -1544,11 +1560,11 @@ const showMigrationReport = async (migrationInfo) => {
     // 生产环境只显示简要信息
     htmlContent += '<div style="margin-bottom: 20px;">'
     htmlContent += '<h3 style="color: #16a34a; margin-bottom: 10px;">✅ 成功迁移的卡片</h3>'
-    
+
     details.forEach((detail, idx) => {
       const cardInfo = detail.cardInfo
       const changes = detail.changes
-      
+
       htmlContent += '<div style="margin-bottom: 10px; padding: 10px; background: #f0fdf4; border-radius: 6px;">'
       htmlContent += `<p style="margin: 0; font-weight: bold;">卡片 #${idx + 1}</p>`
       if (cardInfo.bank) {
@@ -1561,9 +1577,9 @@ const showMigrationReport = async (migrationInfo) => {
     })
     htmlContent += '</div>'
   }
-  
+
   htmlContent += '</div>'
-  
+
   // 显示弹窗
   try {
     await ElMessageBox.alert(
@@ -1617,7 +1633,7 @@ const autoBackup = () => {
     data: JSON.parse(JSON.stringify(cardData.value)),
     status: 'success'
   }
-  
+
   backups.unshift(newBackup)
   // 只保留最近备份
   const updatedBackups = backups.slice(0, BACKUP_CONSTANTS.MAX_BACKUP_COUNT)
@@ -1750,7 +1766,7 @@ const handleResetAllData = async () => {
         zIndex: 200010
       }
     )
-    
+
     const success = PasswordManager.clearAllAppData()
     if (success) {
       ElMessage.success({ message: '数据已清除，请设置新密码', zIndex: 200010 })
@@ -1851,10 +1867,10 @@ const exportDesensitizedData = async () => {
     }
 
     const jsonStr = JSON.stringify(exportPayload, null, 2)
-    
+
     // 复制到剪贴板
     await navigator.clipboard.writeText(jsonStr)
-    
+
     ElMessage.success(`已复制 ${desensitizedData.length} 张卡片的脱敏数据到剪贴板`)
   } catch (error) {
     console.error('导出脱敏数据失败:', error)
@@ -1948,7 +1964,7 @@ onMounted(() => {
   padding: 4px 8px;
   border-radius: 30px;
   transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
-  
+
   /* 默认亮色模式：洁白轻透太空舱质感 */
   background: rgba(255, 255, 255, 0.88) !important;
   border: 1px solid rgba(86, 114, 190, 0.22) !important;
@@ -1993,7 +2009,7 @@ onMounted(() => {
   .theme-toggle-btn {
     width: 28px !important;
     height: 28px !important;
-    
+
     :deep(.el-icon) {
       font-size: 12px !important;
     }
@@ -2165,22 +2181,22 @@ html.dark .sync-status-bar {
 /* 迁移报告弹窗样式 */
 :deep(.migration-report-dialog) {
   max-width: 900px;
-  
+
   .el-message-box__header {
     padding: 20px 20px 15px;
   }
-  
+
   .el-message-box__title {
     font-size: 20px;
     font-weight: 600;
   }
-  
+
   .el-message-box__content {
     padding: 10px 20px;
     max-height: calc(80vh - 120px);
     overflow-y: auto;
   }
-  
+
   code {
     background: #f1f5f9;
     padding: 2px 6px;

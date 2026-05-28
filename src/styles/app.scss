@@ -195,7 +195,7 @@ body.dark,
         display: inline-flex;
         align-items: center;
         vertical-align: middle;
-        
+
         .el-radio-button__inner {
           height: 28px !important;
           padding: 0 12px !important;
@@ -207,7 +207,7 @@ body.dark,
           line-height: 1 !important;
           box-sizing: border-box !important;
           vertical-align: middle !important;
-          
+
           .el-icon {
             margin: 0 !important;
             font-size: 14px !important;
@@ -217,7 +217,7 @@ body.dark,
             transform: none !important;
             top: auto !important;
           }
-          
+
           /* 确保按钮内的文字也是 inline-flex 并垂直居中 */
           span {
             display: inline-flex !important;
@@ -226,17 +226,19 @@ body.dark,
           }
         }
       }
-      
+
       /* ==========================================
          ⚡ 筛选与重置按钮组 (Button Group) 极清边界对齐补丁
          ========================================== */
       .filter-btn-group {
         display: inline-flex;
         align-items: center;
+        height: 28px;
         vertical-align: middle;
-        
+        line-height: 1;
+
         .el-button {
-          height: 28px !important;
+          height: 100% !important;
           padding: 0 12px !important;
           display: inline-flex !important;
           align-items: center !important;
@@ -245,13 +247,29 @@ body.dark,
           line-height: 1 !important;
           box-sizing: border-box !important;
           margin: 0 !important;
+          border-width: 1px !important;
           vertical-align: middle !important;
-          
-          .el-icon {
-            font-size: 13px !important;
-            margin-right: 4px !important;
+          position: relative !important;
+          top: 0 !important;
+
+          > span {
             display: inline-flex !important;
             align-items: center !important;
+            justify-content: center !important;
+            gap: 4px !important;
+            height: 14px !important;
+            line-height: 14px !important;
+          }
+
+          .el-icon {
+            width: 14px !important;
+            height: 14px !important;
+            font-size: 14px !important;
+            margin-right: 0 !important;
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            line-height: 14px !important;
           }
 
           &:first-child {
@@ -264,6 +282,7 @@ body.dark,
             border-top-left-radius: 0 !important;
             border-bottom-left-radius: 0 !important;
             border-left: 1px solid var(--cc-btn-divider) !important;
+            margin-left: 0 !important;
           }
         }
       }
@@ -277,10 +296,10 @@ body.dark,
         width: 250px; /* 舒展优雅的主流宽度 */
         transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
         vertical-align: middle;
-        
+
         .omni-search-input {
           width: 100% !important;
-          
+
           .el-input__wrapper {
             background-color: var(--cc-search-bg, #f1f5f9) !important;
             border: 1px solid var(--cc-search-border, #e2e8f0) !important;
@@ -290,30 +309,30 @@ body.dark,
             height: 28px !important;
             box-sizing: border-box !important;
             transition: all 0.25s ease !important;
-            
+
             &.is-focus {
               background-color: var(--cc-search-bg-focus, #ffffff) !important;
               border-color: var(--cc-search-border-focus, #2563eb) !important;
               box-shadow: 0 0 0 3px var(--cc-search-shadow-focus, rgba(37, 99, 235, 0.12)) !important;
-              
+
               .search-icon {
                 color: var(--cc-search-icon-focus, #2563eb) !important;
                 transform: scale(1.1) rotate(5deg);
               }
             }
-            
+
             .el-input__inner {
               color: var(--cc-title-color) !important;
               font-size: 12px !important;
               height: 26px !important;
               line-height: 26px !important;
-              
+
               &::placeholder {
                 color: var(--cc-search-placeholder, #94a3b8) !important;
                 font-size: 11.5px;
               }
             }
-            
+
             .search-icon {
               color: var(--cc-search-icon, #64748b) !important;
               font-size: 13.5px !important;
@@ -322,11 +341,11 @@ body.dark,
               align-items: center;
               justify-content: center;
             }
-            
+
             .el-input__clear {
               font-size: 13px !important;
               color: var(--cc-search-placeholder, #94a3b8) !important;
-              
+
               &:hover {
                 color: #ef4444 !important;
               }
@@ -349,6 +368,23 @@ body.dark,
         font-weight: 700;
         transition: all 0.25s ease;
         border: 1px solid transparent;
+        cursor: pointer;
+        user-select: none;
+
+        &:hover {
+          transform: translateY(-0.5px);
+          filter: brightness(1.1);
+        }
+
+        .sync-status-dot {
+          width: 6px;
+          height: 6px;
+          border-radius: 50%;
+          display: inline-block;
+          background-color: currentColor;
+          box-shadow: 0 0 5px currentColor;
+          flex-shrink: 0;
+        }
 
         &.is-success {
           background-color: rgba(16, 185, 129, 0.08);
@@ -369,14 +405,6 @@ body.dark,
           background-color: rgba(239, 68, 68, 0.08);
           border-color: rgba(239, 68, 68, 0.25);
           color: #dc2626;
-        }
-
-        .sync-meta {
-          font-size: 10px;
-          opacity: 0.85;
-          border-left: 1px solid rgba(148, 163, 184, 0.35);
-          padding-left: 6px;
-          margin-left: 2px;
         }
       }
 
@@ -422,7 +450,7 @@ body.dark,
             font-size: 15px;
             color: #64748b;
             transition: all 0.25s ease;
-            
+
             &:hover {
               color: #1e293b;
               transform: scale(1.15);
@@ -437,14 +465,14 @@ body.dark,
       margin-top: 4px;
       padding-top: 12px;
       border-top: 1px solid var(--cc-divider-color);
-      
+
       .search-form-clean {
         background: transparent !important;
         border: none !important;
         box-shadow: none !important;
         margin: 0 !important;
         padding: 0 !important;
-        
+
         .form-grid-layout {
           display: grid;
           /* 列宽至少 200px (足够显示完整的占位文字)，并随宽度均分自适应对齐 */
@@ -458,7 +486,7 @@ body.dark,
           display: flex;
           align-items: center;
           width: 100%; /* 占满 grid 单元格 */
-          
+
           .el-form-item__label {
             color: var(--cc-title-color) !important;
             font-weight: 700;
@@ -467,13 +495,13 @@ body.dark,
             text-align: right;
             flex-shrink: 0;
           }
-          
+
           .el-form-item__content {
             margin-left: 0 !important; /* 清除原有左边距 */
             flex: 1;
             min-width: 0;
             display: flex;
-            
+
             .el-select,
             .el-input {
               width: 100% !important;
@@ -637,29 +665,29 @@ body.dark,
   .el-message-box__content {
     padding: 20px;
   }
-  
+
   .el-message-box__container {
     max-height: 500px;
     overflow-y: auto;
   }
-  
+
   ul {
     margin: 0;
     padding: 0;
   }
-  
+
   li {
     transition: transform 0.25s ease, background-color 0.25s ease, border-color 0.25s ease;
   }
-  
+
   li:hover {
     transform: translateX(4px);
   }
-  
+
   :deep(.el-message-box__header) {
     display: none;
   }
-  
+
   :deep(.el-message-box__content) {
     padding-top: 20px;
   }
@@ -671,12 +699,12 @@ body.dark,
     --el-table-tr-bg-color: #fdf6ec;
     background-color: #fdf6ec !important;
   }
-  
+
   &.reminder-row > td {
     --el-table-tr-bg-color: #fefce8;
     background-color: #fefce8 !important;
   }
-  
+
   &.danger-row > td {
     --el-table-tr-bg-color: #fef0f0;
     background-color: #fef0f0 !important;
@@ -688,11 +716,11 @@ body.dark,
   &.warning-row:hover > td {
     background-color: #fdf6ec !important;
   }
-  
+
   &.reminder-row:hover > td {
     background-color: #fefce8 !important;
   }
-  
+
   &.danger-row:hover > td {
     background-color: #fef0f0 !important;
   }
@@ -703,25 +731,25 @@ body.dark,
   .warning-row {
     --el-table-tr-bg-color: #fdf6ec;
     background-color: #fdf6ec;
-    
+
     > td {
       background-color: #fdf6ec !important;
     }
   }
-  
+
   .reminder-row {
     --el-table-tr-bg-color: #fefce8;
     background-color: #fefce8;
-    
+
     > td {
       background-color: #fefce8 !important;
     }
   }
-  
+
   .danger-row {
     --el-table-tr-bg-color: #fef0f0;
     background-color: #fef0f0;
-    
+
     > td {
       background-color: #fef0f0 !important;
     }
@@ -748,7 +776,7 @@ body.dark,
   margin-bottom: 8px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
   transition: background-color 0.25s ease, border-color 0.25s ease, transform 0.25s ease, box-shadow 0.25s ease;
-  
+
   &:hover {
     border-color: #c0c4cc !important;
     background: #ebedf0 !important;
@@ -777,7 +805,7 @@ body.dark,
   .manual-check-section-title {
     font-size: 16px;
     font-weight: bold;
-    
+
     &.unqualified {
       color: #e6a23c !important;
     }
@@ -799,24 +827,24 @@ body.dark,
   box-sizing: border-box;
   transition: background-color 0.25s ease, border-color 0.25s ease, transform 0.25s ease, box-shadow 0.25s ease;
   border: 1px solid transparent;
-  
+
   .manual-check-card-title {
     font-weight: bold;
     font-size: 14px;
     margin-bottom: 4px;
   }
-  
+
   .manual-check-card-desc {
     color: #606266;
     margin-top: 4px;
     font-size: 13px;
   }
-  
+
   &:hover {
     transform: translateY(-2px);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
   }
-  
+
   &.unqualified {
     background: #fdf6ec !important;
     border-color: #faecde !important;
@@ -824,7 +852,7 @@ body.dark,
       color: #e6a23c !important;
     }
   }
-  
+
   &.warning {
     background: #fefce8 !important;
     border-color: #faecc5 !important;
@@ -832,7 +860,7 @@ body.dark,
       color: #e6a23c !important;
     }
   }
-  
+
   &.overdue {
     background: #fef0f0 !important;
     border-color: #fde2e2 !important;
@@ -850,7 +878,7 @@ body.dark,
   margin: 7.5vh auto !important;
   overflow: hidden !important;
   top: 0 !important;
-  
+
   .el-dialog__body {
     flex: 1 !important;
     min-height: 0 !important;
@@ -878,17 +906,17 @@ body.dark,
       .panel-title + .divider-line {
         display: none !important;
       }
-      
+
       /* 2. 缩窄万能检索框的宽度，从 250px 极致瘦身为 130px，依然支持呼吸灯 */
       .omni-search-box {
         width: 130px !important;
-        
+
         .el-input__wrapper .el-input__inner::placeholder {
           font-size: 11px !important;
         }
       }
     }
-    
+
     /* 3. 极速缩容主操作按钮组：仅常驻高频「新增信用卡」，将其余三个按钮（备份、统计、年费）完全隐藏 */
     .toolbar-right {
       .button-group {
@@ -911,6 +939,44 @@ body.dark,
   .main-more-dropdown {
     .mobile-only-menu-item {
       display: flex !important;
+    }
+  }
+}
+
+/* 强制云同步 Tooltip 自定义气泡的高清晰度与超高对比度文字设定，彻底消除外部暗色污染的看不清问题 */
+:global(.el-popper.sync-status-tooltip-popper) {
+  background: rgba(13, 20, 41, 0.96) !important;
+  border: 1px solid rgba(0, 242, 254, 0.4) !important;
+  box-shadow: 0 4px 16px rgba(0, 242, 254, 0.18) !important;
+  padding: 8px 12px !important;
+
+  .el-popper__arrow::before {
+    background: rgba(13, 20, 41, 0.96) !important;
+    border: 1px solid rgba(0, 242, 254, 0.4) !important;
+  }
+
+  .sync-tooltip-content {
+    color: #ffffff !important;
+    font-family: inherit;
+
+    div, span, p {
+      color: #ffffff !important;
+    }
+
+    /* 状态指示小圆点 */
+    .sync-status-dot-tooltip {
+      &.is-success {
+        color: #10b981 !important;
+      }
+      &.is-info {
+        color: #00f2fe !important;
+      }
+      &.is-warning {
+        color: #fbbf24 !important;
+      }
+      &.is-danger {
+        color: #f87171 !important;
+      }
     }
   }
 }

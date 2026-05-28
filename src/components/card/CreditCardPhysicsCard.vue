@@ -1,12 +1,13 @@
 <template>
-  <div 
-    class="perspective-container" 
+  <div
+    class="perspective-container"
     ref="cardContainerRef"
     @mousemove="handleMouseMove"
     @mouseleave="handleMouseLeave"
+    @dblclick.stop="flipCard"
   >
-    <div 
-      class="physics-card-wrapper" 
+    <div
+      class="physics-card-wrapper"
       :class="{ 'is-flipped': isFlipped }"
       :style="cardStyle"
     >
@@ -30,9 +31,9 @@
             <span class="number-segment" v-for="(seg, idx) in formattedCardNumber" :key="idx">
               {{ seg }}
             </span>
-            <el-button 
-              type="primary" 
-              link 
+            <el-button
+              type="primary"
+              link
               @click.stop="toggleCardNumber"
               class="visibility-btn"
             >
@@ -48,7 +49,7 @@
             <span class="value">{{ formatLimit(card.limit) }}</span>
             <span v-if="card.isSharedLimit" class="shared-limit-badge">共享</span>
           </div>
-          
+
           <div class="card-dates">
             <div class="valid-thru">
               <span class="label">VALID THRU</span>
@@ -63,20 +64,6 @@
 
         <!-- 科技感高光遮罩 -->
         <div class="shine-overlay"></div>
-        
-        <!-- 操作小按钮组 -->
-        <div class="card-actions-overlay">
-          <el-tooltip content="翻转查看详情" placement="top">
-            <el-button circle size="small" class="action-btn" @click.stop="flipCard">
-              <el-icon><Refresh /></el-icon>
-            </el-button>
-          </el-tooltip>
-          <el-tooltip content="快捷编辑" placement="top">
-            <el-button circle size="small" class="action-btn" @click.stop="$emit('edit', card)">
-              <el-icon><Edit /></el-icon>
-            </el-button>
-          </el-tooltip>
-        </div>
       </div>
 
       <!-- 背面：科技看板详细信息 -->
@@ -116,7 +103,7 @@
             <el-tag v-if="card.isQualified === '1'" type="success" size="small">已达标</el-tag>
             <el-tag v-else-if="card.isQualified === '2'" type="danger" size="small" class="clickable-tag" @click.stop="setAnnualFeeQualified">未达标 (快捷达标)</el-tag>
             <el-tag v-else-if="card.isQualified === '3'" type="info" size="small">终免年费</el-tag>
-            
+
             <div class="days-remaining" v-if="card.nextAnnualFeeCollectionTime && card.isQualified !== '3'">
               距离收取年费: <span class="days-count">{{ getDaysCount(card.nextAnnualFeeCollectionTime) }}</span> 天
             </div>
@@ -156,7 +143,7 @@
 
 <script setup>
 import { ref, computed } from 'vue'
-import { View, Hide, Refresh, Edit, Star, Notebook, Delete } from '@element-plus/icons-vue'
+import { View, Hide, Refresh, Star, Notebook, Delete } from '@element-plus/icons-vue'
 import { getBankDisplayName } from '@/utils/bankNameFormatter'
 import { getDaysFromNow } from '@/utils/dateCalculator'
 import { ElMessage } from 'element-plus'
@@ -170,9 +157,9 @@ const props = defineProps({
 })
 
 const emit = defineEmits([
-  'edit', 
-  'delete', 
-  'view-details', 
+  'edit',
+  'delete',
+  'view-details',
   'annual-fee-qualified',
   'card-number-visibility',
   'cvv-visibility'
@@ -185,8 +172,6 @@ const cvvVisible = ref(false)
 
 // 3D 鼠标倾斜计算
 const cardContainerRef = ref(null)
-const rotateX = ref(0)
-const rotateY = ref(0)
 const sheenX = ref(0)
 const sheenY = ref(0)
 const isHovering = ref(false)
@@ -218,44 +203,45 @@ const setAnnualFeeQualified = () => {
 const handleMouseMove = (e) => {
   if (!cardContainerRef.value || isFlipped.value) return
   isHovering.value = true
-  
+
   const rect = cardContainerRef.value.getBoundingClientRect()
   const width = rect.width
   const height = rect.height
-  
+
   // 鼠标相对中心点坐标
   const mouseX = e.clientX - rect.left - width / 2
   const mouseY = e.clientY - rect.top - height / 2
-  
-  // 计算最大倾斜 15 度
-  rotateX.value = -(mouseY / (height / 2)) * 12
-  rotateY.value = (mouseX / (width / 2)) * 12
-  
-  // 反光中心点映射
+
+  // 反光中心点映射 (高光跟随鼠标保留)
   sheenX.value = (mouseX / (width / 2)) * 100
   sheenY.value = (mouseY / (height / 2)) * 100
 }
 
 const handleMouseLeave = () => {
   isHovering.value = false
-  rotateX.value = 0
-  rotateY.value = 0
 }
 
-// 计算卡片行内倾斜样式
+// 计算卡片行内倾斜样式 (采用立体 Z 轴凸起，无偏角，支持完美整体平整凸起)
 const cardStyle = computed(() => {
   if (!isHovering.value || isFlipped.value) {
     return {
-      transform: isFlipped.value ? 'rotateY(180deg)' : 'rotateX(0deg) rotateY(0deg)',
-      transition: 'transform 0.5s cubic-bezier(0.25, 0.8, 0.25, 1)'
+      transform: isFlipped.value ? 'rotateY(180deg)' : 'translateZ(0px)',
+      transition: 'transform 0.45s cubic-bezier(0.25, 0.8, 0.25, 1)'
     }
   }
+  // translateZ(45px) 带来极具景深感的向前平行立体拉近凸起，彻底移除 rotateX/rotateY/translateY 动作
+  // 这将实现卡片完美、平整的“整体凸起”浮雕特效，彻底消除某一个角（如左上角）不凸起低陷的视觉问题
   return {
-    transform: `rotateX(${rotateX.value}deg) rotateY(${rotateY.value}deg)`,
+    transform: isFlipped.value ? 'rotateY(180deg) translateZ(45px)' : 'translateZ(45px)',
     '--sheen-x': `${sheenX.value}px`,
     '--sheen-y': `${sheenY.value}px`,
-    transition: 'transform 0.05s ease-out'
+    transition: 'transform 0.3s cubic-bezier(0.25, 0.8, 0.25, 1)'
   }
+})
+
+// 暴露翻转方法供父组件右键联动翻转调用
+defineExpose({
+  flipCard
 })
 
 // 根据等级渲染科技主题类
@@ -275,10 +261,10 @@ const themeClass = computed(() => {
 const formattedCardNumber = computed(() => {
   const num = props.card.cardNumber || ''
   if (!num) return ['****', '****', '****', '****']
-  
+
   const clean = num.replace(/\s/g, '')
   let displayed = clean
-  
+
   if (!cardNumberVisible.value) {
     // 隐藏中间部分，只留首尾各4位
     if (clean.length > 8) {
@@ -290,7 +276,7 @@ const formattedCardNumber = computed(() => {
       displayed = '*'.repeat(clean.length)
     }
   }
-  
+
   // 每 4 位切片分组
   const segments = []
   for (let i = 0; i < displayed.length; i += 4) {
@@ -330,7 +316,7 @@ const calculateInterestFree = (billStr, dueStr) => {
   const bill = parseInt(billStr)
   const due = parseInt(dueStr)
   if (isNaN(bill) || isNaN(due)) return '-'
-  
+
   if (due > bill) {
     return due - bill
   } else {
@@ -343,8 +329,10 @@ const calculateInterestFree = (billStr, dueStr) => {
 <style lang="scss" scoped>
 .perspective-container {
   perspective: 1200px;
-  transform-style: preserve-3d;
   width: 100%;
+  height: 230px;
+  position: relative;
+  isolation: isolate;
 }
 
 .physics-card-wrapper {
@@ -352,11 +340,14 @@ const calculateInterestFree = (billStr, dueStr) => {
   height: 230px;
   position: relative;
   transform-style: preserve-3d;
+  transform-origin: center center;
   cursor: pointer;
+  will-change: transform;
 }
 
 .physics-card-face {
   position: absolute;
+  inset: 0;
   width: 100%;
   height: 100%;
   border-radius: 16px;
@@ -370,41 +361,57 @@ const calculateInterestFree = (billStr, dueStr) => {
   flex-direction: column;
   justify-content: space-between;
   overflow: hidden;
-  transition: border-color 0.3s ease;
+  transition: border-color 0.3s ease, box-shadow 0.4s cubic-bezier(0.25, 0.8, 0.25, 1);
+  transform-style: flat;
 }
 
 /* ================= 正面卡片等级色彩方案 ================= */
 .physics-card-front {
   background-size: 200% 200%;
   position: relative;
-  
+
   /* 基础科技风 */
   &.theme-classic {
     background: linear-gradient(135deg, #0f172a 0%, #1e293b 50%, #3b82f6 100%);
     border-color: rgba(59, 130, 246, 0.3);
+
+    &:hover {
+      box-shadow: 0 25px 50px rgba(0, 0, 0, 0.6), 0 0 22px rgba(59, 130, 246, 0.45) !important;
+      border-color: rgba(59, 130, 246, 0.6) !important;
+    }
   }
-  
+
   /* 炫金卡 */
   &.theme-gold {
     background: linear-gradient(135deg, #1e1b4b 0%, #2e1065 50%, #d97706 100%);
     border-color: rgba(217, 119, 6, 0.3);
-    
+
     .card-level-badge {
       background: rgba(217, 119, 6, 0.2);
       color: #fbbf24;
       border-color: rgba(217, 119, 6, 0.4);
     }
+
+    &:hover {
+      box-shadow: 0 25px 50px rgba(0, 0, 0, 0.6), 0 0 22px rgba(217, 119, 6, 0.45) !important;
+      border-color: rgba(217, 119, 6, 0.6) !important;
+    }
   }
-  
+
   /* 白金卡 */
   &.theme-platinum {
     background: linear-gradient(135deg, #022c22 0%, #064e3b 50%, #0d9488 100%);
     border-color: rgba(13, 148, 136, 0.3);
-    
+
     .card-level-badge {
       background: rgba(13, 148, 136, 0.2);
       color: #2dd4bf;
       border-color: rgba(13, 148, 136, 0.4);
+    }
+
+    &:hover {
+      box-shadow: 0 25px 50px rgba(0, 0, 0, 0.6), 0 0 22px rgba(13, 148, 136, 0.45) !important;
+      border-color: rgba(13, 148, 136, 0.6) !important;
     }
   }
 
@@ -412,11 +419,16 @@ const calculateInterestFree = (billStr, dueStr) => {
   &.theme-diamond {
     background: linear-gradient(135deg, #090d16 0%, #151a2d 60%, #da22ff 120%);
     border-color: rgba(218, 34, 255, 0.3);
-    
+
     .card-level-badge {
       background: rgba(218, 34, 255, 0.2);
       color: #e0aaff;
       border-color: rgba(218, 34, 255, 0.4);
+    }
+
+    &:hover {
+      box-shadow: 0 25px 50px rgba(0, 0, 0, 0.6), 0 0 22px rgba(218, 34, 255, 0.45) !important;
+      border-color: rgba(218, 34, 255, 0.6) !important;
     }
   }
 
@@ -444,7 +456,7 @@ const calculateInterestFree = (billStr, dueStr) => {
   .bank-info {
     display: flex;
     flex-direction: column;
-    
+
     .bank-name {
       font-size: 16px;
       font-weight: 700;
@@ -501,7 +513,7 @@ const calculateInterestFree = (billStr, dueStr) => {
       color: rgba(255, 255, 255, 0.6) !important;
       padding: 0;
       height: auto;
-      
+
       &:hover {
         color: #fff !important;
         transform: scale(1.1);
@@ -533,7 +545,7 @@ const calculateInterestFree = (billStr, dueStr) => {
       color: #fff;
       text-shadow: 0 2px 4px rgba(0, 0, 0, 0.4);
     }
-    
+
     .shared-limit-badge {
       font-size: 9px;
       background: rgba(0, 242, 254, 0.25);
@@ -558,7 +570,7 @@ const calculateInterestFree = (billStr, dueStr) => {
       color: #fff;
       font-family: monospace;
     }
-    
+
     .cvv-info {
       .value {
         letter-spacing: 1px;
@@ -566,7 +578,7 @@ const calculateInterestFree = (billStr, dueStr) => {
         background: rgba(255, 255, 255, 0.1);
         padding: 0 4px;
         border-radius: 3px;
-        
+
         &:hover {
           background: rgba(255, 255, 255, 0.2);
         }
@@ -575,39 +587,15 @@ const calculateInterestFree = (billStr, dueStr) => {
   }
 }
 
-/* ================= 物理卡片右侧快捷操作遮罩 ================= */
-.card-actions-overlay {
-  position: absolute;
-  top: 15px;
-  right: -50px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  transition: all 0.35s cubic-bezier(0.25, 0.8, 0.25, 1);
-  z-index: 10;
-  
-  .action-btn {
-    background: rgba(13, 20, 41, 0.75) !important;
-    border: 1px solid rgba(0, 242, 254, 0.2) !important;
-    color: var(--el-color-primary) !important;
-    backdrop-filter: blur(5px);
-    
-    &:hover {
-      border-color: var(--el-color-primary) !important;
-      background: var(--el-color-primary) !important;
-      color: #000 !important;
-      box-shadow: 0 0 10px rgba(0, 242, 254, 0.4);
-    }
+.physics-card-wrapper:hover {
+  .physics-card-face {
+    border-color: rgba(0, 242, 254, 0.4);
   }
 }
 
-.physics-card-wrapper:hover {
-  .card-actions-overlay {
-    right: 15px;
-  }
-  
-  .physics-card-face {
-    border-color: rgba(0, 242, 254, 0.4);
+.physics-card-wrapper.is-flipped {
+  .physics-card-front {
+    pointer-events: none; /* 翻转后禁止正面鼠标响应，保障背部完全响应交互 */
   }
 }
 
@@ -631,12 +619,12 @@ const calculateInterestFree = (billStr, dueStr) => {
       color: var(--el-color-primary);
       text-shadow: 0 0 8px rgba(0, 242, 254, 0.3);
     }
-    
+
     .action-btn {
       background: rgba(255, 255, 255, 0.05) !important;
       border: 1px solid rgba(255, 255, 255, 0.1) !important;
       color: #fff !important;
-      
+
       &:hover {
         border-color: var(--el-color-primary) !important;
         color: var(--el-color-primary) !important;
@@ -653,7 +641,7 @@ const calculateInterestFree = (billStr, dueStr) => {
     gap: 10px;
     overflow-y: auto;
     scrollbar-width: none; /* 隐藏背部的滚动条 */
-    
+
     &::-webkit-scrollbar {
       display: none;
     }
@@ -666,7 +654,7 @@ const calculateInterestFree = (billStr, dueStr) => {
       .info-item {
         display: flex;
         flex-direction: column;
-        
+
         .label {
           font-size: 9px;
           color: var(--el-text-color-secondary);
@@ -677,7 +665,7 @@ const calculateInterestFree = (billStr, dueStr) => {
           font-size: 12px;
           font-weight: 600;
           color: #fff;
-          
+
           &.highlight-text {
             color: var(--el-color-primary);
           }
@@ -709,7 +697,7 @@ const calculateInterestFree = (billStr, dueStr) => {
       .clickable-tag {
         cursor: pointer;
         transition: all 0.2s ease;
-        
+
         &:hover {
           filter: brightness(1.2);
           transform: translateY(-1px);
@@ -735,7 +723,7 @@ const calculateInterestFree = (billStr, dueStr) => {
       justify-content: space-between;
       border-bottom: 1px solid rgba(255, 255, 255, 0.03);
       padding-bottom: 6px;
-      
+
       span {
         color: rgba(255, 255, 255, 0.7);
       }
@@ -774,7 +762,7 @@ const calculateInterestFree = (billStr, dueStr) => {
     justify-content: space-between;
     border-top: 1px solid rgba(255, 255, 255, 0.05);
     padding-top: 8px;
-    
+
     :deep(.el-button) {
       padding: 6px 12px;
       font-size: 11px;

@@ -13,22 +13,22 @@
       <!-- 彻底拦截并隔离浏览器流氓自动填充的伪装输入框 -->
       <input type="text" style="position: absolute; top: -9999px; left: -9999px; width: 0; height: 0; opacity: 0;" />
       <input type="password" style="position: absolute; top: -9999px; left: -9999px; width: 0; height: 0; opacity: 0;" />
-      
+
       <el-descriptions :column="2" border>
         <el-descriptions-item label="国家">
           <el-form-item prop="country">
-            <el-select 
-              v-model="formData.country" 
-              placeholder="请选择国家" 
-              filterable 
+            <el-select
+              v-model="formData.country"
+              placeholder="请选择国家"
+              filterable
               allow-create
               clearable
             >
-              <el-option 
-                v-for="(item, index) in options.countryData" 
+              <el-option
+                v-for="(item, index) in options.countryData"
                 :key="index"
-                :label="`${item.chineseName}(${item.name})`" 
-                :value="item.chineseName" 
+                :label="`${item.chineseName}(${item.name})`"
+                :value="item.chineseName"
               />
             </el-select>
           </el-form-item>
@@ -36,18 +36,18 @@
 
         <el-descriptions-item label="银行">
           <el-form-item prop="bank">
-            <el-select 
-              v-model="formData.bank" 
-              placeholder="请选择银行" 
-              filterable 
+            <el-select
+              v-model="formData.bank"
+              placeholder="请选择银行"
+              filterable
               allow-create
               clearable
             >
-              <el-option 
-                v-for="item in options.bankList" 
-                :key="item.name" 
+              <el-option
+                v-for="item in options.bankList"
+                :key="item.name"
                 :label="item.name"
-                :value="item.chineseName" 
+                :value="item.chineseName"
               />
             </el-select>
           </el-form-item>
@@ -55,8 +55,8 @@
 
         <el-descriptions-item label="卡号">
           <el-form-item prop="cardNumber">
-            <el-input 
-              v-model="formData.cardNumber" 
+            <el-input
+              v-model="formData.cardNumber"
               placeholder="请输入卡号"
               maxlength="19"
               :formatter="formatCardNumber"
@@ -78,10 +78,10 @@
 
         <el-descriptions-item label="卡片别名">
           <el-form-item prop="alias">
-            <el-input 
-              v-model="formData.alias" 
+            <el-input
+              v-model="formData.alias"
               placeholder="为卡片起个好记的名字"
-              clearable 
+              clearable
               autocomplete="new-password"
             />
           </el-form-item>
@@ -89,17 +89,17 @@
 
         <el-descriptions-item label="等级">
           <el-form-item prop="level">
-            <el-select 
-              v-model="formData.level" 
-              placeholder="请选择等级" 
+            <el-select
+              v-model="formData.level"
+              placeholder="请选择等级"
               filterable
               clearable
             >
-              <el-option 
-                v-for="item in options.cardLevel" 
-                :key="item.name" 
+              <el-option
+                v-for="item in options.cardLevel"
+                :key="item.name"
                 :label="item.name"
-                :value="item.chineseName" 
+                :value="item.chineseName"
               />
             </el-select>
           </el-form-item>
@@ -107,17 +107,17 @@
 
         <el-descriptions-item label="币种">
           <el-form-item prop="type">
-            <el-select 
-              v-model="formData.type" 
-              placeholder="请选择币种" 
+            <el-select
+              v-model="formData.type"
+              placeholder="请选择币种"
               filterable
               clearable
             >
-              <el-option 
-                v-for="item in options.currencyList" 
-                :key="item.name" 
+              <el-option
+                v-for="item in options.currencyList"
+                :key="item.name"
                 :label="item.name"
-                :value="item.chineseName" 
+                :value="item.chineseName"
               />
             </el-select>
           </el-form-item>
@@ -125,8 +125,8 @@
 
         <el-descriptions-item label="CVV">
           <el-form-item prop="cvv">
-            <el-input 
-              v-model="formData.cvv" 
+            <el-input
+              v-model="formData.cvv"
               placeholder="请输入CVV"
               maxlength="4"
               show-password
@@ -193,31 +193,31 @@
         <!-- 卡片信息 -->
         <el-descriptions-item label="账单日">
           <el-form-item prop="accountBillDate">
-            <el-input 
-              v-model="formData.accountBillDate" 
+            <el-input
+              v-model="formData.accountBillDate"
               placeholder="请输入账单日(1-31)"
               type="number"
               min="1"
               max="31"
-              autocomplete="off" 
-              clearable 
+              autocomplete="off"
+              clearable
             />
           </el-form-item>
         </el-descriptions-item>
         <el-descriptions-item label="还款日">
           <el-form-item prop="dueDate">
-            <el-input 
-              v-model="formData.dueDate" 
+            <el-input
+              v-model="formData.dueDate"
               placeholder="请输入还款日(1-31)"
               type="number"
               min="1"
               max="31"
-              autocomplete="off" 
-              clearable 
+              autocomplete="off"
+              clearable
             />
           </el-form-item>
         </el-descriptions-item>
-        
+
         <el-descriptions-item label="账单日消费计入" :span="2">
           <el-form-item prop="billingDaySpendingToNextBill">
             <el-radio-group v-model="formData.billingDaySpendingToNextBill">
@@ -230,12 +230,12 @@
           </el-form-item>
         </el-descriptions-item>
         <el-descriptions-item label="年费">
-          <el-input 
-            v-model="formData.annualFee" 
+          <el-input
+            v-model="formData.annualFee"
             placeholder="请输入年费"
             type="number"
-            autocomplete="off" 
-            clearable 
+            autocomplete="off"
+            clearable
           />
         </el-descriptions-item>
 
@@ -248,43 +248,43 @@
           </el-radio-group>
         </el-descriptions-item>
         <el-descriptions-item label="下次年费收取时间" :span="2">
-          <el-date-picker 
-            v-model="formData.nextAnnualFeeCollectionTime" 
-            type="date" 
+          <el-date-picker
+            v-model="formData.nextAnnualFeeCollectionTime"
+            type="date"
             :placeholder="formData.isQualified === '3' ? '终身免年费卡不收年费，无需选择' : '选择下次年费收取时间'"
-            format="YYYY-MM-DD" 
-            value-format="YYYY-MM-DD" 
-            style="width: 100%" 
+            format="YYYY-MM-DD"
+            value-format="YYYY-MM-DD"
+            style="width: 100%"
             :disabled="formData.isQualified === '3'"
           />
         </el-descriptions-item>
         <el-descriptions-item label="上次提额日期" :span="2">
-          <el-date-picker 
-            v-model="formData.lastTime" 
-            type="date" 
-            placeholder="选择上次提额日期" 
+          <el-date-picker
+            v-model="formData.lastTime"
+            type="date"
+            placeholder="选择上次提额日期"
             format="YYYY-MM-DD"
-            value-format="YYYY-MM-DD" 
-            style="width: 100%" 
+            value-format="YYYY-MM-DD"
+            style="width: 100%"
           />
         </el-descriptions-item>
 
         <!-- 其他信息 -->
         <el-descriptions-item label="权益" :span="2">
-          <el-input 
-            v-model="formData.equity" 
-            type="textarea" 
-            :rows="3" 
-            placeholder="请输入权益信息" 
+          <el-input
+            v-model="formData.equity"
+            type="textarea"
+            :rows="3"
+            placeholder="请输入权益信息"
             autocomplete="off"
           />
         </el-descriptions-item>
         <el-descriptions-item label="备注" :span="2">
-          <el-input 
-            v-model="formData.remark" 
-            type="textarea" 
-            :rows="3" 
-            placeholder="请输入备注信息" 
+          <el-input
+            v-model="formData.remark"
+            type="textarea"
+            :rows="3"
+            placeholder="请输入备注信息"
             autocomplete="off"
           />
         </el-descriptions-item>
@@ -351,15 +351,15 @@ const validateCardNumber = (rule, value, callback) => {
   if (!value) {
     return callback(new Error('请输入卡号'))
   }
-  
+
   // 移除所有非数字字符
   const cardNumber = String(value).replace(/\D/g, '')
-  
+
   // 验证长度
   if (cardNumber.length < 13 || cardNumber.length > 19) {
     return callback(new Error('卡号长度必须在13-19位之间'))
   }
-  
+
   callback()
 }
 
@@ -440,11 +440,11 @@ export default {
     const cardType = ref('')
     const providedAutoLock = inject('autoLock', null)
     const { isLocked } = providedAutoLock || useAutoLock()
-    
+
     // 用于彻底阻止浏览器流氓自动填充表单的动态只读控制状态
     const cardNumberReadOnly = ref(true)
     const cvvReadOnly = ref(true)
-    
+
     // 表单验证规则
     const rules = {
       country: [{ required: true, message: '请选择国家', trigger: 'change' }],
@@ -480,10 +480,10 @@ export default {
       value = String(value).replace(/\D/g, '')
       const groups = value.match(/\d{1,4}/g)
       const formatted = groups ? groups.join(' ') : value
-      
+
       // 更新卡片类型
       cardType.value = getCardType(value)
-      
+
       return formatted
     }
 
@@ -558,7 +558,7 @@ export default {
         if (props.mode === 'edit' && newVal) {
           // 深拷贝初始数据
           const data = JSON.parse(JSON.stringify(newVal))
-          
+
           // 处理特殊字段的格式转换
           if (data.valid) {
             // 如果是老格式（YYYY-MM-DD 或 YYYY-MM），转换为 MM/YY
@@ -574,7 +574,7 @@ export default {
               }
             }
           }
-          
+
           // 确保数值类型字段正确
           data.limit = Number(data.limit) || 0
           data.annualFee = Number(data.annualFee) || 0
@@ -583,10 +583,10 @@ export default {
           // 统一账单日和还款日的数据类型为String
           data.accountBillDate = data.accountBillDate ? String(data.accountBillDate) : ''
           data.dueDate = data.dueDate ? String(data.dueDate) : ''
-          
+
           // 更新表单数据
           formData.value = data
-          
+
           // 更新卡片类型
           if (data.cardNumber) {
             cardType.value = getCardType(data.cardNumber)
@@ -608,19 +608,19 @@ export default {
     // 检查同银行现有卡片的额度
     const checkExistingSharedLimit = () => {
       if (!formData.value.country || !formData.value.bank) return
-      
+
       const currentCountry = formData.value.country
       const currentBank = formData.value.bank.replace(/\(.*?\)/g, "").trim()
-      
+
       // 查找同国家同银行的已有卡片（排除当前编辑的卡片）
       const existingCard = props.existingCards.find(card => {
         const cardBank = (card.bank || '').replace(/\(.*?\)/g, "").trim()
-        return card.country === currentCountry && 
-               cardBank === currentBank && 
+        return card.country === currentCountry &&
+               cardBank === currentBank &&
                card.isSharedLimit === true &&
                card.id !== formData.value.id
       })
-      
+
       if (existingCard) {
         existingSharedLimitCard.value = existingCard
         // 只在新增模式下自动设置已有共享额度，编辑模式下不自动覆盖以允许用户修改
@@ -655,7 +655,7 @@ export default {
         // 无论打开还是关闭，均强制锁死为只读，阻止流氓填充
         cardNumberReadOnly.value = true
         cvvReadOnly.value = true
-        
+
         if (!newVal) {
           // 重置表单数据
           formData.value = {
@@ -717,7 +717,7 @@ export default {
           ? null
           : timestampFromDateInput(submitData.nextAnnualFeeCollectionTime)
         submitData.lastTime = timestampFromDateInput(submitData.lastTime)
-        
+
         // 保持有效期为 MM/YY 格式存储
         // 不再转换为 YYYY-MM-DD 格式
         emit('submit', submitData)
@@ -766,7 +766,7 @@ export default {
       }
     }
   }
-  
+
   :deep(.el-descriptions__cell.is-left) {
     white-space: nowrap;
     overflow: visible;
@@ -790,14 +790,14 @@ export default {
     flex-wrap: wrap;
     row-gap: 8px;
   }
-  
+
   .el-select,
   .el-input,
   .el-input-number,
   .el-date-picker {
     width: 100%;
   }
-  
+
   :deep(.el-input-group__append) {
     padding: 0 10px;
     cursor: help;
@@ -825,7 +825,7 @@ export default {
   /* ==========================================================================
      殿堂级防抖与绝对物理对称（第十二版黄金比例列宽方案）
      ========================================================================== */
-  
+
   /* 标签单元格：强制锁定 12% 宽度。在 900px 弹窗下相当于极简的 108px，且左右完全对称 */
   :deep(.el-descriptions__label) {
     width: 12% !important;
@@ -850,7 +850,7 @@ export default {
 .dialog-footer {
   padding: 20px;
   text-align: right;
-  background-color: var(--el-bg-color);
+  background-color: transparent !important;
   border-top: none;
 }
 </style>

@@ -27,18 +27,19 @@
         <div class="empty-text">雷达未扫描到符合筛选条件的信用卡</div>
         <div class="empty-sub">请尝试调整上方查询条件或新增一张卡片</div>
       </div>
-      
-      <TransitionGroup 
-        name="card-flip-list" 
-        tag="div" 
+
+      <TransitionGroup
+        name="card-flip-list"
+        tag="div"
         class="card-grid"
         v-else
       >
-        <div 
-          v-for="card in tableData" 
-          :key="card.id" 
+        <div
+          v-for="card in tableData"
+          :key="card.id"
           class="card-item-wrapper"
           :class="{ 'is-selected': isCardSelected(card.id) }"
+          @contextmenu.prevent="handleContextMenu(card, $event)"
         >
           <!-- 悬浮精细 Checkbox (用于批量操作) -->
           <div class="card-selector-overlay">
@@ -52,6 +53,7 @@
           <!-- 物理 3D 悬浮卡片 -->
           <CreditCardPhysicsCard
             :card="card"
+            :ref="el => setCardRef(card.id, el)"
             @edit="(c) => $emit('edit', c)"
             @delete="(c) => $emit('delete', c)"
             @view-details="(c) => $emit('view-details', c)"
@@ -62,11 +64,42 @@
         </div>
       </TransitionGroup>
     </div>
+
+    <!-- 右键快捷菜单 (太空舱半透明磨砂) -->
+    <div
+      v-show="contextMenuVisible"
+      class="context-menu"
+      :style="{ left: contextMenuX + 'px', top: contextMenuY + 'px' }"
+    >
+      <el-menu>
+        <el-menu-item @click="handleContextMenuAction('flip')">
+          <el-icon><Refresh /></el-icon>
+          <span>3D翻转卡片 (查看背面)</span>
+        </el-menu-item>
+        <el-menu-item @click="handleContextMenuAction('edit')">
+          <el-icon><Edit /></el-icon>
+          <span>快捷编辑信用卡</span>
+        </el-menu-item>
+        <el-menu-item @click="handleContextMenuAction('delete')">
+          <el-icon><Delete /></el-icon>
+          <span>删除此信用卡</span>
+        </el-menu-item>
+        <el-menu-item @click="handleContextMenuAction('details')">
+          <el-icon><View /></el-icon>
+          <span>查看完整卡详情</span>
+        </el-menu-item>
+        <el-menu-item @click="handleContextMenuAction('qualified')" v-if="contextMenuRow && contextMenuRow.isQualified !== '3'">
+          <el-icon><Check /></el-icon>
+          <span>标记为年费已达标</span>
+        </el-menu-item>
+      </el-menu>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { computed, watch } from 'vue'
+import { ref, computed, watch } from 'vue'
+import { Edit, Delete, View, Check, Refresh } from '@element-plus/icons-vue'
 import CreditCardPhysicsCard from './CreditCardPhysicsCard.vue'
 
 const props = defineProps({
@@ -89,6 +122,58 @@ const emit = defineEmits([
   'cvv-visibility',
   'selection-change'
 ])
+
+// 动态收集子卡片组件实例以支持联动操作
+const cardRefs = ref({})
+const setCardRef = (id, el) => {
+  if (el) {
+    cardRefs.value[id] = el
+  } else {
+    delete cardRefs.value[id]
+  }
+}
+
+// 右键菜单逻辑
+const contextMenuVisible = ref(false)
+const contextMenuX = ref(0)
+const contextMenuY = ref(0)
+const contextMenuRow = ref(null)
+
+const handleContextMenu = (card, event) => {
+  contextMenuRow.value = card
+  contextMenuX.value = event.clientX
+  contextMenuY.value = event.clientY
+  contextMenuVisible.value = true
+
+  // 绑定全局点击事件，点击空白处自动关闭右键菜单
+  document.addEventListener('click', closeContextMenu)
+}
+
+const closeContextMenu = () => {
+  contextMenuVisible.value = false
+  document.removeEventListener('click', closeContextMenu)
+}
+
+const handleContextMenuAction = (action) => {
+  if (!contextMenuRow.value) return
+
+  if (action === 'flip') {
+    const cardInst = cardRefs.value[contextMenuRow.value.id]
+    if (cardInst && cardInst.flipCard) {
+      cardInst.flipCard()
+    }
+  } else if (action === 'edit') {
+    emit('edit', contextMenuRow.value)
+  } else if (action === 'delete') {
+    emit('delete', contextMenuRow.value)
+  } else if (action === 'details') {
+    emit('view-details', contextMenuRow.value)
+  } else if (action === 'qualified') {
+    emit('annual-fee-qualified', contextMenuRow.value.id)
+  }
+
+  closeContextMenu()
+}
 
 // 判断单张卡片是否已勾选
 const isCardSelected = (id) => {
@@ -130,7 +215,7 @@ const handleSelectAllChange = (checked) => {
 
 // 监听外界数据变化（当数据在表格外被删除时，同步清理选中状态）
 watch(() => props.tableData, (newData) => {
-  const newSelection = props.selectedRows.filter(selected => 
+  const newSelection = props.selectedRows.filter(selected =>
     newData.some(card => card.id === selected.id)
   )
   if (newSelection.length !== props.selectedRows.length) {
@@ -152,7 +237,8 @@ defineExpose({
 .card-list-container {
   display: flex;
   flex-direction: column;
-  height: calc(100vh - 250px);
+  flex: 1;
+  min-height: 0;
   width: 100%;
   position: relative;
 }
@@ -175,7 +261,7 @@ defineExpose({
       font-size: 12px;
       font-weight: 500;
     }
-    
+
     :deep(.el-checkbox__input.is-checked .el-checkbox__inner) {
       background-color: var(--el-color-primary) !important;
       border-color: var(--el-color-primary) !important;
@@ -207,7 +293,7 @@ defineExpose({
   flex: 1;
   overflow-y: auto;
   padding-right: 4px;
-  
+
   /* 科技风个性化滚动条，仅在大屏下显示 */
   &::-webkit-scrollbar {
     width: 6px;
@@ -249,10 +335,10 @@ defineExpose({
     transform: scale(0.8);
     pointer-events: none;
     transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
-    
+
     .card-checkbox {
       margin-right: 0;
-      
+
       :deep(.el-checkbox__inner) {
         width: 22px;
         height: 22px;
@@ -261,7 +347,7 @@ defineExpose({
         border-radius: 50% !important; /* 变成精美的圆形选择框 */
         box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
         transition: all 0.2s ease;
-        
+
         &::after {
           height: 10px;
           width: 5px;
@@ -271,7 +357,7 @@ defineExpose({
           border-width: 2.5px !important;
         }
       }
-      
+
       :deep(.el-checkbox__input.is-checked .el-checkbox__inner) {
         background-color: var(--el-color-primary) !important;
         border-color: var(--el-color-primary) !important;
@@ -300,7 +386,7 @@ defineExpose({
       transform: scale(1);
       pointer-events: auto;
     }
-    
+
     &::after {
       content: '';
       position: absolute;
@@ -419,5 +505,51 @@ defineExpose({
 
 .card-flip-list-move {
   transition: transform 0.5s cubic-bezier(0.25, 0.8, 0.25, 1);
+}
+
+/* 右键悬浮菜单 - 科技感半透明圆角 */
+.context-menu {
+  position: fixed;
+  z-index: 1000;
+  background: rgba(10, 15, 32, 0.94) !important;
+  backdrop-filter: blur(15px);
+  border: 1px solid var(--el-color-primary) !important;
+  border-radius: 8px !important;
+  box-shadow: 0 10px 30px rgba(0, 242, 254, 0.3) !important;
+  overflow: hidden;
+
+  :deep(.el-menu) {
+    background: transparent !important;
+    border: none !important;
+  }
+
+  :deep(.el-menu-item) {
+    color: var(--el-text-color-regular) !important;
+    height: 38px !important;
+    line-height: 38px !important;
+    font-size: 13px !important;
+    transition: background-color 0.2s ease, color 0.2s ease !important;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 16px !important;
+
+    &:hover {
+      background: rgba(0, 242, 254, 0.15) !important;
+      color: var(--el-color-primary) !important;
+
+      .el-icon {
+        color: var(--el-color-primary) !important;
+        transform: scale(1.15);
+      }
+    }
+
+    .el-icon {
+      color: var(--el-text-color-secondary) !important;
+      transition: transform 0.2s ease, color 0.2s ease !important;
+      margin-right: 0 !important;
+      font-size: 14px;
+    }
+  }
 }
 </style>
