@@ -307,7 +307,7 @@ export default {
       default: () => []
     }
   },
-  emits: ['edit', 'delete', 'card-number-visibility', 'cvv-visibility', 'view-details', 'annual-fee-qualified'],
+  emits: ['edit', 'delete', 'card-number-visibility', 'cvv-visibility', 'view-details', 'annual-fee-qualified', 'selection-change'],
   setup(props, { emit }) {
     const contextMenuVisible = ref(false)
     const contextMenuX = ref(0)

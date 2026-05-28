@@ -256,9 +256,130 @@
 
       </el-dialog>
       <HelpPage ref="helpPage" />
-      <WebDAVConfigDialog ref="webDAVConfig" />
-      <BackupDialog ref="backup" @update="handleBackupUpdate" @showConfig="showWebDAVConfig" @publishV3="publishCurrentV3Snapshot" />
+      <WebDAVConfigDialog ref="webDAVConfig" @saved="handleWebDAVConfigSaved" />
+      <BackupDialog ref="backup" @update="handleBackupUpdate" @showConfig="showWebDAVConfig" />
       <LocalBackupDialog v-model="localBackupVisible" @restore="handleLocalBackupRestore" ref="localBackup" />
+
+      <!-- 批量年费更新弹窗 -->
+      <el-dialog
+        v-model="batchAnnualFeeDialogVisible"
+        title="批量更新年费"
+        width="520px"
+        draggable
+        class="mobile-dialog batch-update-dialog"
+      >
+        <div class="batch-update-form">
+          <el-alert
+            :title="`将更新已选中的 ${batchAnnualFeeTargetCount} 张信用卡`"
+            type="info"
+            :closable="false"
+            show-icon
+          />
+
+          <el-form label-width="130px">
+            <el-form-item label="年费金额">
+              <div class="batch-field-row">
+                <el-checkbox v-model="batchAnnualFeeForm.updateAnnualFee">更新</el-checkbox>
+                <el-input-number
+                  v-model="batchAnnualFeeForm.annualFee"
+                  :min="0"
+                  :precision="2"
+                  :step="100"
+                  :disabled="!batchAnnualFeeForm.updateAnnualFee"
+                  controls-position="right"
+                  class="batch-input-number"
+                />
+              </div>
+            </el-form-item>
+
+            <el-form-item label="年费状态">
+              <div class="batch-field-column">
+                <el-checkbox v-model="batchAnnualFeeForm.updateStatus">更新</el-checkbox>
+                <el-radio-group
+                  v-model="batchAnnualFeeForm.isQualified"
+                  :disabled="!batchAnnualFeeForm.updateStatus"
+                >
+                  <el-radio :value="'2'">未达标</el-radio>
+                  <el-radio :value="'1'">已达标</el-radio>
+                  <el-radio :value="'3'">终免年费</el-radio>
+                </el-radio-group>
+              </div>
+            </el-form-item>
+
+            <el-form-item label="下次年费时间">
+              <div class="batch-field-row">
+                <el-checkbox
+                  v-model="batchAnnualFeeForm.updateNextAnnualFee"
+                  :disabled="batchAnnualFeeForm.updateStatus && batchAnnualFeeForm.isQualified === '3'"
+                >
+                  更新
+                </el-checkbox>
+                <el-date-picker
+                  v-model="batchAnnualFeeForm.nextAnnualFeeCollectionTime"
+                  type="date"
+                  format="YYYY-MM-DD"
+                  value-format="YYYY-MM-DD"
+                  placeholder="选择下次年费收取时间"
+                  :disabled="!batchAnnualFeeForm.updateNextAnnualFee || (batchAnnualFeeForm.updateStatus && batchAnnualFeeForm.isQualified === '3')"
+                  :disabled-date="disablePastDates"
+                  style="width: 100%"
+                />
+              </div>
+            </el-form-item>
+          </el-form>
+
+          <el-alert
+            v-if="batchAnnualFeeForm.updateStatus && batchAnnualFeeForm.isQualified === '3'"
+            title="选择终免年费时，将清空所选卡片的下次年费收取时间。"
+            type="warning"
+            :closable="false"
+            show-icon
+          />
+        </div>
+        <template #footer>
+          <span class="dialog-footer">
+            <el-button @click="batchAnnualFeeDialogVisible = false">取消</el-button>
+            <el-button type="primary" @click="confirmBatchAnnualFeeUpdate">确定更新</el-button>
+          </span>
+        </template>
+      </el-dialog>
+
+      <!-- 批量有效期更新弹窗 -->
+      <el-dialog
+        v-model="batchValidityDialogVisible"
+        title="批量更新有效期"
+        width="420px"
+        draggable
+        class="mobile-dialog batch-update-dialog"
+      >
+        <div class="batch-update-form">
+          <el-alert
+            :title="`将更新已选中的 ${batchValidityTargetCount} 张信用卡`"
+            type="info"
+            :closable="false"
+            show-icon
+          />
+          <el-form label-width="90px">
+            <el-form-item label="有效期">
+              <el-date-picker
+                v-model="batchValidityForm.valid"
+                type="month"
+                format="MM/YY"
+                value-format="MM/YY"
+                placeholder="选择新的有效期"
+                :disabled-date="disablePastMonths"
+                style="width: 100%"
+              />
+            </el-form-item>
+          </el-form>
+        </div>
+        <template #footer>
+          <span class="dialog-footer">
+            <el-button @click="batchValidityDialogVisible = false">取消</el-button>
+            <el-button type="primary" @click="confirmBatchValidityUpdate">确定更新</el-button>
+          </span>
+        </template>
+      </el-dialog>
 
       <!-- 全局加载覆盖层 -->
       <LoadingOverlay
@@ -315,6 +436,7 @@ import {
   Sunny,
   Moon,
   ArrowDown,
+  ArrowUp,
   Filter,
   Lock,
   Search
@@ -358,7 +480,7 @@ import { PasswordManager } from '@/utils/passwordManager'
 import { getBankDisplayName } from '@/utils/bankNameFormatter'
 import { normalizeCountryValue, normalizeBankValue } from '@/utils/referenceDataUtils'
 import { webdavSyncService } from '@/utils/webdavSyncService'
-import { formatCardTimestamp, normalizeCardTimeFields } from '@/utils/cardTimestamp'
+import { formatCardTimestamp, normalizeCardTimeFields, timestampFromDateInput } from '@/utils/cardTimestamp'
 
 // 主题控制
 const { isDarkMode, toggleTheme } = useTheme()
@@ -486,6 +608,55 @@ const labelWidth = ref('120px')
 const localBackupVisible = ref(false)
 const localBackup = ref(null)
 let backupTimer = null
+
+const batchAnnualFeeDialogVisible = ref(false)
+const batchAnnualFeeTargetIds = ref([])
+const batchAnnualFeeForm = ref({
+  updateAnnualFee: true,
+  annualFee: 0,
+  updateStatus: false,
+  isQualified: '2',
+  updateNextAnnualFee: false,
+  nextAnnualFeeCollectionTime: ''
+})
+
+const batchValidityDialogVisible = ref(false)
+const batchValidityTargetIds = ref([])
+const batchValidityForm = ref({
+  valid: ''
+})
+
+const batchAnnualFeeTargetCount = computed(() => batchAnnualFeeTargetIds.value.length)
+const batchValidityTargetCount = computed(() => batchValidityTargetIds.value.length)
+
+const disablePastDates = (time) => {
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
+  return time.getTime() < today.getTime()
+}
+
+const disablePastMonths = (time) => {
+  const today = new Date()
+  const firstDayOfCurrentMonth = new Date(today.getFullYear(), today.getMonth(), 1)
+  return time.getTime() < firstDayOfCurrentMonth.getTime()
+}
+
+const resetBatchAnnualFeeForm = () => {
+  batchAnnualFeeForm.value = {
+    updateAnnualFee: true,
+    annualFee: 0,
+    updateStatus: false,
+    isQualified: '2',
+    updateNextAnnualFee: false,
+    nextAnnualFeeCollectionTime: ''
+  }
+}
+
+const resetBatchValidityForm = () => {
+  batchValidityForm.value = {
+    valid: ''
+  }
+}
 
 const isSearchCollapsed = ref(true)
 
@@ -810,6 +981,14 @@ const handleImmediateSync = () => {
   publishCurrentV3Snapshot()
 }
 
+const applySyncedCards = (syncedCards) => {
+  cardData.value = syncedCards.map(card => normalizeCardTimeFields(card, { fillLastModifyTime: true }))
+}
+
+const handleSyncStatusChanged = (newStatus) => {
+  syncStatus.value = newStatus
+}
+
 // 初始化数据
 onMounted(async () => {
   syncCountdownTimer = window.setInterval(() => {
@@ -845,15 +1024,7 @@ onMounted(async () => {
       saveCardData(cardData.value)
     }
 
-    await webdavSyncService.start(
-      cardData.value,
-      (syncedCards) => {
-        cardData.value = syncedCards.map(card => normalizeCardTimeFields(card, { fillLastModifyTime: true }))
-      },
-      (newStatus) => {
-        syncStatus.value = newStatus
-      }
-    )
+    await webdavSyncService.start(cardData.value, applySyncedCards, handleSyncStatusChanged)
 
     // 判断应用是否处于锁定状态，锁定时跳过弹窗类检测
     const appIsLocked = PasswordManager.hasPassword() &&
@@ -1335,13 +1506,133 @@ const handleBatchUpdateStatus = async ({ rows, status }) => {
 }
 
 const handleBatchUpdateAnnualFee = (rows) => {
-  ElMessage.info('批量更新年费功能待实现')
-  // TODO: 实现批量更新年费对话框
+  if (!rows || rows.length === 0) {
+    ElMessage.warning('请先选择要更新的信用卡')
+    return
+  }
+  batchAnnualFeeTargetIds.value = rows.map(row => row.id).filter(Boolean)
+  resetBatchAnnualFeeForm()
+  batchAnnualFeeDialogVisible.value = true
 }
 
 const handleBatchUpdateValidity = (rows) => {
-  ElMessage.info('批量更新有效期功能待实现')
-  // TODO: 实现批量更新有效期对话框
+  if (!rows || rows.length === 0) {
+    ElMessage.warning('请先选择要更新的信用卡')
+    return
+  }
+  batchValidityTargetIds.value = rows.map(row => row.id).filter(Boolean)
+  resetBatchValidityForm()
+  batchValidityDialogVisible.value = true
+}
+
+const confirmBatchAnnualFeeUpdate = async () => {
+  const form = batchAnnualFeeForm.value
+  const shouldUpdateNextAnnualFee = form.updateNextAnnualFee && !(form.updateStatus && form.isQualified === '3')
+  const hasAnyUpdate = form.updateAnnualFee || form.updateStatus || shouldUpdateNextAnnualFee
+
+  if (!hasAnyUpdate) {
+    ElMessage.warning('请至少选择一个需要更新的年费字段')
+    return
+  }
+
+  if (form.updateAnnualFee) {
+    const fee = Number(form.annualFee)
+    if (!Number.isFinite(fee) || fee < 0) {
+      ElMessage.warning('请输入有效的年费金额')
+      return
+    }
+  }
+
+  if (shouldUpdateNextAnnualFee && !form.nextAnnualFeeCollectionTime) {
+    ElMessage.warning('请选择下次年费收取时间')
+    return
+  }
+
+  const targetIds = new Set(batchAnnualFeeTargetIds.value)
+  if (targetIds.size === 0) {
+    ElMessage.warning('没有可更新的信用卡')
+    batchAnnualFeeDialogVisible.value = false
+    return
+  }
+
+  try {
+    let updatedCount = 0
+    const nextAnnualFeeTimestamp = shouldUpdateNextAnnualFee
+      ? timestampFromDateInput(form.nextAnnualFeeCollectionTime)
+      : null
+
+    cardData.value.forEach(card => {
+      if (!targetIds.has(card.id)) return
+
+      if (form.updateAnnualFee) {
+        card.annualFee = Number(form.annualFee)
+      }
+      if (form.updateStatus) {
+        card.isQualified = form.isQualified
+        if (form.isQualified === '3') {
+          card.nextAnnualFeeCollectionTime = null
+        }
+      }
+      if (shouldUpdateNextAnnualFee) {
+        card.nextAnnualFeeCollectionTime = nextAnnualFeeTimestamp
+      }
+      card.lastModifyTime = getCurrentTimestamp()
+      updatedCount += 1
+    })
+
+    if (updatedCount === 0) {
+      ElMessage.warning('没有匹配到可更新的信用卡')
+      batchAnnualFeeDialogVisible.value = false
+      return
+    }
+
+    await persistSyncedMutation()
+    batchAnnualFeeDialogVisible.value = false
+    batchAnnualFeeTargetIds.value = []
+    clearSelection()
+    ElMessage.success(`已批量更新 ${updatedCount} 张信用卡的年费信息`)
+  } catch (error) {
+    ElMessage.error('批量更新年费失败：' + error.message)
+  }
+}
+
+const confirmBatchValidityUpdate = async () => {
+  const valid = batchValidityForm.value.valid
+  if (!valid) {
+    ElMessage.warning('请选择新的有效期')
+    return
+  }
+
+  const targetIds = new Set(batchValidityTargetIds.value)
+  if (targetIds.size === 0) {
+    ElMessage.warning('没有可更新的信用卡')
+    batchValidityDialogVisible.value = false
+    return
+  }
+
+  try {
+    let updatedCount = 0
+    cardData.value.forEach(card => {
+      if (!targetIds.has(card.id)) return
+      card.valid = valid
+      card.lastModifyTime = getCurrentTimestamp()
+      updatedCount += 1
+    })
+
+    if (updatedCount === 0) {
+      ElMessage.warning('没有匹配到可更新的信用卡')
+      batchValidityDialogVisible.value = false
+      return
+    }
+
+    await persistSyncedMutation()
+    batchValidityDialogVisible.value = false
+    batchValidityTargetIds.value = []
+    clearSelection()
+    ElMessage.success(`已批量更新 ${updatedCount} 张信用卡的有效期`)
+  } catch (error) {
+    ElMessage.error('批量更新有效期失败：' + error.message)
+  }
 }
 
 const confirmClearData = async () => {
@@ -1427,6 +1718,20 @@ const showHelp = () => {
 
 const showWebDAVConfig = () => {
   webDAVConfig.value?.showDialog()
+}
+
+const handleWebDAVConfigSaved = async () => {
+  try {
+    await webdavSyncService.start(cardData.value, applySyncedCards, handleSyncStatusChanged)
+  } catch (error) {
+    syncStatus.value = {
+      ...syncStatus.value,
+      message: `云同步设置已保存，但启动同步失败：${error.message}`,
+      type: 'warning',
+      pending: true,
+      isSyncing: false
+    }
+  }
 }
 
 // 显示数据迁移报告
@@ -1696,6 +2001,16 @@ watch(
   { deep: true }
 )
 
+watch(
+  () => [batchAnnualFeeForm.value.updateStatus, batchAnnualFeeForm.value.isQualified],
+  ([updateStatus, isQualified]) => {
+    if (updateStatus && isQualified === '3') {
+      batchAnnualFeeForm.value.updateNextAnnualFee = false
+      batchAnnualFeeForm.value.nextAnnualFeeCollectionTime = ''
+    }
+  }
+)
+
 onUnmounted(() => {
   if (backupTimer) {
     clearTimeout(backupTimer)
@@ -1794,6 +2109,8 @@ const closeAllDialogsForLock = () => {
   detailsVisible.value = false
   statisticsVisible.value = false
   localBackupVisible.value = false
+  batchAnnualFeeDialogVisible.value = false
+  batchValidityDialogVisible.value = false
   showPasswordSetup.value = false
   showForgotPasswordDialog.value = false
   showPasswordRecovery.value = false
@@ -1954,6 +2271,33 @@ onMounted(() => {
   .el-message-box__btns {
     padding: 12px 16px;
     border-top: 1px solid #DCDFE6;
+  }
+}
+
+.batch-update-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+
+  .el-alert {
+    margin-bottom: 2px;
+  }
+
+  .batch-field-row {
+    display: flex;
+    width: 100%;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .batch-field-column {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .batch-input-number {
+    width: 100%;
   }
 }
 

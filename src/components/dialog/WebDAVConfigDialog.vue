@@ -89,6 +89,7 @@ import { useAutoLock } from '@/composables/useAutoLock'
 
 const dialogVisible = ref(false)
 const formRef = ref(null)
+const emit = defineEmits(['saved'])
 const providedAutoLock = inject('autoLock', null)
 const { isLocked } = providedAutoLock || useAutoLock()
 
@@ -200,7 +201,7 @@ const testConnection = async () => {
     // 测试连接
     const result = await webdavClient.testConnection()
     if (result.success) {
-      // 不显示连接成功消息，避免与 BackupDialog 中的连接测试重复
+      ElMessage.success(result.message || '连接成功')
     } else {
       if (result.isCertError && !form.ignoreCert) {
         // 证书错误且未开启忽略证书，询问用户是否继续
@@ -229,7 +230,7 @@ const testConnection = async () => {
       ElMessage.error(result.message)
     }
   } catch (error) {
-    ElMessage.error('表单验证失败，请检查输入')
+    ElMessage.error(error?.message ? `连接失败：${error.message}` : '表单验证失败，请检查输入')
   }
 }
 
@@ -250,9 +251,10 @@ const saveConfig = async () => {
 
     if (saved) {
       ElMessage.success('云同步设置已保存')
+      emit('saved')
       dialogVisible.value = false
     } else {
-      ElMessage.error('保存配置失败：' + error.message)
+      ElMessage.error('保存配置失败，请检查浏览器本地存储权限')
       return false
     }
   } catch (error) {

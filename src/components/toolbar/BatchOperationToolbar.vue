@@ -76,7 +76,7 @@ import {
   CircleClose,
   Money
 } from '@element-plus/icons-vue'
-import { ElMessageBox, ElMessage } from 'element-plus'
+import { ElMessageBox } from 'element-plus'
 
 export default {
   name: 'BatchOperationToolbar',
@@ -144,7 +144,6 @@ export default {
       switch (command) {
         case 'export':
           emit('batch-export', props.selectedRows)
-          ElMessage.success(`正在导出 ${count} 张信用卡数据...`)
           break
           
         case 'mark-qualified':
@@ -155,7 +154,6 @@ export default {
               { type: 'info' }
             )
             emit('batch-update-status', { rows: props.selectedRows, status: '1' })
-            ElMessage.success(`成功标记 ${count} 张信用卡为达标`)
           } catch {
             // 用户取消
           }
@@ -169,7 +167,6 @@ export default {
               { type: 'info' }
             )
             emit('batch-update-status', { rows: props.selectedRows, status: '2' })
-            ElMessage.success(`成功标记 ${count} 张信用卡为未达标`)
           } catch {
             // 用户取消
           }
@@ -191,7 +188,10 @@ export default {
       selectedCount,
       isAllSelected,
       handleBatchDelete,
-      handleBatchCommand
+      handleBatchCommand,
+      Delete,
+      Setting,
+      Select
     }
   }
 }

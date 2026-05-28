@@ -129,6 +129,7 @@ export class WebDAVClient {
       const encryptedConfig = encryptData(JSON.stringify(config));
       localStorage.setItem(STORAGE_KEYS.WEBDAV_CONFIG, encryptedConfig);
       this.config = config;
+      this.client = null;
       return true;
     } catch (error) {
       throw new Error(`保存配置失败：${error.message}`);
