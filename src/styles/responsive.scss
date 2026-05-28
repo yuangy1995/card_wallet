@@ -333,3 +333,16 @@ $large: 1440px;
     min-height: 44px;
   }
 }
+
+/* ==========================================
+   🔍 极速全局万能搜索框移动端自适应适配
+   ========================================== */
+@media (max-width: 768px) {
+  .control-center-panel {
+    .omni-search-box {
+      width: 100% !important;
+      max-width: 100% !important;
+      margin: 4px 0 !important;
+    }
+  }
+}

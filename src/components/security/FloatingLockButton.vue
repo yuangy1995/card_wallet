@@ -1,109 +1,158 @@
 <template>
-  <div class="security-lock-controls" v-if="showButtons">
+  <div class="security-lock-flat-container" v-if="showButtons">
+    <!-- 倒计时时间显示（仅在未锁定且有剩余时间时显示） -->
+    <span class="lock-countdown" v-if="shouldShowCountdown">
+      <el-icon class="clock-icon"><Clock /></el-icon>
+      <span class="countdown-time">{{ formatTime(remainingTime) }}</span>
+    </span>
+    
+    <div class="divider-line" v-if="shouldShowCountdown"></div>
+    
+    <!-- 立即锁定纯Icon触发按钮（无边框无背景圆圈，彻底扁平化） -->
     <el-button
-      class="control-btn lock-btn"
-      type="warning"
+      class="lock-btn-flat"
       :icon="Lock"
-      circle
       aria-label="锁定应用"
+      title="立即锁定应用"
       @click="lockApp"
-    />
-
-    <el-button
-      class="control-btn settings-btn"
-      type="primary"
-      :icon="Setting"
-      circle
-      aria-label="密码设置"
-      @click="showPasswordSettings"
     />
   </div>
 </template>
 
 <script setup>
-import { computed } from 'vue'
-import { Lock, Setting } from '@element-plus/icons-vue'
+import { computed, inject } from 'vue'
+import { Lock, Clock } from '@element-plus/icons-vue'
 import { PasswordManager } from '@/utils/passwordManager'
+import { useAutoLock } from '@/composables/useAutoLock'
 
-const emit = defineEmits(['lock-app', 'show-password-settings'])
+const emit = defineEmits(['lock-app'])
 
-const showButtons = computed(() => PasswordManager.hasPassword())
+const providedAutoLock = inject('autoLock', null)
+const { hasPassword, isLocked, remainingTime } = providedAutoLock || useAutoLock()
 
+const showButtons = computed(() => hasPassword.value)
+
+// 是否显示倒计时文字
+const shouldShowCountdown = computed(() => {
+  return hasPassword.value && !isLocked.value && remainingTime.value > 0
+})
+
+// 手动锁定
 const lockApp = () => {
   emit('lock-app')
 }
 
-const showPasswordSettings = () => {
-  emit('show-password-settings')
+// 格式化时间显示（统一补零以保证文字等宽等长，从根本上防止颤抖抖动）
+const formatTime = (seconds) => {
+  if (seconds <= 0) return '00分00秒'
+  
+  const minutes = Math.floor(seconds / 60)
+  const remainingSeconds = seconds % 60
+  
+  const mStr = String(minutes).padStart(2, '0')
+  const sStr = String(remainingSeconds).padStart(2, '0')
+  
+  return `${mStr}分${sStr}秒`
 }
 </script>
 
 <style scoped lang="scss">
-.security-lock-controls {
+.security-lock-flat-container {
   display: inline-flex;
   align-items: center;
-  gap: 8px;
-  margin-right: 8px; /* 与后面的主题切换按钮拉开精致间距 */
-  
-  @media (max-width: 768px) {
-    margin-right: 0;
-    margin-bottom: 0;
+  gap: 10px;
+  box-sizing: border-box;
+
+  .lock-countdown {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11px;
+    font-weight: 700;
+    color: #d97706; /* 统一沿用优雅琥珀黄 */
+    user-select: none;
+    
+    .clock-icon {
+      font-size: 12px;
+      animation: rotateClock 12s linear infinite;
+      color: #00a8b4;
+    }
+    
+    .countdown-time {
+      font-family: 'Outfit', 'Inter', monospace;
+      font-variant-numeric: tabular-nums;
+      font-feature-settings: "tnum" 1;
+      display: inline-block;
+      min-width: 4.8em;
+      text-align: center;
+    }
   }
-}
 
-.control-btn {
-  width: 32px !important;
-  height: 32px !important;
-  padding: 0 !important;
-  display: inline-flex !important;
-  align-items: center !important;
-  justify-content: center !important;
-  transition: all 0.25s cubic-bezier(0.25, 0.8, 0.25, 1) !important;
-  border: none !important;
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08) !important;
-  cursor: pointer !important;
-  
-  :deep(.el-icon) {
-    font-size: 14px !important;
+  .divider-line {
+    width: 1px;
+    height: 12px;
+    background-color: rgba(230, 162, 60, 0.2);
+    flex-shrink: 0;
   }
 
-  &:hover {
-    transform: translateY(-1px) scale(1.05) !important;
-  }
-}
-
-/* 亮色模式下的精细按钮着色 */
-.lock-btn {
-  background-color: rgba(230, 162, 60, 0.15) !important;
-  color: #e6a23c !important;
-  
-  &:hover {
-    background-color: #e6a23c !important;
-    color: #ffffff !important;
-    box-shadow: 0 4px 12px rgba(230, 162, 60, 0.3) !important;
-  }
-}
-
-.settings-btn {
-  background-color: rgba(0, 168, 180, 0.12) !important;
-  color: #007780 !important;
-  
-  &:hover {
-    background-color: #007780 !important;
-    color: #ffffff !important;
-    box-shadow: 0 4px 12px rgba(0, 168, 180, 0.3) !important;
-  }
-}
-
-
-@media (max-width: 768px) {
-  .control-btn {
-    width: 28px !important;
-    height: 28px !important;
+  .lock-btn-flat {
+    background: transparent !important;
+    border: none !important;
+    padding: 0 !important;
+    width: 24px !important;
+    height: 24px !important;
+    min-height: auto !important;
+    cursor: pointer !important;
+    color: #64748b !important;
+    transition: all 0.2s cubic-bezier(0.25, 0.8, 0.25, 1) !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    box-shadow: none !important;
+    flex-shrink: 0;
     
     :deep(.el-icon) {
-      font-size: 12px !important;
+      font-size: 15px !important;
     }
+
+    &:hover {
+      transform: scale(1.15) !important;
+      color: #e6a23c !important; /* 悬浮时变黄色，极致高对比度 */
+    }
+  }
+}
+
+/* ==========================================
+   🌌 暗色太空舱安全锁覆写
+   ========================================== */
+:global(.dark) .security-lock-flat-container {
+  .lock-countdown {
+    color: #ffc400 !important;
+    
+    .clock-icon {
+      color: #00f2fe !important;
+    }
+  }
+  
+  .divider-line {
+    background-color: rgba(255, 196, 0, 0.15) !important;
+  }
+  
+  .lock-btn-flat {
+    color: rgba(255, 255, 255, 0.75) !important;
+    
+    &:hover {
+      color: #ffc400 !important;
+    }
+  }
+}
+
+@keyframes rotateClock {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
   }
 }
 </style>

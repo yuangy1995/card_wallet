@@ -4,15 +4,18 @@
     :title="title"
     center
     top="5vh"
-    width="800px"
+    width="900px"
     class="card-details-dialog"
     :close-on-click-modal="false"
     draggable
   >
     <el-form ref="formRef" :model="formData" :rules="rules" label-width="120px">
-      <!-- 基本信息 -->
+      <!-- 彻底拦截并隔离浏览器流氓自动填充的伪装输入框 -->
+      <input type="text" style="position: absolute; top: -9999px; left: -9999px; width: 0; height: 0; opacity: 0;" />
+      <input type="password" style="position: absolute; top: -9999px; left: -9999px; width: 0; height: 0; opacity: 0;" />
+      
       <el-descriptions :column="2" border>
-        <el-descriptions-item label="🌏 国家">
+        <el-descriptions-item label="国家">
           <el-form-item prop="country">
             <el-select 
               v-model="formData.country" 
@@ -31,7 +34,7 @@
           </el-form-item>
         </el-descriptions-item>
 
-        <el-descriptions-item label="🏦 银行">
+        <el-descriptions-item label="银行">
           <el-form-item prop="bank">
             <el-select 
               v-model="formData.bank" 
@@ -50,7 +53,7 @@
           </el-form-item>
         </el-descriptions-item>
 
-        <el-descriptions-item label="💳 卡号">
+        <el-descriptions-item label="卡号">
           <el-form-item prop="cardNumber">
             <el-input 
               v-model="formData.cardNumber" 
@@ -59,7 +62,10 @@
               :formatter="formatCardNumber"
               :parser="parseCardNumber"
               clearable
-              autocomplete="off"
+              autocomplete="new-password"
+              :readonly="cardNumberReadOnly"
+              @focus="cardNumberReadOnly = false"
+              @blur="cardNumberReadOnly = true"
             >
               <template #append>
                 <el-tooltip content="信用卡号通常为16位数字，某些卡可能为13-19位">
@@ -70,18 +76,18 @@
           </el-form-item>
         </el-descriptions-item>
 
-        <el-descriptions-item label="📝 卡片别名">
+        <el-descriptions-item label="卡片别名">
           <el-form-item prop="alias">
             <el-input 
               v-model="formData.alias" 
               placeholder="为卡片起个好记的名字"
               clearable 
-              autocomplete="off"
+              autocomplete="new-password"
             />
           </el-form-item>
         </el-descriptions-item>
 
-        <el-descriptions-item label="⭐️ 等级">
+        <el-descriptions-item label="等级">
           <el-form-item prop="level">
             <el-select 
               v-model="formData.level" 
@@ -99,7 +105,7 @@
           </el-form-item>
         </el-descriptions-item>
 
-        <el-descriptions-item label="💰 币种">
+        <el-descriptions-item label="币种">
           <el-form-item prop="type">
             <el-select 
               v-model="formData.type" 
@@ -117,14 +123,17 @@
           </el-form-item>
         </el-descriptions-item>
 
-        <el-descriptions-item label="🔒 CVV">
+        <el-descriptions-item label="CVV">
           <el-form-item prop="cvv">
             <el-input 
               v-model="formData.cvv" 
               placeholder="请输入CVV"
               maxlength="4"
               show-password
-              autocomplete="off"
+              autocomplete="new-password"
+              :readonly="cvvReadOnly"
+              @focus="cvvReadOnly = false"
+              @blur="cvvReadOnly = true"
             >
               <template #append>
                 <el-tooltip content="CVV通常为卡片背面的3位数字，美国运通卡为正面4位数字">
@@ -135,7 +144,7 @@
           </el-form-item>
         </el-descriptions-item>
 
-        <el-descriptions-item label="📅 有效期">
+        <el-descriptions-item label="有效期">
           <el-form-item prop="valid">
             <el-date-picker
               v-model="formData.valid"
@@ -149,7 +158,7 @@
           </el-form-item>
         </el-descriptions-item>
 
-        <el-descriptions-item label="🔗 银行额度共享">
+        <el-descriptions-item label="银行额度共享">
           <el-form-item prop="isSharedLimit">
             <el-radio-group v-model="formData.isSharedLimit" @change="handleLimitSharingChange">
               <el-radio :value="true" size="large">是</el-radio>
@@ -161,7 +170,7 @@
           </el-form-item>
         </el-descriptions-item>
 
-        <el-descriptions-item label="💵 额度">
+        <el-descriptions-item label="额度">
           <el-form-item prop="limit">
             <el-input-number
               v-model="formData.limit"
@@ -182,7 +191,7 @@
         </el-descriptions-item>
 
         <!-- 卡片信息 -->
-        <el-descriptions-item label="📊 账单日">
+        <el-descriptions-item label="账单日">
           <el-form-item prop="accountBillDate">
             <el-input 
               v-model="formData.accountBillDate" 
@@ -195,7 +204,7 @@
             />
           </el-form-item>
         </el-descriptions-item>
-        <el-descriptions-item label="💸 还款日">
+        <el-descriptions-item label="还款日">
           <el-form-item prop="dueDate">
             <el-input 
               v-model="formData.dueDate" 
@@ -209,7 +218,7 @@
           </el-form-item>
         </el-descriptions-item>
         
-        <el-descriptions-item label="📋 账单日消费计入" :span="2">
+        <el-descriptions-item label="账单日消费计入" :span="2">
           <el-form-item prop="billingDaySpendingToNextBill">
             <el-radio-group v-model="formData.billingDaySpendingToNextBill">
               <el-radio :value="false" size="large">当期账单</el-radio>
@@ -220,7 +229,7 @@
             </div>
           </el-form-item>
         </el-descriptions-item>
-        <el-descriptions-item label="💵 年费">
+        <el-descriptions-item label="年费">
           <el-input 
             v-model="formData.annualFee" 
             placeholder="请输入年费"
@@ -231,14 +240,14 @@
         </el-descriptions-item>
 
         <!-- 年费信息 -->
-        <el-descriptions-item label="✅ 年费达标状态" :span="2">
-          <el-radio-group v-model="formData.isQualified">
+        <el-descriptions-item label="年费状态" :span="2">
+          <el-radio-group v-model="formData.isQualified" class="annual-fee-status-group">
             <el-radio :value="'2'" size="large">未达标</el-radio>
             <el-radio :value="'1'" size="large">已达标</el-radio>
             <el-radio :value="'3'" size="large">终免年费</el-radio>
           </el-radio-group>
         </el-descriptions-item>
-        <el-descriptions-item label="⏰ 下次年费收取时间" :span="2">
+        <el-descriptions-item label="下次年费收取时间" :span="2">
           <el-date-picker 
             v-model="formData.nextAnnualFeeCollectionTime" 
             type="date" 
@@ -249,7 +258,7 @@
             :disabled="formData.isQualified === '3'"
           />
         </el-descriptions-item>
-        <el-descriptions-item label="📈 上次提额日期" :span="2">
+        <el-descriptions-item label="上次提额日期" :span="2">
           <el-date-picker 
             v-model="formData.lastTime" 
             type="date" 
@@ -261,7 +270,7 @@
         </el-descriptions-item>
 
         <!-- 其他信息 -->
-        <el-descriptions-item label="🎁 权益" :span="2">
+        <el-descriptions-item label="权益" :span="2">
           <el-input 
             v-model="formData.equity" 
             type="textarea" 
@@ -270,7 +279,7 @@
             autocomplete="off"
           />
         </el-descriptions-item>
-        <el-descriptions-item label="📌 备注" :span="2">
+        <el-descriptions-item label="备注" :span="2">
           <el-input 
             v-model="formData.remark" 
             type="textarea" 
@@ -431,6 +440,10 @@ export default {
     const cardType = ref('')
     const providedAutoLock = inject('autoLock', null)
     const { isLocked } = providedAutoLock || useAutoLock()
+    
+    // 用于彻底阻止浏览器流氓自动填充表单的动态只读控制状态
+    const cardNumberReadOnly = ref(true)
+    const cvvReadOnly = ref(true)
     
     // 表单验证规则
     const rules = {
@@ -635,10 +648,14 @@ export default {
       }
     })
 
-    // 监听 visible 变化，当对话框关闭时重置表单
+    // 监听 visible 变化，当对话框关闭或打开时均重置/锁定只读状态
     watch(
       () => props.visible,
       (newVal) => {
+        // 无论打开还是关闭，均强制锁死为只读，阻止流氓填充
+        cardNumberReadOnly.value = true
+        cvvReadOnly.value = true
+        
         if (!newVal) {
           // 重置表单数据
           formData.value = {
@@ -724,7 +741,9 @@ export default {
       handleCancel,
       handleSubmit,
       handleLimitSharingChange,
-      existingSharedLimitCard
+      existingSharedLimitCard,
+      cardNumberReadOnly,
+      cvvReadOnly
     }
   }
 }
@@ -796,10 +815,35 @@ export default {
 
   .field-helper {
     color: #909399;
+    min-height: 18px; /* 强制固死单行提示语的最小高度，彻底绝杀是/否切换描述时的上下抖动 */
   }
 
   .field-warning {
     color: #E6A23C;
+  }
+
+  /* ==========================================================================
+     殿堂级防抖与绝对物理对称（第十二版黄金比例列宽方案）
+     ========================================================================== */
+  
+  /* 标签单元格：强制锁定 12% 宽度。在 900px 弹窗下相当于极简的 108px，且左右完全对称 */
+  :deep(.el-descriptions__label) {
+    width: 12% !important;
+    box-sizing: border-box !important;
+    white-space: nowrap !important;
+  }
+
+  /* 内容单元格：强制锁定 38% 宽度。左右百分比完全等宽对称，彻底绝杀输入时清除/小眼睛显隐带来的任何横向晃动 */
+  :deep(.el-descriptions__content) {
+    width: 38% !important;
+    box-sizing: border-box !important;
+  }
+
+  /* 2. 年费状态单选按钮一排平铺展示，强行不折行 */
+  :deep(.el-radio-group.annual-fee-status-group) {
+    display: flex !important;
+    flex-wrap: nowrap !important; /* 强行一排平铺，绝不折行 */
+    gap: 20px !important;
   }
 }
 

@@ -14,27 +14,26 @@ import { useAutoLock } from '@/composables/useAutoLock'
 import { PasswordManager } from '@/utils/passwordManager'
 
 const providedAutoLock = inject('autoLock', null)
-const { isLocked, remainingTime } = providedAutoLock || useAutoLock()
+const { isLocked, remainingTime, hasPassword } = providedAutoLock || useAutoLock()
 
 // 是否显示倒计时
 const shouldShowCountdown = computed(() => {
-  return PasswordManager.hasPassword() && 
+  return hasPassword.value && 
          !isLocked.value && 
          remainingTime.value > 0
 })
 
-// 格式化时间显示
+// 格式化时间显示（统一补零以保证文字等宽等长，从根本上防止颤抖抖动）
 const formatTime = (seconds) => {
-  if (seconds <= 0) return '0分0秒'
+  if (seconds <= 0) return '00分00秒'
   
   const minutes = Math.floor(seconds / 60)
   const remainingSeconds = seconds % 60
   
-  if (minutes > 0) {
-    return `${minutes}分${remainingSeconds}秒`
-  } else {
-    return `${remainingSeconds}秒`
-  }
+  const mStr = String(minutes).padStart(2, '0')
+  const sStr = String(remainingSeconds).padStart(2, '0')
+  
+  return `${mStr}分${sStr}秒`
 }
 </script>
 
@@ -51,6 +50,12 @@ const formatTime = (seconds) => {
   overflow: hidden;
   transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
   user-select: none;
+  
+  /* ----------------------------------------------------
+     🔒 极致除颤：锁定物理宽度并启用等宽排版设计
+     ---------------------------------------------------- */
+  width: 194px; /* 固化物理总宽度，彻底消灭字符伸缩引起的抖动 */
+  justify-content: center; /* 内容在固定宽度下精美居中 */
   
   /* ----------------------------------------------------
      💡 基于 CSS 变量的现代双主题设计系统（从根本上消灭优先级覆盖混乱）
@@ -74,6 +79,7 @@ const formatTime = (seconds) => {
     font-size: 14px;
     color: var(--countdown-icon-color) !important;
     animation: rotateClock 12s linear infinite;
+    flex-shrink: 0;
   }
 
   .countdown-text {
@@ -89,6 +95,13 @@ const formatTime = (seconds) => {
     font-family: 'Outfit', 'Inter', monospace;
     font-size: 13px;
     text-shadow: var(--countdown-text-shadow) !important;
+
+    /* 启用现代等宽数字排版，规避比例数字颤动 */
+    font-variant-numeric: tabular-nums !important;
+    font-feature-settings: "tnum" 1 !important;
+    display: inline-block;
+    min-width: 5.6em; /* 固化高亮区域的底层物理空间 */
+    text-align: center;
   }
 
   /* 扫光炫酷光效 (Sweep Scan Light) */

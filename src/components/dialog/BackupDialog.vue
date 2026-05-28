@@ -362,6 +362,8 @@ import { encryptData, decryptData } from '@/utils/encryption'
 import { Delete, ArrowDown, DocumentCopy, RefreshRight, Edit } from '@element-plus/icons-vue'
 import { creditCardOptions } from '@/config/creditCardOptions'
 import { useAutoLock } from '@/composables/useAutoLock'
+import { backupPayloadInfo } from '@/utils/backupPayload'
+import { cardsEqualForSync, comparableCardForSync } from '@/utils/syncProtocol'
 
 const emit = defineEmits(['update', 'showConfig'])
 const visible = ref(false)
@@ -608,15 +610,18 @@ const handleBackupConfirm = async () => {
   }
 }
 
-const extractCards = (data) => {
-  const parsedData = typeof data === 'string' ? JSON.parse(data) : data
-  if (Array.isArray(parsedData)) return parsedData
-  if (Array.isArray(parsedData?.cards)) return parsedData.cards
-  if (Array.isArray(parsedData?.data)) return parsedData.data
-  return []
+const getBackupPayloadInfo = (data) => {
+  const payloadInfo = backupPayloadInfo(data)
+  if (!payloadInfo.isRecognized) {
+    throw new Error('此备份文件不是可识别的账本格式，可能文件已损坏或不是本应用生成的备份。')
+  }
+  return payloadInfo
 }
 
 const getStoredCards = () => {
+  if (Array.isArray(cardData.value) && cardData.value.length > 0) {
+    return cardData.value
+  }
   const storedData = JSON.parse(localStorage.getItem('cardData') || '[]')
   return Array.isArray(storedData) ? storedData : []
 }
@@ -711,7 +716,8 @@ const mergeLatestCards = (localCards, cloudCards) => {
 // 根据解密后的数据进行比对，并展示解决冲突的入口
 const compareData = (decryptedData, backup, options = {}) => {
   const { automatic = false, showMatch = true } = options
-  const backupData = extractCards(decryptedData)
+  const payloadInfo = getBackupPayloadInfo(decryptedData)
+  const backupData = payloadInfo.cards
   const currentData = getStoredCards()
   const currentMap = new Map(currentData.map(item => [item.id, item]))
   const backupMap = new Map(backupData.map(item => [item.id, item]))
@@ -731,13 +737,20 @@ const compareData = (decryptedData, backup, options = {}) => {
       return
     }
 
+    const itemHasChanges = !cardsEqualForSync(backupItem, currentItem)
+    if (!itemHasChanges) {
+      return
+    }
+
     const diff = {}
-    const fields = new Set([...Object.keys(backupItem), ...Object.keys(currentItem)])
+    const backupComparable = comparableCardForSync(backupItem)
+    const currentComparable = comparableCardForSync(currentItem)
+    const fields = new Set([...Object.keys(backupComparable), ...Object.keys(currentComparable)])
     fields.forEach(field => {
-      if (!field.startsWith('_') && !isSameFieldValue(field, currentItem[field], backupItem[field])) {
+      if (!field.startsWith('_') && !isSameFieldValue(field, currentComparable[field], backupComparable[field])) {
         diff[field] = {
-          cloud: backupItem[field],
-          local: currentItem[field]
+          cloud: backupComparable[field],
+          local: currentComparable[field]
         }
       }
     })

@@ -10,6 +10,7 @@ export function useAutoLock() {
   const remainingTime = ref(0) // 剩余时间（秒）
   const countdownTimer = ref(null)
   const activityEvents = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click']
+  const hasPassword = ref(PasswordManager.hasPassword())
   
   // 更新活动时间并重置定时器
   const updateActivity = () => {
@@ -85,6 +86,7 @@ export function useAutoLock() {
 
   // 检查锁定状态
   const checkLockStatus = () => {
+    hasPassword.value = PasswordManager.hasPassword()
     if (PasswordManager.hasPassword()) {
       const locked = PasswordManager.isAppLocked() || PasswordManager.shouldAutoLock()
       if (locked && !isLocked.value) {
@@ -123,6 +125,7 @@ export function useAutoLock() {
   const destroy = () => {
     removeActivityListeners()
     clearLockTimer()
+    hasPassword.value = false
   }
 
   // 手动锁定
@@ -134,6 +137,7 @@ export function useAutoLock() {
 
   // 设置密码后初始化
   const initAfterPasswordSet = () => {
+    hasPassword.value = true
     addActivityListeners()
     resetLockTimer()
     isLocked.value = false
@@ -164,6 +168,7 @@ export function useAutoLock() {
   return {
     isLocked,
     remainingTime,
+    hasPassword,
     lockApp: manualLock,
     unlockApp,
     checkLockStatus,

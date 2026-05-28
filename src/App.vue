@@ -1,13 +1,65 @@
 <template>
   <div class="app-container">
     <div class="main_body">
-      <SearchForm
-        v-model="searchForm"
-        :options="creditCardOptions"
-        class="search-form"
-      >
-        <template #header-extra>
-          <div class="sync-status-bar">
+      <!-- 一体式控制中心 (Unified Control Center) -->
+      <div class="control-center-panel">
+        <!-- 第一行：工具与操作控制栏 -->
+        <div class="toolbar-row">
+          
+          <!-- 左侧区：控制中心标题、表格模式切换、展开筛选 -->
+          <div class="toolbar-left">
+            <span class="panel-title">
+              <el-icon><Setting /></el-icon>控制中心
+            </span>
+            
+            <!-- 表格模式/卡片模式选择器 -->
+            <el-radio-group v-model="viewMode" size="small" class="view-mode-selector mobile-responsive">
+              <el-radio-button value="table">
+                <el-icon><Menu /></el-icon>表格
+              </el-radio-button>
+              <el-radio-button value="card">
+                <el-icon><CreditCard /></el-icon>卡片
+              </el-radio-button>
+            </el-radio-group>
+            
+            <div class="divider-line"></div>
+            
+            <!-- 筛选开关与重置 -->
+            <el-button-group class="filter-btn-group mobile-responsive">
+              <el-button 
+                type="primary" 
+                :plain="isSearchCollapsed"
+                size="small" 
+                @click="isSearchCollapsed = !isSearchCollapsed"
+              >
+                <el-icon><Filter v-if="isSearchCollapsed" /><ArrowUp v-else /></el-icon>
+                {{ isSearchCollapsed ? '展开筛选' : '收起筛选' }}
+              </el-button>
+              <el-button type="danger" plain size="small" @click="resetSearchForm">
+                重置
+              </el-button>
+            </el-button-group>
+            
+            <div class="divider-line"></div>
+            
+            <!-- 全局万能搜索框 -->
+            <div class="omni-search-box mobile-responsive">
+              <el-input
+                v-model="quickSearchQuery"
+                placeholder="任意内容检索 (别名/银行/卡号/备注...)"
+                size="small"
+                clearable
+                class="omni-search-input"
+              >
+                <template #prefix>
+                  <el-icon class="search-icon"><Search /></el-icon>
+                </template>
+              </el-input>
+            </div>
+          </div>
+          
+          <!-- 中间区：云同步小药丸胶囊 -->
+          <div class="toolbar-center">
             <div class="sync-status-pill" :class="`is-${syncStatus.type || 'info'}`" :title="syncStatus.message">
               <span class="sync-state">{{ syncStateText }}</span>
               <span v-if="syncLastTimeText" class="sync-meta">{{ syncLastTimeText }}</span>
@@ -24,98 +76,105 @@
               立即同步
             </el-button>
           </div>
-        </template>
-      </SearchForm>
-      <div class="button-container">
-        
-        <el-radio-group v-model="viewMode" size="small" class="view-mode-selector mobile-responsive">
-          <el-radio-button value="table">
-            <el-icon><Menu /></el-icon>表格模式
-          </el-radio-button>
-          <el-radio-button value="card">
-            <el-icon><CreditCard /></el-icon>卡片模式
-          </el-radio-button>
-        </el-radio-group>
-        
-        <div class="toolbar-actions">
-          <el-button-group class="button-group mobile-responsive">
-            <el-button type="primary" @click="addCreditCard">
-              <el-icon>
-                <Plus />
-              </el-icon>新增信用卡
-            </el-button>
-            <el-button type="primary" @click="handleBackup">
-              <el-icon>
-                <Upload />
-              </el-icon>云端备份
-            </el-button>
-            <el-button type="primary" @click="showStatistics">
-              <el-icon>
-                <TrendCharts />
-              </el-icon>统计分析
-            </el-button>
-            <el-button type="warning" @click="manualCheckAnnualFees">
-              <el-icon>
-                <Calendar />
-              </el-icon>年费提醒
-            </el-button>
-          </el-button-group>
+          
+          <!-- 右侧区：常用操作按钮组、主题与安全锁胶囊 -->
+          <div class="toolbar-right">
+            <el-button-group class="button-group mobile-responsive">
+              <el-button type="primary" size="small" @click="addCreditCard">
+                <el-icon><Plus /></el-icon>新增信用卡
+              </el-button>
+              <el-button type="primary" size="small" @click="handleBackup">
+                <el-icon><Upload /></el-icon>云端备份
+              </el-button>
+              <el-button type="primary" size="small" @click="showStatistics">
+                <el-icon><TrendCharts /></el-icon>统计分析
+              </el-button>
+              <el-button type="warning" size="small" @click="manualCheckAnnualFees">
+                <el-icon><Calendar /></el-icon>年费提醒
+              </el-button>
+            </el-button-group>
 
-          <el-dropdown
-            class="more-actions"
-            trigger="click"
-            popper-class="main-more-dropdown"
-            @command="handleMoreAction"
-          >
-            <el-button>
-              更多<el-icon class="el-icon--right"><ArrowDown /></el-icon>
-            </el-button>
-            <template #dropdown>
-              <el-dropdown-menu>
-                <el-dropdown-item command="cloudSettings">
-                  <el-icon><Connection /></el-icon>云同步设置
-                </el-dropdown-item>
-                <el-dropdown-item command="exportData">
-                  <el-icon><Share /></el-icon>导出数据
-                </el-dropdown-item>
-                <el-dropdown-item command="importData">
-                  <el-icon><FolderOpened /></el-icon>导入数据
-                </el-dropdown-item>
-                <el-dropdown-item command="localBackup">
-                  <el-icon><DocumentCopy /></el-icon>本机备份
-                </el-dropdown-item>
-                <el-dropdown-item command="tableCustom">
-                  <el-icon><Setting /></el-icon>自定义列
-                </el-dropdown-item>
-                <el-dropdown-item command="help">
-                  <el-icon><QuestionFilled /></el-icon>使用帮助
-                </el-dropdown-item>
-                <el-dropdown-item command="clearData" divided class="danger-dropdown-item">
-                  <el-icon><Delete /></el-icon>清除所有数据
-                </el-dropdown-item>
-                <el-dropdown-item v-if="isDev" command="generateTestData">
-                  <el-icon><Star /></el-icon>生成测试数据
-                </el-dropdown-item>
-                <el-dropdown-item v-if="isDev" command="exportDesensitizedData">
-                  <el-icon><CopyDocument /></el-icon>导出脱敏数据
-                </el-dropdown-item>
-              </el-dropdown-menu>
-            </template>
-          </el-dropdown>
+            <el-dropdown
+              class="more-actions"
+              trigger="click"
+              popper-class="main-more-dropdown"
+              @command="handleMoreAction"
+            >
+              <el-button size="small">
+                更多<el-icon class="el-icon--right"><ArrowDown /></el-icon>
+              </el-button>
+              <template #dropdown>
+                <el-dropdown-menu>
+                  <!-- 移动端与小屏专属收纳操作项 (常态隐藏，小屏下自动显现) -->
+                  <el-dropdown-item command="cloudBackup" class="mobile-only-menu-item">
+                    <el-icon><Upload /></el-icon>云端备份
+                  </el-dropdown-item>
+                  <el-dropdown-item command="statistics" class="mobile-only-menu-item">
+                    <el-icon><TrendCharts /></el-icon>统计分析
+                  </el-dropdown-item>
+                  <el-dropdown-item command="annualFeeRemind" class="mobile-only-menu-item">
+                    <el-icon><Calendar /></el-icon>年费提醒
+                  </el-dropdown-item>
+                  
+                  <el-dropdown-item command="cloudSettings">
+                    <el-icon><Connection /></el-icon>云同步设置
+                  </el-dropdown-item>
+                  <el-dropdown-item command="securitySettings">
+                    <el-icon><Lock /></el-icon>安全设置
+                  </el-dropdown-item>
+                  <el-dropdown-item command="exportData">
+                    <el-icon><Share /></el-icon>导出数据
+                  </el-dropdown-item>
+                  <el-dropdown-item command="importData">
+                    <el-icon><FolderOpened /></el-icon>导入数据
+                  </el-dropdown-item>
+                  <el-dropdown-item command="localBackup">
+                    <el-icon><DocumentCopy /></el-icon>本机备份
+                  </el-dropdown-item>
+                  <el-dropdown-item command="tableCustom">
+                    <el-icon><Setting /></el-icon>自定义列
+                  </el-dropdown-item>
+                  <el-dropdown-item command="help">
+                    <el-icon><QuestionFilled /></el-icon>使用帮助
+                  </el-dropdown-item>
+                  <el-dropdown-item command="clearData" divided class="danger-dropdown-item">
+                    <el-icon><Delete /></el-icon>清除所有数据
+                  </el-dropdown-item>
+                  <el-dropdown-item v-if="isDev" command="generateTestData">
+                    <el-icon><Star /></el-icon>生成测试数据
+                  </el-dropdown-item>
+                  <el-dropdown-item v-if="isDev" command="exportDesensitizedData">
+                    <el-icon><CopyDocument /></el-icon>导出脱敏数据
+                  </el-dropdown-item>
+                </el-dropdown-menu>
+              </template>
+            </el-dropdown>
+
+            <!-- 主题与安全锁控制集成胶囊 -->
+            <div class="theme-toggle-container">
+              <FloatingLockButton
+                @lock-app="handleLockApp"
+              />
+              <el-button circle size="small" @click="toggleTheme" class="theme-toggle-btn" :title="isDarkMode ? '切换到浅色极光模式' : '切换到深色太空模式'">
+                <el-icon v-if="isDarkMode"><Sunny /></el-icon>
+                <el-icon v-else><Moon /></el-icon>
+              </el-button>
+            </div>
+          </div>
+          
         </div>
 
-        <!-- 主题与安全锁控制集成胶囊 -->
-        <div class="theme-toggle-container">
-          <FloatingLockButton
-            @lock-app="handleLockApp"
-            @show-password-settings="showPasswordSetup = true"
-          />
-          <el-button circle @click="toggleTheme" class="theme-toggle-btn" :title="isDarkMode ? '切换到浅色极光模式' : '切换到深色太空模式'">
-            <el-icon v-if="isDarkMode"><Sunny /></el-icon>
-            <el-icon v-else><Moon /></el-icon>
-          </el-button>
-        </div>
-        
+        <!-- 第二行：可折叠展示的纯无边界筛选表单 -->
+        <el-collapse-transition>
+          <div v-show="!isSearchCollapsed" class="filter-form-drawer">
+            <SearchForm
+              v-model="searchForm"
+              :options="creditCardOptions"
+              :is-collapse="false"
+              class="search-form-clean"
+            />
+          </div>
+        </el-collapse-transition>
       </div>
 
       <!-- 批量操作工具栏 -->
@@ -241,7 +300,10 @@ import {
   CreditCard,
   Sunny,
   Moon,
-  ArrowDown
+  ArrowDown,
+  Filter,
+  Lock,
+  Search
 } from '@element-plus/icons-vue'
 import CreditCardTable from '@/components/table/CreditCardTable.vue'
 import BatchOperationToolbar from '@/components/toolbar/BatchOperationToolbar.vue'
@@ -264,6 +326,7 @@ import PasswordVerify from '@/components/security/PasswordVerify.vue'
 import ForgotPassword from '@/components/security/ForgotPassword.vue'
 import PasswordRecovery from '@/components/security/PasswordRecovery.vue'
 import FloatingLockButton from '@/components/security/FloatingLockButton.vue'
+import AutoLockCountdown from '@/components/security/AutoLockCountdown.vue'
 
 import { creditCardOptions } from '@/config/creditCardOptions'
 import SearchForm from '@/components/search/SearchForm.vue'
@@ -409,6 +472,72 @@ const localBackupVisible = ref(false)
 const localBackup = ref(null)
 let backupTimer = null
 
+const isSearchCollapsed = ref(true)
+
+// 万能检索与高级筛选状态
+const quickSearchQuery = ref('')
+const debouncedQuickSearchQuery = useDebouncedRef(quickSearchQuery, 300)
+
+const resetSearchForm = (showToast = true) => {
+  searchForm.value = {
+    type: '',
+    bank: '',
+    cardNumber: '',
+    level: '',
+    limit: '',
+    isQualified: '',
+    equity: '',
+    remark: '',
+    country: '',
+    alias: ''
+  }
+  if (showToast) {
+    ElMessage.success('筛选条件已重置')
+  }
+}
+
+// 判断高级筛选是否包含任何非空过滤条件
+const hasAdvancedSearchConditions = computed(() => {
+  const form = searchForm.value
+  return !!(
+    form.type ||
+    form.bank ||
+    form.cardNumber ||
+    form.level ||
+    form.limit ||
+    form.isQualified ||
+    form.equity ||
+    form.remark ||
+    form.country ||
+    form.alias
+  )
+})
+
+// 监听高级搜索条件：只要高级搜索中有输入，就自动清空万能搜索框
+watch(
+  searchForm,
+  () => {
+    if (hasAdvancedSearchConditions.value && quickSearchQuery.value !== '') {
+      quickSearchQuery.value = ''
+    }
+  },
+  { deep: true }
+)
+
+// 监听展开高级搜索：一旦用户点开折叠的高级搜索面板，默认清空万能搜索框
+watch(isSearchCollapsed, (isCollapsed) => {
+  if (!isCollapsed) {
+    quickSearchQuery.value = ''
+  }
+})
+
+// 监听万能搜索输入：一旦有内容，就默认清空高级搜索的各项条件（不弹提示，保留当前面板折叠状态）
+watch(quickSearchQuery, (newVal) => {
+  if (newVal && newVal.trim() !== '') {
+    resetSearchForm(false)
+  }
+})
+
 // 加载状态管理
 const loadingState = ref({
   visible: false,
@@ -436,57 +565,85 @@ const visibleColumns = computed(() => {
 const debouncedSearchForm = useDebouncedRef(searchForm, 300)
 
 const tableData = computed(() => {
-  const form = debouncedSearchForm.value
-  const filtered = cardData.value.filter(card => {
-    // 币种匹配
-    const matchType = !form.type || 
-                     (card.type && (form.type.includes(card.type) ||
-                     card.type.includes(form.type)));
-    
-    // 银行匹配
-    const matchBank = !form.bank || 
-                     (card.bank && (form.bank.includes(card.bank) ||
-                     card.bank.includes(form.bank)));
-    
-    // 卡片等级匹配
-    const matchLevel = !form.level || 
-                      (card.level && (form.level.includes(card.level) ||
-                      card.level.includes(form.level)));
-    
-    // 年费达标状态匹配
-    const matchStatus = !form.isQualified || 
-                       form.isQualified.length === 0 || 
-                       form.isQualified.includes(card.isQualified);
-    
-    // 别名搜索
-    const matchAlias = !form.alias || 
-                      (card.alias && card.alias.toLowerCase().includes(form.alias.toLowerCase()));
-    
-    // 国家匹配
-    const matchCountry = !form.country || 
-                        (card.country && (form.country.includes(card.country) ||
-                        card.country.includes(form.country)));
-    
-    // 卡号匹配 - 去除空格和其他格式字符进行匹配
-    const matchCardNumber = !form.cardNumber || 
-                           (card.cardNumber && 
-                            card.cardNumber.replace(/[\s-]/g, '').includes(form.cardNumber.replace(/[\s-]/g, '')));
-    
-    // 额度匹配
-    const matchLimit = !form.limit || 
-                      (card.limit && card.limit.toString().includes(form.limit));
-    
-    // 权益匹配
-    const matchEquity = !form.equity || 
-                       (card.equity && card.equity.toLowerCase().includes(form.equity.toLowerCase()));
-    
-    // 备注匹配
-    const matchRemark = !form.remark || 
-                       (card.remark && card.remark.toLowerCase().includes(form.remark.toLowerCase()));
-    
-    return matchType && matchBank && matchLevel && matchStatus && matchAlias && 
-           matchCountry && matchCardNumber && matchLimit && matchEquity && matchRemark;
-  });
+  const query = debouncedQuickSearchQuery.value ? debouncedQuickSearchQuery.value.trim().toLowerCase() : ''
+  
+  let filtered = []
+  if (query) {
+    // 存在万能检索条件时：对卡片所有相关字段执行全局模糊检索
+    filtered = cardData.value.filter(card => {
+      const bankMatch = card.bank && card.bank.toLowerCase().includes(query)
+      const aliasMatch = card.alias && card.alias.toLowerCase().includes(query)
+      
+      // 卡号去除多余的分隔符进行容错检索
+      const cleanQuery = query.replace(/[\s-]/g, '')
+      const cleanCardNumber = card.cardNumber ? card.cardNumber.replace(/[\s-]/g, '').toLowerCase() : ''
+      const cardNumberMatch = cleanCardNumber.includes(cleanQuery)
+      
+      const levelMatch = card.level && card.level.toLowerCase().includes(query)
+      const typeMatch = card.type && card.type.toLowerCase().includes(query)
+      const countryMatch = card.country && card.country.toLowerCase().includes(query)
+      const equityMatch = card.equity && card.equity.toLowerCase().includes(query)
+      const remarkMatch = card.remark && card.remark.toLowerCase().includes(query)
+      
+      // 额度检索
+      const limitMatch = card.limit && card.limit.toString().includes(query)
+      
+      return bankMatch || aliasMatch || cardNumberMatch || levelMatch || typeMatch || countryMatch || equityMatch || remarkMatch || limitMatch
+    })
+  } else {
+    // 否则，使用高级搜索逻辑
+    const form = debouncedSearchForm.value
+    filtered = cardData.value.filter(card => {
+      // 币种匹配
+      const matchType = !form.type || 
+                       (card.type && (form.type.includes(card.type) ||
+                       card.type.includes(form.type)));
+      
+      // 银行匹配
+      const matchBank = !form.bank || 
+                       (card.bank && (form.bank.includes(card.bank) ||
+                       card.bank.includes(form.bank)));
+      
+      // 卡片等级匹配
+      const matchLevel = !form.level || 
+                        (card.level && (form.level.includes(card.level) ||
+                        card.level.includes(form.level)));
+      
+      // 年费达标状态匹配
+      const matchStatus = !form.isQualified || 
+                         form.isQualified.length === 0 || 
+                         form.isQualified.includes(card.isQualified);
+      
+      // 别名搜索
+      const matchAlias = !form.alias || 
+                        (card.alias && card.alias.toLowerCase().includes(form.alias.toLowerCase()));
+      
+      // 国家匹配
+      const matchCountry = !form.country || 
+                          (card.country && (form.country.includes(card.country) ||
+                          card.country.includes(form.country)));
+      
+      // 卡号匹配 - 去除空格和其他格式字符进行匹配
+      const matchCardNumber = !form.cardNumber || 
+                             (card.cardNumber && 
+                              card.cardNumber.replace(/[\s-]/g, '').includes(form.cardNumber.replace(/[\s-]/g, '')));
+      
+      // 额度匹配
+      const matchLimit = !form.limit || 
+                        (card.limit && card.limit.toString().includes(form.limit));
+      
+      // 权益匹配
+      const matchEquity = !form.equity || 
+                         (card.equity && card.equity.toLowerCase().includes(form.equity.toLowerCase()));
+      
+      // 备注匹配
+      const matchRemark = !form.remark || 
+                         (card.remark && card.remark.toLowerCase().includes(form.remark.toLowerCase()));
+      
+      return matchType && matchBank && matchLevel && matchStatus && matchAlias && 
+             matchCountry && matchCardNumber && matchLimit && matchEquity && matchRemark;
+    });
+  }
 
   // 默认排序：先按国家，再按银行
   const sorted = filtered.sort((a, b) => {
@@ -919,6 +1076,9 @@ const handleMoreAction = async (command) => {
     case 'cloudSettings':
       showWebDAVConfig()
       break
+    case 'securitySettings':
+      showPasswordSetup.value = true
+      break
     case 'exportData':
       exportData()
       break
@@ -942,6 +1102,16 @@ const handleMoreAction = async (command) => {
       break
     case 'exportDesensitizedData':
       exportDesensitizedData()
+      break
+    // 移动端/小屏专属命令路由
+    case 'cloudBackup':
+      handleBackup()
+      break
+    case 'statistics':
+      showStatistics()
+      break
+    case 'annualFeeRemind':
+      manualCheckAnnualFees()
       break
   }
 }
@@ -1435,9 +1605,9 @@ watch(backup, async (instance) => {
   await instance.checkLatestBackupOnStartup?.()
 })
 
-const handleBackupUpdate = (data) => {
-  cardData.value = data
-  localStorage.setItem('cardData', JSON.stringify(data))
+const handleBackupUpdate = async (data) => {
+  cardData.value = data.map(card => normalizeCardTimeFields(card, { fillLastModifyTime: true }))
+  await persistSyncedMutation({ replace: true })
 }
 
 const autoBackup = () => {
@@ -1529,8 +1699,8 @@ const pendingMigrationInfo = ref(null)
 const needsInitialChecks = ref(false)
 
 // 自动锁定功能
-const { isLocked, remainingTime, unlockApp, lockApp, initAfterPasswordSet, updateActivity, resetLockTimer } = useAutoLock()
-provide('autoLock', { isLocked, remainingTime, unlockApp, lockApp, initAfterPasswordSet, updateActivity, resetLockTimer })
+const { isLocked, remainingTime, hasPassword, unlockApp, lockApp, initAfterPasswordSet, updateActivity, resetLockTimer } = useAutoLock()
+provide('autoLock', { isLocked, remainingTime, hasPassword, unlockApp, lockApp, initAfterPasswordSet, updateActivity, resetLockTimer })
 
 // 密码设置完成
 const handlePasswordSet = () => {
