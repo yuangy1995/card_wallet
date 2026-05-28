@@ -10,7 +10,6 @@ import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.ui.NavDisplay
 import com.example.creditcard.ui.CardDetailScreen
 import com.example.creditcard.ui.CardFormScreen
-import com.example.creditcard.ui.SyncSettingsScreen
 import com.example.creditcard.ui.main.MainScreen
 
 /**
@@ -47,13 +46,6 @@ fun MainNavigation() {
             entry<CardForm> { key ->
                 CardFormScreen(
                     cardId = key.cardId,
-                    onBack = { backStack.removeLastOrNull() }
-                )
-            }
-            
-            // 4. 云同步备份设置界面路由
-            entry<SyncSettings> {
-                SyncSettingsScreen(
                     onBack = { backStack.removeLastOrNull() }
                 )
             }

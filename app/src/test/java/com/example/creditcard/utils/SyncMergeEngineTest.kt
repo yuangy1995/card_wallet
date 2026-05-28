@@ -102,8 +102,7 @@ class SyncMergeEngineTest {
         """.trimIndent()
 
         val snapshot = AppJson.json.decodeFromString<SyncSnapshot>(json)
-        val merged = SyncMergeEngine.merge(snapshot.records)
-        val activeCard = SyncMergeEngine.extractActiveCards(merged).single()
+        val activeCard = SyncMergeEngine.extractActiveCards(snapshot.records).single()
 
         assertEquals("web-id", activeCard.id)
         assertEquals("86", activeCard.country)

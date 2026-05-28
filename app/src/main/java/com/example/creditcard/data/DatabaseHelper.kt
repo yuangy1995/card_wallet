@@ -284,6 +284,12 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
         db.delete(TABLE_SYNC_RECORDS, null, null)
     }
 
+    fun resetDatabase() {
+        val db = this.writableDatabase
+        db.delete(TABLE_CARDS, null, null)
+        db.delete(TABLE_SYNC_RECORDS, null, null)
+    }
+
     private fun Cursor.getStringOrEmpty(columnName: String): String {
         val index = getColumnIndexOrThrow(columnName)
         return if (isNull(index)) "" else getString(index).orEmpty()

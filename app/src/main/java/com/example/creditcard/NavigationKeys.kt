@@ -11,5 +11,3 @@ import kotlinx.serialization.Serializable
 @Serializable data class CardDetail(val cardId: String) : NavKey
 
 @Serializable data class CardForm(val cardId: String? = null) : NavKey
-
-@Serializable data object SyncSettings : NavKey

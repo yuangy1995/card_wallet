@@ -363,4 +363,31 @@ object SyncCoordinator {
             synchronize(appContext, publishLocalChanges = publishLocalChanges)
         }
     }
+
+    /**
+     * 清空本地所有变动流水记录 (排障运维态)
+     */
+    suspend fun clearSyncRecords(context: Context) {
+        withContext(Dispatchers.IO) {
+            val db = DatabaseHelper(context.applicationContext)
+            db.clearAllSyncRecords()
+            withContext(Dispatchers.Main) {
+                updateStatus("本地变动账本流水已全部成功重置为初始态", "info", false)
+            }
+        }
+    }
+
+    /**
+     * 物理重置本地数据库，将卡片表与流水表清空
+     */
+    suspend fun resetLocalDatabase(context: Context) {
+        withContext(Dispatchers.IO) {
+            val db = DatabaseHelper(context.applicationContext)
+            db.resetDatabase()
+            withContext(Dispatchers.Main) {
+                _cardsFlow.value = emptyList()
+                updateStatus("已完全重置本地所有卡片数据为白板状态", "info", false)
+            }
+        }
+    }
 }
