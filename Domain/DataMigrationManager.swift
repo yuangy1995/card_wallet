@@ -266,6 +266,7 @@ public class DataMigrationManager {
         // 7. 确保布尔值正确
         let isSharedLimit = ensureBool(dict["isSharedLimit"], defaultValue: true)
         let billingDaySpendingToNextBill = ensureBool(dict["billingDaySpendingToNextBill"], defaultValue: true)
+        let cardImages = parseCardImages(dict["cardImages"])
         
         // 8. 补全最后修改时间，内部统一使用毫秒时间戳
         let lastModifyTime = timestampMilliseconds(from: dict["lastModifyTime"]) ?? currentTimestampMilliseconds()
@@ -291,7 +292,8 @@ public class DataMigrationManager {
             equity: equity,
             remark: remark,
             lastModifyTime: lastModifyTime,
-            isSharedLimit: isSharedLimit
+            isSharedLimit: isSharedLimit,
+            cardImages: cardImages
         )
     }
     
@@ -319,6 +321,30 @@ public class DataMigrationManager {
             }
         }
         return nil
+    }
+
+    private static func parseCardImages(_ value: Any?) -> [CardImageAsset] {
+        guard let rawItems = value as? [Any] else { return [] }
+        return rawItems.enumerated().compactMap { index, item in
+            if let dataUrl = item as? String, !dataUrl.isEmpty {
+                return CardImageAsset(
+                    data: dataUrl,
+                    source: "legacy",
+                    name: "card_image_\(index + 1).jpg"
+                )
+            }
+            guard let dict = item as? [String: Any] else { return nil }
+            guard let data = dict["data"] as? String, !data.isEmpty else { return nil }
+            let createdAt = timestampMilliseconds(from: dict["createdAt"]) ?? currentTimestampMilliseconds()
+            return CardImageAsset(
+                id: (dict["id"] as? String) ?? UUID().uuidString,
+                mimeType: (dict["mimeType"] as? String) ?? "image/jpeg",
+                data: data,
+                createdAt: createdAt,
+                source: (dict["source"] as? String) ?? "mac_upload",
+                name: (dict["name"] as? String) ?? ""
+            )
+        }
     }
 
     public static func cardsFromBackupJSON(_ jsonString: String) -> [SharedCard]? {

@@ -1,4 +1,6 @@
 import SwiftUI
+import AppKit
+import UniformTypeIdentifiers
 
 public struct CardEditView: View {
     @Environment(\.dismiss) var dismiss
@@ -33,6 +35,8 @@ public struct CardEditView: View {
     @State private var equity = ""
     @State private var remark = ""
     @State private var isSharedLimit = true
+    @State private var cardImages: [CardImageAsset] = []
+    @State private var isImportingImages = false
     
     // 💡 焦点流动状态，符合人类的 Tab 键操作逻辑
     enum Field: Hashable {
@@ -267,6 +271,66 @@ public struct CardEditView: View {
                                 .focused($focusedField, equals: .remark)
                                 .lineLimit(2...4)
                         }
+
+                        Section(header: Text("🖼️ 卡片媒体文件")) {
+                            HStack {
+                                Button {
+                                    isImportingImages = true
+                                } label: {
+                                    Label("上传图片", systemImage: "photo.badge.plus")
+                                }
+                                Spacer()
+                                Text("\(cardImages.count) 张")
+                                    .foregroundStyle(.secondary)
+                            }
+
+                            if cardImages.isEmpty {
+                                Text("暂无卡片图片。这里保存的图片会写入 cardImages 字段，并随 V3 数据同步到 Web 和 Android。")
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                            } else {
+                                ScrollView(.horizontal, showsIndicators: false) {
+                                    HStack(spacing: 12) {
+                                        ForEach(cardImages) { image in
+                                            VStack(alignment: .leading, spacing: 6) {
+                                                if let nsImage = nsImage(from: image) {
+                                                    Image(nsImage: nsImage)
+                                                        .resizable()
+                                                        .scaledToFill()
+                                                        .frame(width: 170, height: 108)
+                                                        .clipShape(RoundedRectangle(cornerRadius: 8))
+                                                        .overlay(
+                                                            RoundedRectangle(cornerRadius: 8)
+                                                                .stroke(.secondary.opacity(0.25), lineWidth: 1)
+                                                        )
+                                                } else {
+                                                    RoundedRectangle(cornerRadius: 8)
+                                                        .fill(.secondary.opacity(0.15))
+                                                        .frame(width: 170, height: 108)
+                                                        .overlay(Text("无法预览").font(.footnote).foregroundStyle(.secondary))
+                                                }
+
+                                                HStack {
+                                                    Text(image.name.isEmpty ? image.source : image.name)
+                                                        .font(.caption)
+                                                        .lineLimit(1)
+                                                        .truncationMode(.middle)
+                                                    Spacer()
+                                                    Button(role: .destructive) {
+                                                        cardImages.removeAll { $0.id == image.id }
+                                                    } label: {
+                                                        Image(systemName: "trash")
+                                                    }
+                                                    .buttonStyle(.borderless)
+                                                }
+                                                .frame(width: 170)
+                                            }
+                                        }
+                                    }
+                                    .padding(.vertical, 4)
+                                }
+                            }
+                        }
                     }
                     .formStyle(.grouped)
                     .navigationTitle((mode == "edit" || cardToEdit != nil) ? "编辑信用卡信息" : "新增信用卡")
@@ -287,6 +351,15 @@ public struct CardEditView: View {
                     .onAppear {
                         loadInitialData()
                         focusedField = .cardNumber // 打开时默认激活卡号焦点，顺手！
+                    }
+                    .fileImporter(
+                        isPresented: $isImportingImages,
+                        allowedContentTypes: [.image],
+                        allowsMultipleSelection: true
+                    ) { result in
+                        if case let .success(urls) = result {
+                            importImageFiles(urls)
+                        }
                     }
                 }
             }
@@ -328,6 +401,7 @@ public struct CardEditView: View {
         equity = card.equity ?? ""
         remark = card.remark ?? ""
         isSharedLimit = card.isSharedLimit
+        cardImages = card.cardImages
         
         checkExistingSharedLimit()
     }
@@ -412,11 +486,65 @@ public struct CardEditView: View {
             equity: equity,
             remark: remark,
             lastModifyTime: lastModifyTimestamp,
-            isSharedLimit: isSharedLimit
+            isSharedLimit: isSharedLimit,
+            cardImages: cardImages
         )
         
         onSubmit(finalCard)
         dismiss()
+    }
+
+    private func importImageFiles(_ urls: [URL]) {
+        let imported = urls.compactMap { makeCardImageAsset(from: $0) }
+        guard !imported.isEmpty else { return }
+        cardImages.append(contentsOf: imported)
+    }
+
+    private func makeCardImageAsset(from url: URL) -> CardImageAsset? {
+        let didAccess = url.startAccessingSecurityScopedResource()
+        defer {
+            if didAccess {
+                url.stopAccessingSecurityScopedResource()
+            }
+        }
+
+        guard let payload = normalizedImagePayload(from: url) else { return nil }
+        return CardImageAsset(
+            mimeType: payload.mimeType,
+            data: "data:\(payload.mimeType);base64,\(payload.data.base64EncodedString())",
+            source: "mac_upload",
+            name: url.lastPathComponent
+        )
+    }
+
+    private func normalizedImagePayload(from url: URL) -> (data: Data, mimeType: String)? {
+        guard let image = NSImage(contentsOf: url) else {
+            guard let raw = try? Data(contentsOf: url) else { return nil }
+            return (raw, UTType(filenameExtension: url.pathExtension)?.preferredMIMEType ?? "image/jpeg")
+        }
+
+        let maxEdge: CGFloat = 1600
+        let scale = min(1, maxEdge / max(image.size.width, image.size.height))
+        let targetSize = NSSize(width: max(1, image.size.width * scale), height: max(1, image.size.height * scale))
+        let resized = NSImage(size: targetSize)
+        resized.lockFocus()
+        image.draw(in: NSRect(origin: .zero, size: targetSize), from: .zero, operation: .copy, fraction: 1)
+        resized.unlockFocus()
+
+        guard
+            let tiff = resized.tiffRepresentation,
+            let bitmap = NSBitmapImageRep(data: tiff),
+            let jpeg = bitmap.representation(using: .jpeg, properties: [.compressionFactor: 0.84])
+        else {
+            return nil
+        }
+        return (jpeg, "image/jpeg")
+    }
+
+    private func nsImage(from asset: CardImageAsset) -> NSImage? {
+        let base64 = asset.data.components(separatedBy: "base64,").last ?? asset.data
+        guard let data = Data(base64Encoded: base64) else { return nil }
+        return NSImage(data: data)
     }
 }
 

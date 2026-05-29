@@ -81,6 +81,31 @@ public enum CardBrand: String, Codable, CaseIterable {
 }
 
 /// 跨端同步、真正进入主数据模型的卡片实体 (对应 Web 端 SharedCard 规范)
+public struct CardImageAsset: Codable, Identifiable, Hashable {
+    public var id: String
+    public var mimeType: String
+    public var data: String
+    public var createdAt: Double
+    public var source: String
+    public var name: String
+
+    public init(
+        id: String = UUID().uuidString,
+        mimeType: String = "image/jpeg",
+        data: String,
+        createdAt: Double = DataMigrationManager.currentTimestampMilliseconds(),
+        source: String = "mac_upload",
+        name: String = ""
+    ) {
+        self.id = id
+        self.mimeType = mimeType
+        self.data = data
+        self.createdAt = createdAt
+        self.source = source
+        self.name = name
+    }
+}
+
 public struct SharedCard: Codable, Identifiable, Hashable {
     public var id: String
     public var country: String
@@ -112,6 +137,7 @@ public struct SharedCard: Codable, Identifiable, Hashable {
     /// 最后修改时间：毫秒时间戳
     public var lastModifyTime: Double
     public var isSharedLimit: Bool
+    public var cardImages: [CardImageAsset]
 
     private enum CodingKeys: String, CodingKey {
         case id
@@ -135,6 +161,7 @@ public struct SharedCard: Codable, Identifiable, Hashable {
         case remark
         case lastModifyTime
         case isSharedLimit
+        case cardImages
     }
 
     public init(
@@ -158,7 +185,8 @@ public struct SharedCard: Codable, Identifiable, Hashable {
         equity: String? = nil,
         remark: String? = nil,
         lastModifyTime: Double = DataMigrationManager.currentTimestampMilliseconds(),
-        isSharedLimit: Bool = true
+        isSharedLimit: Bool = true,
+        cardImages: [CardImageAsset] = []
     ) {
         self.id = id
         self.country = country
@@ -181,6 +209,7 @@ public struct SharedCard: Codable, Identifiable, Hashable {
         self.remark = remark
         self.lastModifyTime = lastModifyTime
         self.isSharedLimit = isSharedLimit
+        self.cardImages = cardImages
     }
 
     public init(from decoder: Decoder) throws {
@@ -207,6 +236,7 @@ public struct SharedCard: Codable, Identifiable, Hashable {
         self.remark = Self.decodeString(container, forKey: .remark)
         self.lastModifyTime = Self.decodeTimestamp(container, forKey: .lastModifyTime) ?? DataMigrationManager.currentTimestampMilliseconds()
         self.isSharedLimit = Self.decodeBool(container, forKey: .isSharedLimit) ?? true
+        self.cardImages = (try? container.decode([CardImageAsset].self, forKey: .cardImages)) ?? []
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -232,6 +262,7 @@ public struct SharedCard: Codable, Identifiable, Hashable {
         try container.encodeIfPresent(remark, forKey: .remark)
         try container.encode(lastModifyTime, forKey: .lastModifyTime)
         try container.encode(isSharedLimit, forKey: .isSharedLimit)
+        try container.encode(cardImages, forKey: .cardImages)
     }
 
     private static func decodeString(_ container: KeyedDecodingContainer<CodingKeys>, forKey key: CodingKeys) -> String? {
