@@ -305,7 +305,8 @@ object SyncCoordinator {
             "下次年费收取日" to formatDate(card.nextAnnualFeeCollectionTime),
             "上次提额时间" to formatDate(card.lastTime),
             "权益" to card.equity,
-            "备注" to card.remark
+            "备注" to card.remark,
+            "卡片图片" to imageCountText(card.cardImages.size)
         ).mapNotNull { (label, value) ->
             if (value.isBlank() || value == "未设置") return@mapNotNull null
             FieldChangeDetail(
@@ -339,7 +340,8 @@ object SyncCoordinator {
             Triple("下次年费收取日", formatDate(before.nextAnnualFeeCollectionTime), formatDate(after.nextAnnualFeeCollectionTime)),
             Triple("上次提额时间", formatDate(before.lastTime), formatDate(after.lastTime)),
             Triple("权益", before.equity, after.equity),
-            Triple("备注", before.remark, after.remark)
+            Triple("备注", before.remark, after.remark),
+            Triple("卡片图片", imageCountText(before.cardImages.size), imageCountText(after.cardImages.size))
         )
         return fields.mapNotNull { (label, oldValue, newValue) ->
             val oldText = formatValue(oldValue)
@@ -375,6 +377,10 @@ object SyncCoordinator {
     private fun formatDate(epochMs: Long?): String {
         if (epochMs == null || epochMs <= 0L) return "未设置"
         return SimpleDateFormat("yyyy-MM-dd", Locale.CHINA).format(Date(epochMs))
+    }
+
+    private fun imageCountText(count: Int): String {
+        return if (count <= 0) "未设置" else "$count 张"
     }
 
     /**

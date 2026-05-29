@@ -46,12 +46,26 @@ import com.example.creditcard.data.SharedCard
 import com.example.creditcard.data.SyncHistoryEntry
 import com.example.creditcard.theme.*
 import com.example.creditcard.utils.SyncCoordinator
+import com.example.creditcard.utils.NfcScannerManager
 import com.example.creditcard.utils.ThemeManager
 import com.example.creditcard.utils.WebDAVClient
 import com.example.creditcard.utils.WebDAVConfig
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
+
+private enum class ToolsMode {
+    HOME,
+    STATS,
+    VERIFY_PREFETCH,
+    VERIFY
+}
+
+private data class VerifiedCardRecord(
+    val cardNumber: String,
+    val valid: String,
+    val existedAtScan: Boolean
+)
 
 /**
  * Android 原生信用卡客户端 ── 体验精塑与共享额度算法修正重塑主屏幕
@@ -71,8 +85,10 @@ fun MainScreen(
     val syncStatus by SyncCoordinator.syncStatus.collectAsState()
     val isDark by ThemeManager.isDarkTheme.collectAsState()
 
-    // 底部 Tab 切换状态 (0: 卡包, 1: 统计, 2: 设置) - 纯图标化极简渲染
+    // 底部 Tab 切换状态 (0: 卡包, 1: 工具, 2: 设置) - 纯图标化极简渲染
     var selectedTab by remember { mutableIntStateOf(0) }
+    var toolsMode by remember { mutableStateOf(ToolsMode.HOME) }
+    var verifySessionSeed by remember { mutableIntStateOf(0) }
     
     // 卡包搜索状态
     var searchQuery by remember { mutableStateOf("") }
@@ -95,6 +111,7 @@ fun MainScreen(
     Scaffold(
         bottomBar = {
             NavigationBar(
+                modifier = Modifier.height(60.dp),
                 containerColor = MaterialTheme.colorScheme.surface,
                 tonalElevation = 8.dp
             ) {
@@ -111,8 +128,13 @@ fun MainScreen(
                 // 2. 统计 Tab - 去文字纯图标
                 NavigationBarItem(
                     selected = selectedTab == 1,
-                    onClick = { selectedTab = 1 },
-                    icon = { Icon(Icons.Filled.PieChart, contentDescription = "统计") },
+                    onClick = {
+                        selectedTab = 1
+                        if (toolsMode == ToolsMode.STATS) {
+                            toolsMode = ToolsMode.HOME
+                        }
+                    },
+                    icon = { Icon(Icons.Filled.Handyman, contentDescription = "工具") },
                     colors = NavigationBarItemDefaults.colors(
                         selectedIconColor = if (isDark) NeonCyan else GoldPrimary,
                         indicatorColor = (if (isDark) NeonCyan else GoldPrimary).copy(alpha = 0.15f)
@@ -290,10 +312,43 @@ fun MainScreen(
                 }
 
                 // =====================================================================
-                // 📊 Tab 1: 额度共享去重新算法、手绘Donut环形图、年费预警雷达与折叠看板
+                // 🧰 Tab 1: 工具入口，统计分析与快速验卡
                 // =====================================================================
                 1 -> {
-                    AnalyticsPanel(cards = cards, isDark = isDark)
+                    when (toolsMode) {
+                        ToolsMode.HOME -> ToolsPanel(
+                            cards = cards,
+                            isDark = isDark,
+                            onOpenStats = { toolsMode = ToolsMode.STATS },
+                            onStartVerify = {
+                                if (android.nfc.NfcAdapter.getDefaultAdapter(context) == null) {
+                                    Toast.makeText(context, "当前手机不支持 NFC，无法使用快速验卡功能", Toast.LENGTH_LONG).show()
+                                } else {
+                                    verifySessionSeed += 1
+                                    toolsMode = ToolsMode.VERIFY_PREFETCH
+                                }
+                            }
+                        )
+                        ToolsMode.STATS -> ToolsStatsPanel(
+                            cards = cards,
+                            isDark = isDark,
+                            onBack = { toolsMode = ToolsMode.HOME }
+                        )
+                        ToolsMode.VERIFY_PREFETCH -> VerifyCloudPrefetchPanel(
+                            seed = verifySessionSeed,
+                            isDark = isDark,
+                            onReady = { toolsMode = ToolsMode.VERIFY },
+                            onCancel = { toolsMode = ToolsMode.HOME }
+                        )
+                        ToolsMode.VERIFY -> QuickVerifyPanel(
+                            cards = cards,
+                            isDark = isDark,
+                            onAddCard = { number, valid ->
+                                onItemClick(CardForm(cardId = null, prefillCardNumber = number, prefillValid = valid))
+                            },
+                            onFinish = { toolsMode = ToolsMode.HOME }
+                        )
+                    }
                 }
 
                 // =====================================================================
@@ -510,6 +565,627 @@ fun CreditCardTile(
         }
     }
 }
+
+// =============================================================================
+// 🧰 Tab 1 子组件: 工具主页、统计入口与快速验卡
+// =============================================================================
+
+@Composable
+fun ToolsPanel(
+    cards: List<SharedCard>,
+    isDark: Boolean,
+    onOpenStats: () -> Unit,
+    onStartVerify: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 16.dp)
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = "工具",
+            fontSize = 26.sp,
+            fontWeight = FontWeight.Black,
+            color = MaterialTheme.colorScheme.onBackground
+        )
+        Text(
+            text = "统计分析、快速验卡和后续工具都会集中在这里。",
+            fontSize = 13.sp,
+            color = if (isDark) TextGray else TextMuted
+        )
+
+        ToolActionTile(
+            icon = Icons.Filled.Analytics,
+            title = "统计分析",
+            subtitle = "查看额度、币种、共享额度和年费预警",
+            accent = if (isDark) NeonCyan else GoldPrimary,
+            onClick = onOpenStats
+        )
+
+        ToolActionTile(
+            icon = Icons.Filled.FactCheck,
+            title = "快速验卡",
+            subtitle = "先同步云端最新数据，再用 NFC 逐张核对本地卡包",
+            accent = if (isDark) NeonGreen else ForestGreen,
+            onClick = onStartVerify
+        )
+
+        DetailSection(title = "📌 本地卡包概览") {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                SmallMetric("已录入", "${cards.size}", "张卡", isDark, Modifier.weight(1f))
+                SmallMetric("银行", "${cards.map { it.bank }.filter { it.isNotBlank() }.toSet().size}", "家", isDark, Modifier.weight(1f))
+                SmallMetric("币种", "${cards.map { it.type }.filter { it.isNotBlank() }.toSet().size}", "种", isDark, Modifier.weight(1f))
+            }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+    }
+}
+
+@Composable
+fun ToolActionTile(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    title: String,
+    subtitle: String,
+    accent: Color,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(MaterialTheme.colorScheme.surface)
+            .border(1.dp, accent.copy(alpha = 0.22f), RoundedCornerShape(14.dp))
+            .clickable { onClick() }
+            .padding(16.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(48.dp)
+                .clip(RoundedCornerShape(12.dp))
+                .background(accent.copy(alpha = 0.16f)),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(icon, contentDescription = title, tint = accent, modifier = Modifier.size(26.dp))
+        }
+        Spacer(modifier = Modifier.width(14.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
+            Spacer(modifier = Modifier.height(3.dp))
+            Text(subtitle, fontSize = 12.sp, lineHeight = 17.sp, color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.64f))
+        }
+        Icon(Icons.Filled.ChevronRight, contentDescription = "进入", tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.45f))
+    }
+}
+
+@Composable
+fun SmallMetric(label: String, value: String, unit: String, isDark: Boolean, modifier: Modifier = Modifier) {
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(10.dp))
+            .background(if (isDark) DarkBg else LightBg)
+            .padding(12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(value, fontSize = 20.sp, fontWeight = FontWeight.Black, color = if (isDark) NeonCyan else GoldPrimary)
+        Text("$label$unit", fontSize = 11.sp, color = if (isDark) TextGray else TextMuted)
+    }
+}
+
+@Composable
+fun ToolsStatsPanel(cards: List<SharedCard>, isDark: Boolean, onBack: () -> Unit) {
+    Column(modifier = Modifier.fillMaxSize()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 10.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            IconButton(onClick = onBack) {
+                Icon(Icons.Filled.ArrowBack, contentDescription = "返回工具")
+            }
+            Text("统计分析", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+        }
+        AnalyticsPanel(cards = cards, isDark = isDark)
+    }
+}
+
+@Composable
+fun VerifyCloudPrefetchPanel(
+    seed: Int,
+    isDark: Boolean,
+    onReady: () -> Unit,
+    onCancel: () -> Unit
+) {
+    val context = LocalContext.current
+    var attempt by remember(seed) { mutableIntStateOf(0) }
+    var failedMessage by remember(seed) { mutableStateOf<String?>(null) }
+    val syncProgress by SyncCoordinator.syncProgress.collectAsState()
+
+    LaunchedEffect(seed, attempt) {
+        failedMessage = null
+        val config = SyncCoordinator.loadConfig(context)
+        if (!config.isEnabled || config.url.isBlank()) {
+            kotlinx.coroutines.delay(700)
+            onReady()
+            return@LaunchedEffect
+        }
+        SyncCoordinator.synchronize(context, publishLocalChanges = false)
+        val status = SyncCoordinator.syncStatus.value
+        val failed = status.type == "error" || status.message.contains("失败") || status.message.contains("暂停")
+        if (failed) {
+            failedMessage = status.message
+        } else {
+            onReady()
+        }
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(24.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            val transition = rememberInfiniteTransition(label = "prefetch")
+            val pulse by transition.animateFloat(
+                initialValue = 0.72f,
+                targetValue = 1.08f,
+                animationSpec = infiniteRepeatable(tween(900), RepeatMode.Reverse),
+                label = "pulse"
+            )
+            Box(modifier = Modifier.size(150.dp), contentAlignment = Alignment.Center) {
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    drawCircle(
+                        color = (if (isDark) NeonCyan else GoldPrimary).copy(alpha = 0.18f),
+                        radius = size.minDimension * 0.42f * pulse
+                    )
+                    drawCircle(
+                        color = (if (isDark) NeonCyan else GoldPrimary).copy(alpha = 0.48f),
+                        radius = size.minDimension * 0.24f,
+                        style = Stroke(width = 4.dp.toPx())
+                    )
+                }
+                Icon(Icons.Filled.CloudSync, contentDescription = "同步云端", modifier = Modifier.size(48.dp), tint = if (isDark) NeonCyan else GoldPrimary)
+            }
+
+            Spacer(modifier = Modifier.height(18.dp))
+            Text("正在从云端获取最新数据", fontSize = 19.sp, fontWeight = FontWeight.Bold)
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = failedMessage ?: syncProgress.detail.ifBlank { "确保验卡时使用最新的本地与云端合流数据" },
+                fontSize = 13.sp,
+                lineHeight = 18.sp,
+                textAlign = TextAlign.Center,
+                color = if (failedMessage == null) MaterialTheme.colorScheme.onBackground.copy(alpha = 0.65f) else MaterialTheme.colorScheme.error
+            )
+
+            if (failedMessage != null) {
+                Spacer(modifier = Modifier.height(20.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    OutlinedButton(onClick = { attempt += 1 }) {
+                        Text("重新获取")
+                    }
+                    Button(onClick = onReady, colors = ButtonDefaults.buttonColors(containerColor = if (isDark) NeonCyan else GoldPrimary)) {
+                        Text("直接进入验卡")
+                    }
+                }
+                TextButton(onClick = onCancel) {
+                    Text("取消")
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun QuickVerifyPanel(
+    cards: List<SharedCard>,
+    isDark: Boolean,
+    onAddCard: (String, String) -> Unit,
+    onFinish: () -> Unit
+) {
+    val context = LocalContext.current
+    val nfcSupported = remember { android.nfc.NfcAdapter.getDefaultAdapter(context) != null }
+    val existingNumbers = remember(cards) { cards.map { cleanCardNumber(it.cardNumber) }.filter { it.isNotBlank() }.toSet() }
+
+    var verifiedRecords by remember { mutableStateOf<List<VerifiedCardRecord>>(emptyList()) }
+    var addedDuringVerification by remember { mutableStateOf(setOf<String>()) }
+    var currentMessage by remember { mutableStateOf("等待 NFC 贴卡") }
+    var isReading by remember { mutableStateOf(false) }
+    var currentScannedNumber by remember { mutableStateOf("") }
+    var currentScannedValid by remember { mutableStateOf("") }
+    var showMissingDialog by remember { mutableStateOf(false) }
+    var showSummaryDialog by remember { mutableStateOf(false) }
+
+    fun handleVerified(number: String, valid: String) {
+        val cleaned = cleanCardNumber(number)
+        if (cleaned.isBlank()) {
+            currentMessage = "没有读取到有效卡号，请重新贴近 NFC 感应区"
+            return
+        }
+        currentScannedNumber = cleaned
+        currentScannedValid = valid
+        if (verifiedRecords.any { it.cardNumber == cleaned }) {
+            currentMessage = "这张卡刚才已经验过，请继续换卡验证"
+            return
+        }
+        val exists = cleaned in existingNumbers
+        verifiedRecords = verifiedRecords + VerifiedCardRecord(cleaned, valid, exists)
+        currentMessage = if (exists) {
+            "本地已存在，请继续换卡验证"
+        } else {
+            showMissingDialog = true
+            "本地未录入这张卡"
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        launch {
+            NfcScannerManager.nfcCardData.collect { (number, valid) ->
+                handleVerified(number, valid)
+            }
+        }
+        launch {
+            NfcScannerManager.nfcReadingState.collect { state ->
+                isReading = (state == "READING")
+                if (isReading) {
+                    currentMessage = "正在读取，请勿移动卡片..."
+                }
+            }
+        }
+        launch {
+            NfcScannerManager.nfcUnsupportedCard.collect {
+                currentMessage = "暂不支持该卡片"
+            }
+        }
+    }
+
+    LaunchedEffect(existingNumbers, verifiedRecords) {
+        val newlyAdded = verifiedRecords
+            .filter { !it.existedAtScan && it.cardNumber in existingNumbers }
+            .map { it.cardNumber }
+            .toSet() - addedDuringVerification
+        if (newlyAdded.isNotEmpty()) {
+            addedDuringVerification = addedDuringVerification + newlyAdded
+            currentMessage = "已录入 ${newlyAdded.size} 张刚才未登记的卡，请继续验卡"
+        }
+    }
+
+    val missingNumbers = verifiedRecords.filter { !it.existedAtScan }.map { it.cardNumber }.toSet()
+    val openMissingNumbers = missingNumbers - addedDuringVerification
+    val existedCount = verifiedRecords.count { it.existedAtScan }
+
+    if (!nfcSupported) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(24.dp),
+            contentAlignment = Alignment.Center
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Icon(Icons.Filled.Nfc, contentDescription = "不支持 NFC", modifier = Modifier.size(56.dp), tint = MaterialTheme.colorScheme.error)
+                Spacer(modifier = Modifier.height(14.dp))
+                Text("当前手机不支持 NFC", fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                Spacer(modifier = Modifier.height(6.dp))
+                Text("无法使用快速验卡功能", color = if (isDark) TextGray else TextMuted)
+                Spacer(modifier = Modifier.height(18.dp))
+                Button(onClick = onFinish) {
+                    Text("返回工具")
+                }
+            }
+        }
+    } else {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(horizontal = 16.dp)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("快速验卡", fontSize = 24.sp, fontWeight = FontWeight.Black)
+                    Text(
+                        text = "NFC 模式",
+                        fontSize = 12.sp,
+                        color = if (isDark) NeonCyan else GoldPrimary,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                }
+                OutlinedButton(
+                    onClick = { showSummaryDialog = true },
+                    shape = RoundedCornerShape(12.dp)
+                ) {
+                    Text("结束")
+                }
+            }
+
+            NfcVerifyHero(
+                message = currentMessage,
+                isDark = isDark,
+                hasReadCard = currentScannedNumber.isNotBlank(),
+                isReading = isReading
+            )
+
+            DetailSection(title = "🎯 当前验卡结果") {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = when {
+                            currentMessage.contains("未录入") -> Icons.Filled.ReportProblem
+                            currentMessage.contains("已存在") || currentMessage.contains("已录入") -> Icons.Filled.CheckCircle
+                            else -> Icons.Filled.Nfc
+                        },
+                        contentDescription = "验卡状态",
+                        tint = when {
+                            currentMessage.contains("未录入") -> if (isDark) NeonRed else WarmOrange
+                            currentMessage.contains("已存在") || currentMessage.contains("已录入") -> if (isDark) NeonGreen else ForestGreen
+                            else -> if (isDark) NeonCyan else GoldPrimary
+                        },
+                        modifier = Modifier.size(28.dp)
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = currentMessage,
+                            fontSize = 17.sp,
+                            lineHeight = 22.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onBackground
+                        )
+                        Text(
+                            text = "请将下一张卡贴近手机背面 NFC 感应区",
+                            fontSize = 12.sp,
+                            color = if (isDark) TextGray else TextMuted
+                        )
+                    }
+                }
+                if (currentScannedNumber.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(if (isDark) DarkBg else LightBg)
+                            .padding(12.dp)
+                    ) {
+                        Text("最近读取卡号", fontSize = 11.sp, color = if (isDark) TextGray else TextMuted)
+                        Text(
+                            text = formatMaskedCardNumber(currentScannedNumber),
+                            fontFamily = FontFamily.Monospace,
+                            fontSize = 18.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (isDark) NeonCyan else GoldPrimary
+                        )
+                        if (currentScannedValid.isNotBlank()) {
+                            Text("有效期：$currentScannedValid", fontSize = 12.sp, color = if (isDark) TextGray else TextMuted)
+                        }
+                    }
+                }
+            }
+
+            DetailSection(title = "📈 实时验卡统计") {
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                    SmallMetric("已验", "${verifiedRecords.size}", "张", isDark, Modifier.weight(1f))
+                    SmallMetric("本地存在", "$existedCount", "张", isDark, Modifier.weight(1f))
+                }
+                Spacer(modifier = Modifier.height(10.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                    SmallMetric("未录入", "${openMissingNumbers.size}", "张", isDark, Modifier.weight(1f))
+                    SmallMetric("已补录", "${addedDuringVerification.size}", "张", isDark, Modifier.weight(1f))
+                }
+                if (addedDuringVerification.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Text("本次验卡过程中已补录 ${addedDuringVerification.size} 张", color = if (isDark) NeonGreen else ForestGreen, fontSize = 12.sp)
+                }
+            }
+
+            if (openMissingNumbers.isNotEmpty()) {
+                DetailSection(title = "⚠️ 未录入卡号") {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        openMissingNumbers.forEach { number ->
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(if (isDark) DarkBg else LightBg)
+                                    .padding(horizontal = 12.dp, vertical = 10.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(Icons.Filled.CreditCardOff, contentDescription = "未录入", tint = if (isDark) NeonRed else WarmOrange, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(formatMaskedCardNumber(number), fontFamily = FontFamily.Monospace, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                            }
+                        }
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+        }
+    }
+
+    if (showMissingDialog) {
+        AlertDialog(
+            onDismissRequest = { showMissingDialog = false },
+            title = { Text("本地未录入这张卡") },
+            text = { Text("卡号 ${formatMaskedCardNumber(currentScannedNumber)} 不在本地数据中。可以现在录入，也可以继续验卡。") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showMissingDialog = false
+                        onAddCard(currentScannedNumber, currentScannedValid)
+                    }
+                ) {
+                    Text("现在录入")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showMissingDialog = false }) {
+                    Text("继续验卡")
+                }
+            }
+        )
+    }
+
+    if (showSummaryDialog) {
+        AlertDialog(
+            onDismissRequest = { showSummaryDialog = false },
+            title = { Text("验卡完成") },
+            text = {
+                Text(
+                    "本次验卡 ${verifiedRecords.size} 张；本地已存在 $existedCount 张；未录入 ${missingNumbers.size} 张；验卡过程中已添加 ${addedDuringVerification.size} 张。"
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = onFinish) {
+                    Text("完成")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showSummaryDialog = false }) {
+                    Text("继续验卡")
+                }
+            }
+        )
+    }
+}
+
+@Composable
+fun NfcVerifyHero(
+    message: String,
+    isDark: Boolean,
+    hasReadCard: Boolean,
+    isReading: Boolean = false
+) {
+    val transition = rememberInfiniteTransition(label = "nfcVerifyHero")
+    val duration = if (isReading) 600 else 1500
+    val pulse by transition.animateFloat(
+        initialValue = 0.65f,
+        targetValue = 1.12f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(duration, easing = FastOutSlowInEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "nfcPulse"
+    )
+    val fade by transition.animateFloat(
+        initialValue = 0.25f,
+        targetValue = 0.78f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(duration, easing = LinearEasing),
+            repeatMode = RepeatMode.Reverse
+        ),
+        label = "nfcFade"
+    )
+    val accent = when {
+        message.contains("未录入") -> if (isDark) NeonRed else WarmOrange
+        message.contains("已存在") || message.contains("已录入") -> if (isDark) NeonGreen else ForestGreen
+        else -> if (isDark) NeonCyan else GoldPrimary
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .height(230.dp)
+            .clip(RoundedCornerShape(18.dp))
+            .background(
+                Brush.radialGradient(
+                    colors = listOf(accent.copy(alpha = 0.22f), MaterialTheme.colorScheme.surface),
+                    center = Offset.Unspecified,
+                    radius = 520f
+                )
+            )
+            .border(1.dp, accent.copy(alpha = 0.28f), RoundedCornerShape(18.dp))
+            .padding(18.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            // 包裹同心圆水波纹与真实圆形 Icon 的绝对对中大 Box (size = 220.dp)
+            Box(
+                modifier = Modifier.size(200.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                // A. 动态水波纹外环 (center 坐标使用 Canvas 的 size.center，100% 绝对物理同心)
+                Canvas(modifier = Modifier.fillMaxSize()) {
+                    val center = Offset(size.width / 2, size.height / 2)
+                    drawCircle(
+                        color = accent.copy(alpha = 0.16f * fade),
+                        radius = 95.dp.toPx() * pulse,
+                        center = center,
+                        style = Stroke(width = 3.dp.toPx())
+                    )
+                    drawCircle(
+                        color = accent.copy(alpha = 0.22f * fade),
+                        radius = 68.dp.toPx() * pulse,
+                        center = center,
+                        style = Stroke(width = 2.dp.toPx())
+                    )
+                    drawCircle(
+                        color = accent.copy(alpha = 0.12f),
+                        radius = 46.dp.toPx(),
+                        center = center
+                    )
+                }
+
+                // B. 核心真实中央圆形卡片图标
+                Box(
+                    modifier = Modifier
+                        .size(88.dp)
+                        .clip(CircleShape)
+                        .background(accent.copy(alpha = if (isReading || hasReadCard) 0.28f else 0.18f))
+                        .border(2.dp, accent.copy(alpha = 0.55f), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    if (isReading) {
+                        CircularProgressIndicator(
+                            strokeWidth = 3.dp,
+                            color = accent,
+                            modifier = Modifier.size(42.dp)
+                        )
+                    } else {
+                        Icon(
+                            imageVector = if (hasReadCard) Icons.Filled.CreditCard else Icons.Filled.Nfc,
+                            contentDescription = "NFC 验卡",
+                            tint = accent,
+                            modifier = Modifier.size(42.dp)
+                        )
+                    }
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = message,
+                fontSize = 19.sp,
+                lineHeight = 24.sp,
+                fontWeight = FontWeight.Black,
+                textAlign = TextAlign.Center,
+                color = MaterialTheme.colorScheme.onBackground
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = "仅使用真实 NFC 读取结果，不再启用相机验卡",
+                fontSize = 12.sp,
+                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.62f),
+                textAlign = TextAlign.Center
+            )
+        }
+    }
+}
+
+private fun cleanCardNumber(value: String): String = value.filter { it.isDigit() }
 
 // =============================================================================
 // 📊 Tab 1 子组件: 共享额度去重新算法、手绘Donut环形图、年费扣缴雷达与折叠看板

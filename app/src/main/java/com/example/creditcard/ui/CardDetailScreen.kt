@@ -36,11 +36,15 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
+import androidx.activity.compose.BackHandler
+import androidx.activity.OnBackPressedCallback
+import androidx.activity.ComponentActivity
 import com.example.creditcard.data.DatabaseHelper
 import com.example.creditcard.data.SharedCard
 import com.example.creditcard.theme.*
 import com.example.creditcard.ui.main.CreditCardTile
 import com.example.creditcard.ui.main.formatMaskedCardNumber
+import com.example.creditcard.utils.CardImageCodec
 import com.example.creditcard.utils.SyncCoordinator
 import com.example.creditcard.utils.ThemeManager
 import com.example.creditcard.utils.CardScanProgressManager
@@ -55,6 +59,21 @@ fun CardDetailScreen(
     onEdit: (String) -> Unit
 ) {
     val context = LocalContext.current
+    val activity = context as? ComponentActivity
+
+    // 直接将 OnBackPressedCallback 注册到主 Activity 的 OnBackPressedDispatcher 上，
+    // 彻底解决局部 OnBackPressedDispatcher 链接失效导致的全面屏返回闪退问题
+    DisposableEffect(activity) {
+        val backCallback = object : OnBackPressedCallback(true) {
+            override fun handleOnBackPressed() {
+                onBack()
+            }
+        }
+        activity?.onBackPressedDispatcher?.addCallback(backCallback)
+        onDispose {
+            backCallback.remove()
+        }
+    }
     val isDark by ThemeManager.isDarkTheme.collectAsState()
     
     // 加载卡片信息
@@ -72,8 +91,11 @@ fun CardDetailScreen(
     val cardImageFile = remember(cardId) {
         File(File(context.filesDir, "scanned_cards"), "${cardId}.jpg")
     }
-    val hasCardImage = remember(cardImageFile) { cardImageFile.exists() }
+    val legacyImageExists = remember(cardImageFile) { cardImageFile.exists() }
+    val hasCardImage = card.cardImages.isNotEmpty() || legacyImageExists
     var showFullscreenImage by remember { mutableStateOf(false) }
+    var fullscreenImageId by remember { mutableStateOf<String?>(null) }
+    var showLegacyFullscreenImage by remember { mutableStateOf(false) }
 
     Box(modifier = Modifier.fillMaxSize()) {
 
@@ -151,46 +173,78 @@ fun CardDetailScreen(
             // 1. 黄金比例卡片磁贴展示
             CreditCardTile(card = card, isDark = isDark, onClick = {})
 
-            // 新增：如果本地沙盒中有该卡对应的扫描图片，动态呈现其扫描件预览磁贴
+            // 如果卡片数据中有媒体文件，动态呈现跨端同步图片预览；旧版本沙盒图片作为兼容兜底。
             if (hasCardImage) {
                 Spacer(modifier = Modifier.height(16.dp))
-                DetailSection(title = "卡片扫描原件") {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(180.dp)
-                            .clip(RoundedCornerShape(12.dp))
-                            .background(if (isDark) DarkCardBg else LightCardBg)
-                            .clickable { showFullscreenImage = true },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        val bitmap = remember(cardImageFile) {
-                            try {
-                                BitmapFactory.decodeFile(cardImageFile.absolutePath)
-                            } catch (e: Exception) {
-                                null
+                DetailSection(title = "卡片媒体文件") {
+                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                        card.cardImages.forEachIndexed { index, image ->
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(180.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(if (isDark) DarkBg else LightCardBg)
+                                    .clickable {
+                                        fullscreenImageId = image.id
+                                        showFullscreenImage = true
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                val bitmap = remember(image.id, image.data) {
+                                    CardImageCodec.decodeBitmap(image)
+                                }
+                                if (bitmap != null) {
+                                    Image(
+                                        bitmap = bitmap.asImageBitmap(),
+                                        contentDescription = "卡片图片 ${index + 1}",
+                                        modifier = Modifier.fillMaxSize().padding(4.dp).clip(RoundedCornerShape(10.dp)),
+                                        contentScale = androidx.compose.ui.layout.ContentScale.Fit
+                                    )
+                                } else {
+                                    Text("图片加载失败", color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                                }
+
+                                Box(
+                                    modifier = Modifier
+                                        .align(Alignment.BottomEnd)
+                                        .padding(8.dp)
+                                        .background(Color.Black.copy(alpha = 0.6f), shape = RoundedCornerShape(8.dp))
+                                        .padding(horizontal = 8.dp, vertical = 4.dp)
+                                ) {
+                                    Text("${image.source.ifBlank { "图片" }} · 点击预览", color = Color.White, fontSize = 10.sp)
+                                }
                             }
                         }
-                        if (bitmap != null) {
-                            Image(
-                                bitmap = bitmap.asImageBitmap(),
-                                contentDescription = "卡片扫描原件",
-                                modifier = Modifier.fillMaxSize().padding(4.dp).clip(RoundedCornerShape(10.dp)),
-                                contentScale = androidx.compose.ui.layout.ContentScale.Fit
-                            )
-                        } else {
-                            Text("⚠️ 扫描原文件加载失败", color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
-                        }
-                        
-                        // 底部浮动查看提示徽章
-                        Box(
-                            modifier = Modifier
-                                .align(Alignment.BottomEnd)
-                                .padding(8.dp)
-                                .background(Color.Black.copy(alpha = 0.6f), shape = RoundedCornerShape(8.dp))
-                                .padding(horizontal = 8.dp, vertical = 4.dp)
-                        ) {
-                            Text("点击全屏大图预览", color = Color.White, fontSize = 10.sp)
+
+                        if (legacyImageExists) {
+                            Box(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .height(180.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background(if (isDark) DarkBg else LightCardBg)
+                                    .clickable { showLegacyFullscreenImage = true },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                val bitmap = remember(cardImageFile) {
+                                    try {
+                                        BitmapFactory.decodeFile(cardImageFile.absolutePath)
+                                    } catch (e: Exception) {
+                                        null
+                                    }
+                                }
+                                if (bitmap != null) {
+                                    Image(
+                                        bitmap = bitmap.asImageBitmap(),
+                                        contentDescription = "旧版本地扫描原件",
+                                        modifier = Modifier.fillMaxSize().padding(4.dp).clip(RoundedCornerShape(10.dp)),
+                                        contentScale = androidx.compose.ui.layout.ContentScale.Fit
+                                    )
+                                } else {
+                                    Text("旧版扫描原文件加载失败", color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                                }
+                            }
                         }
                     }
                 }
@@ -424,12 +478,39 @@ fun CardDetailScreen(
     }
 
     // 2. 全屏大图预览模态 Dialog
-    if (showFullscreenImage && hasCardImage) {
+    if (showFullscreenImage && fullscreenImageId != null) {
         Dialog(onDismissRequest = { showFullscreenImage = false }) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
                     .clickable { showFullscreenImage = false },
+                contentAlignment = Alignment.Center
+            ) {
+                val selectedImage = card.cardImages.firstOrNull { it.id == fullscreenImageId }
+                val bitmap = remember(selectedImage?.id, selectedImage?.data) {
+                    selectedImage?.let { CardImageCodec.decodeBitmap(it) }
+                }
+                if (bitmap != null) {
+                    Image(
+                        bitmap = bitmap.asImageBitmap(),
+                        contentDescription = "全屏大图",
+                        modifier = Modifier
+                            .fillMaxWidth(0.95f)
+                            .aspectRatio(1.586f)
+                            .clip(RoundedCornerShape(16.dp))
+                            .border(2.dp, Color.White.copy(alpha = 0.4f), RoundedCornerShape(16.dp))
+                    )
+                }
+            }
+        }
+    }
+
+    if (showLegacyFullscreenImage && legacyImageExists) {
+        Dialog(onDismissRequest = { showLegacyFullscreenImage = false }) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clickable { showLegacyFullscreenImage = false },
                 contentAlignment = Alignment.Center
             ) {
                 val bitmap = remember(cardImageFile) {
@@ -442,7 +523,7 @@ fun CardDetailScreen(
                 if (bitmap != null) {
                     Image(
                         bitmap = bitmap.asImageBitmap(),
-                        contentDescription = "全屏大图",
+                        contentDescription = "旧版全屏大图",
                         modifier = Modifier
                             .fillMaxWidth(0.95f)
                             .aspectRatio(1.586f)

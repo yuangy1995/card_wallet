@@ -46,6 +46,8 @@ fun MainNavigation() {
             entry<CardForm> { key ->
                 CardFormScreen(
                     cardId = key.cardId,
+                    prefillCardNumber = key.prefillCardNumber,
+                    prefillValid = key.prefillValid,
                     onBack = { backStack.removeLastOrNull() },
                     onNavigateToDetail = { id -> backStack.add(CardDetail(id)) }
                 )

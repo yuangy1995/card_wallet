@@ -11,6 +11,7 @@ import kotlinx.serialization.json.JsonNull
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.booleanOrNull
 import kotlinx.serialization.json.doubleOrNull
+import kotlinx.serialization.json.longOrNull
 
 object FlexibleStringSerializer : KSerializer<String> {
     override val descriptor: SerialDescriptor =
@@ -71,5 +72,24 @@ object FlexibleBooleanSerializer : KSerializer<Boolean> {
 
     override fun serialize(encoder: Encoder, value: Boolean) {
         encoder.encodeBoolean(value)
+    }
+}
+
+object FlexibleLongSerializer : KSerializer<Long> {
+    override val descriptor: SerialDescriptor =
+        PrimitiveSerialDescriptor("FlexibleLong", PrimitiveKind.LONG)
+
+    override fun deserialize(decoder: Decoder): Long {
+        if (decoder is JsonDecoder) {
+            val element = decoder.decodeJsonElement()
+            if (element is JsonNull) return 0L
+            val primitive = element as? JsonPrimitive ?: return 0L
+            return primitive.longOrNull ?: primitive.doubleOrNull?.toLong() ?: primitive.content.toLongOrNull() ?: 0L
+        }
+        return decoder.decodeLong()
+    }
+
+    override fun serialize(encoder: Encoder, value: Long) {
+        encoder.encodeLong(value)
     }
 }

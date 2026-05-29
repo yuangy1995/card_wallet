@@ -94,16 +94,21 @@ class MainActivity : ComponentActivity() {
             val tagIdHex = tagIdBytes?.joinToString("") { String.format("%02X", it) } ?: "UNKNOWN"
 
             if (tag != null) {
+                // 启动前分发正在读取状态
+                NfcScannerManager.onReadingStarted()
                 // 启动后台子线程进行 IsoDep 卡片 APDU 交互
                 Thread {
                     val cardInfo = EmvCardReader.readCard(tag)
                     runOnUiThread {
+                        NfcScannerManager.onReadingFinished(cardInfo != null)
                         if (cardInfo != null) {
                             val (scannedNo, scannedVal) = cardInfo
                             // 将读取到的卡号与有效期分发至全局 Flow，带入界面中
                             NfcScannerManager.onCardScanned(scannedNo, scannedVal)
                             Toast.makeText(this, "NFC 读卡成功：$scannedNo", Toast.LENGTH_SHORT).show()
                         } else {
+                            // 触发未支持卡片全局事件流，使 UI 能展示“暂不支持该卡片”
+                            NfcScannerManager.onUnsupportedCardDetected()
                             // 回退展示原有读取失败 Toast
                             Toast.makeText(
                                 this,

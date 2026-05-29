@@ -6,6 +6,7 @@ import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
 import com.example.creditcard.utils.AppJson
+import kotlinx.serialization.builtins.ListSerializer
 
 /**
  * Android 原生 SQLite 数据库辅助类
@@ -15,7 +16,7 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
 
     companion object {
         private const val DATABASE_NAME = "credit_card.db"
-        private const val DATABASE_VERSION = 1
+        private const val DATABASE_VERSION = 2
 
         // 表名
         private const val TABLE_CARDS = "cards"
@@ -43,6 +44,7 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
         private const val KEY_LAST_MODIFY_TIME = "lastModifyTime"
         private const val KEY_EQUITY = "equity"
         private const val KEY_REMARK = "remark"
+        private const val KEY_CARD_IMAGES = "cardImages"
 
         // sync_records 表字段名
         private const val KEY_REC_CARD_ID = "cardId"
@@ -75,7 +77,8 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
                 + KEY_LAST_TIME + " INTEGER,"
                 + KEY_LAST_MODIFY_TIME + " INTEGER,"
                 + KEY_EQUITY + " TEXT,"
-                + KEY_REMARK + " TEXT" + ")")
+                + KEY_REMARK + " TEXT,"
+                + KEY_CARD_IMAGES + " TEXT DEFAULT '[]'" + ")")
         db.execSQL(createCardsTable)
 
         // 创建 sync_records 表
@@ -89,9 +92,9 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        db.execSQL("DROP TABLE IF EXISTS $TABLE_CARDS")
-        db.execSQL("DROP TABLE IF EXISTS $TABLE_SYNC_RECORDS")
-        onCreate(db)
+        if (oldVersion < 2) {
+            addColumnIfMissing(db, TABLE_CARDS, KEY_CARD_IMAGES, "TEXT DEFAULT '[]'")
+        }
     }
 
     // ==========================================
@@ -127,7 +130,8 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
                     lastTime = if (cursor.isNull(cursor.getColumnIndexOrThrow(KEY_LAST_TIME))) null else cursor.getLong(cursor.getColumnIndexOrThrow(KEY_LAST_TIME)),
                     lastModifyTime = cursor.getLong(cursor.getColumnIndexOrThrow(KEY_LAST_MODIFY_TIME)),
                     equity = cursor.getStringOrEmpty(KEY_EQUITY),
-                    remark = cursor.getStringOrEmpty(KEY_REMARK)
+                    remark = cursor.getStringOrEmpty(KEY_REMARK),
+                    cardImages = cursor.getCardImages()
                 )
                 cardList.add(card)
             } while (cursor.moveToNext())
@@ -166,7 +170,8 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
                 lastTime = if (cursor.isNull(cursor.getColumnIndexOrThrow(KEY_LAST_TIME))) null else cursor.getLong(cursor.getColumnIndexOrThrow(KEY_LAST_TIME)),
                 lastModifyTime = cursor.getLong(cursor.getColumnIndexOrThrow(KEY_LAST_MODIFY_TIME)),
                 equity = cursor.getStringOrEmpty(KEY_EQUITY),
-                remark = cursor.getStringOrEmpty(KEY_REMARK)
+                remark = cursor.getStringOrEmpty(KEY_REMARK),
+                cardImages = cursor.getCardImages()
             )
         }
         cursor.close()
@@ -197,6 +202,7 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
             put(KEY_LAST_MODIFY_TIME, card.lastModifyTime)
             put(KEY_EQUITY, card.equity)
             put(KEY_REMARK, card.remark)
+            put(KEY_CARD_IMAGES, encodeCardImages(card.cardImages))
         }
         db.insertWithOnConflict(TABLE_CARDS, null, values, SQLiteDatabase.CONFLICT_REPLACE)
     }
@@ -293,5 +299,51 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
     private fun Cursor.getStringOrEmpty(columnName: String): String {
         val index = getColumnIndexOrThrow(columnName)
         return if (isNull(index)) "" else getString(index).orEmpty()
+    }
+
+    private fun Cursor.getCardImages(): List<CardImageAsset> {
+        val index = getColumnIndex(KEY_CARD_IMAGES)
+        if (index < 0 || isNull(index)) return emptyList()
+        val raw = getString(index).orEmpty()
+        if (raw.isBlank()) return emptyList()
+        return try {
+            AppJson.json.decodeFromString(
+                ListSerializer(CardImageAsset.serializer()),
+                raw
+            )
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    private fun encodeCardImages(images: List<CardImageAsset>): String {
+        return try {
+            AppJson.json.encodeToString(
+                ListSerializer(CardImageAsset.serializer()),
+                images
+            )
+        } catch (e: Exception) {
+            "[]"
+        }
+    }
+
+    private fun addColumnIfMissing(db: SQLiteDatabase, tableName: String, columnName: String, definition: String) {
+        val cursor = db.rawQuery("PRAGMA table_info($tableName)", null)
+        val exists = try {
+            var found = false
+            while (cursor.moveToNext()) {
+                val nameIndex = cursor.getColumnIndex("name")
+                if (nameIndex >= 0 && cursor.getString(nameIndex) == columnName) {
+                    found = true
+                    break
+                }
+            }
+            found
+        } finally {
+            cursor.close()
+        }
+        if (!exists) {
+            db.execSQL("ALTER TABLE $tableName ADD COLUMN $columnName $definition")
+        }
     }
 }

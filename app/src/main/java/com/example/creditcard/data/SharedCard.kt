@@ -49,5 +49,6 @@ data class SharedCard(
     @Serializable(with = FlexibleStringSerializer::class)
     var equity: String = "",
     @Serializable(with = FlexibleStringSerializer::class)
-    var remark: String = ""
+    var remark: String = "",
+    var cardImages: List<CardImageAsset> = emptyList()
 )
