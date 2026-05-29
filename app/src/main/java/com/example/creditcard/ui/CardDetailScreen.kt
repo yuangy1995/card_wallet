@@ -4,9 +4,13 @@ import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import java.text.SimpleDateFormat
 import java.util.Date
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -15,6 +19,7 @@ import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
+import androidx.compose.material.icons.filled.Nfc
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -22,12 +27,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
+import android.graphics.BitmapFactory
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.window.Dialog
 import com.example.creditcard.data.DatabaseHelper
 import com.example.creditcard.data.SharedCard
 import com.example.creditcard.theme.*
@@ -35,7 +43,9 @@ import com.example.creditcard.ui.main.CreditCardTile
 import com.example.creditcard.ui.main.formatMaskedCardNumber
 import com.example.creditcard.utils.SyncCoordinator
 import com.example.creditcard.utils.ThemeManager
+import com.example.creditcard.utils.CardScanProgressManager
 import kotlinx.coroutines.delay
+import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -57,6 +67,15 @@ fun CardDetailScreen(
         }
         return
     }
+
+    // 1. 本地安全沙盒图片路径引用及加载
+    val cardImageFile = remember(cardId) {
+        File(File(context.filesDir, "scanned_cards"), "${cardId}.jpg")
+    }
+    val hasCardImage = remember(cardImageFile) { cardImageFile.exists() }
+    var showFullscreenImage by remember { mutableStateOf(false) }
+
+    Box(modifier = Modifier.fillMaxSize()) {
 
     // 敏感信息防窥防窥状态控制
     var isNumberVisible by remember { mutableStateOf(false) }
@@ -131,6 +150,51 @@ fun CardDetailScreen(
 
             // 1. 黄金比例卡片磁贴展示
             CreditCardTile(card = card, isDark = isDark, onClick = {})
+
+            // 新增：如果本地沙盒中有该卡对应的扫描图片，动态呈现其扫描件预览磁贴
+            if (hasCardImage) {
+                Spacer(modifier = Modifier.height(16.dp))
+                DetailSection(title = "卡片扫描原件") {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(180.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(if (isDark) DarkCardBg else LightCardBg)
+                            .clickable { showFullscreenImage = true },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        val bitmap = remember(cardImageFile) {
+                            try {
+                                BitmapFactory.decodeFile(cardImageFile.absolutePath)
+                            } catch (e: Exception) {
+                                null
+                            }
+                        }
+                        if (bitmap != null) {
+                            Image(
+                                bitmap = bitmap.asImageBitmap(),
+                                contentDescription = "卡片扫描原件",
+                                modifier = Modifier.fillMaxSize().padding(4.dp).clip(RoundedCornerShape(10.dp)),
+                                contentScale = androidx.compose.ui.layout.ContentScale.Fit
+                            )
+                        } else {
+                            Text("⚠️ 扫描原文件加载失败", color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                        }
+                        
+                        // 底部浮动查看提示徽章
+                        Box(
+                            modifier = Modifier
+                                .align(Alignment.BottomEnd)
+                                .padding(8.dp)
+                                .background(Color.Black.copy(alpha = 0.6f), shape = RoundedCornerShape(8.dp))
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Text("点击全屏大图预览", color = Color.White, fontSize = 10.sp)
+                        }
+                    }
+                }
+            }
 
             Spacer(modifier = Modifier.height(24.dp))
 
@@ -336,6 +400,12 @@ fun CardDetailScreen(
                 TextButton(
                     onClick = {
                         showDeleteDialog = false
+                        
+                        // 1. 级联删除本地沙盒存储的扫描件图片文件，防积攒冗余存储垃圾
+                        if (cardImageFile.exists()) {
+                            cardImageFile.delete()
+                        }
+                        
                         SyncCoordinator.commitCardDelete(context, cardId)
                         Toast.makeText(context, "卡片已删除并存入本地账本", Toast.LENGTH_SHORT).show()
                         onBack()
@@ -352,6 +422,122 @@ fun CardDetailScreen(
             }
         )
     }
+
+    // 2. 全屏大图预览模态 Dialog
+    if (showFullscreenImage && hasCardImage) {
+        Dialog(onDismissRequest = { showFullscreenImage = false }) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clickable { showFullscreenImage = false },
+                contentAlignment = Alignment.Center
+            ) {
+                val bitmap = remember(cardImageFile) {
+                    try {
+                        BitmapFactory.decodeFile(cardImageFile.absolutePath)
+                    } catch (e: Exception) {
+                        null
+                    }
+                }
+                if (bitmap != null) {
+                    Image(
+                        bitmap = bitmap.asImageBitmap(),
+                        contentDescription = "全屏大图",
+                        modifier = Modifier
+                            .fillMaxWidth(0.95f)
+                            .aspectRatio(1.586f)
+                            .clip(RoundedCornerShape(16.dp))
+                            .border(2.dp, Color.White.copy(alpha = 0.4f), RoundedCornerShape(16.dp))
+                    )
+                }
+            }
+        }
+    }
+
+    // 3. Glassmorphism 冲突录入流转决策引导悬浮条
+    if (CardScanProgressManager.isPendingScan) {
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
+                .padding(16.dp)
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(18.dp))
+                .background(
+                    if (isDark) Color(0xF21E293B) else Color(0xF9F1F5F9),
+                    shape = RoundedCornerShape(18.dp)
+                )
+                .border(
+                    width = 1.dp,
+                    color = (if (isDark) NeonCyan else GoldPrimary).copy(alpha = 0.3f),
+                    shape = RoundedCornerShape(18.dp)
+                )
+                .padding(16.dp)
+        ) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = Icons.Default.Nfc,
+                        contentDescription = "录入",
+                        tint = if (isDark) NeonCyan else GoldPrimary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(
+                        text = "检测到您正在录入新卡",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp,
+                        color = if (isDark) NeonCyan else GoldPrimary
+                    )
+                }
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "是否继续使用刚才扫描的数据录入该新卡表单？",
+                    fontSize = 12.sp,
+                    color = if (isDark) TextGray else TextMuted,
+                    textAlign = TextAlign.Center
+                )
+                Spacer(modifier = Modifier.height(14.dp))
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Button(
+                        onClick = {
+                            // 同意继续录入，直接返回表单页，表单 Resume 时会自动代入数据
+                            onBack()
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = if (isDark) NeonCyan else GoldPrimary
+                        ),
+                        modifier = Modifier.weight(1f),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text("是，继续录入", fontWeight = FontWeight.Bold)
+                    }
+
+                    OutlinedButton(
+                        onClick = {
+                            // 拒绝继续录入，置 rejected 标志为 true，并返回表单页使其 Resume 自动回到之前扫描页
+                            CardScanProgressManager.isRejectedFromDetail = true
+                            onBack()
+                        },
+                        colors = ButtonDefaults.outlinedButtonColors(
+                            contentColor = if (isDark) NeonCyan else GoldPrimary
+                        ),
+                        border = androidx.compose.foundation.BorderStroke(
+                            1.dp, (if (isDark) NeonCyan else GoldPrimary).copy(alpha = 0.4f)
+                        ),
+                        modifier = Modifier.weight(1.3f),
+                        shape = RoundedCornerShape(8.dp)
+                    ) {
+                        Text("否，拒绝并重扫")
+                    }
+                }
+            }
+        }
+    }
+}
 }
 
 /**

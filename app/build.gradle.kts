@@ -100,5 +100,12 @@ dependencies {
   
   // Compose 扩展矢量图标库
   implementation("androidx.compose.material:material-icons-extended")
+
+  // CameraX 核心与 UI 视图组件支持
+  val cameraxVersion = "1.3.1"
+  implementation("androidx.camera:camera-core:$cameraxVersion")
+  implementation("androidx.camera:camera-camera2:$cameraxVersion")
+  implementation("androidx.camera:camera-lifecycle:$cameraxVersion")
+  implementation("androidx.camera:camera-view:$cameraxVersion")
 }
 
