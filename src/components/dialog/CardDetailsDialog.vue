@@ -21,7 +21,7 @@
           <el-descriptions-item label="额度">{{ cardInfo.limit }}</el-descriptions-item>
           
           <!-- 卡片信息 -->
-          <el-descriptions-item label="卡号">{{ formatCardNumber(cardInfo.cardNumber) }}</el-descriptions-item>descriptions-item>
+          <el-descriptions-item label="卡号">{{ formatCardNumber(cardInfo.cardNumber) }}</el-descriptions-item>
           <el-descriptions-item label="有效期">{{ cardInfo.valid }}</el-descriptions-item>
           <el-descriptions-item label="CVV码">{{ cardInfo.cvv }}</el-descriptions-item>
           <el-descriptions-item label="账单日">{{ cardInfo.accountBillDate }}</el-descriptions-item>
@@ -76,6 +76,25 @@
           <el-descriptions-item label="还款日">{{ cardInfo.dueDate }}</el-descriptions-item>
           <el-descriptions-item label="年费">{{ cardInfo.annualFee }}</el-descriptions-item>
         </el-descriptions>
+      </el-tab-pane>
+
+      <el-tab-pane label="卡片媒体">
+        <div v-if="normalizedCardImages.length" class="card-media-grid">
+          <div
+            v-for="image in normalizedCardImages"
+            :key="image.id"
+            class="card-media-item"
+          >
+            <el-image
+              :src="image.data"
+              fit="contain"
+              :preview-src-list="normalizedCardImages.map(item => item.data)"
+              preview-teleported
+            />
+            <div class="card-media-meta">{{ image.name || image.source || '卡片图片' }}</div>
+          </div>
+        </div>
+        <el-empty v-else description="暂无卡片图片" />
       </el-tab-pane>
 
       <!-- 年费信息标签页 -->
@@ -174,6 +193,27 @@ export default {
       return this.cardInfo.nextAnnualFeeCollectionTime
         ? formatCardTimestamp(this.cardInfo.nextAnnualFeeCollectionTime)
         : '-'
+    },
+    normalizedCardImages() {
+      const images = Array.isArray(this.cardInfo.cardImages) ? this.cardInfo.cardImages : []
+      return images
+        .map((item, index) => {
+          if (typeof item === 'string') {
+            return {
+              id: `legacy-${index}`,
+              data: item,
+              source: 'legacy',
+              name: `card_image_${index + 1}.jpg`
+            }
+          }
+          return {
+            id: item.id || `image-${index}`,
+            data: item.data || '',
+            source: item.source || '',
+            name: item.name || ''
+          }
+        })
+        .filter(item => item.data)
     }
   },
 
@@ -198,6 +238,32 @@ export default {
   .details-content {
     white-space: pre-wrap;
     word-break: break-all;
+  }
+
+  .card-media-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 14px;
+  }
+
+  .card-media-item {
+    overflow: hidden;
+    border: 1px solid var(--el-border-color);
+    border-radius: 8px;
+    background: var(--el-fill-color-light);
+  }
+
+  .card-media-item :deep(.el-image) {
+    display: block;
+    width: 100%;
+    aspect-ratio: 1.586;
+    background: #111827;
+  }
+
+  .card-media-meta {
+    padding: 8px;
+    color: var(--el-text-color-secondary);
+    font-size: 12px;
   }
 }
 

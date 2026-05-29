@@ -367,7 +367,7 @@ export function validateCardData(card) {
   Object.keys(FIELD_TYPES).forEach(field => {
     if (card[field] !== undefined && card[field] !== null && card[field] !== '') {
       const expectedType = FIELD_TYPES[field]
-      const actualType = typeof card[field]
+      const actualType = Array.isArray(card[field]) ? 'array' : typeof card[field]
       
       if (actualType !== expectedType) {
         errors.push(`字段 ${field} 类型错误: 期望 ${expectedType}, 实际 ${actualType}`)

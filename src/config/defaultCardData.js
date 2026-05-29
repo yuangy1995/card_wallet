@@ -42,7 +42,8 @@ export const DEFAULT_CARD_DATA = {
   
   // 附加信息
   equity: '',
-  remark: ''
+  remark: '',
+  cardImages: []
 }
 
 /**
@@ -86,7 +87,8 @@ export const FIELD_TYPES = {
   lastTime: 'number',
   lastModifyTime: 'number',
   equity: 'string',
-  remark: 'string'
+  remark: 'string',
+  cardImages: 'array'
 }
 
 /**

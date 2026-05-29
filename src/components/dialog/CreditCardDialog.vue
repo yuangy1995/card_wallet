@@ -288,6 +288,36 @@
             autocomplete="off"
           />
         </el-descriptions-item>
+        <el-descriptions-item label="卡片媒体文件" :span="2">
+          <div class="card-media-editor">
+            <input
+              ref="imageInputRef"
+              type="file"
+              accept="image/*"
+              multiple
+              class="card-media-input"
+              @change="handleCardImageInput"
+            />
+            <div class="card-media-actions">
+              <el-button type="primary" plain @click="triggerImagePicker">上传图片</el-button>
+              <span class="field-helper">图片会以 cardImages 字段随 V3 数据同步，Android 和 Mac 可直接预览。</span>
+            </div>
+            <div v-if="formData.cardImages?.length" class="card-media-grid">
+              <div
+                v-for="image in formData.cardImages"
+                :key="image.id"
+                class="card-media-item"
+              >
+                <img :src="image.data" :alt="image.name || '卡片图片'" />
+                <div class="card-media-meta">
+                  <span>{{ image.name || image.source || '卡片图片' }}</span>
+                  <el-button text type="danger" size="small" @click="removeCardImage(image.id)">删除</el-button>
+                </div>
+              </div>
+            </div>
+            <el-empty v-else description="暂无卡片图片" :image-size="72" />
+          </div>
+        </el-descriptions-item>
       </el-descriptions>
     </el-form>
 
@@ -437,6 +467,7 @@ export default {
   emits: ['update:visible', 'submit', 'cancel'],
   setup(props, { emit }) {
     const formRef = ref(null)
+    const imageInputRef = ref(null)
     const cardType = ref('')
     const providedAutoLock = inject('autoLock', null)
     const { isLocked } = providedAutoLock || useAutoLock()
@@ -544,6 +575,7 @@ export default {
       lastTime: '',
       equity: '',
       remark: '',
+      cardImages: [],
       isSharedLimit: true, // 默认共享额度
       billingDaySpendingToNextBill: true // 默认账单日消费计入下期账单
     })
@@ -583,6 +615,7 @@ export default {
           // 统一账单日和还款日的数据类型为String
           data.accountBillDate = data.accountBillDate ? String(data.accountBillDate) : ''
           data.dueDate = data.dueDate ? String(data.dueDate) : ''
+          data.cardImages = normalizeCardImages(data.cardImages)
 
           // 更新表单数据
           formData.value = data
@@ -676,6 +709,7 @@ export default {
             lastTime: '',
             equity: '',
             remark: '',
+            cardImages: [],
             isSharedLimit: true,
             billingDaySpendingToNextBill: true
           }
@@ -704,6 +738,71 @@ export default {
       emit('cancel')
     }
 
+    function normalizeCardImages(value) {
+      if (!Array.isArray(value)) return []
+      return value
+        .map((item, index) => {
+          if (typeof item === 'string') {
+            const separatorIndex = item.indexOf(';')
+            return {
+              id: crypto.randomUUID(),
+              mimeType: item.startsWith('data:') && separatorIndex > 5 ? item.slice(5, separatorIndex) : 'image/jpeg',
+              data: item,
+              createdAt: Date.now(),
+              source: 'legacy',
+              name: `card_image_${index + 1}.jpg`
+            }
+          }
+          return {
+            id: item.id || crypto.randomUUID(),
+            mimeType: item.mimeType || 'image/jpeg',
+            data: item.data || '',
+            createdAt: Number(item.createdAt) || Date.now(),
+            source: item.source || 'web_upload',
+            name: item.name || ''
+          }
+        })
+        .filter(item => item.data)
+    }
+
+    const triggerImagePicker = () => {
+      imageInputRef.value?.click()
+    }
+
+    const fileToCardImage = (file) => new Promise((resolve, reject) => {
+      const reader = new FileReader()
+      reader.onload = () => {
+        resolve({
+          id: crypto.randomUUID(),
+          mimeType: file.type || 'image/jpeg',
+          data: String(reader.result || ''),
+          createdAt: Date.now(),
+          source: 'web_upload',
+          name: file.name
+        })
+      }
+      reader.onerror = reject
+      reader.readAsDataURL(file)
+    })
+
+    const handleCardImageInput = async (event) => {
+      const files = Array.from(event.target.files || []).filter(file => file.type.startsWith('image/'))
+      if (!files.length) return
+      try {
+        const images = await Promise.all(files.map(fileToCardImage))
+        formData.value.cardImages = normalizeCardImages(formData.value.cardImages).concat(images)
+        ElMessage.success(`已添加 ${images.length} 张卡片图片`)
+      } catch (error) {
+        ElMessage.error('图片读取失败')
+      } finally {
+        event.target.value = ''
+      }
+    }
+
+    const removeCardImage = (imageId) => {
+      formData.value.cardImages = normalizeCardImages(formData.value.cardImages).filter(image => image.id !== imageId)
+    }
+
     // 处理提交
     const handleSubmit = () => {
       formRef.value.validate((valid) => {
@@ -717,6 +816,7 @@ export default {
           ? null
           : timestampFromDateInput(submitData.nextAnnualFeeCollectionTime)
         submitData.lastTime = timestampFromDateInput(submitData.lastTime)
+        submitData.cardImages = normalizeCardImages(submitData.cardImages)
 
         // 保持有效期为 MM/YY 格式存储
         // 不再转换为 YYYY-MM-DD 格式
@@ -727,6 +827,7 @@ export default {
 
     return {
       formRef,
+      imageInputRef,
       title,
       dialogVisible,
       formData,
@@ -740,6 +841,9 @@ export default {
       validDateOptions,
       handleCancel,
       handleSubmit,
+      triggerImagePicker,
+      handleCardImageInput,
+      removeCardImage,
       handleLimitSharingChange,
       existingSharedLimitCard,
       cardNumberReadOnly,
@@ -820,6 +924,60 @@ export default {
 
   .field-warning {
     color: #E6A23C;
+  }
+
+  .card-media-editor {
+    width: 100%;
+  }
+
+  .card-media-input {
+    display: none;
+  }
+
+  .card-media-actions {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    flex-wrap: wrap;
+    margin-bottom: 12px;
+  }
+
+  .card-media-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 12px;
+  }
+
+  .card-media-item {
+    overflow: hidden;
+    border: 1px solid var(--el-border-color);
+    border-radius: 8px;
+    background: var(--el-fill-color-light);
+  }
+
+  .card-media-item img {
+    display: block;
+    width: 100%;
+    aspect-ratio: 1.586;
+    object-fit: cover;
+    background: #111827;
+  }
+
+  .card-media-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    padding: 6px 8px;
+    font-size: 12px;
+    color: var(--el-text-color-secondary);
+  }
+
+  .card-media-meta span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   /* ==========================================================================
