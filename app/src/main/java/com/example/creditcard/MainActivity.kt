@@ -16,9 +16,11 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import com.example.creditcard.theme.CreditCardTheme
-import com.example.creditcard.utils.NfcScannerManager
 import com.example.creditcard.utils.SyncCoordinator
 import com.example.creditcard.utils.ThemeManager
+
+import com.example.creditcard.utils.EmvCardReader
+import com.example.creditcard.utils.NfcScannerManager
 
 /**
  * 主页面 Activity，集成 NFC 前台事件捕捉与分发
@@ -91,17 +93,33 @@ class MainActivity : ComponentActivity() {
             val tagIdBytes = tag?.id
             val tagIdHex = tagIdBytes?.joinToString("") { String.format("%02X", it) } ?: "UNKNOWN"
 
-            // 2. 高度仿真的 EMV 卡片解析。
-            // 由于真实信用卡片（银联、Visa等）的 APDU 加密复杂，
-            // 此处我们在拦截到真实物理 IC 卡感应事件时，将稳定输出一组标准的演示测试银行卡，
-            // 既展示了物理级的 NFC 读卡感应回馈，又保证了逻辑的高度可用！
-            val testCardNumber = "6222081001987654321" // 包含银联特征的卡号
-            val testValidDate = "08/30" // 有效期 MM/YY
-
-            Toast.makeText(this, "NFC 芯片感应成功 (卡ID: $tagIdHex)", Toast.LENGTH_SHORT).show()
-            
-            // 3. 将解析成功的卡片数据分发到 NfcScannerManager 中
-            NfcScannerManager.onCardScanned(testCardNumber, testValidDate)
+            if (tag != null) {
+                // 启动后台子线程进行 IsoDep 卡片 APDU 交互
+                Thread {
+                    val cardInfo = EmvCardReader.readCard(tag)
+                    runOnUiThread {
+                        if (cardInfo != null) {
+                            val (scannedNo, scannedVal) = cardInfo
+                            // 将读取到的卡号与有效期分发至全局 Flow，带入界面中
+                            NfcScannerManager.onCardScanned(scannedNo, scannedVal)
+                            Toast.makeText(this, "NFC 读卡成功：$scannedNo", Toast.LENGTH_SHORT).show()
+                        } else {
+                            // 回退展示原有读取失败 Toast
+                            Toast.makeText(
+                                this,
+                                "检测到 NFC 标签 (卡ID: $tagIdHex)，未读取到银行卡号数据",
+                                Toast.LENGTH_SHORT
+                            ).show()
+                        }
+                    }
+                }.start()
+            } else {
+                Toast.makeText(
+                    this,
+                    "检测到 NFC 标签 (卡ID: $tagIdHex)，未读取到银行卡号数据",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
         }
     }
 }

@@ -107,5 +107,11 @@ dependencies {
   implementation("androidx.camera:camera-camera2:$cameraxVersion")
   implementation("androidx.camera:camera-lifecycle:$cameraxVersion")
   implementation("androidx.camera:camera-view:$cameraxVersion")
+
+  // Google ML Kit Text Recognition 离线文本识别
+  implementation("com.google.android.gms:play-services-mlkit-text-recognition:19.0.0")
+
+  // ExifInterface 图片 Exif 物理方向识别
+  implementation("androidx.exifinterface:exifinterface:1.3.7")
 }
 

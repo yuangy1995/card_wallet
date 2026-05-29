@@ -1,9 +1,6 @@
 package com.example.creditcard.ui
 
 import android.app.DatePickerDialog
-import android.graphics.Bitmap
-import android.graphics.Canvas as AndroidCanvas
-import android.graphics.Paint as AndroidPaint
 import android.widget.Toast
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.Preview
@@ -28,7 +25,7 @@ import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Nfc
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.Edit
-import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -47,6 +44,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
+import com.example.creditcard.data.CardReferenceData
 import com.example.creditcard.data.DatabaseHelper
 import com.example.creditcard.data.SharedCard
 import com.example.creditcard.theme.*
@@ -56,8 +54,18 @@ import com.example.creditcard.utils.SyncCoordinator
 import com.example.creditcard.utils.ThemeManager
 import com.example.creditcard.utils.NfcScannerManager
 import com.example.creditcard.utils.CardScanProgressManager
+import androidx.camera.core.ImageAnalysis
+import androidx.camera.core.ImageCapture
+import androidx.camera.core.ImageCaptureException
+import androidx.exifinterface.media.ExifInterface
+import android.graphics.Bitmap
+import android.graphics.BitmapFactory
+import android.graphics.Matrix
+import android.net.Uri
+import com.google.mlkit.vision.common.InputImage
+import com.google.mlkit.vision.text.TextRecognition
+import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import java.io.File
-import java.io.FileOutputStream
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -95,9 +103,8 @@ fun CardFormScreen(
     val nfcAdapter = remember { android.nfc.NfcAdapter.getDefaultAdapter(context) }
     val isNfcSupported = remember { nfcAdapter != null }
     
-    // 生成卡片唯一关联的真正 ID (新建模式下提前锁定，利于在保存卡片前静默命名保存扫描原件图片)
+    // 新建模式下保留临时 ID，用于中途退出时清理未保存扫描原件。
     val tempCardId = remember { UUID.randomUUID().toString() }
-    val finalCardId = cardId ?: tempCardId
     
     // 是否已确认成功保存卡片，用于在退出时防空转垃圾回收 (若用户中途退出新建，则静默回收未保存卡片的本地临时扫描原件)
     var isSaved by remember { mutableStateOf(false) }
@@ -117,7 +124,7 @@ fun CardFormScreen(
     var country by remember { mutableStateOf(originalCard?.country ?: "中国") }
     var bank by remember { mutableStateOf(originalCard?.bank ?: "") }
     var alias by remember { mutableStateOf(originalCard?.alias ?: "") }
-    var level by remember { mutableStateOf(originalCard?.level ?: "白金卡") }
+    var level by remember { mutableStateOf(CardReferenceData.normalizeLevel(originalCard?.level) ?: "银联-金卡") }
     
     var cardNumber by remember { mutableStateOf(originalCard?.cardNumber ?: "") }
     var cvv by remember { mutableStateOf(originalCard?.cvv ?: "") }
@@ -181,77 +188,13 @@ fun CardFormScreen(
         }
     }
 
-    /**
-     * Canvas 绘制高清渐变银行卡 Mock 扫描件并写入本地沙盒
-     */
-    fun generateMockScannedCardImage(cardNo: String, bankName: String): String {
-        val dir = File(context.filesDir, "scanned_cards")
-        if (!dir.exists()) dir.mkdirs()
-        val file = File(dir, "${finalCardId}.jpg")
-        
-        val bitmap = Bitmap.createBitmap(800, 500, Bitmap.Config.ARGB_8888)
-        val canvas = AndroidCanvas(bitmap)
-        val paint = AndroidPaint()
-        
-        // 1. 绘制极富质感的深蓝渐变银行卡背景
-        val colors = intArrayOf(0xFF1E293B.toInt(), 0xFF0F172A.toInt(), 0xFF020617.toInt())
-        paint.shader = android.graphics.LinearGradient(
-            0f, 0f, 800f, 500f,
-            colors, null, android.graphics.Shader.TileMode.CLAMP
-        )
-        canvas.drawRoundRect(0f, 0f, 800f, 500f, 32f, 32f, paint)
-        paint.shader = null
-        
-        // 2. 绘制醒目的青色扫描件边框
-        paint.color = 0xFF22D3EE.toInt() // NeonCyan
-        paint.style = android.graphics.Paint.Style.STROKE
-        paint.strokeWidth = 6f
-        canvas.drawRoundRect(3f, 3f, 797f, 497f, 32f, 32f, paint)
-        
-        // 3. 绘制装饰性金色感应芯片
-        paint.color = 0xFFFBBF24.toInt() // Gold
-        paint.style = android.graphics.Paint.Style.FILL
-        canvas.drawRoundRect(80f, 150f, 180f, 220f, 12f, 12f, paint)
-        
-        // 4. 绘制银行名称
-        paint.color = android.graphics.Color.WHITE
-        paint.textSize = 34f
-        paint.isFakeBoldText = true
-        canvas.drawText(bankName.ifEmpty { "信用卡扫描原件" }, 80f, 80f, paint)
-        
-        // 5. 绘制卡号
-        paint.textSize = 44f
-        paint.letterSpacing = 0.08f
-        val formattedNo = cardNo.chunked(4).joinToString("  ")
-        canvas.drawText(formattedNo, 80f, 310f, paint)
-        
-        // 6. 绘制 SCANNED ORIGINAL 半透明水印
-        paint.color = 0x1A22D3EE.toInt()
-        paint.textSize = 72f
-        paint.isFakeBoldText = true
-        paint.textSkewX = -0.25f
-        canvas.drawText("SCANNED ORIGINAL", 120f, 440f, paint)
-        
-        try {
-            val fos = FileOutputStream(file)
-            bitmap.compress(Bitmap.CompressFormat.JPEG, 95, fos)
-            fos.flush()
-            fos.close()
-        } catch (e: Exception) {
-            e.printStackTrace()
-        }
-        return file.absolutePath
-    }
-
     // ==========================================
     // 监听物理 NFC 刷卡感应通知广播
     // ==========================================
     LaunchedEffect(Unit) {
         NfcScannerManager.nfcCardData.collect { (scannedNo, scannedVal) ->
             if (currentStep == FormStep.SCAN_NFC) {
-                // 收到物理刷卡信号，执行 Mock 图片生成，并触发重名拦截比对
-                val path = generateMockScannedCardImage(scannedNo, bank)
-                handleScannedCard(scannedNo, scannedVal, path, "NFC")
+                handleScannedCard(scannedNo, scannedVal, null, "NFC")
             }
         }
     }
@@ -338,11 +281,7 @@ fun CardFormScreen(
                 isDark = isDark,
                 onBack = onBack,
                 onSwitchCamera = { currentStep = FormStep.SCAN_CAMERA },
-                onSwitchManual = { currentStep = FormStep.MANUAL_FORM },
-                onSimulateScanned = { scannedNo, scannedVal ->
-                    val path = generateMockScannedCardImage(scannedNo, bank)
-                    handleScannedCard(scannedNo, scannedVal, path, "NFC")
-                }
+                onSwitchManual = { currentStep = FormStep.MANUAL_FORM }
             )
         }
         FormStep.SCAN_CAMERA -> {
@@ -352,9 +291,9 @@ fun CardFormScreen(
                 lifecycleOwner = lifecycleOwner,
                 onBack = onBack,
                 onSwitchManual = { currentStep = FormStep.MANUAL_FORM },
-                onSimulateScanned = { scannedNo, scannedVal ->
-                    val path = generateMockScannedCardImage(scannedNo, bank)
-                    handleScannedCard(scannedNo, scannedVal, path, "Camera")
+                tempCardId = if (isEditMode) cardId!! else tempCardId,
+                onCardScanned = { scannedNo, scannedVal, imagePath ->
+                    handleScannedCard(scannedNo, scannedVal, imagePath, "Camera")
                 }
             )
         }
@@ -372,8 +311,20 @@ fun CardFormScreen(
                             // 保存 FAB
                             IconButton(onClick = {
                                 // 表单格式校验
-                                if (bank.trim().isEmpty()) {
-                                    Toast.makeText(context, "请输入银行名称", Toast.LENGTH_SHORT).show()
+                                if (country !in CardReferenceData.countries) {
+                                    Toast.makeText(context, "请选择 Web/Mac 端一致的国家 / 地区", Toast.LENGTH_SHORT).show()
+                                    return@IconButton
+                                }
+                                if (bank !in CardReferenceData.banks) {
+                                    Toast.makeText(context, "请选择 Web/Mac 端一致的发卡银行", Toast.LENGTH_SHORT).show()
+                                    return@IconButton
+                                }
+                                if (level !in CardReferenceData.levels) {
+                                    Toast.makeText(context, "请选择 Web/Mac 端一致的卡片等级", Toast.LENGTH_SHORT).show()
+                                    return@IconButton
+                                }
+                                if (type !in CardReferenceData.currencies) {
+                                    Toast.makeText(context, "请选择 Web/Mac 端一致的结算币种", Toast.LENGTH_SHORT).show()
                                     return@IconButton
                                 }
                                 if (cardNumber.trim().isEmpty()) {
@@ -445,22 +396,24 @@ fun CardFormScreen(
                     // Section 1: 🌏 基础信息 (BASIC INFO)
                     // ==========================================
                     FormSection(title = "🌏 基础信息") {
-                        OutlinedTextField(
+                        ReferenceDropdownField(
                             value = country,
                             onValueChange = { country = it },
-                            label = { Text("国家 / 地区") },
+                            label = "国家 / 地区",
+                            options = CardReferenceData.countries,
+                            isDark = isDark,
                             modifier = Modifier.fillMaxWidth(),
-                            colors = getOutlinedTextFieldColors(isDark)
                         )
 
                         Spacer(modifier = Modifier.height(10.dp))
 
-                        OutlinedTextField(
+                        ReferenceDropdownField(
                             value = bank,
                             onValueChange = { bank = it },
-                            label = { Text("银行名称") },
+                            label = "发卡银行",
+                            options = CardReferenceData.banks,
+                            isDark = isDark,
                             modifier = Modifier.fillMaxWidth(),
-                            colors = getOutlinedTextFieldColors(isDark)
                         )
 
                         Spacer(modifier = Modifier.height(10.dp))
@@ -475,12 +428,13 @@ fun CardFormScreen(
 
                         Spacer(modifier = Modifier.height(10.dp))
 
-                        OutlinedTextField(
+                        ReferenceDropdownField(
                             value = level,
                             onValueChange = { level = it },
-                            label = { Text("卡片等级 (如：白金卡, 金卡)") },
+                            label = "卡片等级",
+                            options = CardReferenceData.levels,
+                            isDark = isDark,
                             modifier = Modifier.fillMaxWidth(),
-                            colors = getOutlinedTextFieldColors(isDark)
                         )
                     }
 
@@ -564,12 +518,13 @@ fun CardFormScreen(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            OutlinedTextField(
+                            ReferenceDropdownField(
                                 value = type,
-                                onValueChange = { type = it.uppercase().take(3) },
-                                label = { Text("结算币种 (如 CNY, USD)") },
+                                onValueChange = { type = it },
+                                label = "结算币种",
+                                options = CardReferenceData.currencies,
+                                isDark = isDark,
                                 modifier = Modifier.weight(1f),
-                                colors = getOutlinedTextFieldColors(isDark)
                             )
 
                             Spacer(modifier = Modifier.width(16.dp))
@@ -658,7 +613,7 @@ fun CardFormScreen(
                             modifier = Modifier.fillMaxWidth(),
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            val states = listOf("1" to "已达标", "2" to "未达标", "3" to "终身免")
+                            val states = CardReferenceData.qualificationStatuses
                             states.forEach { (code, labelText) ->
                                 FilterChip(
                                     selected = isQualified == code,
@@ -971,6 +926,65 @@ fun FormSection(
     }
 }
 
+@Composable
+fun ReferenceDropdownField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    label: String,
+    options: List<String>,
+    isDark: Boolean,
+    modifier: Modifier = Modifier
+) {
+    var expanded by remember { mutableStateOf(false) }
+    Box(modifier = modifier) {
+        OutlinedTextField(
+            value = value,
+            onValueChange = {},
+            label = { Text(label) },
+            readOnly = true,
+            singleLine = true,
+            trailingIcon = {
+                Icon(
+                    imageVector = Icons.Filled.ArrowDropDown,
+                    contentDescription = "展开选项",
+                    tint = if (isDark) NeonCyan else GoldPrimary
+                )
+            },
+            modifier = Modifier.fillMaxWidth(),
+            colors = getOutlinedTextFieldColors(isDark)
+        )
+        Box(
+            modifier = Modifier
+                .matchParentSize()
+                .clickable { expanded = true }
+        )
+        DropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false },
+            modifier = Modifier
+                .heightIn(max = 320.dp)
+                .background(if (isDark) DarkCardBg else Color.White)
+        ) {
+            options.forEach { option ->
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            text = option,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                        )
+                    },
+                    onClick = {
+                        onValueChange(option)
+                        expanded = false
+                    }
+                )
+            }
+        }
+    }
+}
+
 /**
  * 定制输入框色彩集
  */
@@ -979,7 +993,14 @@ fun getOutlinedTextFieldColors(isDark: Boolean) = OutlinedTextFieldDefaults.colo
     focusedBorderColor = if (isDark) NeonCyan else GoldPrimary,
     unfocusedBorderColor = if (isDark) Color.White.copy(alpha = 0.15f) else Color.Black.copy(alpha = 0.15f),
     focusedLabelColor = if (isDark) NeonCyan else GoldPrimary,
-    unfocusedLabelColor = if (isDark) TextGray else TextMuted
+    unfocusedLabelColor = if (isDark) TextGray else TextMuted,
+    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+    unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+    focusedPlaceholderColor = (if (isDark) TextGray else TextMuted).copy(alpha = 0.75f),
+    unfocusedPlaceholderColor = (if (isDark) TextGray else TextMuted).copy(alpha = 0.75f),
+    cursorColor = if (isDark) NeonCyan else GoldPrimary,
+    focusedContainerColor = if (isDark) DarkBg else Color.White,
+    unfocusedContainerColor = if (isDark) DarkBg else Color.White
 )
 
 /**
@@ -1047,8 +1068,7 @@ fun NfcScanLayout(
     isDark: Boolean,
     onBack: () -> Unit,
     onSwitchCamera: () -> Unit,
-    onSwitchManual: () -> Unit,
-    onSimulateScanned: (String, String) -> Unit
+    onSwitchManual: () -> Unit
 ) {
     Box(
         modifier = Modifier
@@ -1172,19 +1192,16 @@ fun NfcScanLayout(
                 textAlign = TextAlign.Center
             )
 
-            Spacer(modifier = Modifier.height(48.dp))
+            Spacer(modifier = Modifier.height(24.dp))
 
-            // 调试用“模拟刷卡”核心按钮，用于无硬件下 100% 测试通过
-            Button(
-                onClick = { onSimulateScanned("6222081001987654321", "08/30") },
-                colors = ButtonDefaults.buttonColors(containerColor = accentColor),
-                shape = RoundedCornerShape(12.dp),
-                elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp)
-            ) {
-                Icon(imageVector = Icons.Default.Nfc, contentDescription = "模拟")
-                Spacer(modifier = Modifier.width(6.dp))
-                Text("模拟 NFC 刷卡感应", fontWeight = FontWeight.Bold)
-            }
+            Text(
+                text = "不会写入测试卡号；只有读取到真实卡片数据后才会进入表单。",
+                fontSize = 12.sp,
+                lineHeight = 17.sp,
+                color = if (isDark) TextGray else TextMuted,
+                textAlign = TextAlign.Center,
+                modifier = Modifier.padding(horizontal = 24.dp)
+            )
         }
 
         // 底部引导切换栏
@@ -1227,6 +1244,7 @@ fun NfcScanLayout(
 /**
  * CameraX 真实渲染且包含绿色发光激光扫描线的高清对齐蒙板全屏页面
  */
+@OptIn(androidx.camera.core.ExperimentalGetImage::class)
 @Composable
 fun CameraScanLayout(
     context: android.content.Context,
@@ -1234,10 +1252,108 @@ fun CameraScanLayout(
     lifecycleOwner: androidx.lifecycle.LifecycleOwner,
     onBack: () -> Unit,
     onSwitchManual: () -> Unit,
-    onSimulateScanned: (String, String) -> Unit
+    tempCardId: String,
+    onCardScanned: (String, String, String?) -> Unit
 ) {
     Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
         var cameraBindError by remember { mutableStateOf(false) }
+
+        // 用于刷卡或识别成功的震动提示器
+        val vibrator = remember {
+            context.getSystemService(android.content.Context.VIBRATOR_SERVICE) as? android.os.Vibrator
+        }
+
+        // 用以控制防抖，防止识别到后多次回调
+        var isScannedTriggered by remember { mutableStateOf(false) }
+
+        // 快门拍照时的 Loading 状态层
+        var isCapturing by remember { mutableStateOf(false) }
+
+        // 拍照用 ImageCapture
+        val imageCapture = remember {
+            ImageCapture.Builder()
+                .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
+                .build()
+        }
+
+        fun takePhotoAndRecognize(ctx: android.content.Context) {
+            if (isCapturing) return
+            isCapturing = true
+
+            // 创建大图原件临时存储文件
+            val rawFile = try {
+                File.createTempFile("raw_card_", ".jpg", ctx.cacheDir)
+            } catch (e: Exception) {
+                isCapturing = false
+                Toast.makeText(ctx, "创建临时文件失败", Toast.LENGTH_SHORT).show()
+                return
+            }
+
+            val outputOptions = ImageCapture.OutputFileOptions.Builder(rawFile).build()
+            imageCapture.takePicture(
+                outputOptions,
+                ContextCompat.getMainExecutor(ctx),
+                object : ImageCapture.OnImageSavedCallback {
+                    override fun onImageSaved(outputFileResults: ImageCapture.OutputFileResults) {
+                        // 1. 使用高分辨率静态大图加载进行 ML Kit OCR 识别，确保极佳的解析准确度
+                        val inputImage = try {
+                            InputImage.fromFilePath(ctx, Uri.fromFile(rawFile))
+                        } catch (e: Exception) {
+                            isCapturing = false
+                            Toast.makeText(ctx, "加载原始大图失败", Toast.LENGTH_SHORT).show()
+                            return
+                        }
+
+                        val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+                        recognizer.process(inputImage)
+                            .addOnSuccessListener { visionText ->
+                                val text = visionText.text
+                                val parsed = parseCardInfoFromText(text)
+
+                                // 2. 在异步子线程中对拍摄好的照片进行旋转复原和 1.586 中间精确裁剪
+                                Thread {
+                                    val croppedPath = cropCardImage(ctx, rawFile, tempCardId)
+                                    // 剪裁完成后静默清除体积巨大的拍照原始大图
+                                    try { rawFile.delete() } catch (e: Exception) {}
+
+                                    (ctx as? android.app.Activity)?.runOnUiThread {
+                                        isCapturing = false
+                                        if (parsed != null) {
+                                            val (cardNo, expiry) = parsed
+                                            try { vibrator?.vibrate(100) } catch (e: Exception) {}
+                                            Toast.makeText(ctx, "📸 智能识别并自动代入卡号！", Toast.LENGTH_SHORT).show()
+                                            onCardScanned(cardNo, expiry, croppedPath)
+                                        } else {
+                                            // 优雅降级：OCR 失败但依然成功获取了裁剪后的精美卡片预览
+                                            try { vibrator?.vibrate(100) } catch (e: Exception) {}
+                                            Toast.makeText(ctx, "未能自动识别卡号，已为您裁剪保留卡片照片", Toast.LENGTH_LONG).show()
+                                            onCardScanned("", "", croppedPath)
+                                        }
+                                    }
+                                }.start()
+                            }
+                            .addOnFailureListener {
+                                // 即使 OCR 分析由于反光等失败，也自动裁剪并保存照片，优雅降级代入
+                                Thread {
+                                    val croppedPath = cropCardImage(ctx, rawFile, tempCardId)
+                                    try { rawFile.delete() } catch (e: Exception) {}
+                                    (ctx as? android.app.Activity)?.runOnUiThread {
+                                        isCapturing = false
+                                        try { vibrator?.vibrate(100) } catch (e: Exception) {}
+                                        Toast.makeText(ctx, "识别失败，已为您保存卡片剪裁原件", Toast.LENGTH_LONG).show()
+                                        onCardScanned("", "", croppedPath)
+                                    }
+                                }.start()
+                            }
+                    }
+
+                    override fun onError(exception: ImageCaptureException) {
+                        isCapturing = false
+                        Toast.makeText(ctx, "拍照快门激活失败: ${exception.message}", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            )
+        }
 
         if (!cameraBindError) {
             AndroidView(
@@ -1252,12 +1368,60 @@ fun CameraScanLayout(
                             val preview = Preview.Builder().build().apply {
                                 setSurfaceProvider(previewView.surfaceProvider)
                             }
+
+                            // A. 初始化 ImageAnalysis 帧分析器（保留自动探测，方便瞬间解析）
+                            val imageAnalysis = ImageAnalysis.Builder()
+                                .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                                .build()
+
+                            val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+
+                            imageAnalysis.setAnalyzer(ContextCompat.getMainExecutor(ctx)) { imageProxy ->
+                                if (isScannedTriggered || isCapturing) {
+                                    imageProxy.close()
+                                    return@setAnalyzer
+                                }
+
+                                val mediaImage = imageProxy.image
+                                if (mediaImage != null) {
+                                    val inputImage = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
+                                    recognizer.process(inputImage)
+                                        .addOnSuccessListener { visionText ->
+                                            val text = visionText.text
+                                            val parsed = parseCardInfoFromText(text)
+                                            if (parsed != null && !isScannedTriggered && !isCapturing) {
+                                                isScannedTriggered = true
+                                                val (cardNo, expiry) = parsed
+                                                
+                                                try {
+                                                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                                                        vibrator?.vibrate(android.os.VibrationEffect.createOneShot(100, android.os.VibrationEffect.DEFAULT_AMPLITUDE))
+                                                    } else {
+                                                        @Suppress("DEPRECATION")
+                                                        vibrator?.vibrate(100)
+                                                    }
+                                                } catch (e: Exception) {}
+
+                                                // 自动流解析无法提取裁剪图，代入 null
+                                                onCardScanned(cardNo, expiry, null)
+                                            }
+                                        }
+                                        .addOnCompleteListener {
+                                            imageProxy.close()
+                                        }
+                                } else {
+                                    imageProxy.close()
+                                }
+                            }
+
                             val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
                             cameraProvider.unbindAll()
                             cameraProvider.bindToLifecycle(
                                 lifecycleOwner,
                                 cameraSelector,
-                                preview
+                                preview,
+                                imageAnalysis,
+                                imageCapture // 同时绑定 ImageCapture 快门组件
                             )
                         } catch (e: Exception) {
                             e.printStackTrace()
@@ -1269,7 +1433,7 @@ fun CameraScanLayout(
                 modifier = Modifier.fillMaxSize()
             )
         } else {
-            // 仿真取景器 (用于无相机权限或模拟器运行容错)
+            // 备用取景器背景 (用于无相机权限或模拟器运行容错)
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -1351,25 +1515,13 @@ fun CameraScanLayout(
                 Spacer(modifier = Modifier.height(6.dp))
 
                 Text(
-                    text = "取景器正在进行卡号与有效期自动捕捉...",
+                    text = "已集成智能大图 OCR，可手动拍照瞬间代入卡包卡面。",
                     color = Color.LightGray.copy(alpha = 0.8f),
                     fontSize = 12.sp,
                     textAlign = TextAlign.Center
                 )
 
-                Spacer(modifier = Modifier.height(48.dp))
-
-                // 调试用相机模拟按钮，点击可完美生成 mock 扫描原件并进行冲突检测
-                Button(
-                    onClick = { onSimulateScanned("6217002010098765432", "12/29") },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF4ADE80)),
-                    shape = RoundedCornerShape(12.dp),
-                    elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp)
-                ) {
-                    Icon(imageVector = Icons.Default.PhotoCamera, contentDescription = "相机模拟", tint = Color.Black)
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("模拟相机激光扫描成功", fontWeight = FontWeight.Bold, color = Color.Black)
-                }
+                Spacer(modifier = Modifier.height(32.dp))
             }
         }
 
@@ -1402,15 +1554,40 @@ fun CameraScanLayout(
             )
         }
 
-        // 底部切换至手动直接填写按钮
-        Box(
+        // 底部操控区：快门拍照 + 手动输入
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
                 .align(Alignment.BottomCenter)
                 .navigationBarsPadding()
-                .padding(bottom = 32.dp),
-            contentAlignment = Alignment.Center
+                .padding(bottom = 24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            // 快门拍照大按钮
+            Box(
+                modifier = Modifier
+                    .size(76.dp)
+                    .background(
+                        brush = Brush.radialGradient(listOf(Color(0xFF4ADE80), Color(0xFF16A34A))),
+                        shape = CircleShape
+                    )
+                    .border(4.dp, Color.White, CircleShape)
+                    .shadow(elevation = 8.dp, shape = CircleShape)
+                    .clickable {
+                        takePhotoAndRecognize(context)
+                    },
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Default.PhotoCamera,
+                    contentDescription = "快门拍照",
+                    tint = Color.White,
+                    modifier = Modifier.size(32.dp)
+                )
+            }
+
+            // 切换手动直接填写按钮
             TextButton(
                 onClick = onSwitchManual,
                 modifier = Modifier
@@ -1422,5 +1599,144 @@ fun CameraScanLayout(
                 Text("不想扫描？手动录入", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
             }
         }
+
+        // 快门拍照时的智能 Loading 解析蒙层
+        if (isCapturing) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black.copy(alpha = 0.75f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    CircularProgressIndicator(color = NeonGreen)
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text("📷 正在抓取高清卡片...", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Text("🔍 正在智能识别并裁剪卡包卡面...", color = Color.LightGray, fontSize = 12.sp)
+                }
+            }
+        }
     }
+}
+
+/**
+ * Exif 物理方向旋转还原并 1.586 银行卡中间比例居中裁剪
+ */
+fun cropCardImage(context: android.content.Context, rawFile: File, cardId: String): String? {
+    try {
+        // 1. 读取原始大图 Exif 角度，防偏防转
+        val exifInterface = ExifInterface(rawFile.absolutePath)
+        val orientation = exifInterface.getAttributeInt(
+            ExifInterface.TAG_ORIENTATION,
+            ExifInterface.ORIENTATION_NORMAL
+        )
+        val rotationDegrees = when (orientation) {
+            ExifInterface.ORIENTATION_ROTATE_90 -> 90
+            ExifInterface.ORIENTATION_ROTATE_180 -> 180
+            ExifInterface.ORIENTATION_ROTATE_270 -> 270
+            else -> 0
+        }
+
+        // 2. 解码大图原件
+        val options = BitmapFactory.Options()
+        var bitmap = BitmapFactory.decodeFile(rawFile.absolutePath, options) ?: return null
+
+        // 3. 按真实物理朝向旋转矫正
+        if (rotationDegrees != 0) {
+            val matrix = Matrix()
+            matrix.postRotate(rotationDegrees.toFloat())
+            val rotated = Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+            if (rotated != bitmap) {
+                bitmap.recycle()
+                bitmap = rotated
+            }
+        }
+
+        // 4. 按 85% 宽度及 1.586 国际黄金比例进行正中间切割
+        val w = bitmap.width
+        val h = bitmap.height
+
+        val cropW = (w * 0.85f).toInt()
+        val cropH = (cropW / 1.586f).toInt()
+
+        val startX = (w - cropW) / 2
+        val startY = (h - cropH) / 2
+
+        // 越界安全防护
+        val safeStartX = Math.max(0, startX)
+        val safeStartY = Math.max(0, startY)
+        val safeCropW = Math.min(cropW, w - safeStartX)
+        val safeCropH = Math.min(cropH, h - safeStartY)
+
+        val cropped = Bitmap.createBitmap(bitmap, safeStartX, safeStartY, safeCropW, safeCropH)
+
+        // 5. 保存剪裁卡片至沙盒 scanned_cards 目录
+        val outputDir = File(context.filesDir, "scanned_cards")
+        if (!outputDir.exists()) {
+            outputDir.mkdirs()
+        }
+        val outputFile = File(outputDir, "${cardId}.jpg")
+        outputFile.outputStream().use { out ->
+            cropped.compress(Bitmap.CompressFormat.JPEG, 90, out)
+        }
+
+        // 6. 严密回收 Bitmap 对象，释放 Heap 物理内存，规避 OOM
+        bitmap.recycle()
+        cropped.recycle()
+
+        return outputFile.absolutePath
+    } catch (e: Exception) {
+        e.printStackTrace()
+    }
+    return null
+}
+
+/**
+ * 从识别出的文本中智能过滤匹配卡号及有效期
+ */
+fun parseCardInfoFromText(text: String): Pair<String, String>? {
+    val lines = text.split("\n")
+    for (line in lines) {
+        // 去除空格和中划线连字符干扰
+        val clean = line.replace("\\s".toRegex(), "").replace("-", "")
+        // 银行卡号通常是 15 到 19 位的纯数字
+        if (clean.length in 13..19 && clean.all { it.isDigit() }) {
+            // 对识别到的潜在卡号执行极高强度的 Luhn 算法校验过滤，防噪点和错码
+            if (luhnCheck(clean)) {
+                val expiry = findExpiryFromText(text)
+                return Pair(clean, expiry)
+            }
+        }
+    }
+    return null
+}
+
+/**
+ * 信用卡标准卡号 Luhn 逻辑校验算法
+ */
+fun luhnCheck(number: String): Boolean {
+    var sum = 0
+    var alternate = false
+    for (i in number.length - 1 downTo 0) {
+        var n = Character.getNumericValue(number[i])
+        if (alternate) {
+            n *= 2
+            if (n > 9) {
+                n = n % 10 + 1
+            }
+        }
+        sum += n
+        alternate = !alternate
+    }
+    return sum % 10 == 0
+}
+
+/**
+ * 从文本中正则扫描符合 MM/YY 格式的有效期字段
+ */
+fun findExpiryFromText(text: String): String {
+    val pattern = "\\b(0[1-9]|1[0-2])/([0-9]{2})\\b".toRegex()
+    val match = pattern.find(text)
+    return match?.value ?: ""
 }

@@ -41,7 +41,9 @@ import androidx.compose.ui.unit.sp
 import androidx.navigation3.runtime.NavKey
 import com.example.creditcard.CardDetail
 import com.example.creditcard.CardForm
+import com.example.creditcard.data.CardChangeDetail
 import com.example.creditcard.data.SharedCard
+import com.example.creditcard.data.SyncHistoryEntry
 import com.example.creditcard.theme.*
 import com.example.creditcard.utils.SyncCoordinator
 import com.example.creditcard.utils.ThemeManager
@@ -732,8 +734,18 @@ fun AnalyticsPanel(cards: List<SharedCard>, isDark: Boolean) {
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    Text(text = "🏢 $bank", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.weight(1f)
+                                ) {
+                                    Text(
+                                        text = "🏢 $bank",
+                                        fontWeight = FontWeight.Bold,
+                                        fontSize = 13.sp,
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis,
+                                        modifier = Modifier.weight(1f, fill = false)
+                                    )
                                     Spacer(modifier = Modifier.width(6.dp))
                                     Box(
                                         modifier = Modifier
@@ -749,12 +761,17 @@ fun AnalyticsPanel(cards: List<SharedCard>, isDark: Boolean) {
                                         )
                                     }
                                 }
-                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.padding(start = 8.dp)
+                                ) {
                                     Text(
                                         text = "${representative.type} $${String.format("%,.0f", representative.limit)}",
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 12.sp,
-                                        color = if (isDark) NeonCyan else GoldPrimary
+                                        color = if (isDark) NeonCyan else GoldPrimary,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
                                     )
                                     Spacer(modifier = Modifier.width(4.dp))
                                     Icon(
@@ -789,8 +806,12 @@ fun AnalyticsPanel(cards: List<SharedCard>, isDark: Boolean) {
                                             Text(
                                                 text = "• ${card.alias.ifEmpty { "卡片" }} (${formatMaskedCardNumber(card.cardNumber).takeLast(4)})",
                                                 fontSize = 11.sp,
-                                                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.8f)
+                                                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.8f),
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis,
+                                                modifier = Modifier.weight(1f)
                                             )
+                                            Spacer(modifier = Modifier.width(8.dp))
                                             Text(
                                                 text = "共享锁定中",
                                                 color = if (isDark) NeonGreen else ForestGreen,
@@ -821,18 +842,37 @@ fun AnalyticsPanel(cards: List<SharedCard>, isDark: Boolean) {
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Column {
+                        Column(modifier = Modifier.weight(1f)) {
                             Text(text = "🪙 币种: $currency", fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                            Text(text = "共绑定了 $cardCount 张卡片 (已去除共享限额重计)", fontSize = 11.sp, color = if (isDark) TextGray else TextMuted)
+                            Text(
+                                text = "共绑定 $cardCount 张卡片，已去除共享额度重复计算",
+                                fontSize = 11.sp,
+                                color = if (isDark) TextGray else TextMuted,
+                                lineHeight = 15.sp
+                            )
                         }
-                        Column(horizontalAlignment = Alignment.End) {
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column(
+                            horizontalAlignment = Alignment.End,
+                            modifier = Modifier.weight(0.9f)
+                        ) {
                             Text(
                                 text = "$currency $${String.format("%,.0f", totalLimit)}",
                                 fontWeight = FontWeight.Black,
                                 fontSize = 15.sp,
-                                color = if (isDark) NeonCyan else GoldPrimary
+                                color = if (isDark) NeonCyan else GoldPrimary,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                                textAlign = TextAlign.End
                             )
-                            Text(text = "总年费: $currency $totalFee", fontSize = 10.sp, color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f))
+                            Text(
+                                text = "总年费: $currency ${String.format("%,.0f", totalFee)}",
+                                fontSize = 10.sp,
+                                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.6f),
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis,
+                                textAlign = TextAlign.End
+                            )
                         }
                     }
                 }
@@ -862,6 +902,8 @@ fun SettingsPanel(isDark: Boolean) {
     // 2. 状态监听
     var isTestingConnection by remember { mutableStateOf(false) }
     val syncStatus by SyncCoordinator.syncStatus.collectAsState()
+    val syncProgress by SyncCoordinator.syncProgress.collectAsState()
+    val syncHistory by SyncCoordinator.syncHistory.collectAsState()
 
     // 3. 高级系统维护二次安全确认弹窗
     var showResetDbDialog by remember { mutableStateOf(false) }
@@ -870,6 +912,7 @@ fun SettingsPanel(isDark: Boolean) {
     // 4. 新增编辑配置模式与已配置状态检测 (第 7 点)
     val isConfigured = remember(loadedConfig) { loadedConfig.url.isNotEmpty() && loadedConfig.user.isNotEmpty() }
     var isEditingConfig by remember { mutableStateOf(!isConfigured) }
+    var expandedHistoryIds by remember { mutableStateOf(setOf<String>()) }
 
     Column(
         modifier = Modifier
@@ -905,7 +948,8 @@ fun SettingsPanel(isDark: Boolean) {
                         text = "WebDAV 云备份通道正常连接",
                         fontWeight = FontWeight.Bold,
                         fontSize = 15.sp,
-                        color = if (isDark) NeonGreen else ForestGreen
+                        color = if (isDark) NeonGreen else ForestGreen,
+                        textAlign = TextAlign.Center
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
@@ -946,9 +990,9 @@ fun SettingsPanel(isDark: Boolean) {
                     Divider(color = (if (isDark) TextGray else TextMuted).copy(alpha = 0.15f), thickness = 1.dp)
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    Row(
+                    Column(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         // 1. 强制立即双向合流同步
                         Button(
@@ -957,7 +1001,7 @@ fun SettingsPanel(isDark: Boolean) {
                                     SyncCoordinator.synchronize(context, publishLocalChanges = true)
                                 }
                             },
-                            modifier = Modifier.weight(1.2f),
+                            modifier = Modifier.fillMaxWidth(),
                             enabled = !syncStatus.isSyncing,
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = if (isDark) NeonCyan else GoldPrimary,
@@ -976,7 +1020,7 @@ fun SettingsPanel(isDark: Boolean) {
                         // 2. 编辑修改配置参数按钮
                         Button(
                             onClick = { isEditingConfig = true },
-                            modifier = Modifier.weight(0.8f),
+                            modifier = Modifier.fillMaxWidth(),
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = (if (isDark) TextGray else TextMuted).copy(alpha = 0.2f),
                                 contentColor = MaterialTheme.colorScheme.onBackground
@@ -1045,9 +1089,9 @@ fun SettingsPanel(isDark: Boolean) {
                     Spacer(modifier = Modifier.height(4.dp))
 
                     // 功能按钮操作行
-                    Row(
+                    Column(
                         modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         // 1. 连接测试
                         Button(
@@ -1065,7 +1109,7 @@ fun SettingsPanel(isDark: Boolean) {
                                     }
                                 }
                             },
-                            modifier = Modifier.weight(1f),
+                            modifier = Modifier.fillMaxWidth(),
                             enabled = !isTestingConnection && !syncStatus.isSyncing,
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = if (isDark) NeonCyan else GoldPrimary,
@@ -1100,7 +1144,7 @@ fun SettingsPanel(isDark: Boolean) {
                                     }
                                 }
                             },
-                            modifier = Modifier.weight(1.5f),
+                            modifier = Modifier.fillMaxWidth(),
                             enabled = !syncStatus.isSyncing,
                             colors = ButtonDefaults.buttonColors(
                                 containerColor = if (isDark) NeonGreen else ForestGreen,
@@ -1116,7 +1160,7 @@ fun SettingsPanel(isDark: Boolean) {
                         if (isConfigured) {
                             Button(
                                 onClick = { isEditingConfig = false },
-                                modifier = Modifier.weight(0.8f),
+                                modifier = Modifier.fillMaxWidth(),
                                 colors = ButtonDefaults.buttonColors(
                                     containerColor = (if (isDark) TextGray else TextMuted).copy(alpha = 0.15f),
                                     contentColor = MaterialTheme.colorScheme.onBackground
@@ -1125,6 +1169,48 @@ fun SettingsPanel(isDark: Boolean) {
                                 Text("取消", fontSize = 11.sp)
                             }
                         }
+                    }
+                }
+            }
+        }
+
+        DetailSection(title = "🔎 同步进度与记录") {
+            SyncProgressBlock(
+                statusMessage = syncStatus.message,
+                isSyncing = syncStatus.isSyncing,
+                pending = syncStatus.pending,
+                phase = syncProgress.phase,
+                step = syncProgress.step,
+                total = syncProgress.total,
+                detail = syncProgress.detail,
+                isDark = isDark
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            if (syncHistory.isEmpty()) {
+                Text(
+                    text = "暂无同步记录。完成一次 WebDAV 同步后，这里会显示上传、下载和字段变更详情。",
+                    fontSize = 12.sp,
+                    lineHeight = 17.sp,
+                    color = if (isDark) TextGray else TextMuted
+                )
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    syncHistory.take(8).forEach { entry ->
+                        val expanded = expandedHistoryIds.contains(entry.id)
+                        SyncHistoryCard(
+                            entry = entry,
+                            expanded = expanded,
+                            isDark = isDark,
+                            onToggle = {
+                                expandedHistoryIds = if (expanded) {
+                                    expandedHistoryIds - entry.id
+                                } else {
+                                    expandedHistoryIds + entry.id
+                                }
+                            }
+                        )
                     }
                 }
             }
@@ -1146,7 +1232,10 @@ fun SettingsPanel(isDark: Boolean) {
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f)
+                    ) {
                         Icon(
                             imageVector = if (isDark) Icons.Filled.LightMode else Icons.Filled.NightlightRound,
                             contentDescription = "主题",
@@ -1154,13 +1243,22 @@ fun SettingsPanel(isDark: Boolean) {
                             modifier = Modifier.size(18.dp)
                         )
                         Spacer(modifier = Modifier.width(10.dp))
-                        Text(text = "全局外观主题热切换", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        Text(
+                            text = "全局外观主题热切换",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
                     }
+                    Spacer(modifier = Modifier.width(10.dp))
                     Text(
                         text = if (isDark) "科技暗黑 (Dark)" else "优雅轻奢 (Light)",
                         fontSize = 10.sp,
                         fontWeight = FontWeight.SemiBold,
-                        color = if (isDark) NeonCyan else GoldPrimary
+                        color = if (isDark) NeonCyan else GoldPrimary,
+                        textAlign = TextAlign.End,
+                        maxLines = 2
                     )
                 }
 
@@ -1181,7 +1279,10 @@ fun SettingsPanel(isDark: Boolean) {
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f)
+                    ) {
                         Icon(
                             imageVector = Icons.Filled.Refresh,
                             contentDescription = "变动流水",
@@ -1189,8 +1290,15 @@ fun SettingsPanel(isDark: Boolean) {
                             modifier = Modifier.size(18.dp)
                         )
                         Spacer(modifier = Modifier.width(10.dp))
-                        Text(text = "清空本地 CRDT 变动账本", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        Text(
+                            text = "清空本地 CRDT 变动账本",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
                     }
+                    Spacer(modifier = Modifier.width(8.dp))
                     Icon(
                         imageVector = Icons.Filled.ChevronRight,
                         contentDescription = "进入",
@@ -1216,7 +1324,10 @@ fun SettingsPanel(isDark: Boolean) {
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.weight(1f)
+                    ) {
                         Icon(
                             imageVector = Icons.Filled.DeleteForever,
                             contentDescription = "物理擦除",
@@ -1224,8 +1335,15 @@ fun SettingsPanel(isDark: Boolean) {
                             modifier = Modifier.size(18.dp)
                         )
                         Spacer(modifier = Modifier.width(10.dp))
-                        Text(text = "物理删除本地所有卡片数据", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+                        Text(
+                            text = "物理删除本地所有卡片数据",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
                     }
+                    Spacer(modifier = Modifier.width(8.dp))
                     Icon(
                         imageVector = Icons.Filled.ChevronRight,
                         contentDescription = "进入",
@@ -1308,6 +1426,236 @@ fun SettingsPanel(isDark: Boolean) {
     }
 }
 
+@Composable
+fun SyncProgressBlock(
+    statusMessage: String,
+    isSyncing: Boolean,
+    pending: Boolean,
+    phase: String,
+    step: Int,
+    total: Int,
+    detail: String,
+    isDark: Boolean
+) {
+    val accent = if (isDark) NeonCyan else GoldPrimary
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(if (isDark) DarkBg else LightBg)
+            .padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = if (isSyncing) Icons.Filled.Sync else Icons.Filled.CloudQueue,
+                contentDescription = "同步状态",
+                tint = accent,
+                modifier = Modifier.size(18.dp)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = if (isSyncing) phase else if (pending) "有待同步变更" else "同步空闲",
+                fontWeight = FontWeight.Bold,
+                fontSize = 13.sp,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.weight(1f)
+            )
+            if (total > 0) {
+                Text(
+                    text = "$step/$total",
+                    fontSize = 11.sp,
+                    color = if (isDark) TextGray else TextMuted
+                )
+            }
+        }
+        if (total > 0) {
+            LinearProgressIndicator(
+                progress = { (step.toFloat() / total.toFloat()).coerceIn(0f, 1f) },
+                modifier = Modifier.fillMaxWidth().height(5.dp).clip(RoundedCornerShape(4.dp)),
+                color = accent,
+                trackColor = accent.copy(alpha = 0.18f)
+            )
+        }
+        Text(
+            text = detail.ifBlank { statusMessage },
+            fontSize = 12.sp,
+            lineHeight = 17.sp,
+            color = if (isDark) TextGray else TextMuted
+        )
+    }
+}
+
+@Composable
+fun SyncHistoryCard(
+    entry: SyncHistoryEntry,
+    expanded: Boolean,
+    isDark: Boolean,
+    onToggle: () -> Unit
+) {
+    val statusColor = when (entry.status) {
+        "success" -> if (isDark) NeonGreen else ForestGreen
+        "warning" -> if (isDark) Color(0xFFFFB74D) else WarmOrange
+        "error" -> if (isDark) NeonRed else Color.Red
+        else -> if (isDark) NeonCyan else GoldPrimary
+    }
+    val localCount = entry.localChanges.size
+    val remoteCount = entry.remoteChanges.size
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(if (isDark) DarkBg else LightBg)
+            .clickable { onToggle() }
+            .padding(12.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .size(9.dp)
+                    .clip(CircleShape)
+                    .background(statusColor)
+            )
+            Spacer(modifier = Modifier.width(8.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = formatSyncTime(entry.finishedAt),
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Text(
+                    text = entry.message,
+                    fontSize = 11.sp,
+                    lineHeight = 15.sp,
+                    color = if (isDark) TextGray else TextMuted,
+                    maxLines = if (expanded) Int.MAX_VALUE else 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            Column(horizontalAlignment = Alignment.End) {
+                Text(
+                    text = "本机 $localCount / 云端 $remoteCount",
+                    fontSize = 10.sp,
+                    color = statusColor,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Icon(
+                    imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                    contentDescription = "展开同步记录",
+                    tint = if (isDark) TextGray else TextMuted,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+        }
+
+        AnimatedVisibility(
+            visible = expanded,
+            enter = expandVertically() + fadeIn(),
+            exit = shrinkVertically() + fadeOut()
+        ) {
+            Column(
+                modifier = Modifier.padding(top = 10.dp),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                if (entry.downloadedFiles.isNotEmpty()) {
+                    SyncFileLine("拉取快照", entry.downloadedFiles.joinToString("、"), isDark)
+                }
+                if (entry.uploadedFile.isNotBlank()) {
+                    SyncFileLine("上传快照", entry.uploadedFile, isDark)
+                }
+                ChangeGroup(title = "本机上传变更", changes = entry.localChanges, isDark = isDark)
+                ChangeGroup(title = "云端合流变更", changes = entry.remoteChanges, isDark = isDark)
+            }
+        }
+    }
+}
+
+@Composable
+fun SyncFileLine(label: String, value: String, isDark: Boolean) {
+    Column {
+        Text(
+            text = label,
+            fontSize = 10.sp,
+            color = if (isDark) NeonCyan else GoldPrimary,
+            fontWeight = FontWeight.Bold
+        )
+        Text(
+            text = value,
+            fontSize = 10.sp,
+            lineHeight = 14.sp,
+            color = if (isDark) TextGray else TextMuted
+        )
+    }
+}
+
+@Composable
+fun ChangeGroup(title: String, changes: List<CardChangeDetail>, isDark: Boolean) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(
+            text = "$title (${changes.size})",
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        if (changes.isEmpty()) {
+            Text(
+                text = "无",
+                fontSize = 10.sp,
+                color = if (isDark) TextGray else TextMuted
+            )
+        } else {
+            changes.forEach { change ->
+                ChangeItem(change = change, isDark = isDark)
+            }
+        }
+    }
+}
+
+@Composable
+fun ChangeItem(change: CardChangeDetail, isDark: Boolean) {
+    val color = when (change.kind) {
+        "added" -> if (isDark) NeonGreen else ForestGreen
+        "deleted" -> if (isDark) NeonRed else Color.Red
+        else -> if (isDark) NeonCyan else GoldPrimary
+    }
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(6.dp))
+            .background(color.copy(alpha = 0.08f))
+            .padding(8.dp)
+    ) {
+        Text(
+            text = "${changeKindText(change.kind)}：${change.cardName}",
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            color = color,
+            lineHeight = 15.sp
+        )
+        change.fields.forEach { field ->
+            Text(
+                text = "${field.label}: ${field.oldValue.ifBlank { "空" }} -> ${field.newValue.ifBlank { "空" }}",
+                fontSize = 10.sp,
+                lineHeight = 14.sp,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.82f)
+            )
+        }
+    }
+}
+
+fun changeKindText(kind: String): String = when (kind) {
+    "added" -> "新增"
+    "deleted" -> "删除"
+    "modified" -> "修改"
+    else -> "变更"
+}
+
+fun formatSyncTime(value: String): String {
+    if (value.isBlank()) return "未知时间"
+    return value.replace("T", " ").replace("Z", "").take(19)
+}
+
 // =============================================================================
 // 🎨 公用卡片 Section 容器与配置
 // =============================================================================
@@ -1349,7 +1697,12 @@ fun getOutlinedTextFieldColors(isDark: Boolean) = OutlinedTextFieldDefaults.colo
     focusedLabelColor = if (isDark) NeonCyan else GoldPrimary,
     unfocusedBorderColor = (if (isDark) TextGray else TextMuted).copy(alpha = 0.3f),
     focusedContainerColor = if (isDark) DarkBg else Color.White,
-    unfocusedContainerColor = if (isDark) DarkBg else Color.White
+    unfocusedContainerColor = if (isDark) DarkBg else Color.White,
+    focusedTextColor = MaterialTheme.colorScheme.onSurface,
+    unfocusedTextColor = MaterialTheme.colorScheme.onSurface,
+    focusedPlaceholderColor = (if (isDark) TextGray else TextMuted).copy(alpha = 0.75f),
+    unfocusedPlaceholderColor = (if (isDark) TextGray else TextMuted).copy(alpha = 0.75f),
+    cursorColor = if (isDark) NeonCyan else GoldPrimary
 )
 
 // =============================================================================
