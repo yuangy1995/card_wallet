@@ -22,8 +22,8 @@ export const DEFAULT_CARD_DATA = {
   valid: '',  // MM/YY 格式
   
   // 额度信息
-  limit: 0,
-  type: 'CNY',  // 默认人民币
+  limit: null,
+  type: '',
   isSharedLimit: true,  // 默认共享额度
   
   // 账单信息
@@ -32,8 +32,8 @@ export const DEFAULT_CARD_DATA = {
   billingDaySpendingToNextBill: true,  // 默认计入下期账单
   
   // 年费信息
-  annualFee: 0,
-  isQualified: '2',  // 默认未达标
+  annualFee: null,
+  isQualified: '',
   nextAnnualFeeCollectionTime: null,
   
   // 时间追踪
@@ -55,12 +55,8 @@ export const REQUIRED_FIELDS = [
   'bank',
   'cardNumber',
   'valid',
-  'limit',
-  'type',
   'isSharedLimit',
-  'billingDaySpendingToNextBill',
-  'annualFee',
-  'isQualified'
+  'billingDaySpendingToNextBill'
 ]
 
 /**

@@ -120,7 +120,7 @@ export function migrateCardData(oldCard, trackChanges = false) {
   } else {
     // 如果没有ID，生成一个新的UUID
     migratedCard.id = crypto.randomUUID()
-    console.warn('卡片缺少ID，已自动生成:', migratedCard.id)
+    console.warn('卡片缺少内部编号，已自动补齐:', migratedCard.id)
   }
   
   // 2. 复制基本字符串字段
@@ -215,7 +215,7 @@ export function migrateCardData(oldCard, trackChanges = false) {
       field: 'isSharedLimit',
       oldValue: undefined,
       newValue: migratedCard.isSharedLimit,
-      reason: '新增字段，添加默认值'
+      reason: '补齐缺少的信息'
     })
   }
   
@@ -230,7 +230,7 @@ export function migrateCardData(oldCard, trackChanges = false) {
       field: 'billingDaySpendingToNextBill',
       oldValue: undefined,
       newValue: migratedCard.billingDaySpendingToNextBill,
-      reason: '新增字段，添加默认值'
+      reason: '补齐缺少的信息'
     })
   }
   
@@ -256,7 +256,7 @@ export function migrateCardData(oldCard, trackChanges = false) {
       field: 'annualFeeDate',
       oldValue: oldCard.annualFeeDate,
       newValue: undefined,
-      reason: '移除废弃字段'
+      reason: '移除不再使用的信息'
     })
   }
   delete migratedCard.annualFeeDate
@@ -312,7 +312,7 @@ export function migrateCardDataBatch(oldCards, trackChanges = false) {
         errors.push({
           index,
           cardId: card.id,
-          message: '卡片迁移失败'
+          message: '卡片整理失败'
         })
       }
     } catch (error) {
@@ -359,7 +359,7 @@ export function validateCardData(card) {
   REQUIRED_FIELDS.forEach(field => {
     const value = card[field]
     if (value === undefined || value === null || value === '') {
-      errors.push(`缺少必填字段: ${field}`)
+      errors.push(`缺少必填信息: ${field}`)
     }
   })
   
@@ -370,7 +370,7 @@ export function validateCardData(card) {
       const actualType = Array.isArray(card[field]) ? 'array' : typeof card[field]
       
       if (actualType !== expectedType) {
-        errors.push(`字段 ${field} 类型错误: 期望 ${expectedType}, 实际 ${actualType}`)
+        errors.push(`${field} 的内容格式不正确`)
       }
     }
   })
@@ -522,7 +522,7 @@ export function autoMigrateLocalData(cards, trackChanges = false) {
       summary: { 
         total: cards.length, 
         migrated: 0,
-        message: '数据已是最新版本，无需迁移'
+        message: '数据已经是最新状态，无需处理'
       },
       details: []
     }

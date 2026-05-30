@@ -149,14 +149,6 @@
     draggable
     append-to-body
   >
-    <el-alert
-      v-if="currentBackup && currentBackup.automatic"
-      title="正在自动比对最新云端备份，请输入该备份的解密密码"
-      type="warning"
-      :closable="false"
-      show-icon
-      class="password-hint"
-    />
     <el-form :model="restoreForm" label-width="80px">
       <el-form-item
         label="密码"
@@ -209,14 +201,6 @@
     class="compare-dialog"
   >
     <div class="compare-container">
-      <el-alert
-        v-if="comparisonIsAutomatic && compareStatus === 'diff'"
-        title="检测到最新云端备份与本地数据不一致，请选择智能融合或以云端数据覆盖本地"
-        type="warning"
-        :closable="false"
-        show-icon
-        class="automatic-compare-hint"
-      />
       <div v-if="comparedBackup" class="compared-backup-name">
         当前比对备份：{{ comparedBackup.filename }}
       </div>
@@ -226,7 +210,7 @@
           <el-tag size="small" type="success">新增 {{ diffSummary.added }}</el-tag>
           <el-tag size="small" type="danger">删除 {{ diffSummary.deleted }}</el-tag>
           <el-tag size="small" type="warning">修改 {{ diffSummary.modified }}</el-tag>
-          <el-tag size="small">字段差异 {{ diffSummary.modifiedFields }}</el-tag>
+          <el-tag size="small">内容差异 {{ diffSummary.modifiedFields }}</el-tag>
         </div>
         <div class="toolbar-actions">
           <el-radio-group v-model="activeFilter" size="small" class="filter-switch">
@@ -247,7 +231,7 @@
       <el-result
         v-if="compareStatus === 'match'"
         icon="success"
-        title="本地数据与云端数据一致"
+        title="当前卡片与云端备份一致"
         sub-title="未发现新增、删除或修改"
         class="compare-empty"
       />
@@ -270,7 +254,7 @@
         >
           <el-table-column type="index" width="60" fixed="left" />
           <el-table-column
-            label="数据来源"
+            label="对比结果"
             width="200"
             align="center"
             fixed="left"
@@ -278,13 +262,13 @@
             <template #default="{ row }">
               <div class="data-source">
                 <div class="source-item">
-                  <span class="source-label">云端数据：</span>
+                  <span class="source-label">备份中：</span>
                   <span class="source-value" :class="{ 'text-success': row._status !== 'added', 'text-danger': row._status === 'added' }">
                     {{ row._status !== 'added' ? '✅' : '❌' }}
                   </span>
                 </div>
                 <div class="source-item">
-                  <span class="source-label">本地数据：</span>
+                  <span class="source-label">当前设备：</span>
                   <span class="source-value" :class="{ 'text-success': row._status !== 'deleted', 'text-danger': row._status === 'deleted' }">
                     {{ row._status !== 'deleted' ? '✅' : '❌' }}
                   </span>
@@ -312,11 +296,11 @@
               <template v-if="row._diff && row._diff[col.value]">
                 <div class="diff-content">
                   <div class="diff-item">
-                    <span class="diff-label">云端值</span>
+                    <span class="diff-label">备份内容</span>
                     <span class="diff-value">{{ formatColumnValue(row._diff[col.value].cloud, col.value) }}</span>
                   </div>
                   <div class="diff-item">
-                    <span class="diff-label">本地值</span>
+                    <span class="diff-label">当前内容</span>
                     <span class="diff-value">{{ formatColumnValue(row._diff[col.value].local, col.value) }}</span>
                   </div>
                 </div>
@@ -337,7 +321,7 @@
           :loading="resolvingComparison"
           @click="handleSmartMerge"
         >
-          智能双向融合（保留最新）
+          合并两边最新内容
         </el-button>
         <el-button
           v-if="compareStatus === 'diff'"
@@ -345,7 +329,7 @@
           :disabled="resolvingComparison"
           @click="handleForceCloudOverwrite"
         >
-          云端数据强制覆盖本地
+          用备份替换当前内容
         </el-button>
         <el-button @click="compareDialogVisible = false">关闭</el-button>
       </span>
@@ -401,10 +385,8 @@ const compareStatus = ref('idle')
 const activeFilter = ref('diff')
 const comparedCloudCards = ref([])
 const comparedBackup = ref(null)
-const comparisonIsAutomatic = ref(false)
 const comparisonPassword = ref('')
 const resolvingComparison = ref(false)
-const startupComparisonAttempted = ref(false)
 const tableColumns = creditCardOptions.tableCustomData
 
 const filteredComparisonData = computed(() => {
@@ -478,7 +460,6 @@ const closeAll = () => {
   activeFilter.value = 'diff'
   comparedCloudCards.value = []
   comparedBackup.value = null
-  comparisonIsAutomatic.value = false
   comparisonPassword.value = ''
   resolvingComparison.value = false
   currentBackup.value = null
@@ -613,7 +594,7 @@ const handleBackupConfirm = async () => {
 const getBackupPayloadInfo = (data) => {
   const payloadInfo = backupPayloadInfo(data)
   if (!payloadInfo.isRecognized) {
-    throw new Error('此备份文件不是可识别的账本格式，可能文件已损坏或不是本应用生成的备份。')
+    throw new Error('此备份文件无法读取，可能文件已损坏，或不是本应用生成的备份。')
   }
   return payloadInfo
 }
@@ -676,9 +657,9 @@ const getVersionState = (localItem, cloudItem) => {
 }
 
 const getVersionStateText = (state) => {
-  if (state === 'localNewer') return '本地更新'
-  if (state === 'cloudNewer') return '云端更新'
-  return '时间相同，保留本地'
+  if (state === 'localNewer') return '当前设备较新'
+  if (state === 'cloudNewer') return '备份较新'
+  return '时间相同，保留当前内容'
 }
 
 const getVersionTagType = (state) => {
@@ -715,7 +696,7 @@ const mergeLatestCards = (localCards, cloudCards) => {
 
 // 根据解密后的数据进行比对，并展示解决冲突的入口
 const compareData = (decryptedData, backup, options = {}) => {
-  const { automatic = false, showMatch = true } = options
+  const { showMatch = true } = options
   const payloadInfo = getBackupPayloadInfo(decryptedData)
   const backupData = payloadInfo.cards
   const currentData = getStoredCards()
@@ -725,7 +706,6 @@ const compareData = (decryptedData, backup, options = {}) => {
 
   comparedCloudCards.value = backupData
   comparedBackup.value = backup || null
-  comparisonIsAutomatic.value = automatic
 
   backupData.forEach(backupItem => {
     const currentItem = currentMap.get(backupItem.id)
@@ -781,20 +761,17 @@ const compareData = (decryptedData, backup, options = {}) => {
     compareStatus.value = 'match'
     if (showMatch) {
       compareDialogVisible.value = true
-      ElMessage.success('本地数据与云端数据一致')
+      ElMessage.success('当前卡片与云端备份一致')
     }
     return
   }
 
   compareStatus.value = 'diff'
   compareDialogVisible.value = true
-  if (automatic) {
-    ElMessage.warning('最新云端备份与本地数据存在差异，请选择处理方式')
-  }
 }
 
 const downloadAndCompareBackup = async (backup, options = {}) => {
-  const { automatic = false, showMatch = true, action = 'compare' } = options
+  const { showMatch = true, action = 'compare' } = options
   const loadingField = action === 'restore' ? 'restoring' : 'comparing'
 
   compareStatus.value = 'idle'
@@ -802,7 +779,7 @@ const downloadAndCompareBackup = async (backup, options = {}) => {
   comparisonPassword.value = ''
   backup[loadingField] = true
 
-  if (!automatic && action === 'restore') {
+  if (action === 'restore') {
     progressVisible.value = true
     progress.value = 0
     currentOperation.value = 'restore'
@@ -817,17 +794,16 @@ const downloadAndCompareBackup = async (backup, options = {}) => {
 
     const content = result.data
     if (typeof content === 'string' && content.startsWith('default:')) {
-      compareData(decryptData(content), backup, { automatic, showMatch })
+      compareData(decryptData(content), backup, { showMatch })
     } else if (typeof content === 'string' && content.startsWith('encrypted:')) {
-      currentBackup.value = { content, backup, automatic, showMatch }
+      currentBackup.value = { content, backup, showMatch }
       awaitingPassword.value = true
       restoreDialogVisible.value = true
     } else {
-      compareData(content, backup, { automatic, showMatch })
+      compareData(content, backup, { showMatch })
     }
   } catch (error) {
-    const operation = automatic ? '自动比对最新备份' : '处理备份数据'
-    ElMessage.error(`${operation}失败：${error.message}`)
+    ElMessage.error(`处理备份数据失败：${error.message}`)
   } finally {
     backup[loadingField] = false
     if (!awaitingPassword.value) {
@@ -854,7 +830,6 @@ const handleRestoreConfirm = async () => {
     const decryptedData = decryptData(context.content, password)
     comparisonPassword.value = password
     compareData(decryptedData, context.backup, {
-      automatic: context.automatic,
       showMatch: context.showMatch
     })
     restoreDialogVisible.value = false
@@ -882,16 +857,16 @@ const handleSmartMerge = async () => {
     }, password)
     const result = await webdavClient.createBackup(encryptedData, password)
     if (result.success) {
-      ElMessage.success('智能融合完成，最新数据已生成新的云端备份')
+      ElMessage.success('合并完成，已保存到云端备份')
       if (visible.value) {
         await loadBackupList()
       }
     } else {
-      ElMessage.warning(`本地智能融合已完成，但同步云端失败：${result.message}`)
+      ElMessage.warning(`卡片已合并，但保存到云端失败：${result.message}`)
     }
     compareDialogVisible.value = false
   } catch (error) {
-    const message = localMerged ? '本地智能融合已完成，但同步云端失败' : '智能融合失败'
+    const message = localMerged ? '卡片已合并，但保存到云端失败' : '合并失败'
     ElMessage.error(`${message}：${error.message}`)
   } finally {
     resolvingComparison.value = false
@@ -902,10 +877,10 @@ const handleSmartMerge = async () => {
 const handleForceCloudOverwrite = async () => {
   try {
     await ElMessageBox.confirm(
-      '确定使用云端备份强制覆盖本地数据吗？本地未同步的更新将丢失。',
-      '确认覆盖本地数据',
+      '确定用这份云端备份替换当前卡片吗？当前设备上尚未同步的修改将会丢失。',
+      '确认替换当前卡片',
       {
-        confirmButtonText: '强制覆盖',
+        confirmButtonText: '确认替换',
         cancelButtonText: '取消',
         type: 'warning'
       }
@@ -913,10 +888,10 @@ const handleForceCloudOverwrite = async () => {
     persistLocalCards(comparedCloudCards.value)
     compareDialogVisible.value = false
     comparisonPassword.value = ''
-    ElMessage.success('已使用云端备份覆盖本地数据')
+    ElMessage.success('已用云端备份替换当前卡片')
   } catch (error) {
     if (error !== 'cancel' && error !== 'close') {
-      ElMessage.error('覆盖本地数据失败：' + error.message)
+      ElMessage.error('替换当前卡片失败：' + error.message)
     }
   }
 }
@@ -1077,7 +1052,7 @@ const open = async (data) => {
     // 检查 WebDAV 配置
     const config = await webdavClient.loadConfig()
     if (!config) {
-      ElMessage.warning('未配置 WebDAV 服务器信息，请先配置')
+      ElMessage.warning('还没有配置云端备份服务，请先完成设置')
       emit('showConfig')
       visible.value = false
       return
@@ -1087,7 +1062,7 @@ const open = async (data) => {
     if (!webdavClient.client) {
       const initialized = await webdavClient.initialize(config)
       if (!initialized) {
-        ElMessage.error('WebDAV 客户端初始化失败')
+        ElMessage.error('云端备份服务连接失败')
         emit('showConfig')
         visible.value = false
         return
@@ -1098,7 +1073,7 @@ const open = async (data) => {
     loading.value = true
     const result = await webdavClient.testConnection()
     if (result.success) {
-      ElMessage.success('已成功连接到 WebDAV 服务器')
+      ElMessage.success('已成功连接到云端备份服务')
       isConnected.value = true  // 设置连接状态
       await loadBackupList()
     } else {
@@ -1107,39 +1082,11 @@ const open = async (data) => {
       visible.value = false
     }
   } catch (error) {
-    ElMessage.error('连接 WebDAV 服务器失败：' + error.message)
+    ElMessage.error('连接云端备份服务失败：' + error.message)
     emit('showConfig')
     visible.value = false
   } finally {
     loading.value = false
-  }
-}
-
-// 页面首次就绪后，仅自动比对一次最新云端备份
-const checkLatestBackupOnStartup = async () => {
-  if (startupComparisonAttempted.value || isLocked.value) return
-  startupComparisonAttempted.value = true
-
-  try {
-    const config = webdavClient.loadConfig()
-    if (!config) return
-
-    if (!webdavClient.client) {
-      await webdavClient.initialize(config)
-    }
-
-    const result = await webdavClient.getBackupList()
-    if (!result.success || result.data.length === 0) return
-
-    const latestBackup = [...result.data].sort((a, b) => {
-      return new Date(b.lastmod) - new Date(a.lastmod)
-    })[0]
-    await downloadAndCompareBackup(latestBackup, {
-      automatic: true,
-      showMatch: false
-    })
-  } catch (error) {
-    console.warn('自动比对最新云端备份失败：', error)
   }
 }
 
@@ -1179,8 +1126,7 @@ watch(isLocked, (locked) => {
 
 defineExpose({
   open,
-  closeAll,
-  checkLatestBackupOnStartup
+  closeAll
 })
 </script>
 
@@ -1263,8 +1209,7 @@ defineExpose({
   gap: 4px;
 }
 
-.password-hint,
-.automatic-compare-hint {
+.password-hint {
   margin-bottom: 12px;
 }
 

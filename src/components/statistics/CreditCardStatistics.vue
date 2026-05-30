@@ -30,7 +30,7 @@
         <el-descriptions-item label="年费未达标">
           <el-tag type="danger">{{ statistics.unqualifiedCount }}</el-tag>
         </el-descriptions-item>
-        <el-descriptions-item label="终身免年费">
+        <el-descriptions-item label="终免年费">
           <el-tag type="info">{{ statistics.lifetimeFreeCount }}</el-tag>
         </el-descriptions-item>
         <el-descriptions-item label="年费总额">

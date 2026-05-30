@@ -154,7 +154,7 @@ export class WebDAVClient {
   // 创建备份
   async createBackup(data, tempPassword) {
     if (!this.client) {
-      throw new Error('WebDAV 客户端未初始化');
+      throw new Error('云端备份服务还没有准备好');
     }
 
     try {
@@ -211,7 +211,7 @@ export class WebDAVClient {
 
   async uploadSyncSnapshot(snapshot) {
     if (!this.client) {
-      throw new Error('WebDAV 客户端未初始化');
+      throw new Error('云端备份服务还没有准备好');
     }
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const activeCount = snapshot.records.filter(record => record.state === 'active').length;
@@ -229,7 +229,7 @@ export class WebDAVClient {
     if (!this.client) {
       return {
         success: false,
-        message: 'WebDAV 客户端未初始化'
+        message: '云端备份服务还没有准备好'
       };
     }
 
@@ -268,7 +268,7 @@ export class WebDAVClient {
   // 恢复备份
   async restoreBackup(filename) {
     if (!this.client) {
-      throw new Error('WebDAV 客户端未初始化');
+      throw new Error('云端备份服务还没有准备好');
     }
 
     try {
@@ -311,7 +311,7 @@ export class WebDAVClient {
   // 删除备份
   async deleteBackup(filename) {
     if (!this.client) {
-      throw new Error('WebDAV 客户端未初始化');
+      throw new Error('云端备份服务还没有准备好');
     }
 
     try {
@@ -329,7 +329,7 @@ export class WebDAVClient {
   // 重命名备份
   async renameBackup(oldFilename, newFilename) {
     if (!this.client) {
-      throw new Error('WebDAV 客户端未初始化');
+      throw new Error('云端备份服务还没有准备好');
     }
 
     try {

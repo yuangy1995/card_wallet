@@ -251,7 +251,7 @@
           <el-date-picker
             v-model="formData.nextAnnualFeeCollectionTime"
             type="date"
-            :placeholder="formData.isQualified === '3' ? '终身免年费卡不收年费，无需选择' : '选择下次年费收取时间'"
+            :placeholder="formData.isQualified === '3' ? '终免年费卡不收年费，无需选择' : '选择下次年费收取时间'"
             format="YYYY-MM-DD"
             value-format="YYYY-MM-DD"
             style="width: 100%"
@@ -300,7 +300,7 @@
             />
             <div class="card-media-actions">
               <el-button type="primary" plain @click="triggerImagePicker">上传图片</el-button>
-              <span class="field-helper">图片会以 cardImages 字段随 V3 数据同步，Android 和 Mac 可直接预览。</span>
+              <span class="field-helper">上传后，其他设备也可以查看这些图片。</span>
             </div>
             <div v-if="formData.cardImages?.length" class="card-media-grid">
               <div
@@ -440,6 +440,17 @@ function validateDateRange(rule, value, callback) {
   }
 }
 
+function validateOptionalAmount(rule, value, callback) {
+  if (value === '' || value === null || value === undefined) {
+    return callback()
+  }
+  const amount = Number(value)
+  if (Number.isNaN(amount) || amount < 0) {
+    return callback(new Error('请输入大于等于0的数字'))
+  }
+  callback()
+}
+
 export default {
   name: 'CreditCardDialog',
   components: {
@@ -489,13 +500,10 @@ export default {
       ],
       valid: [{ required: true, message: '请选择有效期', trigger: 'change' }],
       limit: [
-        { required: true, message: '请输入额度', trigger: 'blur' },
-        { type: 'number', min: 0, message: '额度必须大于等于0', trigger: 'blur' }
+        { validator: validateOptionalAmount, trigger: 'blur' }
       ],
-      type: [{ required: true, message: '请选择币种', trigger: 'change' }],
       annualFee: [
-        { required: true, message: '请输入年费', trigger: 'blur' },
-        { type: 'number', min: 0, message: '年费必须大于等于0', trigger: 'blur' }
+        { validator: validateOptionalAmount, trigger: 'blur' }
       ],
       accountBillDate: [
         { validator: validateDateRange, trigger: 'blur' }
@@ -563,15 +571,15 @@ export default {
       cardNumber: '',
       alias: '',
       level: '',
-      type: 'CNY',
-      limit: 0,
+      type: '',
+      limit: null,
       cvv: '',
       valid: '',
-      annualFee: 0,
+      annualFee: null,
       accountBillDate: '',
       dueDate: '',
       nextAnnualFeeCollectionTime: '',
-      isQualified: '2',
+      isQualified: '',
       lastTime: '',
       equity: '',
       remark: '',
@@ -607,9 +615,11 @@ export default {
             }
           }
 
-          // 确保数值类型字段正确
-          data.limit = Number(data.limit) || 0
-          data.annualFee = Number(data.annualFee) || 0
+          // 确保数值类型字段正确，空值保持空白，不给新建/编辑表单追加默认值。
+          data.limit = data.limit === '' || data.limit === null || data.limit === undefined ? null : Number(data.limit)
+          data.annualFee = data.annualFee === '' || data.annualFee === null || data.annualFee === undefined ? null : Number(data.annualFee)
+          data.type = data.type || ''
+          data.isQualified = data.isQualified || ''
           data.nextAnnualFeeCollectionTime = formatTimestampForDateInput(data.nextAnnualFeeCollectionTime)
           data.lastTime = formatTimestampForDateInput(data.lastTime)
           // 统一账单日和还款日的数据类型为String
@@ -676,7 +686,7 @@ export default {
     // 监听年费达标状态变化
     watch(() => formData.value.isQualified, (newVal) => {
       if (newVal === '3') {
-        // 选择终身免年费时，清空下次年费收取时间
+        // 选择终免年费时，清空下次年费收取时间
         formData.value.nextAnnualFeeCollectionTime = ''
       }
     })
@@ -697,15 +707,15 @@ export default {
             cardNumber: '',
             alias: '',
             level: '',
-            type: 'CNY',
-            limit: 0,
+            type: '',
+            limit: null,
             cvv: '',
             valid: '',
-            annualFee: 0,
+            annualFee: null,
             accountBillDate: '',
             dueDate: '',
             nextAnnualFeeCollectionTime: '',
-            isQualified: '2',
+            isQualified: '',
             lastTime: '',
             equity: '',
             remark: '',

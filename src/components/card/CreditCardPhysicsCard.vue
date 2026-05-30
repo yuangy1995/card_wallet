@@ -150,7 +150,7 @@
             <div class="info-item">
               <span class="label">下次年费时间</span>
               <span class="value warning-text" v-if="card.isQualified !== '3'">{{ formatCardTimestamp(card.nextAnnualFeeCollectionTime) }}</span>
-              <span class="value info-text" v-else>终身免年费</span>
+              <span class="value info-text" v-else>终免年费</span>
             </div>
           </div>
 
