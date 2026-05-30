@@ -10,6 +10,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -31,7 +32,11 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -40,6 +45,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.zIndex
 import androidx.navigation3.runtime.NavKey
 import com.example.creditcard.CardDetail
 import com.example.creditcard.CardForm
@@ -64,6 +70,21 @@ private enum class ToolsMode {
     VERIFY,
     SYNC_LOG
 }
+
+private const val TOOL_MENU_PREFS = "tool_menu_preferences"
+private const val TOOL_MENU_ORDER_KEY = "tool_menu_order"
+private const val TOOL_MENU_HIDDEN_KEY = "tool_menu_hidden"
+
+private val defaultToolMenuIds = listOf("stats", "verify", "sync_log")
+
+private data class ToolMenuItem(
+    val id: String,
+    val icon: ImageVector,
+    val title: String,
+    val subtitle: String,
+    val accent: Color,
+    val onClick: () -> Unit
+)
 
 private data class VerifiedCardRecord(
     val cardNumber: String,
@@ -621,6 +642,50 @@ fun ToolsPanel(
     onStartVerify: () -> Unit,
     onOpenSyncHistory: () -> Unit
 ) {
+    val context = LocalContext.current
+    var toolOrder by remember { mutableStateOf(loadToolMenuOrder(context)) }
+    var hiddenToolIds by remember { mutableStateOf(loadHiddenToolIds(context)) }
+    var showCustomizeDialog by remember { mutableStateOf(false) }
+    var draggingToolId by remember { mutableStateOf<String?>(null) }
+    var draggingOffsetPx by remember { mutableFloatStateOf(0f) }
+    val density = LocalDensity.current
+    val reorderThresholdPx = with(density) { 82.dp.toPx() }
+    val allTools = listOf(
+        ToolMenuItem(
+            id = "stats",
+            icon = Icons.Filled.Analytics,
+            title = "统计分析",
+            subtitle = "查看额度、币种、共享额度和年费预警",
+            accent = if (isDark) NeonCyan else GoldPrimary,
+            onClick = onOpenStats
+        ),
+        ToolMenuItem(
+            id = "verify",
+            icon = Icons.Filled.FactCheck,
+            title = "快速验卡",
+            subtitle = "先同步云端最新数据，再用 NFC 逐张核对本地卡包",
+            accent = if (isDark) NeonGreen else ForestGreen,
+            onClick = onStartVerify
+        ),
+        ToolMenuItem(
+            id = "sync_log",
+            icon = Icons.Filled.History,
+            title = "同步记录",
+            subtitle = "查看与 WebDAV 云盘的数据同步记录",
+            accent = if (isDark) NeonCyan else GoldPrimary,
+            onClick = onOpenSyncHistory
+        )
+    )
+    val toolMap = allTools.associateBy { it.id }
+    val orderedTools = toolOrder.mapNotNull { toolMap[it] }
+    val visibleTools = orderedTools.filterNot { it.id in hiddenToolIds }
+
+    fun updateToolMenu(nextOrder: List<String> = toolOrder, nextHidden: Set<String> = hiddenToolIds) {
+        toolOrder = nextOrder
+        hiddenToolIds = nextHidden
+        saveToolMenuConfig(context, nextOrder, nextHidden)
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -629,39 +694,263 @@ fun ToolsPanel(
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         Spacer(modifier = Modifier.height(2.dp))
-        Text(
-            text = "工具",
-            fontSize = 26.sp,
-            fontWeight = FontWeight.Black,
-            color = MaterialTheme.colorScheme.onBackground
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "工具",
+                fontSize = 26.sp,
+                fontWeight = FontWeight.Black,
+                color = MaterialTheme.colorScheme.onBackground
+            )
 
-        ToolActionTile(
-            icon = Icons.Filled.Analytics,
-            title = "统计分析",
-            subtitle = "查看额度、币种、共享额度和年费预警",
-            accent = if (isDark) NeonCyan else GoldPrimary,
-            onClick = onOpenStats
-        )
+            TextButton(onClick = { showCustomizeDialog = true }) {
+                Icon(
+                    imageVector = Icons.Filled.Tune,
+                    contentDescription = "自定义工具列表",
+                    modifier = Modifier.size(17.dp),
+                    tint = if (isDark) NeonCyan else GoldPrimary
+                )
+                Spacer(modifier = Modifier.width(4.dp))
+                Text("自定义", fontSize = 12.sp, color = if (isDark) NeonCyan else GoldPrimary)
+            }
+        }
 
-        ToolActionTile(
-            icon = Icons.Filled.FactCheck,
-            title = "快速验卡",
-            subtitle = "先同步云端最新数据，再用 NFC 逐张核对本地卡包",
-            accent = if (isDark) NeonGreen else ForestGreen,
-            onClick = onStartVerify
-        )
+        if (visibleTools.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(MaterialTheme.colorScheme.surface)
+                    .border(1.dp, (if (isDark) NeonCyan else GoldPrimary).copy(alpha = 0.18f), RoundedCornerShape(14.dp))
+                    .padding(18.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "暂无显示的工具，可点击右上角自定义恢复显示。",
+                    fontSize = 13.sp,
+                    color = if (isDark) TextGray else TextMuted,
+                    textAlign = TextAlign.Center
+                )
+            }
+        } else {
+            visibleTools.forEach { tool ->
+                val isDragging = draggingToolId == tool.id
+                ToolActionTile(
+                    icon = tool.icon,
+                    title = tool.title,
+                    subtitle = tool.subtitle,
+                    accent = tool.accent,
+                    onClick = tool.onClick,
+                    modifier = Modifier
+                        .zIndex(if (isDragging) 1f else 0f)
+                        .graphicsLayer {
+                            translationY = if (isDragging) draggingOffsetPx else 0f
+                            shadowElevation = if (isDragging) 12.dp.toPx() else 0f
+                        }
+                        .pointerInput(tool.id, toolOrder, hiddenToolIds) {
+                            detectDragGesturesAfterLongPress(
+                                onDragStart = {
+                                    draggingToolId = tool.id
+                                    draggingOffsetPx = 0f
+                                },
+                                onDragCancel = {
+                                    draggingToolId = null
+                                    draggingOffsetPx = 0f
+                                },
+                                onDragEnd = {
+                                    draggingToolId = null
+                                    draggingOffsetPx = 0f
+                                },
+                                onDrag = { change, dragAmount ->
+                                    change.consume()
+                                    if (draggingToolId != tool.id) return@detectDragGesturesAfterLongPress
 
-        ToolActionTile(
-            icon = Icons.Filled.History,
-            title = "同步记录",
-            subtitle = "查看与 WebDAV 云盘的数据同步记录",
-            accent = if (isDark) NeonCyan else GoldPrimary,
-            onClick = onOpenSyncHistory
-        )
+                                    draggingOffsetPx += dragAmount.y
+                                    val currentVisibleIds = normalizeToolMenuOrder(toolOrder).filterNot { it in hiddenToolIds }
+                                    val currentIndex = currentVisibleIds.indexOf(tool.id)
+                                    if (currentIndex == -1) return@detectDragGesturesAfterLongPress
+
+                                    if (draggingOffsetPx > reorderThresholdPx && currentIndex < currentVisibleIds.lastIndex) {
+                                        val nextVisibleOrder = moveListItem(currentVisibleIds, currentIndex, currentIndex + 1)
+                                        val nextOrder = mergeVisibleToolOrder(toolOrder, hiddenToolIds, nextVisibleOrder)
+                                        updateToolMenu(nextOrder = nextOrder)
+                                        draggingOffsetPx -= reorderThresholdPx
+                                    } else if (draggingOffsetPx < -reorderThresholdPx && currentIndex > 0) {
+                                        val nextVisibleOrder = moveListItem(currentVisibleIds, currentIndex, currentIndex - 1)
+                                        val nextOrder = mergeVisibleToolOrder(toolOrder, hiddenToolIds, nextVisibleOrder)
+                                        updateToolMenu(nextOrder = nextOrder)
+                                        draggingOffsetPx += reorderThresholdPx
+                                    }
+                                }
+                            )
+                        }
+                )
+            }
+        }
 
         Spacer(modifier = Modifier.height(24.dp))
     }
+
+    if (showCustomizeDialog) {
+        ToolMenuCustomizeDialog(
+            items = orderedTools,
+            order = toolOrder,
+            hiddenIds = hiddenToolIds,
+            isDark = isDark,
+            onMove = { fromIndex, toIndex ->
+                updateToolMenu(nextOrder = moveToolMenuItem(toolOrder, fromIndex, toIndex))
+            },
+            onVisibilityChange = { id, visible ->
+                val nextHidden = if (visible) hiddenToolIds - id else hiddenToolIds + id
+                updateToolMenu(nextHidden = nextHidden)
+            },
+            onReset = {
+                updateToolMenu(defaultToolMenuIds, emptySet())
+            },
+            onDismiss = { showCustomizeDialog = false }
+        )
+    }
+}
+
+@Composable
+private fun ToolMenuCustomizeDialog(
+    items: List<ToolMenuItem>,
+    order: List<String>,
+    hiddenIds: Set<String>,
+    isDark: Boolean,
+    onMove: (fromIndex: Int, toIndex: Int) -> Unit,
+    onVisibilityChange: (id: String, visible: Boolean) -> Unit,
+    onReset: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("自定义工具列表", fontWeight = FontWeight.Bold) },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 420.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                items.forEachIndexed { index, item ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(if (isDark) DarkBg else LightBg)
+                            .padding(horizontal = 10.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = item.icon,
+                            contentDescription = item.title,
+                            tint = item.accent,
+                            modifier = Modifier.size(22.dp)
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(item.title, fontSize = 14.sp, fontWeight = FontWeight.Bold)
+                            Text(
+                                text = if (item.id in hiddenIds) "已隐藏" else "已显示",
+                                fontSize = 11.sp,
+                                color = if (isDark) TextGray else TextMuted
+                            )
+                        }
+                        IconButton(
+                            onClick = { onMove(index, index - 1) },
+                            enabled = index > 0,
+                            modifier = Modifier.size(34.dp)
+                        ) {
+                            Icon(Icons.Filled.KeyboardArrowUp, contentDescription = "上移")
+                        }
+                        IconButton(
+                            onClick = { onMove(index, index + 1) },
+                            enabled = index < order.lastIndex,
+                            modifier = Modifier.size(34.dp)
+                        ) {
+                            Icon(Icons.Filled.KeyboardArrowDown, contentDescription = "下移")
+                        }
+                        Checkbox(
+                            checked = item.id !in hiddenIds,
+                            onCheckedChange = { checked -> onVisibilityChange(item.id, checked) }
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text("完成")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onReset) {
+                Text("恢复默认")
+            }
+        }
+    )
+}
+
+private fun loadToolMenuOrder(context: Context): List<String> {
+    val saved = context.getSharedPreferences(TOOL_MENU_PREFS, Context.MODE_PRIVATE)
+        .getString(TOOL_MENU_ORDER_KEY, null)
+        ?.split(",")
+        ?.map { it.trim() }
+        ?.filter { it.isNotEmpty() }
+        .orEmpty()
+    return normalizeToolMenuOrder(saved)
+}
+
+private fun loadHiddenToolIds(context: Context): Set<String> {
+    val saved = context.getSharedPreferences(TOOL_MENU_PREFS, Context.MODE_PRIVATE)
+        .getString(TOOL_MENU_HIDDEN_KEY, null)
+        ?.split(",")
+        ?.map { it.trim() }
+        ?.filter { it in defaultToolMenuIds }
+        .orEmpty()
+    return saved.toSet()
+}
+
+private fun saveToolMenuConfig(context: Context, order: List<String>, hiddenIds: Set<String>) {
+    context.getSharedPreferences(TOOL_MENU_PREFS, Context.MODE_PRIVATE)
+        .edit()
+        .putString(TOOL_MENU_ORDER_KEY, normalizeToolMenuOrder(order).joinToString(","))
+        .putString(TOOL_MENU_HIDDEN_KEY, hiddenIds.filter { it in defaultToolMenuIds }.joinToString(","))
+        .apply()
+}
+
+private fun normalizeToolMenuOrder(order: List<String>): List<String> {
+    val validSaved = order.filter { it in defaultToolMenuIds }.distinct()
+    val missing = defaultToolMenuIds.filterNot { it in validSaved }
+    return validSaved + missing
+}
+
+private fun mergeVisibleToolOrder(order: List<String>, hiddenIds: Set<String>, visibleOrder: List<String>): List<String> {
+    val visibleQueue = visibleOrder.toMutableList()
+    return normalizeToolMenuOrder(order).map { id ->
+        if (id in hiddenIds) {
+            id
+        } else {
+            if (visibleQueue.isNotEmpty()) visibleQueue.removeAt(0) else id
+        }
+    }
+}
+
+private fun moveToolMenuItem(order: List<String>, fromIndex: Int, toIndex: Int): List<String> {
+    return moveListItem(normalizeToolMenuOrder(order), fromIndex, toIndex)
+}
+
+private fun <T> moveListItem(items: List<T>, fromIndex: Int, toIndex: Int): List<T> {
+    if (fromIndex !in items.indices || toIndex !in items.indices) return items
+    val next = items.toMutableList()
+    val item = next.removeAt(fromIndex)
+    next.add(toIndex, item)
+    return next
 }
 
 @Composable
@@ -670,10 +959,11 @@ fun ToolActionTile(
     title: String,
     subtitle: String,
     accent: Color,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     Row(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .clip(RoundedCornerShape(14.dp))
             .background(MaterialTheme.colorScheme.surface)
