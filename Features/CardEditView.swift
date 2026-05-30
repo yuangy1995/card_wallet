@@ -15,22 +15,22 @@ public struct CardEditView: View {
     public var onSubmit: (SharedCard) -> Void
     
     // 💡 表单数据绑定 (对齐 SharedCard)
-    @State private var country = "中国"
-    @State private var bank = "招商银行"
+    @State private var country = ""
+    @State private var bank = ""
     @State private var cardNumber = ""
     @State private var alias = ""
-    @State private var level = "银联-金卡"
-    @State private var type = "CNY"
-    @State private var limit = 0.0
+    @State private var level = ""
+    @State private var type = ""
+    @State private var limitText = ""
     @State private var cvv = ""
     @State private var valid = ""
-    @State private var annualFee = 0.0
-    @State private var isQualified = "2" // 默认未达标
-    @State private var nextAnnualFeeCollectionTime = Date()
-    @State private var isUltimateFreeFee = false // 终身免年费开关
-    @State private var lastTime = Date()
-    @State private var accountBillDate = "10"
-    @State private var dueDate = "28"
+    @State private var annualFeeText = ""
+    @State private var isQualified = ""
+    @State private var nextAnnualFeeCollectionTime: Date?
+    @State private var isUltimateFreeFee = false // 终免年费开关
+    @State private var lastTime: Date?
+    @State private var accountBillDate = ""
+    @State private var dueDate = ""
     @State private var billingDaySpendingToNextBill = true
     @State private var equity = ""
     @State private var remark = ""
@@ -46,6 +46,8 @@ public struct CardEditView: View {
     
     // 💡 共享额度联动提示
     @State private var existingSharedCard: SharedCard? = nil
+    @State private var isLimitFeeSectionExpanded = false
+    @State private var isBenefitSectionExpanded = false
     
     // 预置选项参考数据 (100% 完美同步 Vue 3 Web 端 referenceData.js 定义)
     let countries = [
@@ -101,16 +103,18 @@ public struct CardEditView: View {
             } else {
                 NavigationStack {
                     Form {
-                        // Section 1: 🌏 国家与银行
-                        Section(header: Text("🌏 基础属性")) {
-                            Picker("国家/地区", selection: $country) {
+                        // Section 1: 四个核心字段必填，其余字段可留空
+                        Section(header: Text("核心信息")) {
+                            Picker("国家/地区 *", selection: $country) {
+                                Text("请选择").tag("")
                                 ForEach(countries, id: \.self) { c in
                                     Text(c).tag(c)
                                 }
                             }
                             .pickerStyle(.menu)
                             
-                            Picker("发卡银行", selection: $bank) {
+                            Picker("发卡银行 *", selection: $bank) {
+                                Text("请选择").tag("")
                                 ForEach(banks, id: \.self) { b in
                                     Text(b).tag(b)
                                 }
@@ -120,18 +124,8 @@ public struct CardEditView: View {
                                 checkExistingSharedLimit()
                             }
                             
-                            Picker("卡片等级", selection: $level) {
-                                ForEach(levels, id: \.self) { l in
-                                    Text(l).tag(l)
-                                }
-                            }
-                            .pickerStyle(.menu)
-                        }
-                        
-                        // Section 2: 💳 卡号与防窥
-                        Section(header: Text("💳 卡号安全")) {
                             HStack {
-                                TextField("信用卡号", text: $cardNumber, prompt: Text("输入 13-19 位信用卡号"))
+                                TextField("信用卡号 *", text: $cardNumber, prompt: Text("输入 13-19 位信用卡号"))
                                     .focused($focusedField, equals: .cardNumber)
                                     .onChange(of: cardNumber) { _, newValue in
                                         let cleaned = newValue.replacingOccurrences(of: " ", with: "")
@@ -147,85 +141,103 @@ public struct CardEditView: View {
                             TextField("卡片别名", text: $alias, prompt: Text("例如：网购卡/差旅卡"))
                                 .focused($focusedField, equals: .alias)
                             
+                            TextField("有效期 *", text: $valid, prompt: Text("MM/YY 格式 (例如 08/29)"))
+                                .onChange(of: valid) { _, newValue in
+                                    self.valid = String(newValue.prefix(5))
+                                }
+                            
                             SecureField("CVV 安全码", text: $cvv, prompt: Text("3-4位数字"))
                                 .focused($focusedField, equals: .cvv)
                                 .onChange(of: cvv) { _, newValue in
                                     self.cvv = String(newValue.replacingOccurrences(of: "\\D", with: "", options: .regularExpression).prefix(4))
                                 }
                             
-                            TextField("有效期", text: $valid, prompt: Text("MM/YY 格式 (例如 08/29)"))
-                                .onChange(of: valid) { _, newValue in
-                                    self.valid = String(newValue.prefix(5))
+                            Picker("卡片等级", selection: $level) {
+                                Text("请选择").tag("")
+                                ForEach(levels, id: \.self) { l in
+                                    Text(l).tag(l)
                                 }
+                            }
+                            .pickerStyle(.menu)
                         }
                         
-                        // Section 3: 💰 额度、共享与年费
-                        Section(header: Text("💰 额度与年费")) {
-                            HStack {
-                                Picker("币种", selection: $type) {
-                                    ForEach(currencies, id: \.self) { curr in
-                                        Text(curr).tag(curr)
+                        DisclosureGroup("额度与年费", isExpanded: $isLimitFeeSectionExpanded) {
+                            Picker("币种", selection: $type) {
+                                Text("请选择").tag("")
+                                ForEach(currencies, id: \.self) { curr in
+                                    Text(curr).tag(curr)
+                                }
+                            }
+                            .pickerStyle(.menu)
+                            
+                            Toggle("共享该行额度", isOn: $isSharedLimit)
+                                .toggleStyle(.checkbox)
+                                .onChange(of: isSharedLimit) { _, newValue in
+                                    if newValue {
+                                        checkExistingSharedLimit()
+                                    } else {
+                                        existingSharedCard = nil
                                     }
                                 }
-                                .pickerStyle(.menu)
-                                
-                                Toggle("共享该行额度", isOn: $isSharedLimit)
-                                    .toggleStyle(.checkbox)
-                                    .onChange(of: isSharedLimit) { _, newValue in
-                                        if newValue {
-                                            checkExistingSharedLimit()
-                                        } else {
-                                            existingSharedCard = nil
-                                        }
+                            
+                            HStack {
+                                Text("额度")
+                                Spacer()
+                                TextField("额度", text: $limitText)
+                                    .focused($focusedField, equals: .limit)
+                                    .textFieldStyle(.roundedBorder)
+                                    .frame(width: 140)
+                                    .onChange(of: limitText) { _, newValue in
+                                        limitText = filterAmountInput(newValue)
                                     }
                             }
                             
-                            VStack(alignment: .leading, spacing: 4) {
-                                HStack {
-                                    Text("信用额度")
-                                    Spacer()
-                                    TextField("额度", value: $limit, format: .number)
-                                        .focused($focusedField, equals: .limit)
-                                        .textFieldStyle(.roundedBorder)
-                                        .frame(width: 120)
-                                }
-                                
-                                if isSharedLimit && existingSharedCard != nil {
-                                    Text("💡 共享联动：保存此额度时，同银行共享组中的其他卡片也会一并自动同步更新该额度。")
-                                        .font(.system(size: 10))
-                                        .foregroundColor(.cyan)
-                                }
+                            if isSharedLimit && existingSharedCard != nil {
+                                Text("共享联动：保存此额度时，同银行共享组中的其他卡片也会一并自动同步更新该额度。")
+                                    .font(.system(size: 10))
+                                    .foregroundColor(.cyan)
                             }
                             
                             HStack {
                                 Text("年费金额")
                                 Spacer()
-                                TextField("年费", value: $annualFee, format: .number)
+                                TextField("年费", text: $annualFeeText)
                                     .focused($focusedField, equals: .annualFee)
                                     .textFieldStyle(.roundedBorder)
-                                    .frame(width: 120)
+                                    .frame(width: 140)
+                                    .onChange(of: annualFeeText) { _, newValue in
+                                        annualFeeText = filterAmountInput(newValue)
+                                    }
                             }
                             
-                            // 年费达标管理
-                            Picker("年费达标状态", selection: $isQualified) {
+                            Picker("年费减免政策", selection: $isQualified) {
+                                Text("未选择").tag("")
                                 Text("未达标").tag("2")
                                 Text("已达标").tag("1")
-                                Text("终身免年费").tag("3")
+                                Text("终免年费").tag("3")
                             }
                             .pickerStyle(.segmented)
                             .onChange(of: isQualified) { _, newValue in
                                 isUltimateFreeFee = (newValue == "3")
+                                if newValue == "3" {
+                                    nextAnnualFeeCollectionTime = nil
+                                }
                             }
                             
                             if !isUltimateFreeFee {
-                                DatePicker("下次年费收取日", selection: $nextAnnualFeeCollectionTime, displayedComponents: .date)
+                                OptionalDatePickerRow(
+                                    title: "下次年费收取日",
+                                    date: $nextAnnualFeeCollectionTime
+                                )
                             }
                             
-                            DatePicker("上次提额时间", selection: $lastTime, displayedComponents: .date)
+                            OptionalDatePickerRow(
+                                title: "上次提额时间",
+                                date: $lastTime
+                            )
                         }
                         
-                        // Section 4: 💸 账单日与还款日
-                        Section(header: Text("💸 账单还款周期")) {
+                        DisclosureGroup("权益与备注", isExpanded: $isBenefitSectionExpanded) {
                             HStack(spacing: 8) {
                                 Text("账单日")
                                 TextField("", text: $accountBillDate, prompt: Text("1-31"))
@@ -259,10 +271,7 @@ public struct CardEditView: View {
                                 Text("当期账单(适合尽快还款)").tag(false)
                             }
                             .pickerStyle(.radioGroup)
-                        }
-                        
-                        // Section 5: 🎁 权益与备注
-                        Section(header: Text("🎁 权益与备注")) {
+                            
                             TextField("核心卡片权益说明", text: $equity, axis: .vertical)
                                 .focused($focusedField, equals: .equity)
                                 .lineLimit(3...5)
@@ -285,7 +294,7 @@ public struct CardEditView: View {
                             }
 
                             if cardImages.isEmpty {
-                                Text("暂无卡片图片。这里保存的图片会写入 cardImages 字段，并随 V3 数据同步到 Web 和 Android。")
+                                Text("暂无卡片图片。上传后，其他设备也可以查看这些图片。")
                                     .font(.footnote)
                                     .foregroundStyle(.secondary)
                             } else {
@@ -379,24 +388,28 @@ public struct CardEditView: View {
         bank = card.bank
         cardNumber = card.cardNumber
         alias = card.alias ?? ""
-        level = card.level ?? "金卡"
-        type = card.type ?? "CNY"
-        limit = card.limit ?? 0.0
+        level = card.level ?? ""
+        type = card.type ?? ""
+        limitText = formatEditableAmount(card.limit)
         cvv = card.cvv ?? ""
         valid = card.valid ?? ""
-        annualFee = card.annualFee ?? 0.0
-        isQualified = card.isQualified ?? "2"
+        annualFeeText = formatEditableAmount(card.annualFee)
+        isQualified = card.isQualified ?? ""
         isUltimateFreeFee = (isQualified == "3")
         
         if let date = DateCalculator.date(fromTimestamp: card.nextAnnualFeeCollectionTime) {
             nextAnnualFeeCollectionTime = date
+        } else {
+            nextAnnualFeeCollectionTime = nil
         }
         if let date = DateCalculator.date(fromTimestamp: card.lastTime) {
             lastTime = date
+        } else {
+            lastTime = nil
         }
         
-        accountBillDate = card.accountBillDate ?? "10"
-        dueDate = card.dueDate ?? "28"
+        accountBillDate = card.accountBillDate ?? ""
+        dueDate = card.dueDate ?? ""
         billingDaySpendingToNextBill = card.billingDaySpendingToNextBill
         equity = card.equity ?? ""
         remark = card.remark ?? ""
@@ -427,8 +440,10 @@ public struct CardEditView: View {
             existingSharedCard = shared
             // 如果是新增，自动应用已有额度和币种
             if mode == "add" {
-                limit = shared.limit ?? 0.0
-                type = shared.type ?? "CNY"
+                limitText = formatEditableAmount(shared.limit)
+                if type.isEmpty {
+                    type = shared.type ?? ""
+                }
             }
         } else {
             existingSharedCard = nil
@@ -452,39 +467,94 @@ public struct CardEditView: View {
         let bound = min(max(day, 1), 31)
         return String(bound)
     }
+
+    private func filterAmountInput(_ input: String) -> String {
+        var result = ""
+        var hasDot = false
+        for char in input.replacingOccurrences(of: ",", with: "") {
+            if char.isNumber {
+                result.append(char)
+            } else if char == "." && !hasDot {
+                result.append(char)
+                hasDot = true
+            }
+        }
+        return result
+    }
+
+    private func parseAmount(_ input: String) -> Double? {
+        let cleaned = input.replacingOccurrences(of: ",", with: "").trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleaned.isEmpty, let value = Double(cleaned), value >= 0 else { return nil }
+        return value
+    }
+
+    private func formatEditableAmount(_ value: Double?) -> String {
+        guard let value else { return "" }
+        if value.rounded(.towardZero) == value {
+            return String(Int(value))
+        }
+        return String(value)
+    }
+
+    private func isValidExpiry(_ input: String) -> Bool {
+        let pattern = #"^\d{2}/\d{2}$"#
+        guard input.range(of: pattern, options: .regularExpression) != nil else { return false }
+        guard let month = Int(input.prefix(2)) else { return false }
+        return (1...12).contains(month)
+    }
     
     private func saveCard() {
+        guard !country.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return
+        }
+        guard !bank.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return
+        }
+        
         // 卡号基本验证
         let cleanNumber = cardNumber.replacingOccurrences(of: " ", with: "")
         guard cleanNumber.count >= 13 && cleanNumber.count <= 19 else {
             focusedField = .cardNumber
             return
         }
+        guard isValidExpiry(valid) else {
+            return
+        }
+        guard limitText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || parseAmount(limitText) != nil else {
+            focusedField = .limit
+            return
+        }
+        guard annualFeeText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || parseAmount(annualFeeText) != nil else {
+            focusedField = .annualFee
+            return
+        }
         
-        let feeTimeTimestamp = isUltimateFreeFee ? nil : DateCalculator.timestamp(from: nextAnnualFeeCollectionTime)
-        let lastTimeTimestamp = DateCalculator.timestamp(from: lastTime)
+        let feeTimeTimestamp = isUltimateFreeFee ? nil : nextAnnualFeeCollectionTime.map { DateCalculator.timestamp(from: $0) }
+        let lastTimeTimestamp = lastTime.map { DateCalculator.timestamp(from: $0) }
         let lastModifyTimestamp = DateCalculator.timestamp(from: Date())
+        let parsedLimit = parseAmount(limitText)
+        let parsedAnnualFee = parseAmount(annualFeeText)
         
         let finalCard = SharedCard(
             id: cardToEdit?.id ?? UUID().uuidString,
-            country: country,
-            bank: bank,
+            country: country.trimmingCharacters(in: .whitespacesAndNewlines),
+            bank: bank.trimmingCharacters(in: .whitespacesAndNewlines),
             cardNumber: cleanNumber,
-            alias: alias,
-            level: level,
-            type: type,
-            limit: limit,
-            cvv: cvv,
-            valid: valid,
-            annualFee: annualFee,
-            isQualified: isQualified,
+            alias: alias.trimmingCharacters(in: .whitespacesAndNewlines),
+            level: level.trimmingCharacters(in: .whitespacesAndNewlines),
+            type: type.trimmingCharacters(in: .whitespacesAndNewlines),
+            limit: parsedLimit,
+            cvv: cvv.trimmingCharacters(in: .whitespacesAndNewlines),
+            valid: valid.trimmingCharacters(in: .whitespacesAndNewlines),
+            annualFee: parsedAnnualFee,
+            isQualified: isQualified.trimmingCharacters(in: .whitespacesAndNewlines),
             nextAnnualFeeCollectionTime: feeTimeTimestamp,
             lastTime: lastTimeTimestamp,
-            accountBillDate: accountBillDate,
-            dueDate: dueDate,
+            accountBillDate: accountBillDate.trimmingCharacters(in: .whitespacesAndNewlines),
+            dueDate: dueDate.trimmingCharacters(in: .whitespacesAndNewlines),
             billingDaySpendingToNextBill: billingDaySpendingToNextBill,
-            equity: equity,
-            remark: remark,
+            equity: equity.trimmingCharacters(in: .whitespacesAndNewlines),
+            remark: remark.trimmingCharacters(in: .whitespacesAndNewlines),
             lastModifyTime: lastModifyTimestamp,
             isSharedLimit: isSharedLimit,
             cardImages: cardImages
@@ -545,6 +615,35 @@ public struct CardEditView: View {
         let base64 = asset.data.components(separatedBy: "base64,").last ?? asset.data
         guard let data = Data(base64Encoded: base64) else { return nil }
         return NSImage(data: data)
+    }
+}
+
+private struct OptionalDatePickerRow: View {
+    let title: String
+    @Binding var date: Date?
+
+    var body: some View {
+        if date == nil {
+            HStack {
+                Text(title)
+                Spacer()
+                Button("选择日期") {
+                    date = Date()
+                }
+            }
+        } else {
+            DatePicker(
+                title,
+                selection: Binding(
+                    get: { date ?? Date() },
+                    set: { date = $0 }
+                ),
+                displayedComponents: .date
+            )
+            Button("清除") {
+                date = nil
+            }
+        }
     }
 }
 

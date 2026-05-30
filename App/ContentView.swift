@@ -19,6 +19,7 @@ struct ContentView: View {
     
     // 编辑弹窗请求，创建弹窗时一并携带模式和目标卡片
     @State private var cardEditRequest: CardEditRequest?
+    @State private var detailCard: SharedCard?
     @State private var hasCheckedAnnualFeeStatus = false
     
     // 监听自动锁定状态
@@ -122,6 +123,17 @@ struct ContentView: View {
                     }
                     
                     self.cards = syncCoordinator.commit(cards: cards)
+                }
+            )
+        }
+        .sheet(item: $detailCard) { card in
+            CardDetailView(
+                card: card,
+                onEdit: {
+                    detailCard = nil
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+                        cardEditRequest = CardEditRequest(mode: "edit", card: card)
+                    }
                 }
             )
         }
@@ -312,6 +324,9 @@ struct ContentView: View {
                     onEdit: { card in
                         cardEditRequest = CardEditRequest(mode: "edit", card: card)
                     },
+                    onViewDetails: { card in
+                        detailCard = card
+                    },
                     onDelete: { card in
                         deleteCard(card)
                     },
@@ -368,6 +383,9 @@ struct ContentView: View {
                     sortBy: sortBy,
                     onEdit: { card in
                         cardEditRequest = CardEditRequest(mode: "edit", card: card)
+                    },
+                    onViewDetails: { card in
+                        detailCard = card
                     },
                     onDelete: { card in
                         deleteCard(card)

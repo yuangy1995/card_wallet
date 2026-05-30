@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 /// 极具科技感的信用卡磁贴组件 (1:1.586 黄金比例)
 public struct CreditCardView: View {
@@ -12,6 +13,7 @@ public struct CreditCardView: View {
     @State private var isHovered = false
     
     public var onEdit: () -> Void
+    public var onViewDetails: () -> Void
     public var onDelete: () -> Void
     public var onUpdateStatus: (String) -> Void
     
@@ -22,11 +24,13 @@ public struct CreditCardView: View {
     public init(
         card: SharedCard,
         onEdit: @escaping () -> Void,
+        onViewDetails: @escaping () -> Void,
         onDelete: @escaping () -> Void,
         onUpdateStatus: @escaping (String) -> Void
     ) {
         self.card = card
         self.onEdit = onEdit
+        self.onViewDetails = onViewDetails
         self.onDelete = onDelete
         self.onUpdateStatus = onUpdateStatus
     }
@@ -72,6 +76,13 @@ public struct CreditCardView: View {
                         }
                     }
                     Spacer()
+                    Button(action: onViewDetails) {
+                        Image(systemName: "info.circle.fill")
+                            .font(.system(size: 14))
+                            .foregroundColor(.white.opacity(0.8))
+                    }
+                    .buttonStyle(.plain)
+                    .help("查看详情")
                     CardBrandIcon(brand: brand)
                         .scaleEffect(0.9)
                 }
@@ -221,11 +232,15 @@ public struct CreditCardView: View {
                     Label("未达标", systemImage: "exclamationmark.circle.fill")
                 }
                 Button { onUpdateStatus("3") } label: {
-                    Label("终身免年费", systemImage: "infinity.circle.fill")
+                    Label("终免年费", systemImage: "infinity.circle.fill")
                 }
             }
             
             Divider()
+            
+            Button(action: onViewDetails) {
+                Label("查看详情", systemImage: "info.circle")
+            }
             
             Button(action: onEdit) {
                 Label("编辑卡片 (⌘E)", systemImage: "pencil")
@@ -330,6 +345,440 @@ public struct CreditCardView: View {
         case "HKD": return "HK$"
         default: return "$"
         }
+    }
+}
+
+struct CardDetailView: View {
+    let card: SharedCard
+    var onEdit: () -> Void
+    
+    @Environment(\.dismiss) private var dismiss
+    @State private var showFullCardNumber = false
+    @State private var showCVV = false
+    @State private var selectedImageIndex = 0
+    
+    private var brand: CardBrand {
+        CardBrand.detect(from: card.cardNumber, level: card.level)
+    }
+    
+    var body: some View {
+        NavigationStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    headerCard
+                    
+                    if !card.cardImages.isEmpty {
+                        mediaSection
+                    }
+                    
+                    CardDetailSection(title: "核心信息", systemImage: "creditcard.fill") {
+                        CardDetailInfoRow(title: "国家/地区", value: cleanValue(card.country))
+                        CardDetailInfoRow(title: "发卡银行", value: cleanValue(card.bank))
+                        CardDetailInfoRow(title: "卡片别名", value: cleanValue(card.alias))
+                        CardDetailInfoRow(title: "卡片等级", value: cleanValue(card.level))
+                        CardDetailInfoRow(title: "卡组织", value: brand.displayName)
+                        CardDetailInfoRow(title: "有效期", value: cleanValue(card.valid))
+                        sensitiveRow(
+                            title: "卡号",
+                            value: formattedCardNumber(masked: !showFullCardNumber),
+                            isVisible: showFullCardNumber,
+                            action: { showFullCardNumber.toggle() }
+                        )
+                        sensitiveRow(
+                            title: "CVV 安全码",
+                            value: showCVV ? cleanValue(card.cvv) : "•••",
+                            isVisible: showCVV,
+                            action: { showCVV.toggle() }
+                        )
+                    }
+                    
+                    CardDetailSection(title: "额度与年费", systemImage: "banknote.fill") {
+                        CardDetailInfoRow(title: "币种", value: cleanValue(card.type))
+                        CardDetailInfoRow(title: "额度", value: amountText(card.limit, currency: card.type))
+                        CardDetailInfoRow(title: "额度类型", value: card.isSharedLimit ? "共享额度" : "独立额度")
+                        CardDetailInfoRow(title: "年费", value: amountText(card.annualFee, currency: card.type))
+                        CardDetailInfoRow(title: "年费减免政策", value: annualFeeStatusText(card.isQualified))
+                        CardDetailInfoRow(title: "下次年费收取", value: timestampDateText(card.nextAnnualFeeCollectionTime))
+                        CardDetailInfoRow(title: "上次提额时间", value: timestampDateText(card.lastTime))
+                    }
+                    
+                    CardDetailSection(title: "账单与权益", systemImage: "calendar.badge.clock") {
+                        CardDetailInfoRow(title: "账单日", value: dayText(card.accountBillDate))
+                        CardDetailInfoRow(title: "还款日", value: dayText(card.dueDate))
+                        CardDetailInfoRow(title: "账单日消费归属", value: card.billingDaySpendingToNextBill ? "下期账单" : "当期账单")
+                        CardDetailInfoRow(title: "最长免息期", value: interestFreePeriodText)
+                        CardDetailInfoRow(title: "最后修改时间", value: DateCalculator.formatTimestampDateTime(card.lastModifyTime))
+                        
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("权益")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Text(cleanValue(card.equity))
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .padding(.top, 4)
+                        
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("备注")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                            Text(cleanValue(card.remark))
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                        }
+                        .padding(.top, 4)
+                    }
+                }
+                .padding(24)
+            }
+            .navigationTitle("信用卡详情")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("关闭") {
+                        dismiss()
+                    }
+                    .keyboardShortcut(.cancelAction)
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button {
+                        onEdit()
+                    } label: {
+                        Label("编辑", systemImage: "pencil")
+                    }
+                    .keyboardShortcut("e", modifiers: [.command])
+                }
+            }
+        }
+        .frame(minWidth: 680, minHeight: 720)
+    }
+    
+    private var headerCard: some View {
+        ZStack(alignment: .topTrailing) {
+            RoundedRectangle(cornerRadius: 18)
+                .fill(
+                    LinearGradient(
+                        colors: getBrandGradient(brand),
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 18)
+                        .stroke(Color.white.opacity(0.2), lineWidth: 1)
+                )
+            
+            VStack(alignment: .leading, spacing: 18) {
+                HStack(alignment: .top) {
+                    VStack(alignment: .leading, spacing: 6) {
+                        Text(card.bank)
+                            .font(.system(size: 24, weight: .bold, design: .rounded))
+                            .foregroundStyle(.white)
+                        Text(cleanValue(card.alias))
+                            .font(.subheadline)
+                            .foregroundStyle(.white.opacity(0.7))
+                    }
+                    Spacer()
+                    CardBrandIcon(brand: brand)
+                        .scaleEffect(1.1)
+                }
+                
+                Spacer()
+                
+                Text(formattedCardNumber(masked: !showFullCardNumber))
+                    .font(.system(size: 22, weight: .semibold, design: .monospaced))
+                    .foregroundStyle(.white)
+                    .lineLimit(1)
+                
+                HStack {
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("VALID THRU")
+                            .font(.system(size: 9, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.55))
+                        Text(cleanValue(card.valid))
+                            .font(.system(.body, design: .monospaced))
+                            .foregroundStyle(.white)
+                    }
+                    
+                    Spacer()
+                    
+                    VStack(alignment: .trailing, spacing: 3) {
+                        Text(card.isSharedLimit ? "共享额度" : "独立额度")
+                            .font(.system(size: 9, weight: .medium))
+                            .foregroundStyle(.white.opacity(0.55))
+                        Text(amountText(card.limit, currency: card.type))
+                            .font(.system(.title3, design: .rounded))
+                            .bold()
+                            .foregroundStyle(.white)
+                    }
+                }
+            }
+            .padding(22)
+        }
+        .frame(height: 250)
+    }
+    
+    private var mediaSection: some View {
+        CardDetailSection(title: "卡片媒体文件", systemImage: "photo.on.rectangle.angled") {
+            let images = card.cardImages
+            let currentIndex = min(selectedImageIndex, max(images.count - 1, 0))
+            let asset = images[currentIndex]
+            
+            ZStack(alignment: .topTrailing) {
+                if let image = nsImage(from: asset) {
+                    Image(nsImage: image)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(maxWidth: .infinity)
+                        .frame(height: 320)
+                        .background(Color.primary.opacity(0.04))
+                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                } else {
+                    RoundedRectangle(cornerRadius: 10)
+                        .fill(Color.primary.opacity(0.06))
+                        .frame(height: 320)
+                        .overlay(Text("无法预览").foregroundStyle(.secondary))
+                }
+                
+                Text("\(currentIndex + 1)/\(images.count)")
+                    .font(.caption)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 4)
+                    .background(.ultraThinMaterial)
+                    .clipShape(Capsule())
+                    .padding(10)
+            }
+            
+            HStack {
+                Button {
+                    selectedImageIndex = max(0, currentIndex - 1)
+                } label: {
+                    Label("上一张", systemImage: "chevron.left")
+                }
+                .disabled(images.count <= 1 || currentIndex == 0)
+                
+                Spacer()
+                
+                Text(asset.name.isEmpty ? "图片 \(currentIndex + 1)" : asset.name)
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                
+                Spacer()
+                
+                Button {
+                    selectedImageIndex = min(images.count - 1, currentIndex + 1)
+                } label: {
+                    Label("下一张", systemImage: "chevron.right")
+                }
+                .disabled(images.count <= 1 || currentIndex >= images.count - 1)
+            }
+            
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: 10) {
+                    ForEach(images.indices, id: \.self) { index in
+                        Button {
+                            selectedImageIndex = index
+                        } label: {
+                            if let thumbnail = nsImage(from: images[index]) {
+                                Image(nsImage: thumbnail)
+                                    .resizable()
+                                    .scaledToFill()
+                                    .frame(width: 88, height: 58)
+                                    .clipShape(RoundedRectangle(cornerRadius: 7))
+                            } else {
+                                RoundedRectangle(cornerRadius: 7)
+                                    .fill(Color.primary.opacity(0.08))
+                                    .frame(width: 88, height: 58)
+                                    .overlay(Image(systemName: "photo"))
+                            }
+                        }
+                        .buttonStyle(.plain)
+                        .overlay(
+                            RoundedRectangle(cornerRadius: 7)
+                                .stroke(selectedImageIndex == index ? Color.accentColor : Color.clear, lineWidth: 2)
+                        )
+                    }
+                }
+                .padding(.vertical, 4)
+            }
+        }
+    }
+    
+    private var interestFreePeriodText: String {
+        guard let billDay = card.accountBillDate, !billDay.isEmpty,
+              let dueDay = card.dueDate, !dueDay.isEmpty else {
+            return "未配置"
+        }
+        let days = DateCalculator.calculateInterestFreePeriod(
+            accountBillDate: billDay,
+            dueDate: dueDay,
+            billingDayToNextBill: card.billingDaySpendingToNextBill
+        )
+        return "\(days) 天"
+    }
+    
+    private func sensitiveRow(title: String, value: String, isVisible: Bool, action: @escaping () -> Void) -> some View {
+        HStack(alignment: .top) {
+            Text(title)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(width: 110, alignment: .leading)
+            Text(value)
+                .font(.system(.body, design: .monospaced))
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Button(action: action) {
+                Image(systemName: isVisible ? "eye.slash.fill" : "eye.fill")
+            }
+            .buttonStyle(.borderless)
+            .help(isVisible ? "隐藏" : "显示")
+        }
+        .padding(.vertical, 4)
+    }
+    
+    private func cleanValue(_ value: String?) -> String {
+        let trimmed = (value ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        return trimmed.isEmpty ? "未配置" : trimmed
+    }
+    
+    private func amountText(_ value: Double?, currency: String?) -> String {
+        guard let value else { return "未配置" }
+        let formattedValue = value.rounded(.towardZero) == value ? String(Int(value)) : String(format: "%.2f", value)
+        let currencyCode = cleanValue(currency)
+        if currencyCode == "未配置" {
+            return formattedValue
+        }
+        return "\(currencyCode) \(getCurrencySymbol(currencyCode))\(formattedValue)"
+    }
+    
+    private func dayText(_ value: String?) -> String {
+        let cleaned = cleanValue(value)
+        return cleaned == "未配置" ? cleaned : "每月 \(cleaned) 号"
+    }
+    
+    private func timestampDateText(_ timestamp: Double?) -> String {
+        let dateText = DateCalculator.formatTimestampDate(timestamp)
+        guard !dateText.isEmpty else { return "未配置" }
+        let delta = DateCalculator.getDaysFromNow(timestamp)
+        guard !delta.text.isEmpty else { return dateText }
+        return "\(dateText)（\(delta.text) \(delta.days) 天）"
+    }
+    
+    private func annualFeeStatusText(_ value: String?) -> String {
+        switch value {
+        case "1": return "已达标"
+        case "2": return "未达标"
+        case "3": return "终免年费"
+        default: return "未配置"
+        }
+    }
+    
+    private func formattedCardNumber(masked: Bool) -> String {
+        let cleanNumber = card.cardNumber.replacingOccurrences(of: "\\D", with: "", options: .regularExpression)
+        if masked {
+            return "••••  ••••  ••••  \(cleanNumber.suffix(4))"
+        }
+        
+        var result = ""
+        for (index, char) in cleanNumber.enumerated() {
+            if index > 0 && index % 4 == 0 {
+                result += "  "
+            }
+            result.append(char)
+        }
+        return result
+    }
+    
+    private func nsImage(from asset: CardImageAsset) -> NSImage? {
+        let base64 = asset.data.components(separatedBy: "base64,").last ?? asset.data
+        guard let data = Data(base64Encoded: base64) else { return nil }
+        return NSImage(data: data)
+    }
+    
+    private func getBrandGradient(_ brand: CardBrand) -> [Color] {
+        switch brand {
+        case .visa:
+            return [Color(red: 0.05, green: 0.15, blue: 0.4), Color(red: 0.1, green: 0.3, blue: 0.7)]
+        case .mastercard:
+            return [Color(red: 0.25, green: 0.05, blue: 0.1), Color(red: 0.45, green: 0.15, blue: 0.2)]
+        case .amex:
+            return [Color(red: 0.05, green: 0.2, blue: 0.3), Color(red: 0.1, green: 0.4, blue: 0.5)]
+        case .dinersClub:
+            return [Color(red: 0.1, green: 0.05, blue: 0.3), Color(red: 0.3, green: 0.1, blue: 0.55)]
+        case .discover:
+            return [Color(red: 0.35, green: 0.15, blue: 0.05), Color(red: 0.5, green: 0.3, blue: 0.1)]
+        case .unionpay:
+            return [Color(red: 0.05, green: 0.25, blue: 0.2), Color(red: 0.1, green: 0.45, blue: 0.35)]
+        case .jcb:
+            return [Color(red: 0.1, green: 0.1, blue: 0.25), Color(red: 0.2, green: 0.2, blue: 0.4)]
+        case .unknown:
+            return [Color(red: 0.15, green: 0.15, blue: 0.15), Color(red: 0.25, green: 0.25, blue: 0.25)]
+        }
+    }
+    
+    private func getCurrencySymbol(_ type: String) -> String {
+        switch type {
+        case "CNY": return "¥"
+        case "USD": return "$"
+        case "EUR": return "€"
+        case "GBP": return "£"
+        case "JPY": return "¥"
+        case "HKD": return "HK$"
+        default: return ""
+        }
+    }
+}
+
+private struct CardDetailSection<Content: View>: View {
+    let title: String
+    let systemImage: String
+    let content: Content
+    
+    init(title: String, systemImage: String, @ViewBuilder content: () -> Content) {
+        self.title = title
+        self.systemImage = systemImage
+        self.content = content()
+    }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 8) {
+                Image(systemName: systemImage)
+                    .foregroundStyle(.cyan)
+                Text(title)
+                    .font(.headline)
+            }
+            
+            VStack(alignment: .leading, spacing: 8) {
+                content
+            }
+            .padding(16)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(Color.primary.opacity(0.035))
+            .clipShape(RoundedRectangle(cornerRadius: 10))
+            .overlay(
+                RoundedRectangle(cornerRadius: 10)
+                    .stroke(Color.primary.opacity(0.08), lineWidth: 1)
+            )
+        }
+    }
+}
+
+private struct CardDetailInfoRow: View {
+    let title: String
+    let value: String
+    
+    var body: some View {
+        HStack(alignment: .top) {
+            Text(title)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(width: 110, alignment: .leading)
+            Text(value)
+                .textSelection(.enabled)
+                .frame(maxWidth: .infinity, alignment: .leading)
+        }
+        .padding(.vertical, 4)
     }
 }
 
@@ -468,6 +917,7 @@ public struct CardGridView: View {
     public var sortBy: SortOption
     
     public var onEdit: (SharedCard) -> Void
+    public var onViewDetails: (SharedCard) -> Void
     public var onDelete: (SharedCard) -> Void
     public var onUpdateStatus: (SharedCard, String) -> Void
     
@@ -484,6 +934,7 @@ public struct CardGridView: View {
         groupBy: GroupOption = .none,
         sortBy: SortOption = .limitDesc,
         onEdit: @escaping (SharedCard) -> Void,
+        onViewDetails: @escaping (SharedCard) -> Void,
         onDelete: @escaping (SharedCard) -> Void,
         onUpdateStatus: @escaping (SharedCard, String) -> Void
     ) {
@@ -491,6 +942,7 @@ public struct CardGridView: View {
         self.groupBy = groupBy
         self.sortBy = sortBy
         self.onEdit = onEdit
+        self.onViewDetails = onViewDetails
         self.onDelete = onDelete
         self.onUpdateStatus = onUpdateStatus
     }
@@ -604,6 +1056,7 @@ public struct CardGridView: View {
                         CreditCardView(
                             card: card,
                             onEdit: { onEdit(card) },
+                            onViewDetails: { onViewDetails(card) },
                             onDelete: { onDelete(card) },
                             onUpdateStatus: { status in onUpdateStatus(card, status) }
                         )
@@ -639,6 +1092,7 @@ public struct CardGridView: View {
                                         CreditCardView(
                                             card: card,
                                             onEdit: { onEdit(card) },
+                                            onViewDetails: { onViewDetails(card) },
                                             onDelete: { onDelete(card) },
                                             onUpdateStatus: { status in onUpdateStatus(card, status) }
                                         )

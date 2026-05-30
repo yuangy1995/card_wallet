@@ -4,7 +4,7 @@ import SwiftUI
 public final class SyncCoordinator: ObservableObject {
     public static let shared = SyncCoordinator()
 
-    @Published public private(set) var pendingStatus = "尚未初始化同步"
+    @Published public private(set) var pendingStatus = "同步尚未准备好"
     @Published public private(set) var lastConvergenceAt: Date?
 
     private var ledger = SyncLedger()
@@ -40,7 +40,7 @@ public final class SyncCoordinator: ObservableObject {
                 self?.mergeRemote(records, originatingFrom: .webdav)
             }
         )
-        pendingStatus = "同步账本已载入"
+        pendingStatus = "同步准备完成"
         if CloudKitSyncService.shared.isEnabled {
             CloudKitSyncService.shared.queue(records: ledger.records)
         }
@@ -119,7 +119,7 @@ public final class SyncCoordinator: ObservableObject {
         let cards = currentCards
         onCardsChanged?(cards)
         lastConvergenceAt = Date()
-        pendingStatus = "已合并远端变更"
+        pendingStatus = "已更新云端变化"
 
         switch origin {
         case .webdav:
@@ -136,7 +136,7 @@ public final class SyncCoordinator: ObservableObject {
         ledger.pendingWebDAVUpload = true
         SyncLedgerStore.shared.save(ledger)
         persistActiveView()
-        pendingStatus = "本地有变更，正在同步"
+        pendingStatus = "正在同步最新修改"
         CloudKitSyncService.shared.queue(records: events)
         WebDAVBridgeService.shared.synchronize(forceUpload: true)
         return currentCards

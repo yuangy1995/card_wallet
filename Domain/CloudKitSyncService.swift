@@ -49,7 +49,7 @@ public final class CloudKitSyncService: NSObject, ObservableObject, CKSyncEngine
         guard enabled else {
             engine = nil
             isAvailable = false
-            statusDescription = "iCloud 已关闭，本地与 WebDAV 仍可用"
+            statusDescription = "iCloud 已关闭，本机和 WebDAV 同步仍可使用"
             return
         }
         start()
@@ -59,7 +59,7 @@ public final class CloudKitSyncService: NSObject, ObservableObject, CKSyncEngine
         guard isEnabled else { return }
         guard hasCloudKitEntitlement else {
             isAvailable = false
-            statusDescription = "iCloud 不可用：当前构建未包含 CloudKit 签名权限"
+            statusDescription = "iCloud 不可用：当前版本不支持 iCloud 同步"
             return
         }
         statusDescription = "正在检查 iCloud 账户..."
@@ -73,7 +73,7 @@ public final class CloudKitSyncService: NSObject, ObservableObject, CKSyncEngine
                 }
                 guard accountStatus == .available else {
                     self.isAvailable = false
-                    self.statusDescription = "iCloud 不可用：请登录 iCloud 或检查容器签名权限"
+                    self.statusDescription = "iCloud 不可用：请先登录 iCloud，或检查应用权限"
                     return
                 }
                 self.prepareEngine()
@@ -105,7 +105,7 @@ public final class CloudKitSyncService: NSObject, ObservableObject, CKSyncEngine
                 try await engine.fetchChanges()
             } catch {
                 await MainActor.run {
-                    self.statusDescription = "iCloud 拉取失败：\(error.localizedDescription)"
+                    self.statusDescription = "读取 iCloud 数据失败：\(error.localizedDescription)"
                 }
             }
         }
@@ -155,7 +155,7 @@ public final class CloudKitSyncService: NSObject, ObservableObject, CKSyncEngine
                 try await engine.sendChanges()
             } catch {
                 await MainActor.run {
-                    self.statusDescription = "iCloud 写入失败：\(error.localizedDescription)"
+                    self.statusDescription = "保存到 iCloud 失败：\(error.localizedDescription)"
                 }
             }
         }
@@ -198,16 +198,16 @@ public final class CloudKitSyncService: NSObject, ObservableObject, CKSyncEngine
             guard !records.isEmpty else { return }
             await MainActor.run {
                 self.lastSyncAt = Date()
-                self.statusDescription = "iCloud 已同步 \(records.count) 条变更"
+                    self.statusDescription = "iCloud 已同步 \(records.count) 项修改"
                 self.onRecordsReceived?(records)
             }
         case .sentRecordZoneChanges(let changes):
             await MainActor.run {
                 self.lastSyncAt = Date()
                 if changes.failedRecordSaves.isEmpty {
-                    self.statusDescription = "iCloud 写入完成"
+                    self.statusDescription = "iCloud 保存完成"
                 } else {
-                    self.statusDescription = "iCloud 有 \(changes.failedRecordSaves.count) 条写入失败"
+                    self.statusDescription = "iCloud 有 \(changes.failedRecordSaves.count) 条内容保存失败"
                 }
             }
         default:

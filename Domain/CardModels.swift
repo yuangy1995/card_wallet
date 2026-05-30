@@ -120,7 +120,7 @@ public struct SharedCard: Codable, Identifiable, Hashable {
     /// 有效期格式 MM/YY 字符串
     public var valid: String?
     public var annualFee: Double?
-    /// 年费达标状态： "1" 已达标， "2" 未达标， "3" 终身免年费
+    /// 年费达标状态： "1" 已达标， "2" 未达标， "3" 终免年费
     public var isQualified: String?
     /// 下次年费收取时间：毫秒时间戳
     public var nextAnnualFeeCollectionTime: Double?

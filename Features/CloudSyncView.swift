@@ -76,7 +76,7 @@ public struct CloudSyncView: View {
                     Image(systemName: "icloud.and.arrow.up.fill")
                         .font(.title2)
                         .foregroundColor(.cyan)
-                    Text("云端账本同步")
+                    Text("云端同步")
                         .font(.title2)
                         .bold()
                 }
@@ -113,7 +113,7 @@ public struct CloudSyncView: View {
                                         .bold()
                                         .foregroundColor(.primary)
                                     
-                                    Text("您的信用卡账本正受高强度对称加密安全托管于云端。")
+                                    Text("您的信用卡信息会加密保存到云端，方便多设备同步。")
                                         .font(.system(size: 11))
                                         .foregroundColor(.secondary)
                                 }

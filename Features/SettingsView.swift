@@ -170,12 +170,12 @@ public struct SettingsView: View {
                                     .bold()
                                     .foregroundColor(.primary)
                                 
-                                let levelText = isLockEnabled ? "高级指纹/密码多维防护" : "基础沙盒物理隔离加密"
+                                let levelText = isLockEnabled ? "指纹或密码保护" : "本机加密保存"
                                 Text("防护级别：\(levelText)")
                                     .font(.system(size: 11, weight: .semibold))
                                     .foregroundColor(isLockEnabled ? .green : .orange)
                                 
-                                Text("您的敏感卡号、CVV及同步密钥均受高强度对称加密与硬件级沙盒物理隔离保护。")
+                                Text("您的卡号、CVV 和同步密码会加密保存在本机。")
                                     .font(.system(size: 10))
                                     .foregroundColor(.secondary)
                                     .lineLimit(2)
@@ -214,7 +214,7 @@ public struct SettingsView: View {
                                         .font(.system(size: 11))
                                         .foregroundColor(.secondary)
                                     
-                                    Text("Touch ID 指纹秒开已就绪")
+                                    Text("Touch ID 解锁已开启")
                                         .font(.system(size: 11, weight: .semibold))
                                         .foregroundColor(.green)
                                 }
@@ -367,7 +367,7 @@ public struct SettingsView: View {
                                     .transition(.opacity)
                             }
                             
-                            Text("说明：若您的系统反复弹出钥匙串授权提示，推荐选择 [应用内部加密存储]。您的凭证将由高强度 AES-256 沙盒物理隔离加密，保障绝对隐私的同时免去系统密码弹窗干扰，极其清爽顺滑。")
+                            Text("说明：如果系统经常弹出钥匙串授权提示，建议选择 [应用内部加密存储]。这样可以减少系统密码弹窗，同时仍会加密保存您的同步账号。")
                                 .font(.system(size: 9))
                                 .foregroundColor(.secondary.opacity(0.8))
                                 .lineSpacing(2)
@@ -378,7 +378,7 @@ public struct SettingsView: View {
                         
                         HStack {
                             if AutoLockManager.shared.isTouchIDAvailable {
-                                Text("🔒 硬件防护状态: 已支持 Touch ID 指纹防护")
+                                Text("🔒 当前设备支持 Touch ID 解锁")
                                     .font(.system(size: 9))
                                     .foregroundColor(.secondary)
                             }

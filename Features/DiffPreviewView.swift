@@ -739,7 +739,7 @@ struct TagView: View {
                 .background(Color.green.opacity(0.12))
                 .cornerRadius(4)
         case .modified:
-            Text("字段存在差异")
+            Text("内容不同")
                 .font(.system(size: 10, weight: .bold))
                 .foregroundColor(.orange)
                 .padding(.horizontal, 6)

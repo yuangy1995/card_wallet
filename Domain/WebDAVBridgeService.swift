@@ -4,7 +4,7 @@ import SwiftUI
 public final class WebDAVBridgeService: ObservableObject {
     public static let shared = WebDAVBridgeService()
 
-    @Published public private(set) var statusDescription = "云同步待配置"
+    @Published public private(set) var statusDescription = "云同步还未设置"
     @Published public private(set) var lastConvergenceAt: Date?
     @Published public private(set) var isSyncing = false
 
@@ -36,7 +36,7 @@ public final class WebDAVBridgeService: ObservableObject {
             start()
         } else {
             stop()
-            statusDescription = "云端自动同步已关闭"
+            statusDescription = "云端同步已关闭"
         }
     }
 
@@ -61,12 +61,12 @@ public final class WebDAVBridgeService: ObservableObject {
         if isSyncing {
             if forceUpload {
                 queuedForceUpload = true
-                statusDescription = "本地修改已加入同步队列，当前同步完成后会继续上传"
+                statusDescription = "当前修改会在本次同步结束后继续上传"
             }
             return
         }
         guard WebDAVClient.shared.loadConfig() != nil else {
-            statusDescription = "云同步待配置"
+            statusDescription = "云同步还未设置"
             return
         }
         isSyncing = true
@@ -92,7 +92,7 @@ public final class WebDAVBridgeService: ObservableObject {
                 uploadConsolidatedSnapshot(records: recordsProvider?() ?? [], downloadedSnapshots: [], listedFiles: files)
             } else {
                 isSyncing = false
-                statusDescription = "尚未找到自动同步数据"
+                statusDescription = "云端还没有同步记录"
                 runQueuedForceUploadIfNeeded()
             }
             return
@@ -130,7 +130,7 @@ public final class WebDAVBridgeService: ObservableObject {
                 self.uploadConsolidatedSnapshot(records: mergedRecords, downloadedSnapshots: snapshots, listedFiles: files)
             } else {
                 self.isSyncing = false
-                self.statusDescription = "云端与本地已同步"
+                self.statusDescription = "云端与本机已同步"
                 self.lastConvergenceAt = Date()
                 self.runQueuedForceUploadIfNeeded()
             }
@@ -168,7 +168,7 @@ public final class WebDAVBridgeService: ObservableObject {
                     ledger.pendingWebDAVUpload = latestRecords != CardSyncMergeEngine.merge([records])
                     SyncLedgerStore.shared.save(ledger)
                     self.lastConvergenceAt = Date()
-                    self.statusDescription = ledger.pendingWebDAVUpload ? "本地有新修改，正在继续同步" : "云端与本地已同步"
+                    self.statusDescription = ledger.pendingWebDAVUpload ? "本机有新修改，正在继续同步" : "云端与本机已同步"
                     self.isSyncing = false
                     NotificationCenter.default.post(name: Notification.Name("CloudBackupsDidChange"), object: nil)
                     self.pruneAutomaticSnapshots(from: listedFiles + [
