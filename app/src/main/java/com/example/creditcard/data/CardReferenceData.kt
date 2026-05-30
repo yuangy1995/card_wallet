@@ -44,7 +44,7 @@ object CardReferenceData {
     val qualificationStatuses = listOf(
         "2" to "未达标",
         "1" to "已达标",
-        "3" to "终身免年费"
+        "3" to "终免年费"
     )
 
     fun normalizeLevel(value: String?): String? {

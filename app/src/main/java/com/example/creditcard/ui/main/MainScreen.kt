@@ -233,7 +233,7 @@ fun MainScreen(
                                     statusType = syncStatus.type,
                                     isDark = isDark,
                                     onSyncClick = {
-                                        Toast.makeText(context, "立即发起双向云端合流同步...", Toast.LENGTH_SHORT).show()
+                                        Toast.makeText(context, "正在同步云端数据...", Toast.LENGTH_SHORT).show()
                                         coroutineScope.launch {
                                             SyncCoordinator.synchronize(context, publishLocalChanges = true)
                                         }
@@ -655,7 +655,7 @@ fun ToolsPanel(
         ToolActionTile(
             icon = Icons.Filled.History,
             title = "同步记录",
-            subtitle = "查看与 WebDAV 云盘的数据同步流水及合流历史",
+            subtitle = "查看与 WebDAV 云盘的数据同步记录",
             accent = if (isDark) NeonCyan else GoldPrimary,
             onClick = onOpenSyncHistory
         )
@@ -772,7 +772,7 @@ fun ToolsSyncHistoryPanel(
             Column(modifier = Modifier.weight(1f)) {
                 Text("同步记录", fontSize = 22.sp, fontWeight = FontWeight.Black)
                 Text(
-                    text = "WebDAV 云端同步流水",
+                    text = "WebDAV 云端同步记录",
                     fontSize = 12.sp,
                     color = if (isDark) NeonCyan else GoldPrimary,
                     fontWeight = FontWeight.SemiBold
@@ -796,7 +796,7 @@ fun ToolsSyncHistoryPanel(
         DetailSection(title = "📜 同步历史日志") {
             if (syncHistory.isEmpty()) {
                 Text(
-                    text = "暂无同步记录。完成一次 WebDAV 同步后，这里会显示上传、下载和字段变更详情。",
+                    text = "暂无同步记录。完成一次 WebDAV 同步后，这里会显示上传、下载和卡片变化详情。",
                     fontSize = 13.sp,
                     lineHeight = 18.sp,
                     color = if (isDark) TextGray else TextMuted
@@ -911,7 +911,7 @@ fun VerifyCloudPrefetchPanel(
             Text("正在从云端获取最新数据", fontSize = 19.sp, fontWeight = FontWeight.Bold)
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = failedMessage ?: syncProgress.detail.ifBlank { "确保验卡时使用最新的本地与云端合流数据" },
+                text = failedMessage ?: syncProgress.detail.ifBlank { "确保验卡时使用本机和云端的最新数据" },
                 fontSize = 13.sp,
                 lineHeight = 18.sp,
                 textAlign = TextAlign.Center,
@@ -1902,7 +1902,7 @@ fun SettingsMainPanel(
                 )
                 Spacer(modifier = Modifier.height(3.dp))
                 Text(
-                    text = if (isConfigured) "服务正常连接，双向 CRDT 合流保护中" else "未配置，点击开启云端备份与数据恢复",
+                    text = if (isConfigured) "服务正常连接，云端同步已开启" else "未配置，点击开启云端备份与数据恢复",
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.64f)
                 )
@@ -1938,13 +1938,13 @@ fun SettingsMainPanel(
                     )
                     Spacer(modifier = Modifier.width(10.dp))
                     Text(
-                        text = "全局外观主题热切换",
+                        text = "外观主题",
                         fontWeight = FontWeight.Bold,
                         fontSize = 14.sp
                     )
                 }
                 Text(
-                    text = if (isDark) "深色 (Dark)" else "浅色 (Light)",
+                    text = if (isDark) "深色模式" else "浅色模式",
                     fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = if (isDark) NeonCyan else GoldPrimary
@@ -1953,7 +1953,7 @@ fun SettingsMainPanel(
         }
 
         // 3. 🚨 敏感操作与数据安全区 Section (高度防误触，清空本地变动流水账本已彻底安全清空)
-        DetailSection(title = "🚨 数据安全区 (敏感操作)") {
+        DetailSection(title = "数据管理") {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1963,7 +1963,7 @@ fun SettingsMainPanel(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 Text(
-                    text = "卡片物理抹除属于极其危险的操作，操作后本地不可撤销！如果之前已在云端成功备份，重新同步即可重新拉回卡片数据。",
+                    text = "清除后，当前设备上的卡片资料将无法在本机恢复。如果之前做过云端备份，可以稍后从云端恢复。",
                     fontSize = 11.sp,
                     lineHeight = 16.sp,
                     color = (if (isDark) NeonRed else Color.Red).copy(alpha = 0.8f)
@@ -1981,11 +1981,11 @@ fun SettingsMainPanel(
                 ) {
                     Icon(
                         imageVector = Icons.Filled.DeleteForever,
-                        contentDescription = "物理擦除",
+                        contentDescription = "清除本机数据",
                         modifier = Modifier.size(16.dp)
                     )
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("物理删除本地所有卡片数据", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                    Text("清除本机所有卡片数据", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 }
             }
         }
@@ -1993,14 +1993,14 @@ fun SettingsMainPanel(
         Spacer(modifier = Modifier.height(40.dp))
     }
 
-    // 物理重置清空数据库二次确认 Dialog
+    // 清空本机数据二次确认 Dialog
     if (showResetDbDialog) {
         AlertDialog(
             onDismissRequest = { showResetDbDialog = false },
-            title = { Text("🚨 极其危险操作！", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color.Red) },
+            title = { Text("确认清除本机数据？", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color.Red) },
             text = {
                 Text(
-                    text = "您正在请求【物理擦除本地所有信用卡数据】。此操作将瞬间清空本地 SQLite 数据库中的所有卡包资料与同步流水，且本地不可撤销！如果您之前已在云端（WebDAV）成功备份，该清空操作不会删除云端文件，重新同步即可拉回备份。",
+                    text = "此操作会清除当前设备上的所有信用卡资料，且无法在本机恢复。如果您之前已经做过云端备份，可以稍后从云端重新恢复。",
                     fontSize = 13.sp
                 )
             },
@@ -2010,11 +2010,11 @@ fun SettingsMainPanel(
                         showResetDbDialog = false
                         coroutineScope.launch {
                             SyncCoordinator.resetLocalDatabase(context)
-                            Toast.makeText(context, "本地所有卡片数据已彻底抹除", Toast.LENGTH_LONG).show()
+                            Toast.makeText(context, "本机卡片数据已清除", Toast.LENGTH_LONG).show()
                         }
                     }
                 ) {
-                    Text("确认物理删除", color = Color.Red, fontWeight = FontWeight.Bold)
+                    Text("确认清除", color = Color.Red, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
@@ -2106,7 +2106,7 @@ fun SettingsWebDAVPanel(
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "同步云盘：${url.substringAfter("://").substringBefore("/")}\n同步账号：$user\n已启用 LWW-CRDT 无冲突双向合流机制",
+                        text = "同步云盘：${url.substringAfter("://").substringBefore("/")}\n同步账号：$user\n本机和云端会自动保持最新",
                         fontSize = 11.sp,
                         lineHeight = 15.sp,
                         textAlign = TextAlign.Center,
@@ -2163,9 +2163,9 @@ fun SettingsWebDAVPanel(
                             if (syncStatus.isSyncing) {
                                 CircularProgressIndicator(modifier = Modifier.size(14.dp), color = if (isDark) DarkBg else Color.White, strokeWidth = 2.dp)
                             } else {
-                                Icon(imageVector = Icons.Filled.CloudSync, contentDescription = "立即合流", modifier = Modifier.size(16.dp))
+                                Icon(imageVector = Icons.Filled.CloudSync, contentDescription = "立即同步", modifier = Modifier.size(16.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
-                                Text("立即强制同步", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                Text("立即同步", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                             }
                         }
 
@@ -2223,7 +2223,7 @@ fun SettingsWebDAVPanel(
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text("开启双向自动同步", fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                            Text("改动卡片时自动在后台执行静默合流", fontSize = 10.sp, color = if (isDark) TextGray else TextMuted)
+                            Text("改动卡片时自动在后台同步", fontSize = 10.sp, color = if (isDark) TextGray else TextMuted)
                         }
                         Switch(
                             checked = isEnabled,
@@ -2458,13 +2458,13 @@ fun SyncHistoryCard(
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 if (entry.downloadedFiles.isNotEmpty()) {
-                    SyncFileLine("拉取快照", entry.downloadedFiles.joinToString("、"), isDark)
+                    SyncFileLine("读取的备份", entry.downloadedFiles.joinToString("、"), isDark)
                 }
                 if (entry.uploadedFile.isNotBlank()) {
-                    SyncFileLine("上传快照", entry.uploadedFile, isDark)
+                    SyncFileLine("保存的备份", entry.uploadedFile, isDark)
                 }
-                ChangeGroup(title = "本机上传变更", changes = entry.localChanges, isDark = isDark)
-                ChangeGroup(title = "云端合流变更", changes = entry.remoteChanges, isDark = isDark)
+                ChangeGroup(title = "本机修改", changes = entry.localChanges, isDark = isDark)
+                ChangeGroup(title = "云端更新", changes = entry.remoteChanges, isDark = isDark)
             }
         }
     }

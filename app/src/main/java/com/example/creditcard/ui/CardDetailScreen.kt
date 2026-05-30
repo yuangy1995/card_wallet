@@ -8,14 +8,20 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.ChevronLeft
+import androidx.compose.material.icons.filled.ChevronRight
+import androidx.compose.material.icons.filled.ContentCopy
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.Nfc
@@ -57,6 +63,7 @@ import com.example.creditcard.utils.SyncCoordinator
 import com.example.creditcard.utils.ThemeManager
 import com.example.creditcard.utils.CardScanProgressManager
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.io.File
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -141,6 +148,10 @@ fun CardDetailScreen(
 
     // 删除卡片弹窗控制
     var showDeleteDialog by remember { mutableStateOf(false) }
+    var coreSectionExpanded by remember { mutableStateOf(true) }
+    var mediaSectionExpanded by remember { mutableStateOf(false) }
+    var limitFeeSectionExpanded by remember { mutableStateOf(false) }
+    var benefitSectionExpanded by remember { mutableStateOf(false) }
 
     Scaffold(
         topBar = {
@@ -192,99 +203,52 @@ fun CardDetailScreen(
             // 1. 黄金比例卡片磁贴展示
             CreditCardTile(card = card, isDark = isDark, onClick = {})
 
-            // 如果卡片数据中有媒体文件，动态呈现跨端同步图片预览；旧版本沙盒图片作为兼容兜底。
-            if (hasCardImage) {
-                Spacer(modifier = Modifier.height(16.dp))
-                DetailSection(title = "卡片媒体文件") {
-                    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                        card.cardImages.forEachIndexed { index, image ->
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(180.dp)
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(if (isDark) DarkBg else LightCardBg)
-                                    .clickable {
-                                        val idx = previewList.indexOfFirst { p ->
-                                            p is PreviewImage.Asset && p.asset.id == image.id
-                                        }
-                                        if (idx != -1) {
-                                            fullscreenImageIndex = idx
-                                            showFullscreenImage = true
-                                        }
-                                    },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                val bitmap = remember(image.id, image.data) {
-                                    CardImageCodec.decodeBitmap(image)
-                                }
-                                if (bitmap != null) {
-                                    Image(
-                                        bitmap = bitmap.asImageBitmap(),
-                                        contentDescription = "卡片图片 ${index + 1}",
-                                        modifier = Modifier.fillMaxSize().padding(4.dp).clip(RoundedCornerShape(10.dp)),
-                                        contentScale = androidx.compose.ui.layout.ContentScale.Fit
-                                    )
-                                } else {
-                                    Text("图片加载失败", color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
-                                }
+            Spacer(modifier = Modifier.height(16.dp))
 
-                                Box(
-                                    modifier = Modifier
-                                        .align(Alignment.BottomEnd)
-                                        .padding(8.dp)
-                                        .background(Color.Black.copy(alpha = 0.6f), shape = RoundedCornerShape(8.dp))
-                                        .padding(horizontal = 8.dp, vertical = 4.dp)
-                                ) {
-                                    Text("${image.source.ifBlank { "图片" }} · 点击预览", color = Color.White, fontSize = 10.sp)
-                                }
-                            }
-                        }
-
-                        if (legacyImageExists) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .height(180.dp)
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background(if (isDark) DarkBg else LightCardBg)
-                                    .clickable {
-                                        val idx = previewList.indexOfFirst { p ->
-                                            p is PreviewImage.LocalFile
-                                        }
-                                        if (idx != -1) {
-                                            fullscreenImageIndex = idx
-                                            showFullscreenImage = true
-                                        }
-                                    },
-                                contentAlignment = Alignment.Center
-                            ) {
-                                val bitmap = remember(cardImageFile) {
-                                    try {
-                                        BitmapFactory.decodeFile(cardImageFile.absolutePath)
-                                    } catch (e: Exception) {
-                                        null
-                                    }
-                                }
-                                if (bitmap != null) {
-                                    Image(
-                                        bitmap = bitmap.asImageBitmap(),
-                                        contentDescription = "旧版本地扫描原件",
-                                        modifier = Modifier.fillMaxSize().padding(4.dp).clip(RoundedCornerShape(10.dp)),
-                                        contentScale = androidx.compose.ui.layout.ContentScale.Fit
-                                    )
-                                } else {
-                                    Text("旧版扫描原文件加载失败", color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
-                                }
-                            }
-                        }
+            // 2. 核心信息区：对齐新建/编辑页的字段组织，优先展示卡号和有效期
+            CollapsibleDetailSection(
+                title = "核心信息",
+                expanded = coreSectionExpanded,
+                onExpandedChange = { coreSectionExpanded = it }
+            ) {
+                CardNumberInfoRow(
+                    cardNumber = card.cardNumber,
+                    visible = isNumberVisible,
+                    countdownProgress = countdownProgress,
+                    isDark = isDark,
+                    onToggleVisible = { isNumberVisible = !isNumberVisible },
+                    onCopy = {
+                        copyCardNumberToClipboard(context, card.cardNumber)
                     }
+                )
+
+                DetailDivider(isDark = isDark)
+
+                InfoRow(label = "有效期 *", value = displayOrDash(card.valid))
+                InfoRow(label = "国家 / 地区 *", value = displayOrDash(card.country))
+                InfoRow(label = "发卡银行 *", value = displayOrDash(card.bank))
+
+                if (card.cvv.isBlank()) {
+                    InfoRow(label = "CVV 安全码", value = "--")
+                } else {
+                    SensitiveValueRow(
+                        label = "CVV 安全码",
+                        value = if (isCvvVisible) card.cvv else "•••",
+                        visible = isCvvVisible,
+                        isDark = isDark,
+                        onToggleVisible = { isCvvVisible = !isCvvVisible }
+                    )
                 }
+
+                InfoRow(label = "卡片别名", value = displayOrDash(card.alias))
+                InfoRow(label = "卡片等级", value = displayOrDash(card.level))
+                InfoRow(label = "结算币种", value = displayOrDash(card.type))
+                InfoRow(label = "最后修改时间", value = formatDateTime(card.lastModifyTime))
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
-            // 2. 年费收取到期橙色警示栏
+            // 3. 年费收取到期橙色警示栏
             val annualFeeWarning = getAnnualFeeWarningMessage(card)
             if (annualFeeWarning != null) {
                 Box(
@@ -304,111 +268,71 @@ fun CardDetailScreen(
                 Spacer(modifier = Modifier.height(16.dp))
             }
 
-            // 3. 基础字段区块
-            DetailSection(title = "基础信息") {
-                InfoRow(label = "国家 / 地区", value = card.country.ifEmpty { "未配置" })
-                InfoRow(label = "银行名称", value = card.bank.ifEmpty { "未配置" })
-                InfoRow(label = "卡片别名", value = card.alias.ifEmpty { "未配置" })
-                InfoRow(label = "卡片等级", value = card.level.ifEmpty { "未配置" })
-                InfoRow(label = "结算币种", value = card.type.ifEmpty { "CNY" })
-                InfoRow(label = "有效期", value = card.valid.ifEmpty { "未配置" })
-                InfoRow(label = "最后修改时间", value = formatDateTime(card.lastModifyTime))
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // 4. 详细信息区块 (包含防窥机制)
-            DetailSection(title = "卡片安全防窥") {
-                // 卡号行
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 12.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
+            // 如果卡片数据中有媒体文件，动态呈现跨端同步图片预览；旧版本沙盒图片作为兼容兜底。
+            if (hasCardImage) {
+                CollapsibleDetailSection(
+                    title = "卡片媒体文件",
+                    expanded = mediaSectionExpanded,
+                    onExpandedChange = { mediaSectionExpanded = it }
                 ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("信用卡卡号", color = if (isDark) TextGray else TextMuted, fontSize = 12.sp)
-                        Spacer(modifier = Modifier.height(2.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         Text(
-                            text = if (isNumberVisible) formatSpacingCardNumber(card.cardNumber) else formatMaskedCardNumber(card.cardNumber),
-                            color = MaterialTheme.colorScheme.onBackground,
-                            fontSize = 17.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            fontFamily = FontFamily.Monospace,
-                            letterSpacing = 1.sp
+                            text = "${previewList.size} 张图片",
+                            color = if (isDark) TextGray else TextMuted,
+                            fontSize = 12.sp
+                        )
+                        Text(
+                            text = "横向滑动查看",
+                            color = if (isDark) NeonCyan else GoldPrimary,
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Medium
                         )
                     }
 
-                    // 5s 环形倒计时进度条与眼睛切换图标
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        if (isNumberVisible || isCvvVisible) {
-                            Box(modifier = Modifier.size(24.dp), contentAlignment = Alignment.Center) {
-                                CircularProgressIndicator(
-                                    progress = { countdownProgress },
-                                    modifier = Modifier.fillMaxSize(),
-                                    color = if (isDark) NeonCyan else GoldPrimary,
-                                    strokeWidth = 3.dp
-                                )
-                                Text(
-                                    text = "${(countdownProgress * 5).toInt() + 1}s",
-                                    fontSize = 8.sp,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (isDark) NeonCyan else GoldPrimary
-                                )
-                            }
-                            Spacer(modifier = Modifier.width(8.dp))
-                        }
+                    Spacer(modifier = Modifier.height(12.dp))
 
-                        IconButton(onClick = { isNumberVisible = !isNumberVisible }) {
-                            Icon(
-                                imageVector = if (isNumberVisible) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
-                                contentDescription = "卡号可见性",
-                                tint = if (isDark) NeonCyan else GoldPrimary
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .horizontalScroll(rememberScrollState()),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        previewList.forEachIndexed { index, preview ->
+                            MediaThumbnail(
+                                preview = preview,
+                                index = index,
+                                total = previewList.size,
+                                isDark = isDark,
+                                onClick = {
+                                    fullscreenImageIndex = index
+                                    showFullscreenImage = true
+                                }
                             )
                         }
                     }
                 }
 
-                HorizontalDivider(color = if (isDark) Color.White.copy(alpha = 0.05f) else Color.Black.copy(alpha = 0.05f))
-
-                // CVV 与有效期行
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 12.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text("CVV 安全码", color = if (isDark) TextGray else TextMuted, fontSize = 12.sp)
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = if (isCvvVisible) card.cvv.ifEmpty { "•••" } else "•••",
-                            color = MaterialTheme.colorScheme.onBackground,
-                            fontSize = 16.sp,
-                            fontWeight = FontWeight.SemiBold,
-                            fontFamily = FontFamily.Monospace
-                        )
-                    }
-
-                    IconButton(onClick = { isCvvVisible = !isCvvVisible }) {
-                        Icon(
-                            imageVector = if (isCvvVisible) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
-                            contentDescription = "CVV可见性",
-                            tint = if (isDark) NeonCyan else GoldPrimary
-                        )
-                    }
-                }
+                Spacer(modifier = Modifier.height(16.dp))
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // 5. 额度年费区块
-            DetailSection(title = "额度与年费") {
-                InfoRow(label = "信用额度", value = "${card.type} ${String.format("%,.2f", card.limit)}")
-                InfoRow(label = "账单日", value = if (card.accountBillDate.isNotEmpty()) "每月 ${card.accountBillDate} 日" else "未配置")
-                InfoRow(label = "还款日", value = if (card.dueDate.isNotEmpty()) "每月 ${card.dueDate} 日" else "未配置")
+            // 4. 额度年费区块
+            CollapsibleDetailSection(
+                title = "额度与年费",
+                expanded = limitFeeSectionExpanded,
+                onExpandedChange = { limitFeeSectionExpanded = it }
+            ) {
+                val limitText = if (card.limit > 0.0) {
+                    formatCurrencyAmount(card.type, card.limit)
+                } else {
+                    "--"
+                }
+                InfoRow(label = "额度", value = limitText)
+                InfoRow(label = "账单日", value = if (card.accountBillDate.isNotEmpty()) "每月 ${card.accountBillDate} 日" else "--")
+                InfoRow(label = "还款日", value = if (card.dueDate.isNotEmpty()) "每月 ${card.dueDate} 日" else "--")
                 InfoRow(
                     label = "账单日消费计入下期", 
                     value = if (card.billingDaySpendingToNextBill) "是，延长免息期" else "否，计入本期"
@@ -421,8 +345,8 @@ fun CardDetailScreen(
                 val statusText = when (card.isQualified) {
                     "1" -> "已达标"
                     "2" -> "未达标"
-                    "3" -> "免年费 / 终身免年费"
-                    else -> "未知"
+                    "3" -> "终免年费"
+                    else -> "--"
                 }
                 val statusColor = when (card.isQualified) {
                     "1" -> if (isDark) NeonGreen else ForestGreen
@@ -431,26 +355,28 @@ fun CardDetailScreen(
                 }
                 
                 InfoRow(label = "年费达标状态", value = statusText, valueColor = statusColor)
-                InfoRow(label = "年费金额", value = "${card.type} $${String.format("%,.2f", card.annualFee)}")
+                InfoRow(label = "年费金额", value = annualFeeAmountText(card))
                 
-                if (card.nextAnnualFeeCollectionTime != null && card.isQualified != "3") {
-                    InfoRow(label = "下次年费扣除日", value = formatDate(card.nextAnnualFeeCollectionTime!!))
-                }
-
-                if (card.lastTime != null) {
-                    InfoRow(label = "上次提额日期", value = formatDate(card.lastTime!!))
-                }
+                InfoRow(
+                    label = "下次年费扣除日",
+                    value = if (card.nextAnnualFeeCollectionTime != null && card.isQualified != "3") formatDate(card.nextAnnualFeeCollectionTime!!) else "--"
+                )
+                InfoRow(label = "上次提额日期", value = card.lastTime?.let { formatDate(it) } ?: "--")
             }
 
             Spacer(modifier = Modifier.height(16.dp))
 
-            // 6. 附加权益与备注区块
-            DetailSection(title = "权益与备注") {
+            // 5. 附加权益与备注区块
+            CollapsibleDetailSection(
+                title = "权益与备注",
+                expanded = benefitSectionExpanded,
+                onExpandedChange = { benefitSectionExpanded = it }
+            ) {
                 Column(modifier = Modifier.padding(vertical = 6.dp)) {
                     Text("核心年费权益", color = if (isDark) TextGray else TextMuted, fontSize = 12.sp)
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = card.equity.ifEmpty { "暂无登记核心权益" },
+                        text = displayOrDash(card.equity),
                         color = MaterialTheme.colorScheme.onBackground,
                         fontSize = 14.sp
                     )
@@ -465,7 +391,7 @@ fun CardDetailScreen(
                     Text("卡片备注", color = if (isDark) TextGray else TextMuted, fontSize = 12.sp)
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = card.remark.ifEmpty { "暂无备注" },
+                        text = displayOrDash(card.remark),
                         color = MaterialTheme.colorScheme.onBackground,
                         fontSize = 14.sp
                     )
@@ -481,7 +407,7 @@ fun CardDetailScreen(
         AlertDialog(
             onDismissRequest = { showDeleteDialog = false },
             title = { Text("确认删除卡片吗？") },
-            text = { Text("此操作将物理删除卡片，并会通过变动账本自动同步删除云端对应的本张卡片。") },
+            text = { Text("删除后，这张卡会从当前设备移除，并在下次同步时同步到云端。") },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -493,7 +419,7 @@ fun CardDetailScreen(
                         }
                         
                         SyncCoordinator.commitCardDelete(context, cardId)
-                        Toast.makeText(context, "卡片已删除并存入本地账本", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(context, "卡片已删除", Toast.LENGTH_SHORT).show()
                         onBack()
                     },
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
@@ -515,6 +441,7 @@ fun CardDetailScreen(
             initialPage = fullscreenImageIndex.coerceIn(0, previewList.lastIndex),
             pageCount = { previewList.size }
         )
+        val pagerScope = rememberCoroutineScope()
         Dialog(
             onDismissRequest = { showFullscreenImage = false },
             properties = DialogProperties(usePlatformDefaultWidth = false)
@@ -569,6 +496,40 @@ fun CardDetailScreen(
                         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                             Text("图片加载失败", color = MaterialTheme.colorScheme.error)
                         }
+                    }
+                }
+
+                if (previewList.size > 1) {
+                    IconButton(
+                        onClick = {
+                            pagerScope.launch {
+                                val target = if (pagerState.currentPage == 0) previewList.lastIndex else pagerState.currentPage - 1
+                                pagerState.animateScrollToPage(target)
+                            }
+                        },
+                        modifier = Modifier
+                            .align(Alignment.CenterStart)
+                            .padding(start = 12.dp)
+                            .size(46.dp)
+                            .background(Color.Black.copy(alpha = 0.48f), CircleShape)
+                    ) {
+                        Icon(Icons.Filled.ChevronLeft, contentDescription = "上一张", tint = Color.White)
+                    }
+
+                    IconButton(
+                        onClick = {
+                            pagerScope.launch {
+                                val target = if (pagerState.currentPage == previewList.lastIndex) 0 else pagerState.currentPage + 1
+                                pagerState.animateScrollToPage(target)
+                            }
+                        },
+                        modifier = Modifier
+                            .align(Alignment.CenterEnd)
+                            .padding(end = 12.dp)
+                            .size(46.dp)
+                            .background(Color.Black.copy(alpha = 0.48f), CircleShape)
+                    ) {
+                        Icon(Icons.Filled.ChevronRight, contentDescription = "下一张", tint = Color.White)
                     }
                 }
 
@@ -679,6 +640,199 @@ fun CardDetailScreen(
 }
 }
 
+@Composable
+private fun CardNumberInfoRow(
+    cardNumber: String,
+    visible: Boolean,
+    countdownProgress: Float,
+    isDark: Boolean,
+    onToggleVisible: () -> Unit,
+    onCopy: () -> Unit
+) {
+    val displayNumber = if (cardNumber.isBlank()) {
+        "--"
+    } else if (visible) {
+        formatSpacingCardNumber(cardNumber)
+    } else {
+        formatMaskedCardNumber(cardNumber)
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 10.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = "信用卡卡号 *",
+                color = if (isDark) TextGray else TextMuted,
+                fontSize = 12.sp
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Row(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(8.dp))
+                    .clickable(enabled = cardNumber.isNotBlank(), onClick = onCopy)
+                    .padding(vertical = 2.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = displayNumber,
+                    color = MaterialTheme.colorScheme.onBackground,
+                    fontSize = 18.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    fontFamily = FontFamily.Monospace,
+                    letterSpacing = 1.sp
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                if (cardNumber.isNotBlank()) {
+                    Icon(
+                        imageVector = Icons.Filled.ContentCopy,
+                        contentDescription = "复制卡号",
+                        tint = (if (isDark) NeonCyan else GoldPrimary).copy(alpha = 0.78f),
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
+            if (cardNumber.isNotBlank()) {
+                Text(
+                    text = "点击卡号复制完整号码",
+                    color = if (isDark) TextGray else TextMuted,
+                    fontSize = 11.sp
+                )
+            }
+        }
+
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            if (visible) {
+                Box(modifier = Modifier.size(24.dp), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator(
+                        progress = { countdownProgress },
+                        modifier = Modifier.fillMaxSize(),
+                        color = if (isDark) NeonCyan else GoldPrimary,
+                        strokeWidth = 3.dp
+                    )
+                    Text(
+                        text = "${(countdownProgress * 5).toInt() + 1}s",
+                        fontSize = 8.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (isDark) NeonCyan else GoldPrimary
+                    )
+                }
+                Spacer(modifier = Modifier.width(8.dp))
+            }
+
+            IconButton(onClick = onToggleVisible) {
+                Icon(
+                    imageVector = if (visible) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
+                    contentDescription = "卡号可见性",
+                    tint = if (isDark) NeonCyan else GoldPrimary
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SensitiveValueRow(
+    label: String,
+    value: String,
+    visible: Boolean,
+    isDark: Boolean,
+    onToggleVisible: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 10.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = label,
+                color = if (isDark) TextGray else TextMuted,
+                fontSize = 12.sp
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = value,
+                color = MaterialTheme.colorScheme.onBackground,
+                fontSize = 16.sp,
+                fontWeight = FontWeight.SemiBold,
+                fontFamily = FontFamily.Monospace
+            )
+        }
+
+        IconButton(onClick = onToggleVisible) {
+            Icon(
+                imageVector = if (visible) Icons.Filled.VisibilityOff else Icons.Filled.Visibility,
+                contentDescription = "${label}可见性",
+                tint = if (isDark) NeonCyan else GoldPrimary
+            )
+        }
+    }
+}
+
+@Composable
+private fun DetailDivider(isDark: Boolean) {
+    HorizontalDivider(
+        color = if (isDark) Color.White.copy(alpha = 0.06f) else Color.Black.copy(alpha = 0.06f),
+        modifier = Modifier.padding(vertical = 4.dp)
+    )
+}
+
+@Composable
+private fun MediaThumbnail(
+    preview: PreviewImage,
+    index: Int,
+    total: Int,
+    isDark: Boolean,
+    onClick: () -> Unit
+) {
+    val bitmap = remember(preview) { decodePreviewBitmap(preview) }
+
+    Box(
+        modifier = Modifier
+            .width(104.dp)
+            .height(138.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(if (isDark) DarkBg else Color(0xFFF8FAFC))
+            .border(
+                width = 1.dp,
+                color = (if (isDark) NeonCyan else GoldPrimary).copy(alpha = 0.22f),
+                shape = RoundedCornerShape(12.dp)
+            )
+            .clickable(onClick = onClick)
+            .padding(5.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        if (bitmap != null) {
+            Image(
+                bitmap = bitmap.asImageBitmap(),
+                contentDescription = "卡片图片 ${index + 1}",
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(RoundedCornerShape(9.dp)),
+                contentScale = androidx.compose.ui.layout.ContentScale.Fit
+            )
+        } else {
+            Text("无法预览", color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+        }
+
+        Box(
+            modifier = Modifier
+                .align(Alignment.BottomEnd)
+                .background(Color.Black.copy(alpha = 0.62f), shape = RoundedCornerShape(8.dp))
+                .padding(horizontal = 7.dp, vertical = 3.dp)
+        ) {
+            Text("${index + 1}/$total", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+        }
+    }
+}
+
 /**
  * 卡片详细信息分块 UI
  */
@@ -705,14 +859,56 @@ fun DetailSection(
     }
 
     Column(modifier = Modifier.fillMaxWidth()) {
-        Text(
-            text = title,
-            fontWeight = FontWeight.Bold,
-            fontSize = 14.sp,
-            color = if (isDark) NeonCyan else GoldPrimary,
-            modifier = Modifier.padding(start = 4.dp, bottom = 6.dp)
-        )
+        if (title.isNotBlank()) {
+            Text(
+                text = title,
+                fontWeight = FontWeight.Bold,
+                fontSize = 14.sp,
+                color = if (isDark) NeonCyan else GoldPrimary,
+                modifier = Modifier.padding(start = 4.dp, bottom = 6.dp)
+            )
+        }
         Column(modifier = bgModifier, content = content)
+    }
+}
+
+@Composable
+fun CollapsibleDetailSection(
+    title: String,
+    expanded: Boolean,
+    onExpandedChange: (Boolean) -> Unit,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    val isDark by ThemeManager.isDarkTheme.collectAsState()
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .background(if (isDark) DarkCardBg else LightCardBg)
+                .clickable { onExpandedChange(!expanded) }
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = title,
+                fontWeight = FontWeight.Bold,
+                fontSize = 14.sp,
+                color = if (isDark) NeonCyan else GoldPrimary,
+                modifier = Modifier.weight(1f)
+            )
+            Icon(
+                imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                contentDescription = if (expanded) "收起" else "展开",
+                tint = if (isDark) NeonCyan else GoldPrimary
+            )
+        }
+
+        AnimatedVisibility(visible = expanded) {
+            DetailSection(title = "") {
+                content()
+            }
+        }
     }
 }
 
@@ -754,6 +950,61 @@ private fun formatDate(epochMillis: Long): String {
 
 private fun formatDateTime(epochMillis: Long): String {
     return SimpleDateFormat("yyyy年MM月dd日 HH:mm", java.util.Locale.CHINA).format(Date(epochMillis))
+}
+
+private fun copyCardNumberToClipboard(context: android.content.Context, cardNumber: String) {
+    val cleanNumber = cardNumber.filter { it.isDigit() }
+    if (cleanNumber.isBlank()) {
+        Toast.makeText(context, "暂无可复制的卡号", Toast.LENGTH_SHORT).show()
+        return
+    }
+
+    val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+    clipboard.setPrimaryClip(android.content.ClipData.newPlainText("信用卡卡号", cleanNumber))
+    Toast.makeText(context, "已复制完整卡号", Toast.LENGTH_SHORT).show()
+}
+
+private fun decodePreviewBitmap(preview: PreviewImage): android.graphics.Bitmap? {
+    return when (preview) {
+        is PreviewImage.Asset -> CardImageCodec.decodeBitmap(preview.asset)
+        is PreviewImage.LocalFile -> {
+            try {
+                BitmapFactory.decodeFile(preview.file.absolutePath)
+            } catch (e: Exception) {
+                null
+            }
+        }
+    }
+}
+
+private fun formatCurrencyAmount(currency: String, value: Double): String {
+    val currencyCode = currency.ifBlank { "CNY" }
+    val symbol = when (currencyCode.uppercase()) {
+        "CNY", "JPY" -> "¥"
+        "USD" -> "$"
+        "EUR" -> "€"
+        "GBP" -> "£"
+        "HKD" -> "HK$"
+        "MOP" -> "MOP$"
+        "TWD" -> "NT$"
+        "SGD" -> "S$"
+        "AUD" -> "A$"
+        "CAD" -> "C$"
+        else -> ""
+    }
+    return "$currencyCode $symbol${String.format("%,.2f", value)}".trim()
+}
+
+private fun annualFeeAmountText(card: SharedCard): String {
+    return if (card.annualFee > 0.0) {
+        formatCurrencyAmount(card.type, card.annualFee)
+    } else {
+        "--"
+    }
+}
+
+private fun displayOrDash(value: String?): String {
+    return value?.trim()?.takeIf { it.isNotEmpty() } ?: "--"
 }
 
 /**

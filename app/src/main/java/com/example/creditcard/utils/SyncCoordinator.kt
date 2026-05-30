@@ -370,7 +370,7 @@ object SyncCoordinator {
     private fun qualificationText(value: String): String = when (value) {
         "1" -> "已达标"
         "2" -> "未达标"
-        "3" -> "终身免年费"
+        "3" -> "终免年费"
         else -> "未达标"
     }
 
@@ -471,7 +471,7 @@ object SyncCoordinator {
 
             withContext(Dispatchers.Main) {
                 updateStatus("正在同步云端数据...", "info", isPending(context), isSyncing = true)
-                updateProgress("准备同步", 1, 6, "读取本地账本与待上传变更")
+                updateProgress("准备同步", 1, 6, "正在整理本机修改")
             }
 
             try {
@@ -501,7 +501,7 @@ object SyncCoordinator {
                 localRecords = SyncMergeEngine.merge(localRecords)
 
                 withContext(Dispatchers.Main) {
-                    updateProgress("拉取云端", 2, 6, "正在读取 WebDAV 自动同步快照列表")
+                    updateProgress("读取云端", 2, 6, "正在查找云端备份")
                 }
 
                 // 2. 从云端拉取备份列表并筛选自动同步文件
@@ -520,20 +520,20 @@ object SyncCoordinator {
                             startedAt = startedAt,
                             finishedAt = SyncTime.nowIso(),
                             status = "warning",
-                            message = "检测到历史备份，未自动覆盖本地数据",
+                            message = "检测到历史备份，未自动替换当前数据",
                             downloadedFiles = rawFiles.map { it.filename },
                             localChanges = pendingLocalChangesAtStart
                         )
                     )
                     withContext(Dispatchers.Main) {
-                        updateStatus("检测到历史备份：请在设置里先完成恢复，或点击“立即同步”覆盖发布当前数据", "warning", true)
-                        updateProgress("已暂停", 0, 0, "发现非自动历史备份，需要人工确认")
+                        updateStatus("检测到历史备份：请先在设置里恢复备份，或点击“立即同步”保存当前数据", "warning", true)
+                        updateProgress("已暂停", 0, 0, "发现旧备份，需要先确认")
                     }
                     return@withLock
                 }
 
                 withContext(Dispatchers.Main) {
-                    updateProgress("解密快照", 3, 6, "正在下载并解析 ${automaticFiles.size} 个自动同步快照")
+                    updateProgress("读取备份", 3, 6, "正在下载并读取 ${automaticFiles.size} 份云端备份")
                 }
 
                 // 3. 下载并解密所有自动同步备份
@@ -554,7 +554,7 @@ object SyncCoordinator {
                 }
 
                 withContext(Dispatchers.Main) {
-                    updateProgress("合并数据", 4, 6, "正在执行 LWW-CRDT 双向合流")
+                    updateProgress("合并数据", 4, 6, "正在合并本机和云端修改")
                 }
 
                 // 4. 执行 CRDT 双向无冲突合流
@@ -574,7 +574,7 @@ object SyncCoordinator {
                 remoteChangeDetails = diffCards(beforeActiveCards, activeCards)
 
                 withContext(Dispatchers.Main) {
-                    updateProgress("发布快照", 5, 6, "检查是否需要上传最新合流结果")
+                    updateProgress("保存云端", 5, 6, "检查是否需要把最新内容保存到云端")
                 }
 
                 // 6. 是否需要把最新合流数据发布回云端？
@@ -623,7 +623,7 @@ object SyncCoordinator {
                         startedAt = startedAt,
                         finishedAt = SyncTime.nowIso(),
                         status = "success",
-                        message = "同步成功：本地与云端已合流",
+                        message = "同步成功：本机与云端已更新",
                         uploadedFile = uploadedFilename,
                         downloadedFiles = downloadedFilenames,
                         localChanges = pendingLocalChangesAtStart,
@@ -634,7 +634,7 @@ object SyncCoordinator {
                 // 8. 刷新主页卡片列表流
                 withContext(Dispatchers.Main) {
                     _cardsFlow.value = db.getAllCards()
-                    updateStatus("云端数据同步成功，本地已是最新状态", "success", isPending(context))
+                    updateStatus("云端同步成功，本机已是最新状态", "success", isPending(context))
                     updateProgress("同步完成", 6, 6, "新增 ${remoteChangeDetails.count { it.kind == "added" }}，修改 ${remoteChangeDetails.count { it.kind == "modified" }}，删除 ${remoteChangeDetails.count { it.kind == "deleted" }}")
                 }
 
@@ -694,7 +694,7 @@ object SyncCoordinator {
             clearPendingMutations(context.applicationContext)
             markPending(context.applicationContext, false)
             withContext(Dispatchers.Main) {
-                updateStatus("本地变动账本流水已全部成功重置为初始态", "info", false)
+                updateStatus("本机同步记录已重置", "info", false)
             }
         }
     }

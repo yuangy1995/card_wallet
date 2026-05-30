@@ -32,7 +32,11 @@ import androidx.compose.material.icons.filled.Nfc
 import androidx.compose.material.icons.filled.PhotoCamera
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ArrowDropDown
+import androidx.compose.material.icons.filled.ChevronLeft
+import androidx.compose.material.icons.filled.ChevronRight
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.ExpandLess
+import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.PhotoLibrary
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
@@ -150,25 +154,29 @@ fun CardFormScreen(
     // ==========================================
     // 表单状态变量
     // ==========================================
-    var country by remember { mutableStateOf(originalCard?.country ?: "中国") }
+    var country by remember { mutableStateOf(originalCard?.country ?: "") }
     var bank by remember { mutableStateOf(originalCard?.bank ?: "") }
     var alias by remember { mutableStateOf(originalCard?.alias ?: "") }
-    var level by remember { mutableStateOf(CardReferenceData.normalizeLevel(originalCard?.level) ?: "银联-金卡") }
+    var level by remember { mutableStateOf(CardReferenceData.normalizeLevel(originalCard?.level) ?: "") }
     
     var cardNumber by remember { mutableStateOf(originalCard?.cardNumber ?: prefillCardNumber) }
     var cvv by remember { mutableStateOf(originalCard?.cvv ?: "") }
     var valid by remember { mutableStateOf(originalCard?.valid ?: prefillValid) }
     
-    var limit by remember { mutableStateOf(originalCard?.limit ?: 20000.0) }
-    var type by remember { mutableStateOf(originalCard?.type ?: "CNY") }
+    var limitText by remember {
+        mutableStateOf(if (isEditMode) formatEditableAmount(originalCard?.limit ?: 0.0) else "")
+    }
+    var type by remember { mutableStateOf(originalCard?.type ?: "") }
     var isSharedLimit by remember { mutableStateOf(originalCard?.isSharedLimit ?: true) }
     
     var accountBillDate by remember { mutableStateOf(originalCard?.accountBillDate ?: "") }
     var dueDate by remember { mutableStateOf(originalCard?.dueDate ?: "") }
     var billingDaySpendingToNextBill by remember { mutableStateOf(originalCard?.billingDaySpendingToNextBill ?: true) }
     
-    var annualFee by remember { mutableStateOf(originalCard?.annualFee ?: 0.0) }
-    var isQualified by remember { mutableStateOf(originalCard?.isQualified ?: "2") }
+    var annualFeeText by remember {
+        mutableStateOf(if (isEditMode) formatEditableAmount(originalCard?.annualFee ?: 0.0) else "")
+    }
+    var isQualified by remember { mutableStateOf(originalCard?.isQualified ?: "") }
     var nextAnnualFeeCollectionTime by remember { mutableStateOf(originalCard?.nextAnnualFeeCollectionTime) }
     var lastTime by remember { mutableStateOf(originalCard?.lastTime) }
     
@@ -177,6 +185,10 @@ fun CardFormScreen(
     var cardImages by remember { mutableStateOf(originalCard?.cardImages ?: emptyList()) }
     var showFullscreenImage by remember { mutableStateOf(false) }
     var fullscreenImageIndex by remember { mutableStateOf(0) }
+    var coreSectionExpanded by remember { mutableStateOf(true) }
+    var mediaSectionExpanded by remember { mutableStateOf(false) }
+    var limitFeeSectionExpanded by remember { mutableStateOf(false) }
+    var benefitSectionExpanded by remember { mutableStateOf(false) }
 
     // 已录入/扫描出的卡片图片路径
     var scannedImagePath by remember {
@@ -310,7 +322,16 @@ fun CardFormScreen(
     // 新增同组共享卡时沿用既有额度；编辑已有卡时允许修改，并在保存前批量确认。
     LaunchedEffect(existingSharedLimitCard) {
         if (!isEditMode && existingSharedLimitCard != null) {
-            limit = existingSharedLimitCard.limit
+            limitText = formatEditableAmount(existingSharedLimitCard.limit)
+            if (type.isBlank()) {
+                type = existingSharedLimitCard.type
+            }
+        }
+    }
+
+    LaunchedEffect(isQualified) {
+        if (isQualified == "3") {
+            nextAnnualFeeCollectionTime = null
         }
     }
 
@@ -381,46 +402,86 @@ fun CardFormScreen(
                             )
                         },
                         actions = {
+                            if (!isEditMode) {
+                                TextButton(
+                                    onClick = {
+                                        currentStep = if (isNfcSupported) FormStep.SCAN_NFC else FormStep.SCAN_CAMERA
+                                    },
+                                    contentPadding = PaddingValues(horizontal = 8.dp, vertical = 4.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.PhotoCamera,
+                                        contentDescription = "NFC/相机扫描录入",
+                                        modifier = Modifier.size(16.dp),
+                                        tint = if (isDark) NeonCyan else GoldPrimary
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(
+                                        text = "扫描录入",
+                                        fontSize = 12.sp,
+                                        color = if (isDark) NeonCyan else GoldPrimary
+                                    )
+                                }
+                            }
                             // 保存 FAB
                             IconButton(onClick = {
-                                // 表单格式校验
-                                if (country !in CardReferenceData.countries) {
-                                    Toast.makeText(context, "请选择 Web/Mac 端一致的国家 / 地区", Toast.LENGTH_SHORT).show()
+                                val cleanCountry = country.trim()
+                                val cleanBank = bank.trim()
+                                val cleanCardNumber = cardNumber.filter { it.isDigit() }
+                                val cleanValid = valid.trim()
+                                val parsedLimit = parseAmountOrNull(limitText) ?: 0.0
+                                val parsedAnnualFee = parseAmountOrNull(annualFeeText) ?: 0.0
+
+                                // 四个核心字段必填，其余字段仅在填写后校验。
+                                if (cleanCountry.isEmpty()) {
+                                    Toast.makeText(context, "请选择国家 / 地区", Toast.LENGTH_SHORT).show()
                                     return@IconButton
                                 }
-                                if (bank !in CardReferenceData.banks) {
-                                    Toast.makeText(context, "请选择 Web/Mac 端一致的发卡银行", Toast.LENGTH_SHORT).show()
+                                if (cleanBank.isEmpty()) {
+                                    Toast.makeText(context, "请选择发卡银行", Toast.LENGTH_SHORT).show()
                                     return@IconButton
                                 }
-                                if (level !in CardReferenceData.levels) {
-                                    Toast.makeText(context, "请选择 Web/Mac 端一致的卡片等级", Toast.LENGTH_SHORT).show()
-                                    return@IconButton
-                                }
-                                if (type !in CardReferenceData.currencies) {
-                                    Toast.makeText(context, "请选择 Web/Mac 端一致的结算币种", Toast.LENGTH_SHORT).show()
-                                    return@IconButton
-                                }
-                                if (cardNumber.trim().isEmpty()) {
+                                if (cleanCardNumber.isEmpty()) {
                                     Toast.makeText(context, "请输入卡号", Toast.LENGTH_SHORT).show()
+                                    return@IconButton
+                                }
+                                if (cleanCardNumber.length !in 13..20) {
+                                    Toast.makeText(context, "卡号长度需为 13-20 位", Toast.LENGTH_SHORT).show()
+                                    return@IconButton
+                                }
+                                if (!isValidExpiry(cleanValid)) {
+                                    Toast.makeText(context, "请输入有效期，格式为 MM/YY", Toast.LENGTH_SHORT).show()
+                                    return@IconButton
+                                }
+                                if (limitText.isNotBlank() && parseAmountOrNull(limitText) == null) {
+                                    Toast.makeText(context, "请输入正确的额度", Toast.LENGTH_SHORT).show()
+                                    return@IconButton
+                                }
+                                if (annualFeeText.isNotBlank() && parseAmountOrNull(annualFeeText) == null) {
+                                    Toast.makeText(context, "请输入正确的年费金额", Toast.LENGTH_SHORT).show()
+                                    return@IconButton
+                                }
+                                if (isQualified.isNotBlank() && isQualified !in listOf("1", "2", "3")) {
+                                    Toast.makeText(context, "请选择正确的年费减免政策", Toast.LENGTH_SHORT).show()
                                     return@IconButton
                                 }
 
                                 // 检测是否发生了共享额度的“全局修改”
                                 val sameGroupCards = if (isSharedLimit) {
-                                    db.getAllCards().filter { it.id != cardId && it.country == country && it.bank == bank && it.type == type && it.isSharedLimit }
+                                    db.getAllCards().filter { it.id != cardId && it.country == cleanCountry && it.bank == cleanBank && it.type == type && it.isSharedLimit }
                                 } else emptyList()
 
-                                if (sameGroupCards.isNotEmpty() && limit != sameGroupCards[0].limit) {
+                                if (sameGroupCards.isNotEmpty() && parsedLimit != sameGroupCards[0].limit) {
                                     // 额度发生改变，且存在同组共享卡，拉起全局更新警示
                                     showSharedLimitWarningDialog = true
                                 } else {
                                     // 直接保存，设置 isSaved = true 避免图片垃圾回收
                                     isSaved = true
                                     executeSaveCard(
-                                        context, db, cardId, originalCard, country, bank, alias, level,
-                                        cardNumber, cvv, valid, limit, type, isSharedLimit,
+                                        context, db, cardId, originalCard, cleanCountry, cleanBank, alias, level,
+                                        cleanCardNumber, cvv, cleanValid, parsedLimit, type, isSharedLimit,
                                         accountBillDate, dueDate, billingDaySpendingToNextBill,
-                                        annualFee, isQualified, nextAnnualFeeCollectionTime, lastTime, equity, remark,
+                                        parsedAnnualFee, isQualified, nextAnnualFeeCollectionTime, lastTime, equity, remark,
                                         cardImages
                                     )
                                     onBack()
@@ -448,32 +509,20 @@ fun CardFormScreen(
                         .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
-                    Spacer(modifier = Modifier.height(4.dp))
-
-                    // 新增：如果为新建卡片提供重新回到扫描的快捷 UX 入口
-                    if (!isEditMode) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.End
-                        ) {
-                            TextButton(onClick = {
-                                currentStep = if (isNfcSupported) FormStep.SCAN_NFC else FormStep.SCAN_CAMERA
-                            }) {
-                                Icon(imageVector = Icons.Default.PhotoCamera, contentDescription = "扫描")
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("NFC/相机扫描录入", fontSize = 12.sp, color = if (isDark) NeonCyan else GoldPrimary)
-                            }
-                        }
-                    }
+                    Spacer(modifier = Modifier.height(2.dp))
 
                     // ==========================================
-                    // Section 1: 🌏 基础信息 (BASIC INFO)
+                    // Section 1: 核心信息，四项必填，其余字段可留空
                     // ==========================================
-                    FormSection(title = "🌏 基础信息") {
+                    CollapsibleFormSection(
+                        title = "核心信息",
+                        expanded = coreSectionExpanded,
+                        onExpandedChange = { coreSectionExpanded = it }
+                    ) {
                         ReferenceDropdownField(
                             value = country,
                             onValueChange = { country = it },
-                            label = "国家 / 地区",
+                            label = "国家 / 地区 *",
                             options = CardReferenceData.countries,
                             isDark = isDark,
                             modifier = Modifier.fillMaxWidth(),
@@ -484,7 +533,7 @@ fun CardFormScreen(
                         ReferenceDropdownField(
                             value = bank,
                             onValueChange = { bank = it },
-                            label = "发卡银行",
+                            label = "发卡银行 *",
                             options = CardReferenceData.banks,
                             isDark = isDark,
                             modifier = Modifier.fillMaxWidth(),
@@ -493,37 +542,13 @@ fun CardFormScreen(
                         Spacer(modifier = Modifier.height(10.dp))
 
                         OutlinedTextField(
-                            value = alias,
-                            onValueChange = { alias = it },
-                            label = { Text("卡片别名 (如：车主白金卡)") },
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = getOutlinedTextFieldColors(isDark)
-                        )
-
-                        Spacer(modifier = Modifier.height(10.dp))
-
-                        ReferenceDropdownField(
-                            value = level,
-                            onValueChange = { level = it },
-                            label = "卡片等级",
-                            options = CardReferenceData.levels,
-                            isDark = isDark,
-                            modifier = Modifier.fillMaxWidth(),
-                        )
-                    }
-
-                    // ==========================================
-                    // Section 2: 💳 安全信息 (CARD INFO)
-                    // ==========================================
-                    FormSection(title = "💳 安全信息") {
-                        OutlinedTextField(
                             value = cardNumber,
                             onValueChange = { input ->
                                 // 过滤非数字，并限制长度最长为 20 位
                                 val filtered = input.filter { it.isDigit() }.take(20)
                                 cardNumber = filtered
                             },
-                            label = { Text("信用卡卡号") },
+                            label = { Text("信用卡卡号 *") },
                             placeholder = { Text("请输入数字") },
                             trailingIcon = {
                                 if (detectedBrand != "Unknown") {
@@ -547,20 +572,7 @@ fun CardFormScreen(
 
                         Spacer(modifier = Modifier.height(10.dp))
 
-                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-                            OutlinedTextField(
-                                value = cvv,
-                                onValueChange = { input ->
-                                    // CVV 最长 4 位数字
-                                    cvv = input.filter { it.isDigit() }.take(4)
-                                },
-                                label = { Text("CVV") },
-                                placeholder = { Text("***") },
-                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                                modifier = Modifier.weight(1f),
-                                colors = getOutlinedTextFieldColors(isDark)
-                            )
-
+                        Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             OutlinedTextField(
                                 value = valid,
                                 onValueChange = { input ->
@@ -573,16 +585,55 @@ fun CardFormScreen(
                                         clean
                                     }
                                 },
-                                label = { Text("有效期 (MM/YY)") },
-                                placeholder = { Text("如: 08/29") },
+                                label = { Text("有效期 *") },
+                                placeholder = { Text("MM/YY") },
+                                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                                modifier = Modifier.weight(1f),
+                                colors = getOutlinedTextFieldColors(isDark)
+                            )
+
+                            OutlinedTextField(
+                                value = cvv,
+                                onValueChange = { input ->
+                                    // CVV 最长 4 位数字
+                                    cvv = input.filter { it.isDigit() }.take(4)
+                                },
+                                label = { Text("CVV") },
+                                placeholder = { Text("***") },
                                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                                 modifier = Modifier.weight(1f),
                                 colors = getOutlinedTextFieldColors(isDark)
                             )
                         }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        OutlinedTextField(
+                            value = alias,
+                            onValueChange = { alias = it },
+                            label = { Text("卡片别名") },
+                            placeholder = { Text("如：车主白金卡") },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = getOutlinedTextFieldColors(isDark)
+                        )
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        ReferenceDropdownField(
+                            value = level,
+                            onValueChange = { level = it },
+                            label = "卡片等级",
+                            options = CardReferenceData.levels,
+                            isDark = isDark,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
                     }
 
-                    FormSection(title = "🖼️ 卡片媒体文件") {
+                    CollapsibleFormSection(
+                        title = "卡片媒体文件",
+                        expanded = mediaSectionExpanded,
+                        onExpandedChange = { mediaSectionExpanded = it }
+                    ) {
                         CardMediaSection(
                             images = cardImages,
                             isDark = isDark,
@@ -601,164 +652,48 @@ fun CardFormScreen(
                         )
                     }
 
-                    // ==========================================
-                    // Section 3: 💰 额度年费 (LIMITS & FEES)
-                    // ==========================================
-                    FormSection(title = "💰 额度与年费") {
-                        // 币种与共享开关行
-                        Row(
+                    CollapsibleFormSection(
+                        title = "额度与年费",
+                        expanded = limitFeeSectionExpanded,
+                        onExpandedChange = { limitFeeSectionExpanded = it }
+                    ) {
+                        ReferenceDropdownField(
+                            value = type,
+                            onValueChange = { type = it },
+                            label = "结算币种",
+                            options = CardReferenceData.currencies,
+                            isDark = isDark,
                             modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            ReferenceDropdownField(
-                                value = type,
-                                onValueChange = { type = it },
-                                label = "结算币种",
-                                options = CardReferenceData.currencies,
-                                isDark = isDark,
-                                modifier = Modifier.weight(1f),
-                            )
-
-                            Spacer(modifier = Modifier.width(16.dp))
-
-                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                Text("共享额度", fontSize = 11.sp, color = if (isDark) TextGray else TextMuted)
-                                Switch(
-                                    checked = isSharedLimit,
-                                    onCheckedChange = { isSharedLimit = it },
-                                    colors = SwitchDefaults.colors(
-                                        checkedThumbColor = if (isDark) NeonCyan else GoldPrimary,
-                                        checkedTrackColor = if (isDark) NeonCyan.copy(alpha = 0.3f) else GoldPrimary.copy(alpha = 0.3f)
-                                    )
-                                )
-                            }
-                        }
+                        )
 
                         Spacer(modifier = Modifier.height(10.dp))
 
-                        // 额度滑块及输入锁定提示
-                        Text(
-                            text = "信用卡额度: $${String.format("%,.0f", limit)} $type",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp
+                        OutlinedTextField(
+                            value = limitText,
+                            onValueChange = { input ->
+                                limitText = filterAmountInput(input)
+                            },
+                            label = { Text("额度") },
+                            placeholder = { Text("0") },
+                            enabled = !shouldLockSharedLimitInput,
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = getOutlinedTextFieldColors(isDark)
                         )
-                        
+
                         // 共享额度智能提示
                         if (existingSharedLimitCard != null) {
                             Text(
                                 text = if (shouldLockSharedLimitInput) {
-                                    "🔒 已自动关联同银行共享额度组: $${String.format("%,.0f", existingSharedLimitCard.limit)} $type"
+                                    "已自动关联同银行共享额度组: ${String.format("%,.0f", existingSharedLimitCard.limit)} ${type.ifBlank { existingSharedLimitCard.type }}"
                                 } else {
-                                    "同银行共享额度组当前额度: $${String.format("%,.0f", existingSharedLimitCard.limit)} $type"
+                                    "同银行共享额度组当前额度: ${String.format("%,.0f", existingSharedLimitCard.limit)} ${type.ifBlank { existingSharedLimitCard.type }}"
                                 },
                                 color = if (isDark) NeonGreen else ForestGreen,
                                 fontSize = 12.sp,
                                 fontWeight = FontWeight.Medium,
-                                modifier = Modifier.padding(vertical = 4.dp)
+                                modifier = Modifier.padding(top = 6.dp)
                             )
-                        }
-
-                        Slider(
-                            value = limit.toFloat(),
-                            onValueChange = { limit = it.toDouble() },
-                            valueRange = 0f..500000f,
-                            steps = 100,
-                            enabled = !shouldLockSharedLimitInput,
-                            colors = SliderDefaults.colors(
-                                thumbColor = if (isDark) NeonCyan else GoldPrimary,
-                                activeTrackColor = if (isDark) NeonCyan else GoldPrimary
-                            )
-                        )
-
-                        Spacer(modifier = Modifier.height(10.dp))
-
-                        OutlinedTextField(
-                            value = limit.toString(),
-                            onValueChange = { input ->
-                                limit = input.toDoubleOrNull() ?: 0.0
-                            },
-                            label = { Text("精准额度数值") },
-                            enabled = !shouldLockSharedLimitInput,
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = getOutlinedTextFieldColors(isDark)
-                        )
-
-                        Spacer(modifier = Modifier.height(10.dp))
-
-                        OutlinedTextField(
-                            value = annualFee.toString(),
-                            onValueChange = { input ->
-                                annualFee = input.toDoubleOrNull() ?: 0.0
-                            },
-                            label = { Text("年费金额") },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = getOutlinedTextFieldColors(isDark)
-                        )
-
-                        Spacer(modifier = Modifier.height(10.dp))
-
-                        // 年费达标选择
-                        Text("年费减免政策", fontSize = 12.sp, color = if (isDark) TextGray else TextMuted)
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            val states = CardReferenceData.qualificationStatuses
-                            states.forEach { (code, labelText) ->
-                                FilterChip(
-                                    selected = isQualified == code,
-                                    onClick = { isQualified = code },
-                                    label = { Text(labelText) },
-                                    modifier = Modifier.weight(1f),
-                                    colors = FilterChipDefaults.filterChipColors(
-                                        selectedContainerColor = if (isDark) NeonCyan.copy(alpha = 0.2f) else GoldPrimary.copy(alpha = 0.15f),
-                                        selectedLabelColor = if (isDark) NeonCyan else GoldPrimary
-                                    )
-                                )
-                            }
-                        }
-
-                        if (isQualified != "3") {
-                            Spacer(modifier = Modifier.height(10.dp))
-                            // 下期收年费时间日期选择器
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column {
-                                    Text("下期年费扣除日", fontSize = 12.sp, color = if (isDark) TextGray else TextMuted)
-                                    val dateStr = nextAnnualFeeCollectionTime?.let {
-                                        SimpleDateFormat("yyyy-MM-dd", java.util.Locale.CHINA).format(Date(it))
-                                    } ?: "尚未选择日期"
-                                    Text(text = dateStr, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                                }
-
-                                IconButton(onClick = {
-                                    val calendar = Calendar.getInstance()
-                                    nextAnnualFeeCollectionTime?.let { calendar.timeInMillis = it }
-                                    DatePickerDialog(
-                                        context,
-                                        { _, y, m, d ->
-                                            val cal = Calendar.getInstance()
-                                            cal.set(y, m, d, 0, 0, 0)
-                                            nextAnnualFeeCollectionTime = cal.timeInMillis
-                                        },
-                                        calendar.get(Calendar.YEAR),
-                                        calendar.get(Calendar.MONTH),
-                                        calendar.get(Calendar.DAY_OF_MONTH)
-                                    ).show()
-                                }) {
-                                    Icon(
-                                        imageVector = Icons.Filled.CalendarToday,
-                                        contentDescription = "选择日期",
-                                        tint = if (isDark) NeonCyan else GoldPrimary
-                                    )
-                                }
-                            }
                         }
 
                         Spacer(modifier = Modifier.height(10.dp))
@@ -768,65 +703,17 @@ fun CardFormScreen(
                             horizontalArrangement = Arrangement.SpaceBetween,
                             verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text("上次提额日期", fontSize = 12.sp, color = if (isDark) TextGray else TextMuted)
-                                val dateStr = lastTime?.let {
-                                    SimpleDateFormat("yyyy-MM-dd", java.util.Locale.CHINA).format(Date(it))
-                                } ?: "尚未选择日期"
-                                Text(text = dateStr, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                            }
-
-                            TextButton(onClick = { lastTime = null }, enabled = lastTime != null) {
-                                Text("清除")
-                            }
-
-                            IconButton(onClick = {
-                                val calendar = Calendar.getInstance()
-                                lastTime?.let { calendar.timeInMillis = it }
-                                DatePickerDialog(
-                                    context,
-                                    { _, y, m, d ->
-                                        val cal = Calendar.getInstance()
-                                        cal.set(y, m, d, 0, 0, 0)
-                                        cal.set(Calendar.MILLISECOND, 0)
-                                        lastTime = cal.timeInMillis
-                                    },
-                                    calendar.get(Calendar.YEAR),
-                                    calendar.get(Calendar.MONTH),
-                                    calendar.get(Calendar.DAY_OF_MONTH)
-                                ).show()
-                            }) {
-                                Icon(
-                                    imageVector = Icons.Filled.CalendarToday,
-                                    contentDescription = "选择上次提额日期",
-                                    tint = if (isDark) NeonCyan else GoldPrimary
+                            Text("共享额度", fontSize = 13.sp)
+                            Switch(
+                                checked = isSharedLimit,
+                                onCheckedChange = { isSharedLimit = it },
+                                colors = SwitchDefaults.colors(
+                                    checkedThumbColor = if (isDark) NeonCyan else GoldPrimary,
+                                    checkedTrackColor = if (isDark) NeonCyan.copy(alpha = 0.3f) else GoldPrimary.copy(alpha = 0.3f)
                                 )
-                            }
+                            )
                         }
-                    }
 
-                    // ==========================================
-                    // Section 4: 🎁 权益备注 (BENEFITS & NOTES)
-                    // ==========================================
-                    FormSection(title = "🎁 权益与备注") {
-                        OutlinedTextField(
-                            value = equity,
-                            onValueChange = { equity = it },
-                            label = { Text("核心年费权益 (如 延误险, 积分里程等)") },
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = getOutlinedTextFieldColors(isDark)
-                        )
-
-                        Spacer(modifier = Modifier.height(10.dp))
-
-                        OutlinedTextField(
-                            value = remark,
-                            onValueChange = { remark = it },
-                            label = { Text("账包独立备注说明") },
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = getOutlinedTextFieldColors(isDark)
-                        )
-                        
                         Spacer(modifier = Modifier.height(10.dp))
 
                         Row(
@@ -886,6 +773,160 @@ fun CardFormScreen(
                                 )
                             )
                         }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        OutlinedTextField(
+                            value = annualFeeText,
+                            onValueChange = { input ->
+                                annualFeeText = filterAmountInput(input)
+                            },
+                            label = { Text("年费金额") },
+                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = getOutlinedTextFieldColors(isDark)
+                        )
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        // 年费达标选择
+                        Text("年费减免政策", fontSize = 12.sp, color = if (isDark) TextGray else TextMuted)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            CardReferenceData.qualificationStatuses.forEach { (code, labelText) ->
+                                FilterChip(
+                                    selected = isQualified == code,
+                                    onClick = { isQualified = code },
+                                    label = { Text(labelText) },
+                                    modifier = Modifier.weight(1f),
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = if (isDark) NeonCyan.copy(alpha = 0.2f) else GoldPrimary.copy(alpha = 0.15f),
+                                        selectedLabelColor = if (isDark) NeonCyan else GoldPrimary
+                                    )
+                                )
+                            }
+                        }
+
+                        if (isQualified != "3") {
+                            Spacer(modifier = Modifier.height(10.dp))
+                            // 下期收年费时间日期选择器
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Column {
+                                    Text("下期年费扣除日", fontSize = 12.sp, color = if (isDark) TextGray else TextMuted)
+                                    val dateStr = nextAnnualFeeCollectionTime?.let {
+                                        SimpleDateFormat("yyyy-MM-dd", java.util.Locale.CHINA).format(Date(it))
+                                    } ?: "尚未选择日期"
+                                    Text(text = dateStr, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                                }
+
+                                if (nextAnnualFeeCollectionTime != null) {
+                                    TextButton(onClick = { nextAnnualFeeCollectionTime = null }) {
+                                        Text("清除")
+                                    }
+                                }
+
+                                IconButton(onClick = {
+                                    val calendar = Calendar.getInstance()
+                                    nextAnnualFeeCollectionTime?.let { calendar.timeInMillis = it }
+                                    DatePickerDialog(
+                                        context,
+                                        { _, y, m, d ->
+                                            val cal = Calendar.getInstance()
+                                            cal.set(y, m, d, 0, 0, 0)
+                                            nextAnnualFeeCollectionTime = cal.timeInMillis
+                                        },
+                                        calendar.get(Calendar.YEAR),
+                                        calendar.get(Calendar.MONTH),
+                                        calendar.get(Calendar.DAY_OF_MONTH)
+                                    ).show()
+                                }) {
+                                    Icon(
+                                        imageVector = Icons.Filled.CalendarToday,
+                                        contentDescription = "选择日期",
+                                        tint = if (isDark) NeonCyan else GoldPrimary
+                                    )
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text("上次提额日期", fontSize = 12.sp, color = if (isDark) TextGray else TextMuted)
+                                val dateStr = lastTime?.let {
+                                    SimpleDateFormat("yyyy-MM-dd", java.util.Locale.CHINA).format(Date(it))
+                                } ?: "尚未选择日期"
+                                Text(text = dateStr, fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                            }
+
+                            if (lastTime != null) {
+                                TextButton(onClick = { lastTime = null }) {
+                                    Text("清除")
+                                }
+                            }
+
+                            IconButton(onClick = {
+                                val calendar = Calendar.getInstance()
+                                lastTime?.let { calendar.timeInMillis = it }
+                                DatePickerDialog(
+                                    context,
+                                    { _, y, m, d ->
+                                        val cal = Calendar.getInstance()
+                                        cal.set(y, m, d, 0, 0, 0)
+                                        cal.set(Calendar.MILLISECOND, 0)
+                                        lastTime = cal.timeInMillis
+                                    },
+                                    calendar.get(Calendar.YEAR),
+                                    calendar.get(Calendar.MONTH),
+                                    calendar.get(Calendar.DAY_OF_MONTH)
+                                ).show()
+                            }) {
+                                Icon(
+                                    imageVector = Icons.Filled.CalendarToday,
+                                    contentDescription = "选择上次提额日期",
+                                    tint = if (isDark) NeonCyan else GoldPrimary
+                                )
+                            }
+                        }
+                    }
+
+                    CollapsibleFormSection(
+                        title = "权益与备注",
+                        expanded = benefitSectionExpanded,
+                        onExpandedChange = { benefitSectionExpanded = it }
+                    ) {
+                        OutlinedTextField(
+                            value = equity,
+                            onValueChange = { equity = it },
+                            label = { Text("核心年费权益") },
+                            placeholder = { Text("如：延误险、积分里程") },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = getOutlinedTextFieldColors(isDark)
+                        )
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
+                        OutlinedTextField(
+                            value = remark,
+                            onValueChange = { remark = it },
+                            label = { Text("备注说明") },
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = getOutlinedTextFieldColors(isDark)
+                        )
+                        
+                        Spacer(modifier = Modifier.height(10.dp))
+
                     }
 
                     Spacer(modifier = Modifier.height(30.dp))
@@ -904,21 +945,26 @@ fun CardFormScreen(
                 TextButton(
                     onClick = {
                         showSharedLimitWarningDialog = false
+                        val parsedLimit = parseAmountOrNull(limitText) ?: 0.0
+                        val parsedAnnualFee = parseAmountOrNull(annualFeeText) ?: 0.0
+                        val cleanCardNumber = cardNumber.filter { it.isDigit() }
+                        val cleanCountry = country.trim()
+                        val cleanBank = bank.trim()
                         // 批量修改并保存
                         isSaved = true
                         executeSaveCard(
-                            context, db, cardId, originalCard, country, bank, alias, level,
-                            cardNumber, cvv, valid, limit, type, isSharedLimit,
+                            context, db, cardId, originalCard, cleanCountry, cleanBank, alias, level,
+                            cleanCardNumber, cvv, valid.trim(), parsedLimit, type, isSharedLimit,
                             accountBillDate, dueDate, billingDaySpendingToNextBill,
-                            annualFee, isQualified, nextAnnualFeeCollectionTime, lastTime, equity, remark,
+                            parsedAnnualFee, isQualified, nextAnnualFeeCollectionTime, lastTime, equity, remark,
                             cardImages
                         )
                         // 批量更新同组其它共享卡片的额度
                         val otherCards = db.getAllCards().filter {
-                            it.id != cardId && it.country == country && it.bank == bank && it.type == type && it.isSharedLimit
+                            it.id != cardId && it.country == cleanCountry && it.bank == cleanBank && it.type == type && it.isSharedLimit
                         }
                         for (other in otherCards) {
-                            other.limit = limit
+                            other.limit = parsedLimit
                             SyncCoordinator.commitCardChange(context, other)
                         }
                         
@@ -989,6 +1035,7 @@ fun CardFormScreen(
             initialPage = fullscreenImageIndex.coerceIn(0, cardImages.lastIndex),
             pageCount = { cardImages.size }
         )
+        val pagerScope = rememberCoroutineScope()
         Dialog(
             onDismissRequest = { showFullscreenImage = false },
             properties = DialogProperties(usePlatformDefaultWidth = false)
@@ -1033,6 +1080,40 @@ fun CardFormScreen(
                         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                             Text("图片加载失败", color = MaterialTheme.colorScheme.error)
                         }
+                    }
+                }
+
+                if (cardImages.size > 1) {
+                    IconButton(
+                        onClick = {
+                            pagerScope.launch {
+                                val target = if (pagerState.currentPage == 0) cardImages.lastIndex else pagerState.currentPage - 1
+                                pagerState.animateScrollToPage(target)
+                            }
+                        },
+                        modifier = Modifier
+                            .align(Alignment.CenterStart)
+                            .padding(start = 12.dp)
+                            .size(46.dp)
+                            .background(Color.Black.copy(alpha = 0.48f), CircleShape)
+                    ) {
+                        Icon(Icons.Filled.ChevronLeft, contentDescription = "上一张", tint = Color.White)
+                    }
+
+                    IconButton(
+                        onClick = {
+                            pagerScope.launch {
+                                val target = if (pagerState.currentPage == cardImages.lastIndex) 0 else pagerState.currentPage + 1
+                                pagerState.animateScrollToPage(target)
+                            }
+                        },
+                        modifier = Modifier
+                            .align(Alignment.CenterEnd)
+                            .padding(end = 12.dp)
+                            .size(46.dp)
+                            .background(Color.Black.copy(alpha = 0.48f), CircleShape)
+                    ) {
+                        Icon(Icons.Filled.ChevronRight, contentDescription = "下一张", tint = Color.White)
                     }
                 }
 
@@ -1084,14 +1165,56 @@ fun FormSection(
     }
 
     Column(modifier = Modifier.fillMaxWidth()) {
-        Text(
-            text = title,
-            fontWeight = FontWeight.Bold,
-            fontSize = 13.sp,
-            color = if (isDark) NeonCyan else GoldPrimary,
-            modifier = Modifier.padding(start = 4.dp, bottom = 6.dp)
-        )
+        if (title.isNotBlank()) {
+            Text(
+                text = title,
+                fontWeight = FontWeight.Bold,
+                fontSize = 13.sp,
+                color = if (isDark) NeonCyan else GoldPrimary,
+                modifier = Modifier.padding(start = 4.dp, bottom = 6.dp)
+            )
+        }
         Column(modifier = bgModifier, content = content)
+    }
+}
+
+@Composable
+fun CollapsibleFormSection(
+    title: String,
+    expanded: Boolean,
+    onExpandedChange: (Boolean) -> Unit,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    val isDark by ThemeManager.isDarkTheme.collectAsState()
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .background(if (isDark) DarkCardBg else LightCardBg)
+                .clickable { onExpandedChange(!expanded) }
+                .padding(horizontal = 14.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = title,
+                fontWeight = FontWeight.Bold,
+                fontSize = 14.sp,
+                color = if (isDark) NeonCyan else GoldPrimary,
+                modifier = Modifier.weight(1f)
+            )
+            Icon(
+                imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                contentDescription = if (expanded) "收起" else "展开",
+                tint = if (isDark) NeonCyan else GoldPrimary
+            )
+        }
+
+        AnimatedVisibility(visible = expanded) {
+            FormSection(title = "") {
+                content()
+            }
+        }
     }
 }
 
@@ -1105,27 +1228,35 @@ fun ReferenceDropdownField(
     modifier: Modifier = Modifier
 ) {
     var expanded by remember { mutableStateOf(false) }
+    val filteredOptions = remember(value, options) {
+        val keyword = value.trim()
+        if (keyword.isEmpty()) {
+            options
+        } else {
+            options.filter { it.contains(keyword, ignoreCase = true) }
+        }
+    }
+    val canUseCustomValue = value.trim().isNotEmpty() && options.none { it == value.trim() }
     Box(modifier = modifier) {
         OutlinedTextField(
             value = value,
-            onValueChange = {},
+            onValueChange = {
+                onValueChange(it)
+                expanded = true
+            },
             label = { Text(label) },
-            readOnly = true,
             singleLine = true,
             trailingIcon = {
-                Icon(
-                    imageVector = Icons.Filled.ArrowDropDown,
-                    contentDescription = "展开选项",
-                    tint = if (isDark) NeonCyan else GoldPrimary
-                )
+                IconButton(onClick = { expanded = !expanded }) {
+                    Icon(
+                        imageVector = Icons.Filled.ArrowDropDown,
+                        contentDescription = "展开选项",
+                        tint = if (isDark) NeonCyan else GoldPrimary
+                    )
+                }
             },
             modifier = Modifier.fillMaxWidth(),
             colors = getOutlinedTextFieldColors(isDark)
-        )
-        Box(
-            modifier = Modifier
-                .matchParentSize()
-                .clickable { expanded = true }
         )
         DropdownMenu(
             expanded = expanded,
@@ -1134,7 +1265,24 @@ fun ReferenceDropdownField(
                 .heightIn(max = 320.dp)
                 .background(if (isDark) DarkCardBg else Color.White)
         ) {
-            options.forEach { option ->
+            if (canUseCustomValue) {
+                DropdownMenuItem(
+                    text = {
+                        Text(
+                            text = "使用“${value.trim()}”",
+                            color = if (isDark) NeonCyan else GoldPrimary,
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                        )
+                    },
+                    onClick = {
+                        onValueChange(value.trim())
+                        expanded = false
+                    }
+                )
+            }
+
+            filteredOptions.forEach { option ->
                 DropdownMenuItem(
                     text = {
                         Text(
@@ -1343,7 +1491,43 @@ fun executeSaveCard(
 
     // 保存至本地账本（自动管理 lastModifyTime 和触发 pendingSync 状态）
     SyncCoordinator.commitCardChange(context, finalCard)
-    Toast.makeText(context, "卡片已成功保存至本地账本", Toast.LENGTH_SHORT).show()
+    Toast.makeText(context, "卡片已保存", Toast.LENGTH_SHORT).show()
+}
+
+private fun filterAmountInput(input: String): String {
+    val normalized = input.replace(",", "")
+    val builder = StringBuilder()
+    var hasDot = false
+    normalized.forEach { char ->
+        when {
+            char.isDigit() -> builder.append(char)
+            char == '.' && !hasDot -> {
+                builder.append(char)
+                hasDot = true
+            }
+        }
+    }
+    return builder.toString()
+}
+
+private fun parseAmountOrNull(value: String): Double? {
+    val cleaned = value.replace(",", "").trim()
+    if (cleaned.isEmpty()) return null
+    return cleaned.toDoubleOrNull()?.takeIf { it >= 0.0 }
+}
+
+private fun formatEditableAmount(value: Double): String {
+    return if (value % 1.0 == 0.0) {
+        value.toLong().toString()
+    } else {
+        value.toString()
+    }
+}
+
+private fun isValidExpiry(value: String): Boolean {
+    if (!Regex("^\\d{2}/\\d{2}$").matches(value)) return false
+    val month = value.substring(0, 2).toIntOrNull() ?: return false
+    return month in 1..12
 }
 
 enum class NfcUiState {
@@ -1606,16 +1790,7 @@ fun NfcScanLayout(
                 modifier = Modifier.padding(horizontal = 24.dp)
             )
 
-            Spacer(modifier = Modifier.height(24.dp))
-
-            Text(
-                text = "不会写入测试卡号；只有读取到真实卡片数据后才会进入表单。",
-                fontSize = 12.sp,
-                lineHeight = 17.sp,
-                color = if (isDark) TextGray else TextMuted,
-                textAlign = TextAlign.Center,
-                modifier = Modifier.padding(horizontal = 24.dp)
-            )
+            Spacer(modifier = Modifier.height(10.dp))
         }
 
         // 底部引导切换栏

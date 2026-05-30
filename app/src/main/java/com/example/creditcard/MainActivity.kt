@@ -112,7 +112,7 @@ class MainActivity : ComponentActivity() {
                             // 回退展示原有读取失败 Toast
                             Toast.makeText(
                                 this,
-                                "检测到 NFC 标签 (卡ID: $tagIdHex)，未读取到银行卡号数据",
+                                "未读取到银行卡号，请换个角度重新贴近卡片",
                                 Toast.LENGTH_SHORT
                             ).show()
                         }
@@ -121,7 +121,7 @@ class MainActivity : ComponentActivity() {
             } else {
                 Toast.makeText(
                     this,
-                    "检测到 NFC 标签 (卡ID: $tagIdHex)，未读取到银行卡号数据",
+                    "未读取到银行卡号，请换个角度重新贴近卡片",
                     Toast.LENGTH_SHORT
                 ).show()
             }
