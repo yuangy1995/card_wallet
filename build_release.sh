@@ -55,6 +55,10 @@ if [ -f "$APK_PATH" ]; then
     echo -e "\n${GREEN}🎉 编译打包大功告成！${NC}"
     # 确保根目录下的 releases 专用目录存在 (已被 git 忽略)
     mkdir -p releases
+    # 每次打包成功后，删除以前的旧打包文件，只保留本次最新的打包文件
+    echo -e "🧹 正在清理 releases 目录下的历史打包文件..."
+    rm -f ./releases/*
+    
     TIMESTAMP=$(date +"%m%d-%H%M")
     UNIQUE_APK_NAME="CreditCard-Release-${TIMESTAMP}.apk"
     cp "$APK_PATH" ./releases/CreditCard-Release.apk

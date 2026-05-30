@@ -14,7 +14,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Visibility
@@ -36,12 +35,21 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
-import androidx.activity.compose.BackHandler
+import androidx.compose.ui.window.DialogProperties
+import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
+import com.example.creditcard.data.CardImageAsset
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.ComponentActivity
 import com.example.creditcard.data.DatabaseHelper
 import com.example.creditcard.data.SharedCard
 import com.example.creditcard.theme.*
+import com.example.creditcard.ui.components.AppBackButton
 import com.example.creditcard.ui.main.CreditCardTile
 import com.example.creditcard.ui.main.formatMaskedCardNumber
 import com.example.creditcard.utils.CardImageCodec
@@ -94,8 +102,16 @@ fun CardDetailScreen(
     val legacyImageExists = remember(cardImageFile) { cardImageFile.exists() }
     val hasCardImage = card.cardImages.isNotEmpty() || legacyImageExists
     var showFullscreenImage by remember { mutableStateOf(false) }
-    var fullscreenImageId by remember { mutableStateOf<String?>(null) }
-    var showLegacyFullscreenImage by remember { mutableStateOf(false) }
+    var fullscreenImageIndex by remember { mutableStateOf(0) }
+
+    val previewList = remember(card.cardImages, legacyImageExists) {
+        val list = mutableListOf<PreviewImage>()
+        card.cardImages.forEach { list.add(PreviewImage.Asset(it)) }
+        if (legacyImageExists) {
+            list.add(PreviewImage.LocalFile(cardImageFile))
+        }
+        list
+    }
 
     Box(modifier = Modifier.fillMaxSize()) {
 
@@ -131,9 +147,12 @@ fun CardDetailScreen(
             TopAppBar(
                 title = { Text("卡片详情", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
-                    }
+                    AppBackButton(
+                        onClick = onBack,
+                        tint = if (isDark) NeonCyan else GoldPrimary,
+                        containerColor = MaterialTheme.colorScheme.surface,
+                        borderColor = (if (isDark) NeonCyan else GoldPrimary).copy(alpha = 0.32f)
+                    )
                 },
                 actions = {
                     // 编辑按钮
@@ -186,8 +205,13 @@ fun CardDetailScreen(
                                     .clip(RoundedCornerShape(12.dp))
                                     .background(if (isDark) DarkBg else LightCardBg)
                                     .clickable {
-                                        fullscreenImageId = image.id
-                                        showFullscreenImage = true
+                                        val idx = previewList.indexOfFirst { p ->
+                                            p is PreviewImage.Asset && p.asset.id == image.id
+                                        }
+                                        if (idx != -1) {
+                                            fullscreenImageIndex = idx
+                                            showFullscreenImage = true
+                                        }
                                     },
                                 contentAlignment = Alignment.Center
                             ) {
@@ -224,7 +248,15 @@ fun CardDetailScreen(
                                     .height(180.dp)
                                     .clip(RoundedCornerShape(12.dp))
                                     .background(if (isDark) DarkBg else LightCardBg)
-                                    .clickable { showLegacyFullscreenImage = true },
+                                    .clickable {
+                                        val idx = previewList.indexOfFirst { p ->
+                                            p is PreviewImage.LocalFile
+                                        }
+                                        if (idx != -1) {
+                                            fullscreenImageIndex = idx
+                                            showFullscreenImage = true
+                                        }
+                                    },
                                 contentAlignment = Alignment.Center
                             ) {
                                 val bitmap = remember(cardImageFile) {
@@ -477,59 +509,85 @@ fun CardDetailScreen(
         )
     }
 
-    // 2. 全屏大图预览模态 Dialog
-    if (showFullscreenImage && fullscreenImageId != null) {
-        Dialog(onDismissRequest = { showFullscreenImage = false }) {
+    // 2. 全屏大图预览模态 Dialog (支持捏合缩放、双击还原与左右Pager滑动)
+    if (showFullscreenImage && previewList.isNotEmpty()) {
+        val pagerState = rememberPagerState(
+            initialPage = fullscreenImageIndex.coerceIn(0, previewList.lastIndex),
+            pageCount = { previewList.size }
+        )
+        Dialog(
+            onDismissRequest = { showFullscreenImage = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .clickable { showFullscreenImage = false },
+                    .background(Color.Black),
                 contentAlignment = Alignment.Center
             ) {
-                val selectedImage = card.cardImages.firstOrNull { it.id == fullscreenImageId }
-                val bitmap = remember(selectedImage?.id, selectedImage?.data) {
-                    selectedImage?.let { CardImageCodec.decodeBitmap(it) }
-                }
-                if (bitmap != null) {
-                    Image(
-                        bitmap = bitmap.asImageBitmap(),
-                        contentDescription = "全屏大图",
-                        modifier = Modifier
-                            .fillMaxWidth(0.95f)
-                            .aspectRatio(1.586f)
-                            .clip(RoundedCornerShape(16.dp))
-                            .border(2.dp, Color.White.copy(alpha = 0.4f), RoundedCornerShape(16.dp))
-                    )
-                }
-            }
-        }
-    }
+                // 顶层整体的背景轻触关闭
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clickable { showFullscreenImage = false }
+                )
 
-    if (showLegacyFullscreenImage && legacyImageExists) {
-        Dialog(onDismissRequest = { showLegacyFullscreenImage = false }) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .clickable { showLegacyFullscreenImage = false },
-                contentAlignment = Alignment.Center
-            ) {
-                val bitmap = remember(cardImageFile) {
-                    try {
-                        BitmapFactory.decodeFile(cardImageFile.absolutePath)
-                    } catch (e: Exception) {
-                        null
+                // 监控全局图片缩放因子，若被放大，锁定左右划页
+                var isZoomed by remember { mutableStateOf(false) }
+
+                HorizontalPager(
+                    state = pagerState,
+                    userScrollEnabled = !isZoomed,
+                    modifier = Modifier.fillMaxSize()
+                ) { page ->
+                    val previewImg = previewList[page]
+                    val bitmap = remember(previewImg) {
+                        when (previewImg) {
+                            is PreviewImage.Asset -> CardImageCodec.decodeBitmap(previewImg.asset)
+                            is PreviewImage.LocalFile -> {
+                                try {
+                                    BitmapFactory.decodeFile(previewImg.file.absolutePath)
+                                } catch (e: Exception) {
+                                    null
+                                }
+                            }
+                        }
+                    }
+
+                    if (bitmap != null) {
+                        ZoomableImage(
+                            bitmap = bitmap,
+                            contentDescription = "预览图片 ${page + 1}",
+                            onScaleChanged = { scale: Float ->
+                                isZoomed = scale > 1f
+                            },
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(16.dp)
+                        )
+                    } else {
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Text("图片加载失败", color = MaterialTheme.colorScheme.error)
+                        }
                     }
                 }
-                if (bitmap != null) {
-                    Image(
-                        bitmap = bitmap.asImageBitmap(),
-                        contentDescription = "旧版全屏大图",
+
+                // 底部指示器 (如: 1 / 3)
+                if (previewList.size > 1) {
+                    Box(
                         modifier = Modifier
-                            .fillMaxWidth(0.95f)
-                            .aspectRatio(1.586f)
-                            .clip(RoundedCornerShape(16.dp))
-                            .border(2.dp, Color.White.copy(alpha = 0.4f), RoundedCornerShape(16.dp))
-                    )
+                            .align(Alignment.BottomCenter)
+                            .padding(bottom = 32.dp)
+                            .background(Color.Black.copy(alpha = 0.55f), RoundedCornerShape(20.dp))
+                            .padding(horizontal = 14.dp, vertical = 6.dp)
+                    ) {
+                        Text(
+                            text = "${pagerState.currentPage + 1} / ${previewList.size}",
+                            color = Color.White,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
                 }
             }
         }
@@ -709,7 +767,7 @@ fun formatSpacingCardNumber(rawNum: String): String {
 /**
  * 获取年费收取提示
  */
-fun getAnnualFeeWarningMessage(card: SharedCard): String? {
+private fun getAnnualFeeWarningMessage(card: SharedCard): String? {
     if (card.isQualified == "3" || card.nextAnnualFeeCollectionTime == null || card.isQualified == "1") {
         return null
     }
@@ -720,4 +778,70 @@ fun getAnnualFeeWarningMessage(card: SharedCard): String? {
     return if (diffDays in 0..60) {
         "⚠️ 年费收取警告：本张卡片年费目前【未达标】，距离扣年费时间还剩 $diffDays 天，请尽快刷满笔数或额度进行减免！"
     } else null
+}
+
+/**
+ * 大图预览融合数据密封类
+ */
+sealed class PreviewImage {
+    data class Asset(val asset: CardImageAsset) : PreviewImage()
+    data class LocalFile(val file: java.io.File) : PreviewImage()
+}
+
+/**
+ * 手势捏合缩放（Pinch-to-zoom）、双击还原与拖拽 pan 的大图渲染组件
+ */
+@Composable
+private fun ZoomableImage(
+    bitmap: android.graphics.Bitmap,
+    contentDescription: String,
+    onScaleChanged: (Float) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var scale by remember { mutableStateOf(1f) }
+    var offset by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
+
+    Box(
+        modifier = modifier
+            .clipToBounds()
+            .pointerInput(Unit) {
+                detectTransformGestures { _, pan, zoom, _ ->
+                    val newScale = (scale * zoom).coerceIn(1f, 5f)
+                    scale = newScale
+                    onScaleChanged(newScale)
+                    if (newScale > 1f) {
+                        offset += pan
+                    } else {
+                        offset = androidx.compose.ui.geometry.Offset.Zero
+                    }
+                }
+            }
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onDoubleTap = {
+                        if (scale > 1f) {
+                            scale = 1f
+                            offset = androidx.compose.ui.geometry.Offset.Zero
+                        } else {
+                            scale = 2.5f
+                        }
+                        onScaleChanged(scale)
+                    }
+                )
+            }
+    ) {
+        Image(
+            bitmap = bitmap.asImageBitmap(),
+            contentDescription = contentDescription,
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer(
+                    scaleX = scale,
+                    scaleY = scale,
+                    translationX = offset.x,
+                    translationY = offset.y
+                ),
+            contentScale = androidx.compose.ui.layout.ContentScale.Fit
+        )
+    }
 }

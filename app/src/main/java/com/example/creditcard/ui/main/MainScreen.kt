@@ -2,8 +2,10 @@ package com.example.creditcard.ui.main
 
 import android.content.Context
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -45,6 +47,7 @@ import com.example.creditcard.data.CardChangeDetail
 import com.example.creditcard.data.SharedCard
 import com.example.creditcard.data.SyncHistoryEntry
 import com.example.creditcard.theme.*
+import com.example.creditcard.ui.components.AppBackButton
 import com.example.creditcard.utils.SyncCoordinator
 import com.example.creditcard.utils.NfcScannerManager
 import com.example.creditcard.utils.ThemeManager
@@ -58,7 +61,8 @@ private enum class ToolsMode {
     HOME,
     STATS,
     VERIFY_PREFETCH,
-    VERIFY
+    VERIFY,
+    SYNC_LOG
 }
 
 private data class VerifiedCardRecord(
@@ -88,7 +92,25 @@ fun MainScreen(
     // 底部 Tab 切换状态 (0: 卡包, 1: 工具, 2: 设置) - 纯图标化极简渲染
     var selectedTab by remember { mutableIntStateOf(0) }
     var toolsMode by remember { mutableStateOf(ToolsMode.HOME) }
+    var settingsMode by remember { mutableStateOf(SettingsMode.MAIN) }
     var verifySessionSeed by remember { mutableIntStateOf(0) }
+
+    // 系统返回先处理工具、设置子页面和非首页 Tab，再交给 Activity 默认退出。
+    BackHandler(enabled = selectedTab != 0 || toolsMode != ToolsMode.HOME || settingsMode != SettingsMode.MAIN) {
+        when {
+            selectedTab == 1 && toolsMode != ToolsMode.HOME -> toolsMode = ToolsMode.HOME
+            selectedTab == 2 && settingsMode != SettingsMode.MAIN -> settingsMode = SettingsMode.MAIN
+            selectedTab != 0 -> {
+                selectedTab = 0
+                toolsMode = ToolsMode.HOME
+                settingsMode = SettingsMode.MAIN
+            }
+            else -> {
+                toolsMode = ToolsMode.HOME
+                settingsMode = SettingsMode.MAIN
+            }
+        }
+    }
     
     // 卡包搜索状态
     var searchQuery by remember { mutableStateOf("") }
@@ -108,48 +130,60 @@ fun MainScreen(
         }
     }
 
+    val isSubPage = (selectedTab == 1 && toolsMode != ToolsMode.HOME) ||
+                    (selectedTab == 2 && settingsMode != SettingsMode.MAIN)
+
     Scaffold(
         bottomBar = {
-            NavigationBar(
-                modifier = Modifier.height(60.dp),
-                containerColor = MaterialTheme.colorScheme.surface,
-                tonalElevation = 8.dp
-            ) {
-                // 1. 卡包 Tab - 去文字纯图标
-                NavigationBarItem(
-                    selected = selectedTab == 0,
-                    onClick = { selectedTab = 0 },
-                    icon = { Icon(Icons.Filled.Wallet, contentDescription = "卡包") },
-                    colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = if (isDark) NeonCyan else GoldPrimary,
-                        indicatorColor = (if (isDark) NeonCyan else GoldPrimary).copy(alpha = 0.15f)
-                    )
-                )
-                // 2. 统计 Tab - 去文字纯图标
-                NavigationBarItem(
-                    selected = selectedTab == 1,
-                    onClick = {
-                        selectedTab = 1
-                        if (toolsMode == ToolsMode.STATS) {
+            if (!isSubPage) {
+                NavigationBar(
+                    modifier = Modifier.height(60.dp),
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    tonalElevation = 8.dp
+                ) {
+                    // 1. 卡包 Tab - 去文字纯图标
+                    NavigationBarItem(
+                        selected = selectedTab == 0,
+                        onClick = {
+                            selectedTab = 0
                             toolsMode = ToolsMode.HOME
-                        }
-                    },
-                    icon = { Icon(Icons.Filled.Handyman, contentDescription = "工具") },
-                    colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = if (isDark) NeonCyan else GoldPrimary,
-                        indicatorColor = (if (isDark) NeonCyan else GoldPrimary).copy(alpha = 0.15f)
+                            settingsMode = SettingsMode.MAIN
+                        },
+                        icon = { Icon(Icons.Filled.Wallet, contentDescription = "卡包") },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = if (isDark) NeonCyan else GoldPrimary,
+                            indicatorColor = (if (isDark) NeonCyan else GoldPrimary).copy(alpha = 0.15f)
+                        )
                     )
-                )
-                // 3. 设置 Tab - 去文字纯图标
-                NavigationBarItem(
-                    selected = selectedTab == 2,
-                    onClick = { selectedTab = 2 },
-                    icon = { Icon(Icons.Filled.Settings, contentDescription = "设置") },
-                    colors = NavigationBarItemDefaults.colors(
-                        selectedIconColor = if (isDark) NeonCyan else GoldPrimary,
-                        indicatorColor = (if (isDark) NeonCyan else GoldPrimary).copy(alpha = 0.15f)
+                    // 2. 统计 Tab - 去文字纯图标
+                    NavigationBarItem(
+                        selected = selectedTab == 1,
+                        onClick = {
+                            selectedTab = 1
+                            toolsMode = ToolsMode.HOME
+                            settingsMode = SettingsMode.MAIN
+                        },
+                        icon = { Icon(Icons.Filled.Handyman, contentDescription = "工具") },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = if (isDark) NeonCyan else GoldPrimary,
+                            indicatorColor = (if (isDark) NeonCyan else GoldPrimary).copy(alpha = 0.15f)
+                        )
                     )
-                )
+                    // 3. 设置 Tab - 去文字纯图标
+                    NavigationBarItem(
+                        selected = selectedTab == 2,
+                        onClick = {
+                            selectedTab = 2
+                            toolsMode = ToolsMode.HOME
+                            settingsMode = SettingsMode.MAIN
+                        },
+                        icon = { Icon(Icons.Filled.Settings, contentDescription = "设置") },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = if (isDark) NeonCyan else GoldPrimary,
+                            indicatorColor = (if (isDark) NeonCyan else GoldPrimary).copy(alpha = 0.15f)
+                        )
+                    )
+                }
             }
         },
         floatingActionButton = {
@@ -260,7 +294,7 @@ fun MainScreen(
                             ),
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .height(48.dp) // 强行限制高度为48.dp，精致单行
+                                .height(52.dp) // 调整高度为 52.dp，确保文字在 OutlinedTextField 默认内部 padding 下能够完美垂直居中并显示全
                                 .padding(horizontal = 12.dp)
                                 .shadow(
                                     elevation = if (isDark) 3.dp else 1.5.dp,
@@ -327,7 +361,8 @@ fun MainScreen(
                                     verifySessionSeed += 1
                                     toolsMode = ToolsMode.VERIFY_PREFETCH
                                 }
-                            }
+                            },
+                            onOpenSyncHistory = { toolsMode = ToolsMode.SYNC_LOG }
                         )
                         ToolsMode.STATS -> ToolsStatsPanel(
                             cards = cards,
@@ -348,6 +383,10 @@ fun MainScreen(
                             },
                             onFinish = { toolsMode = ToolsMode.HOME }
                         )
+                        ToolsMode.SYNC_LOG -> ToolsSyncHistoryPanel(
+                            isDark = isDark,
+                            onBack = { toolsMode = ToolsMode.HOME }
+                        )
                     }
                 }
 
@@ -355,7 +394,11 @@ fun MainScreen(
                 // ⚙️ Tab 2: 云配置盾牌卡片、配置折叠、样式高级大融合控制台
                 // =====================================================================
                 2 -> {
-                    SettingsPanel(isDark = isDark)
+                    SettingsPanel(
+                        isDark = isDark,
+                        settingsMode = settingsMode,
+                        onSettingsModeChange = { settingsMode = it }
+                    )
                 }
             }
         }
@@ -575,7 +618,8 @@ fun ToolsPanel(
     cards: List<SharedCard>,
     isDark: Boolean,
     onOpenStats: () -> Unit,
-    onStartVerify: () -> Unit
+    onStartVerify: () -> Unit,
+    onOpenSyncHistory: () -> Unit
 ) {
     Column(
         modifier = Modifier
@@ -584,17 +628,12 @@ fun ToolsPanel(
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(2.dp))
         Text(
             text = "工具",
             fontSize = 26.sp,
             fontWeight = FontWeight.Black,
             color = MaterialTheme.colorScheme.onBackground
-        )
-        Text(
-            text = "统计分析、快速验卡和后续工具都会集中在这里。",
-            fontSize = 13.sp,
-            color = if (isDark) TextGray else TextMuted
         )
 
         ToolActionTile(
@@ -613,16 +652,13 @@ fun ToolsPanel(
             onClick = onStartVerify
         )
 
-        DetailSection(title = "📌 本地卡包概览") {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp)
-            ) {
-                SmallMetric("已录入", "${cards.size}", "张卡", isDark, Modifier.weight(1f))
-                SmallMetric("银行", "${cards.map { it.bank }.filter { it.isNotBlank() }.toSet().size}", "家", isDark, Modifier.weight(1f))
-                SmallMetric("币种", "${cards.map { it.type }.filter { it.isNotBlank() }.toSet().size}", "种", isDark, Modifier.weight(1f))
-            }
-        }
+        ToolActionTile(
+            icon = Icons.Filled.History,
+            title = "同步记录",
+            subtitle = "查看与 WebDAV 云盘的数据同步流水及合流历史",
+            accent = if (isDark) NeonCyan else GoldPrimary,
+            onClick = onOpenSyncHistory
+        )
 
         Spacer(modifier = Modifier.height(24.dp))
     }
@@ -685,15 +721,108 @@ fun ToolsStatsPanel(cards: List<SharedCard>, isDark: Boolean, onBack: () -> Unit
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 10.dp, vertical = 6.dp),
+                .padding(horizontal = 16.dp, vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            IconButton(onClick = onBack) {
-                Icon(Icons.Filled.ArrowBack, contentDescription = "返回工具")
-            }
+            val accent = if (isDark) NeonCyan else GoldPrimary
+            AppBackButton(
+                onClick = onBack,
+                contentDescription = "返回工具",
+                tint = accent,
+                containerColor = MaterialTheme.colorScheme.surface,
+                borderColor = accent.copy(alpha = 0.34f)
+            )
+            Spacer(modifier = Modifier.width(12.dp))
             Text("统计分析", fontSize = 18.sp, fontWeight = FontWeight.Bold)
         }
         AnalyticsPanel(cards = cards, isDark = isDark)
+    }
+}
+
+@Composable
+fun ToolsSyncHistoryPanel(
+    isDark: Boolean,
+    onBack: () -> Unit
+) {
+    val syncStatus by SyncCoordinator.syncStatus.collectAsState()
+    val syncProgress by SyncCoordinator.syncProgress.collectAsState()
+    val syncHistory by SyncCoordinator.syncHistory.collectAsState()
+    var expandedHistoryIds by remember { mutableStateOf(setOf<String>()) }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 16.dp)
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            val accent = if (isDark) NeonCyan else GoldPrimary
+            AppBackButton(
+                onClick = onBack,
+                contentDescription = "返回工具",
+                tint = accent,
+                containerColor = MaterialTheme.colorScheme.surface,
+                borderColor = accent.copy(alpha = 0.34f)
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text("同步记录", fontSize = 22.sp, fontWeight = FontWeight.Black)
+                Text(
+                    text = "WebDAV 云端同步流水",
+                    fontSize = 12.sp,
+                    color = if (isDark) NeonCyan else GoldPrimary,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+        }
+
+        DetailSection(title = "📡 当前同步状态与进度") {
+            SyncProgressBlock(
+                statusMessage = syncStatus.message,
+                isSyncing = syncStatus.isSyncing,
+                pending = syncStatus.pending,
+                phase = syncProgress.phase,
+                step = syncProgress.step,
+                total = syncProgress.total,
+                detail = syncProgress.detail,
+                isDark = isDark
+            )
+        }
+
+        DetailSection(title = "📜 同步历史日志") {
+            if (syncHistory.isEmpty()) {
+                Text(
+                    text = "暂无同步记录。完成一次 WebDAV 同步后，这里会显示上传、下载和字段变更详情。",
+                    fontSize = 13.sp,
+                    lineHeight = 18.sp,
+                    color = if (isDark) TextGray else TextMuted
+                )
+            } else {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    syncHistory.forEach { entry ->
+                        val expanded = expandedHistoryIds.contains(entry.id)
+                        SyncHistoryCard(
+                            entry = entry,
+                            expanded = expanded,
+                            isDark = isDark,
+                            onToggle = {
+                                expandedHistoryIds = if (expanded) {
+                                    expandedHistoryIds - entry.id
+                                } else {
+                                    expandedHistoryIds + entry.id
+                                }
+                            }
+                        )
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
     }
 }
 
@@ -730,10 +859,32 @@ fun VerifyCloudPrefetchPanel(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .padding(24.dp),
-        contentAlignment = Alignment.Center
     ) {
-        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 4.dp)
+                .align(Alignment.TopCenter),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            val accent = if (isDark) NeonCyan else GoldPrimary
+            AppBackButton(
+                onClick = onCancel,
+                contentDescription = "返回工具",
+                tint = accent,
+                containerColor = MaterialTheme.colorScheme.surface,
+                borderColor = accent.copy(alpha = 0.34f)
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Text("快速验卡", fontSize = 18.sp, fontWeight = FontWeight.Bold)
+        }
+
+        Column(
+            modifier = Modifier
+                .align(Alignment.Center)
+                .padding(horizontal = 24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
             val transition = rememberInfiniteTransition(label = "prefetch")
             val pulse by transition.animateFloat(
                 initialValue = 0.72f,
@@ -785,6 +936,15 @@ fun VerifyCloudPrefetchPanel(
     }
 }
 
+enum class VerifyUiState {
+    WAITING,
+    READING,
+    PARSING,
+    SUCCESS_EXIST,
+    SUCCESS_MISSING,
+    ERROR
+}
+
 @Composable
 fun QuickVerifyPanel(
     cards: List<SharedCard>,
@@ -799,51 +959,85 @@ fun QuickVerifyPanel(
     var verifiedRecords by remember { mutableStateOf<List<VerifiedCardRecord>>(emptyList()) }
     var addedDuringVerification by remember { mutableStateOf(setOf<String>()) }
     var currentMessage by remember { mutableStateOf("等待 NFC 贴卡") }
-    var isReading by remember { mutableStateOf(false) }
+    var verifyUiState by remember { mutableStateOf(VerifyUiState.WAITING) }
     var currentScannedNumber by remember { mutableStateOf("") }
     var currentScannedValid by remember { mutableStateOf("") }
     var showMissingDialog by remember { mutableStateOf(false) }
     var showSummaryDialog by remember { mutableStateOf(false) }
 
-    fun handleVerified(number: String, valid: String) {
-        val cleaned = cleanCardNumber(number)
-        if (cleaned.isBlank()) {
-            currentMessage = "没有读取到有效卡号，请重新贴近 NFC 感应区"
-            return
-        }
-        currentScannedNumber = cleaned
-        currentScannedValid = valid
-        if (verifiedRecords.any { it.cardNumber == cleaned }) {
-            currentMessage = "这张卡刚才已经验过，请继续换卡验证"
-            return
-        }
-        val exists = cleaned in existingNumbers
-        verifiedRecords = verifiedRecords + VerifiedCardRecord(cleaned, valid, exists)
-        currentMessage = if (exists) {
-            "本地已存在，请继续换卡验证"
-        } else {
-            showMissingDialog = true
-            "本地未录入这张卡"
-        }
-    }
-
     LaunchedEffect(Unit) {
         launch {
             NfcScannerManager.nfcCardData.collect { (number, valid) ->
-                handleVerified(number, valid)
+                val cleaned = cleanCardNumber(number)
+                if (cleaned.isBlank()) {
+                    currentMessage = "没有读取到有效卡号，请重新贴近 NFC 感应区"
+                    verifyUiState = VerifyUiState.WAITING
+                    return@collect
+                }
+                currentScannedNumber = cleaned
+                currentScannedValid = valid
+                
+                // 1. 进入“读取完成，正在解析数据”阶段
+                verifyUiState = VerifyUiState.PARSING
+                currentMessage = "读取完成，正在解析数据....."
+                
+                // 2. 模拟高保真数据流解析仪式感延迟
+                kotlinx.coroutines.delay(1200)
+                
+                // 3. 真正执行验卡结果评估
+                if (verifiedRecords.any { it.cardNumber == cleaned }) {
+                    currentMessage = "这张卡刚才已经验过，请继续换卡验证"
+                    verifyUiState = VerifyUiState.SUCCESS_EXIST
+                    return@collect
+                }
+                
+                val exists = cleaned in existingNumbers
+                verifiedRecords = verifiedRecords + VerifiedCardRecord(cleaned, valid, exists)
+                
+                if (exists) {
+                    currentMessage = "解析成功！本地已存在，请继续换卡"
+                    verifyUiState = VerifyUiState.SUCCESS_EXIST
+                } else {
+                    currentMessage = "解析成功！本地未录入这张卡"
+                    verifyUiState = VerifyUiState.SUCCESS_MISSING
+                    showMissingDialog = true
+                }
+                
+                // 4. 触发智能震动
+                try {
+                    val vibrator = context.getSystemService(android.content.Context.VIBRATOR_SERVICE) as? android.os.Vibrator
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                        vibrator?.vibrate(android.os.VibrationEffect.createOneShot(120, android.os.VibrationEffect.DEFAULT_AMPLITUDE))
+                    } else {
+                        @Suppress("DEPRECATION")
+                        vibrator?.vibrate(120)
+                    }
+                } catch (e: Exception) {}
             }
         }
         launch {
             NfcScannerManager.nfcReadingState.collect { state ->
-                isReading = (state == "READING")
-                if (isReading) {
+                if (state == "READING") {
+                    verifyUiState = VerifyUiState.READING
                     currentMessage = "正在读取，请勿移动卡片..."
                 }
             }
         }
         launch {
             NfcScannerManager.nfcUnsupportedCard.collect {
-                currentMessage = "暂不支持该卡片"
+                verifyUiState = VerifyUiState.ERROR
+                currentMessage = "解析失败，该卡不支持读取"
+                
+                // 触发错误短震动两次
+                try {
+                    val vibrator = context.getSystemService(android.content.Context.VIBRATOR_SERVICE) as? android.os.Vibrator
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                        vibrator?.vibrate(android.os.VibrationEffect.createWaveform(longArrayOf(0, 80, 80, 80), -1))
+                    } else {
+                        @Suppress("DEPRECATION")
+                        vibrator?.vibrate(160)
+                    }
+                } catch (e: Exception) {}
             }
         }
     }
@@ -867,7 +1061,7 @@ fun QuickVerifyPanel(
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(24.dp),
+                .padding(horizontal = 24.dp),
             contentAlignment = Alignment.Center
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
@@ -890,13 +1084,21 @@ fun QuickVerifyPanel(
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            Spacer(modifier = Modifier.height(8.dp))
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
+                val accent = if (isDark) NeonCyan else GoldPrimary
+                AppBackButton(
+                    onClick = onFinish,
+                    contentDescription = "返回工具",
+                    tint = accent,
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    borderColor = accent.copy(alpha = 0.34f)
+                )
+                Spacer(modifier = Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
-                    Text("快速验卡", fontSize = 24.sp, fontWeight = FontWeight.Black)
+                    Text("快速验卡", fontSize = 22.sp, fontWeight = FontWeight.Black)
                     Text(
                         text = "NFC 模式",
                         fontSize = 12.sp,
@@ -916,21 +1118,23 @@ fun QuickVerifyPanel(
                 message = currentMessage,
                 isDark = isDark,
                 hasReadCard = currentScannedNumber.isNotBlank(),
-                isReading = isReading
+                uiState = verifyUiState
             )
 
             DetailSection(title = "🎯 当前验卡结果") {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
-                        imageVector = when {
-                            currentMessage.contains("未录入") -> Icons.Filled.ReportProblem
-                            currentMessage.contains("已存在") || currentMessage.contains("已录入") -> Icons.Filled.CheckCircle
+                        imageVector = when (verifyUiState) {
+                            VerifyUiState.SUCCESS_MISSING -> Icons.Filled.ReportProblem
+                            VerifyUiState.SUCCESS_EXIST -> Icons.Filled.CheckCircle
+                            VerifyUiState.ERROR -> Icons.Filled.Cancel
                             else -> Icons.Filled.Nfc
                         },
                         contentDescription = "验卡状态",
-                        tint = when {
-                            currentMessage.contains("未录入") -> if (isDark) NeonRed else WarmOrange
-                            currentMessage.contains("已存在") || currentMessage.contains("已录入") -> if (isDark) NeonGreen else ForestGreen
+                        tint = when (verifyUiState) {
+                            VerifyUiState.SUCCESS_MISSING -> if (isDark) NeonRed else WarmOrange
+                            VerifyUiState.SUCCESS_EXIST -> if (isDark) NeonGreen else ForestGreen
+                            VerifyUiState.ERROR -> if (isDark) NeonRed else Color.Red
                             else -> if (isDark) NeonCyan else GoldPrimary
                         },
                         modifier = Modifier.size(28.dp)
@@ -1067,10 +1271,16 @@ fun NfcVerifyHero(
     message: String,
     isDark: Boolean,
     hasReadCard: Boolean,
-    isReading: Boolean = false
+    uiState: VerifyUiState
 ) {
     val transition = rememberInfiniteTransition(label = "nfcVerifyHero")
-    val duration = if (isReading) 600 else 1500
+    val isAnimating = uiState == VerifyUiState.WAITING || uiState == VerifyUiState.READING || uiState == VerifyUiState.PARSING
+    val duration = when (uiState) {
+        VerifyUiState.READING -> 700
+        VerifyUiState.PARSING -> 600
+        else -> 2200
+    }
+    
     val pulse by transition.animateFloat(
         initialValue = 0.65f,
         targetValue = 1.12f,
@@ -1089,9 +1299,11 @@ fun NfcVerifyHero(
         ),
         label = "nfcFade"
     )
-    val accent = when {
-        message.contains("未录入") -> if (isDark) NeonRed else WarmOrange
-        message.contains("已存在") || message.contains("已录入") -> if (isDark) NeonGreen else ForestGreen
+    val accent = when (uiState) {
+        VerifyUiState.PARSING -> if (isDark) NeonGreen else ForestGreen
+        VerifyUiState.SUCCESS_EXIST -> if (isDark) NeonGreen else ForestGreen
+        VerifyUiState.SUCCESS_MISSING -> if (isDark) NeonRed else WarmOrange
+        VerifyUiState.ERROR -> if (isDark) NeonRed else Color.Red
         else -> if (isDark) NeonCyan else GoldPrimary
     }
 
@@ -1112,26 +1324,30 @@ fun NfcVerifyHero(
         contentAlignment = Alignment.Center
     ) {
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
-            // 包裹同心圆水波纹与真实圆形 Icon 的绝对对中大 Box (size = 220.dp)
+            // 包裹同心圆水波纹与真实圆形 Icon 的绝对对中大 Box
             Box(
                 modifier = Modifier.size(200.dp),
                 contentAlignment = Alignment.Center
             ) {
-                // A. 动态水波纹外环 (center 坐标使用 Canvas 的 size.center，100% 绝对物理同心)
+                // A. 动态水波纹外环
                 Canvas(modifier = Modifier.fillMaxSize()) {
                     val center = Offset(size.width / 2, size.height / 2)
-                    drawCircle(
-                        color = accent.copy(alpha = 0.16f * fade),
-                        radius = 95.dp.toPx() * pulse,
-                        center = center,
-                        style = Stroke(width = 3.dp.toPx())
-                    )
-                    drawCircle(
-                        color = accent.copy(alpha = 0.22f * fade),
-                        radius = 68.dp.toPx() * pulse,
-                        center = center,
-                        style = Stroke(width = 2.dp.toPx())
-                    )
+                    val finalAlpha = if (isAnimating) fade else 0f
+                    val finalPulse = if (isAnimating) pulse else 1f
+                    if (finalAlpha > 0f) {
+                        drawCircle(
+                            color = accent.copy(alpha = 0.16f * finalAlpha),
+                            radius = 95.dp.toPx() * finalPulse,
+                            center = center,
+                            style = Stroke(width = 3.dp.toPx())
+                        )
+                        drawCircle(
+                            color = accent.copy(alpha = 0.22f * finalAlpha),
+                            radius = 68.dp.toPx() * finalPulse,
+                            center = center,
+                            style = Stroke(width = 2.dp.toPx())
+                        )
+                    }
                     drawCircle(
                         color = accent.copy(alpha = 0.12f),
                         radius = 46.dp.toPx(),
@@ -1144,23 +1360,49 @@ fun NfcVerifyHero(
                     modifier = Modifier
                         .size(88.dp)
                         .clip(CircleShape)
-                        .background(accent.copy(alpha = if (isReading || hasReadCard) 0.28f else 0.18f))
+                        .background(accent.copy(alpha = if (uiState != VerifyUiState.WAITING) 0.28f else 0.18f))
                         .border(2.dp, accent.copy(alpha = 0.55f), CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
-                    if (isReading) {
-                        CircularProgressIndicator(
-                            strokeWidth = 3.dp,
-                            color = accent,
-                            modifier = Modifier.size(42.dp)
-                        )
-                    } else {
-                        Icon(
-                            imageVector = if (hasReadCard) Icons.Filled.CreditCard else Icons.Filled.Nfc,
-                            contentDescription = "NFC 验卡",
-                            tint = accent,
-                            modifier = Modifier.size(42.dp)
-                        )
+                    when (uiState) {
+                        VerifyUiState.READING -> {
+                            CircularProgressIndicator(
+                                strokeWidth = 3.dp,
+                                color = accent,
+                                modifier = Modifier.size(42.dp)
+                            )
+                        }
+                        VerifyUiState.PARSING -> {
+                            CircularProgressIndicator(
+                                strokeWidth = 3.dp,
+                                color = accent,
+                                modifier = Modifier.size(42.dp)
+                            )
+                        }
+                        VerifyUiState.SUCCESS_EXIST, VerifyUiState.SUCCESS_MISSING -> {
+                            Icon(
+                                imageVector = Icons.Filled.Check,
+                                contentDescription = "成功",
+                                tint = accent,
+                                modifier = Modifier.size(42.dp)
+                            )
+                        }
+                        VerifyUiState.ERROR -> {
+                            Icon(
+                                imageVector = Icons.Filled.Close,
+                                contentDescription = "失败",
+                                tint = accent,
+                                modifier = Modifier.size(42.dp)
+                            )
+                        }
+                        else -> {
+                            Icon(
+                                imageVector = if (hasReadCard) Icons.Filled.CreditCard else Icons.Filled.Nfc,
+                                contentDescription = "NFC 验卡",
+                                tint = accent,
+                                modifier = Modifier.size(42.dp)
+                            )
+                        }
                     }
                 }
             }
@@ -1563,8 +1805,232 @@ fun AnalyticsPanel(cards: List<SharedCard>, isDark: Boolean) {
 // ⚙️ Tab 2 子组件: WebDAV 配置大盾牌已连接折叠卡片与系统高级运维
 // =============================================================================
 
+private enum class SettingsMode {
+    MAIN,
+    WEBDAV
+}
+
 @Composable
-fun SettingsPanel(isDark: Boolean) {
+private fun SettingsPanel(
+    isDark: Boolean,
+    settingsMode: SettingsMode,
+    onSettingsModeChange: (SettingsMode) -> Unit
+) {
+    when (settingsMode) {
+        SettingsMode.MAIN -> {
+            SettingsMainPanel(
+                isDark = isDark,
+                onOpenWebDAV = { onSettingsModeChange(SettingsMode.WEBDAV) }
+            )
+        }
+        SettingsMode.WEBDAV -> {
+            SettingsWebDAVPanel(
+                isDark = isDark,
+                onBack = { onSettingsModeChange(SettingsMode.MAIN) }
+            )
+        }
+    }
+}
+
+@Composable
+fun SettingsMainPanel(
+    isDark: Boolean,
+    onOpenWebDAV: () -> Unit
+) {
+    val context = LocalContext.current
+    var showResetDbDialog by remember { mutableStateOf(false) }
+    val loadedConfig = remember { SyncCoordinator.loadConfig(context) }
+    val isConfigured = remember(loadedConfig) { loadedConfig.url.isNotEmpty() && loadedConfig.user.isNotEmpty() }
+    val coroutineScope = rememberCoroutineScope()
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 16.dp)
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            text = "设置",
+            fontSize = 26.sp,
+            fontWeight = FontWeight.Black,
+            color = MaterialTheme.colorScheme.onBackground
+        )
+        Text(
+            text = "管理云备份连接参数、偏好设置与敏感数据重设。",
+            fontSize = 13.sp,
+            color = if (isDark) TextGray else TextMuted
+        )
+
+        // 1. WebDAV 云备份二级菜单入口卡片
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(14.dp))
+                .background(MaterialTheme.colorScheme.surface)
+                .border(
+                    width = 1.dp,
+                    color = (if (isDark) NeonCyan else GoldPrimary).copy(alpha = 0.22f),
+                    shape = RoundedCornerShape(14.dp)
+                )
+                .clickable { onOpenWebDAV() }
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background((if (isDark) NeonCyan else GoldPrimary).copy(alpha = 0.16f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.CloudQueue,
+                    contentDescription = "WebDAV云备份",
+                    tint = if (isDark) NeonCyan else GoldPrimary,
+                    modifier = Modifier.size(26.dp)
+                )
+            }
+            Spacer(modifier = Modifier.width(14.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "WebDAV 云备份设置",
+                    fontSize = 16.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+                Spacer(modifier = Modifier.height(3.dp))
+                Text(
+                    text = if (isConfigured) "服务正常连接，双向 CRDT 合流保护中" else "未配置，点击开启云端备份与数据恢复",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.64f)
+                )
+            }
+            Icon(
+                imageVector = Icons.Filled.ChevronRight,
+                contentDescription = "进入 WebDAV 设置",
+                tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.45f)
+            )
+        }
+
+        // 2. 个性外观 Section
+        DetailSection(title = "🎨 个性外观") {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(if (isDark) DarkBg else LightBg)
+                    .clickable { ThemeManager.toggleTheme(context) }
+                    .padding(horizontal = 14.dp, vertical = 14.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Icon(
+                        imageVector = if (isDark) Icons.Filled.LightMode else Icons.Filled.NightlightRound,
+                        contentDescription = "外观主题",
+                        tint = if (isDark) NeonCyan else GoldPrimary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text(
+                        text = "全局外观主题热切换",
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 14.sp
+                    )
+                }
+                Text(
+                    text = if (isDark) "深色 (Dark)" else "浅色 (Light)",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold,
+                    color = if (isDark) NeonCyan else GoldPrimary
+                )
+            }
+        }
+
+        // 3. 🚨 敏感操作与数据安全区 Section (高度防误触，清空本地变动流水账本已彻底安全清空)
+        DetailSection(title = "🚨 数据安全区 (敏感操作)") {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(if (isDark) DarkBg else LightBg)
+                    .padding(14.dp),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text(
+                    text = "卡片物理抹除属于极其危险的操作，操作后本地不可撤销！如果之前已在云端成功备份，重新同步即可重新拉回卡片数据。",
+                    fontSize = 11.sp,
+                    lineHeight = 16.sp,
+                    color = (if (isDark) NeonRed else Color.Red).copy(alpha = 0.8f)
+                )
+                
+                Button(
+                    onClick = { showResetDbDialog = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = (if (isDark) NeonRed else Color.Red).copy(alpha = 0.12f),
+                        contentColor = if (isDark) NeonRed else Color.Red
+                    ),
+                    border = BorderStroke(1.dp, (if (isDark) NeonRed else Color.Red).copy(alpha = 0.35f)),
+                    shape = RoundedCornerShape(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.DeleteForever,
+                        contentDescription = "物理擦除",
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text("物理删除本地所有卡片数据", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(40.dp))
+    }
+
+    // 物理重置清空数据库二次确认 Dialog
+    if (showResetDbDialog) {
+        AlertDialog(
+            onDismissRequest = { showResetDbDialog = false },
+            title = { Text("🚨 极其危险操作！", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color.Red) },
+            text = {
+                Text(
+                    text = "您正在请求【物理擦除本地所有信用卡数据】。此操作将瞬间清空本地 SQLite 数据库中的所有卡包资料与同步流水，且本地不可撤销！如果您之前已在云端（WebDAV）成功备份，该清空操作不会删除云端文件，重新同步即可拉回备份。",
+                    fontSize = 13.sp
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showResetDbDialog = false
+                        coroutineScope.launch {
+                            SyncCoordinator.resetLocalDatabase(context)
+                            Toast.makeText(context, "本地所有卡片数据已彻底抹除", Toast.LENGTH_LONG).show()
+                        }
+                    }
+                ) {
+                    Text("确认物理删除", color = Color.Red, fontWeight = FontWeight.Bold)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showResetDbDialog = false }) {
+                    Text("取消", color = if (isDark) TextGray else TextMuted)
+                }
+            }
+        )
+    }
+}
+
+@Composable
+fun SettingsWebDAVPanel(
+    isDark: Boolean,
+    onBack: () -> Unit
+) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
 
@@ -1578,17 +2044,10 @@ fun SettingsPanel(isDark: Boolean) {
     // 2. 状态监听
     var isTestingConnection by remember { mutableStateOf(false) }
     val syncStatus by SyncCoordinator.syncStatus.collectAsState()
-    val syncProgress by SyncCoordinator.syncProgress.collectAsState()
-    val syncHistory by SyncCoordinator.syncHistory.collectAsState()
 
-    // 3. 高级系统维护二次安全确认弹窗
-    var showResetDbDialog by remember { mutableStateOf(false) }
-    var showClearLogDialog by remember { mutableStateOf(false) }
-
-    // 4. 新增编辑配置模式与已配置状态检测 (第 7 点)
+    // 3. 配置模式控制
     val isConfigured = remember(loadedConfig) { loadedConfig.url.isNotEmpty() && loadedConfig.user.isNotEmpty() }
     var isEditingConfig by remember { mutableStateOf(!isConfigured) }
-    var expandedHistoryIds by remember { mutableStateOf(setOf<String>()) }
 
     Column(
         modifier = Modifier
@@ -1597,14 +2056,32 @@ fun SettingsPanel(isDark: Boolean) {
             .verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        Spacer(modifier = Modifier.height(6.dp))
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            val accent = if (isDark) NeonCyan else GoldPrimary
+            AppBackButton(
+                onClick = onBack,
+                contentDescription = "返回设置",
+                tint = accent,
+                containerColor = MaterialTheme.colorScheme.surface,
+                borderColor = accent.copy(alpha = 0.34f)
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text("WebDAV 设置", fontSize = 22.sp, fontWeight = FontWeight.Black)
+                Text(
+                    text = "WebDAV 云备份参数与状态",
+                    fontSize = 12.sp,
+                    color = if (isDark) NeonCyan else GoldPrimary,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+        }
 
-        // ==========================================================
-        // 📡 WebDAV 云同步控制卡片 (已连接盾牌折叠 / 未连接编辑配置状态) - 第 7 点
-        // ==========================================================
-        DetailSection(title = "📡 WebDAV 云同步控制台") {
-            if (isConfigured && !isEditingConfig) {
-                // 已有配置且连接成功：显示极具防卫安全感的绿色/金色发光大盾牌面板
+        if (isConfigured && !isEditingConfig) {
+            DetailSection(title = "🛡️ 云端防护已连接") {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -1663,14 +2140,13 @@ fun SettingsPanel(isDark: Boolean) {
                     }
 
                     Spacer(modifier = Modifier.height(12.dp))
-                    Divider(color = (if (isDark) TextGray else TextMuted).copy(alpha = 0.15f), thickness = 1.dp)
+                    HorizontalDivider(color = (if (isDark) TextGray else TextMuted).copy(alpha = 0.15f), thickness = 1.dp)
                     Spacer(modifier = Modifier.height(12.dp))
 
                     Column(
                         modifier = Modifier.fillMaxWidth(),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        // 1. 强制立即双向合流同步
                         Button(
                             onClick = {
                                 coroutineScope.launch {
@@ -1693,7 +2169,6 @@ fun SettingsPanel(isDark: Boolean) {
                             }
                         }
 
-                        // 2. 编辑修改配置参数按钮
                         Button(
                             onClick = { isEditingConfig = true },
                             modifier = Modifier.fillMaxWidth(),
@@ -1708,8 +2183,9 @@ fun SettingsPanel(isDark: Boolean) {
                         }
                     }
                 }
-            } else {
-                // 编辑/未配置状态：展开显示三个输入框及保存/测试按钮
+            }
+        } else {
+            DetailSection(title = "⚙️ 配置 WebDAV 服务器参数") {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     OutlinedTextField(
                         value = url,
@@ -1740,7 +2216,6 @@ fun SettingsPanel(isDark: Boolean) {
                         colors = getOutlinedTextFieldColors(isDark)
                     )
 
-                    // 开启同步 Switch
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -1761,15 +2236,13 @@ fun SettingsPanel(isDark: Boolean) {
                     }
 
                     Spacer(modifier = Modifier.height(4.dp))
-                    Divider(color = (if (isDark) TextGray else TextMuted).copy(alpha = 0.15f), thickness = 1.dp)
+                    HorizontalDivider(color = (if (isDark) TextGray else TextMuted).copy(alpha = 0.15f), thickness = 1.dp)
                     Spacer(modifier = Modifier.height(4.dp))
 
-                    // 功能按钮操作行
                     Column(
                         modifier = Modifier.fillMaxWidth(),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        // 1. 连接测试
                         Button(
                             onClick = {
                                 if (url.trim().isEmpty() || user.trim().isEmpty() || pass.trim().isEmpty()) {
@@ -1801,7 +2274,6 @@ fun SettingsPanel(isDark: Boolean) {
                             }
                         }
 
-                        // 2. 保存配置并应用
                         Button(
                             onClick = {
                                 if (isEnabled && (url.trim().isEmpty() || user.trim().isEmpty() || pass.trim().isEmpty())) {
@@ -1832,7 +2304,6 @@ fun SettingsPanel(isDark: Boolean) {
                             Text("应用并保存", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                         }
 
-                        // 3. 如果是编辑已有配置状态下，允许取消
                         if (isConfigured) {
                             Button(
                                 onClick = { isEditingConfig = false },
@@ -1850,255 +2321,7 @@ fun SettingsPanel(isDark: Boolean) {
             }
         }
 
-        DetailSection(title = "🔎 同步进度与记录") {
-            SyncProgressBlock(
-                statusMessage = syncStatus.message,
-                isSyncing = syncStatus.isSyncing,
-                pending = syncStatus.pending,
-                phase = syncProgress.phase,
-                step = syncProgress.step,
-                total = syncProgress.total,
-                detail = syncProgress.detail,
-                isDark = isDark
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            if (syncHistory.isEmpty()) {
-                Text(
-                    text = "暂无同步记录。完成一次 WebDAV 同步后，这里会显示上传、下载和字段变更详情。",
-                    fontSize = 12.sp,
-                    lineHeight = 17.sp,
-                    color = if (isDark) TextGray else TextMuted
-                )
-            } else {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    syncHistory.take(8).forEach { entry ->
-                        val expanded = expandedHistoryIds.contains(entry.id)
-                        SyncHistoryCard(
-                            entry = entry,
-                            expanded = expanded,
-                            isDark = isDark,
-                            onToggle = {
-                                expandedHistoryIds = if (expanded) {
-                                    expandedHistoryIds - entry.id
-                                } else {
-                                    expandedHistoryIds + entry.id
-                                }
-                            }
-                        )
-                    }
-                }
-            }
-        }
-
-        // ==========================================================
-        // 🛡️ 系统高级控制台 (高级外观、流水清空、卡片擦除一体化大融合) - 第 8 点
-        // ==========================================================
-        DetailSection(title = "🛡️ 系统高级控制台") {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                // 1. 主题切换行
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(if (isDark) DarkBg else LightBg)
-                        .clickable { ThemeManager.toggleTheme(context) }
-                        .padding(12.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Icon(
-                            imageVector = if (isDark) Icons.Filled.LightMode else Icons.Filled.NightlightRound,
-                            contentDescription = "主题",
-                            tint = if (isDark) NeonCyan else GoldPrimary,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Text(
-                            text = "全局外观主题热切换",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Text(
-                        text = if (isDark) "科技暗黑 (Dark)" else "优雅轻奢 (Light)",
-                        fontSize = 10.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = if (isDark) NeonCyan else GoldPrimary,
-                        textAlign = TextAlign.End,
-                        maxLines = 2
-                    )
-                }
-
-                Divider(
-                    color = (if (isDark) TextGray else TextMuted).copy(alpha = 0.1f),
-                    thickness = 1.dp,
-                    modifier = Modifier.padding(vertical = 4.dp)
-                )
-
-                // 2. 运维按钮：清除变动历史记录账本 (排障重置态)
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(if (isDark) DarkBg else LightBg)
-                        .clickable { showClearLogDialog = true }
-                        .padding(12.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.Refresh,
-                            contentDescription = "变动流水",
-                            tint = if (isDark) Color(0xFFFF9100) else WarmOrange,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Text(
-                            text = "清空本地 CRDT 变动账本",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Icon(
-                        imageVector = Icons.Filled.ChevronRight,
-                        contentDescription = "进入",
-                        tint = if (isDark) TextGray else TextMuted,
-                        modifier = Modifier.size(16.dp)
-                    )
-                }
-
-                Divider(
-                    color = (if (isDark) TextGray else TextMuted).copy(alpha = 0.1f),
-                    thickness = 1.dp,
-                    modifier = Modifier.padding(vertical = 4.dp)
-                )
-
-                // 3. 运维按钮：物理重置清空数据库
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(if (isDark) DarkBg else LightBg)
-                        .clickable { showResetDbDialog = true }
-                        .padding(12.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Icon(
-                            imageVector = Icons.Filled.DeleteForever,
-                            contentDescription = "物理擦除",
-                            tint = if (isDark) NeonRed else Color.Red,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Text(
-                            text = "物理删除本地所有卡片数据",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp,
-                            maxLines = 2,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Icon(
-                        imageVector = Icons.Filled.ChevronRight,
-                        contentDescription = "进入",
-                        tint = if (isDark) TextGray else TextMuted,
-                        modifier = Modifier.size(16.dp)
-                    )
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(40.dp))
-    }
-
-    // ==========================================
-    // 🛡️ 二次安全确认 Dialogs
-    // ==========================================
-
-    // 1. 清理变动账本确认
-    if (showClearLogDialog) {
-        AlertDialog(
-            onDismissRequest = { showClearLogDialog = false },
-            title = { Text("⚠️ 警告：清空变动账本记录？", fontWeight = FontWeight.Bold, fontSize = 16.sp) },
-            text = {
-                Text(
-                    text = "此操作将彻底删除本地未同步的变动事件流水日志，强行恢复数据库至初始合流态。这可能导致本段未上传的数据在合并时被覆盖。仅限调试排障时使用！",
-                    fontSize = 13.sp
-                )
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        showClearLogDialog = false
-                        coroutineScope.launch {
-                            SyncCoordinator.clearSyncRecords(context)
-                            Toast.makeText(context, "本地同步变动流水记录已成功清除", Toast.LENGTH_SHORT).show()
-                        }
-                    }
-                ) {
-                    Text("确认清空", color = if (isDark) NeonCyan else GoldPrimary, fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showClearLogDialog = false }) {
-                    Text("取消", color = if (isDark) TextGray else TextMuted)
-                }
-            }
-        )
-    }
-
-    // 2. 清空数据库确认
-    if (showResetDbDialog) {
-        AlertDialog(
-            onDismissRequest = { showResetDbDialog = false },
-            title = { Text("🚨 极其危险操作！", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color.Red) },
-            text = {
-                Text(
-                    text = "您正在请求【物理擦除本地所有信用卡数据】。此操作将瞬间清空本地 SQLite 数据库中的所有卡包资料与同步流水，且本地不可撤销！如果您之前已在云端（WebDAV）成功备份，该清空操作不会删除云端文件，重新同步即可拉回备份。",
-                    fontSize = 13.sp
-                )
-            },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        showResetDbDialog = false
-                        coroutineScope.launch {
-                            SyncCoordinator.resetLocalDatabase(context)
-                            Toast.makeText(context, "本地所有卡片数据已彻底抹除", Toast.LENGTH_LONG).show()
-                        }
-                    }
-                ) {
-                    Text("确认物理删除", color = Color.Red, fontWeight = FontWeight.Bold)
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showResetDbDialog = false }) {
-                    Text("取消", color = if (isDark) TextGray else TextMuted)
-                }
-            }
-        )
+        Spacer(modifier = Modifier.height(24.dp))
     }
 }
 

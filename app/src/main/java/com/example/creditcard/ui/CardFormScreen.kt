@@ -3,7 +3,6 @@ package com.example.creditcard.ui
 import android.app.DatePickerDialog
 import android.widget.Toast
 import kotlinx.coroutines.launch
-import androidx.activity.compose.BackHandler
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -27,7 +26,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Save
 import androidx.compose.material.icons.filled.Nfc
@@ -36,9 +34,20 @@ import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.ArrowDropDown
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.PhotoLibrary
+import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import androidx.compose.foundation.gestures.detectTransformGestures
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
@@ -61,6 +70,7 @@ import com.example.creditcard.data.CardReferenceData
 import com.example.creditcard.data.DatabaseHelper
 import com.example.creditcard.data.SharedCard
 import com.example.creditcard.theme.*
+import com.example.creditcard.ui.components.AppBackButton
 import com.example.creditcard.ui.main.CardBrandBadge
 import com.example.creditcard.ui.main.getCardBrand
 import com.example.creditcard.utils.SyncCoordinator
@@ -165,6 +175,8 @@ fun CardFormScreen(
     var equity by remember { mutableStateOf(originalCard?.equity ?: "") }
     var remark by remember { mutableStateOf(originalCard?.remark ?: "") }
     var cardImages by remember { mutableStateOf(originalCard?.cardImages ?: emptyList()) }
+    var showFullscreenImage by remember { mutableStateOf(false) }
+    var fullscreenImageIndex by remember { mutableStateOf(0) }
 
     // 已录入/扫描出的卡片图片路径
     var scannedImagePath by remember {
@@ -235,15 +247,8 @@ fun CardFormScreen(
     }
 
     // ==========================================
-    // 监听物理 NFC 刷卡感应通知广播
+    // 物理 NFC 刷卡感应广播已由 NfcScanLayout 页面内部状态机统一截获与延迟解析回调处理
     // ==========================================
-    LaunchedEffect(Unit) {
-        NfcScannerManager.nfcCardData.collect { (scannedNo, scannedVal) ->
-            if (currentStep == FormStep.SCAN_NFC) {
-                handleScannedCard(scannedNo, scannedVal, null, "NFC")
-            }
-        }
-    }
 
     // ==========================================
     // 监听页面生命周期 Resume，完美拦截处理“详情页流转决策”
@@ -343,7 +348,10 @@ fun CardFormScreen(
                 isDark = isDark,
                 onBack = onBack,
                 onSwitchCamera = { currentStep = FormStep.SCAN_CAMERA },
-                onSwitchManual = { currentStep = FormStep.MANUAL_FORM }
+                onSwitchManual = { currentStep = FormStep.MANUAL_FORM },
+                onScanSuccess = { scannedNo, scannedVal ->
+                    handleScannedCard(scannedNo, scannedVal, null, "NFC")
+                }
             )
         }
         FormStep.SCAN_CAMERA -> {
@@ -365,9 +373,12 @@ fun CardFormScreen(
                     TopAppBar(
                         title = { Text(if (isEditMode) "修改信用卡" else "添加信用卡", fontWeight = FontWeight.Bold) },
                         navigationIcon = {
-                            IconButton(onClick = handleBackAction) {
-                                Icon(imageVector = Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
-                            }
+                            AppBackButton(
+                                onClick = handleBackAction,
+                                tint = if (isDark) NeonCyan else GoldPrimary,
+                                containerColor = MaterialTheme.colorScheme.surface,
+                                borderColor = (if (isDark) NeonCyan else GoldPrimary).copy(alpha = 0.32f)
+                            )
                         },
                         actions = {
                             // 保存 FAB
@@ -579,6 +590,13 @@ fun CardFormScreen(
                             onPickImages = { galleryLauncher.launch("image/*") },
                             onDelete = { imageId ->
                                 cardImages = cardImages.filterNot { it.id == imageId }
+                            },
+                            onImageClick = { image ->
+                                val idx = cardImages.indexOf(image)
+                                if (idx != -1) {
+                                    fullscreenImageIndex = idx
+                                    showFullscreenImage = true
+                                }
                             }
                         )
                     }
@@ -964,6 +982,80 @@ fun CardFormScreen(
             }
         )
     }
+
+    // 4. 全屏大图预览模态 Dialog (支持捏合缩放、双击还原与左右Pager滑动)
+    if (showFullscreenImage && cardImages.isNotEmpty()) {
+        val pagerState = rememberPagerState(
+            initialPage = fullscreenImageIndex.coerceIn(0, cardImages.lastIndex),
+            pageCount = { cardImages.size }
+        )
+        Dialog(
+            onDismissRequest = { showFullscreenImage = false },
+            properties = DialogProperties(usePlatformDefaultWidth = false)
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(Color.Black),
+                contentAlignment = Alignment.Center
+            ) {
+                // 顶层整体背景轻触关闭
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clickable { showFullscreenImage = false }
+                )
+
+                // 监控全局图片缩放因子，若被放大，锁定左右划页
+                var isZoomed by remember { mutableStateOf(false) }
+
+                HorizontalPager(
+                    state = pagerState,
+                    userScrollEnabled = !isZoomed,
+                    modifier = Modifier.fillMaxSize()
+                ) { page ->
+                    val image = cardImages[page]
+                    val bitmap = remember(image.id, image.data) {
+                        CardImageCodec.decodeBitmap(image)
+                    }
+                    if (bitmap != null) {
+                        ZoomableImage(
+                            bitmap = bitmap,
+                            contentDescription = "全屏大图预览 ${page + 1}",
+                            onScaleChanged = { scale: Float ->
+                                isZoomed = scale > 1f
+                            },
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(16.dp)
+                        )
+                    } else {
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Text("图片加载失败", color = MaterialTheme.colorScheme.error)
+                        }
+                    }
+                }
+
+                // 底部指示器 (如: 1 / 3)
+                if (cardImages.size > 1) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomCenter)
+                            .padding(bottom = 32.dp)
+                            .background(Color.Black.copy(alpha = 0.55f), RoundedCornerShape(20.dp))
+                            .padding(horizontal = 14.dp, vertical = 6.dp)
+                    ) {
+                        Text(
+                            text = "${pagerState.currentPage + 1} / ${cardImages.size}",
+                            color = Color.White,
+                            fontSize = 13.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+            }
+        }
+    }
 }
 
 /**
@@ -1068,7 +1160,8 @@ fun CardMediaSection(
     isDark: Boolean,
     onTakePhoto: () -> Unit,
     onPickImages: () -> Unit,
-    onDelete: (String) -> Unit
+    onDelete: (String) -> Unit,
+    onImageClick: (CardImageAsset) -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Row(
@@ -1122,6 +1215,7 @@ fun CardMediaSection(
                                 color = (if (isDark) NeonCyan else GoldPrimary).copy(alpha = 0.25f),
                                 shape = RoundedCornerShape(10.dp)
                             )
+                            .clickable { onImageClick(image) }
                     ) {
                         val bitmap = remember(image.id, image.data) {
                             CardImageCodec.decodeBitmap(image)
@@ -1252,6 +1346,14 @@ fun executeSaveCard(
     Toast.makeText(context, "卡片已成功保存至本地账本", Toast.LENGTH_SHORT).show()
 }
 
+enum class NfcUiState {
+    WAITING,
+    READING,
+    PARSING,
+    SUCCESS,
+    ERROR
+}
+
 /**
  * NFC 酷炫感应刷卡全屏渲染层
  */
@@ -1261,23 +1363,65 @@ fun NfcScanLayout(
     isDark: Boolean,
     onBack: () -> Unit,
     onSwitchCamera: () -> Unit,
-    onSwitchManual: () -> Unit
+    onSwitchManual: () -> Unit,
+    onScanSuccess: (String, String) -> Unit
 ) {
-    var isReading by remember { mutableStateOf(false) }
-    var isUnsupported by remember { mutableStateOf(false) }
+    var uiState by remember { mutableStateOf(NfcUiState.WAITING) }
+    var scannedNumber by remember { mutableStateOf("") }
+    var scannedValid by remember { mutableStateOf("") }
 
     LaunchedEffect(Unit) {
         launch {
             NfcScannerManager.nfcReadingState.collect { state ->
-                isReading = (state == "READING")
-                if (isReading) {
-                    isUnsupported = false
+                if (state == "READING") {
+                    uiState = NfcUiState.READING
                 }
             }
         }
         launch {
+            NfcScannerManager.nfcCardData.collect { (number, valid) ->
+                scannedNumber = number
+                scannedValid = valid
+                
+                // 1. 进入“读取完成，正在解析数据”
+                uiState = NfcUiState.PARSING
+                
+                // 2. 模拟高保真数据流解析仪式感延迟
+                kotlinx.coroutines.delay(1200)
+                
+                // 3. 解析成功
+                uiState = NfcUiState.SUCCESS
+                
+                // 4. 触发智能震动
+                try {
+                    val vibrator = context.getSystemService(android.content.Context.VIBRATOR_SERVICE) as? android.os.Vibrator
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                        vibrator?.vibrate(android.os.VibrationEffect.createOneShot(120, android.os.VibrationEffect.DEFAULT_AMPLITUDE))
+                    } else {
+                        @Suppress("DEPRECATION")
+                        vibrator?.vibrate(120)
+                    }
+                } catch (e: Exception) {}
+                
+                // 5. 让用户看清成功动画后，执行成功回调
+                kotlinx.coroutines.delay(1000)
+                onScanSuccess(number, valid)
+            }
+        }
+        launch {
             NfcScannerManager.nfcUnsupportedCard.collect {
-                isUnsupported = true
+                uiState = NfcUiState.ERROR
+                
+                // 触发错误震动反馈
+                try {
+                    val vibrator = context.getSystemService(android.content.Context.VIBRATOR_SERVICE) as? android.os.Vibrator
+                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                        vibrator?.vibrate(android.os.VibrationEffect.createWaveform(longArrayOf(0, 80, 80, 80), -1))
+                    } else {
+                        @Suppress("DEPRECATION")
+                        vibrator?.vibrate(160)
+                    }
+                } catch (e: Exception) {}
             }
         }
     }
@@ -1290,7 +1434,13 @@ fun NfcScanLayout(
     ) {
         // 科技感雷达扩散脉冲动画驱动
         val transition = rememberInfiniteTransition(label = "nfc")
-        val duration = if (isReading) 700 else 2200
+        val isAnimating = uiState == NfcUiState.WAITING || uiState == NfcUiState.READING || uiState == NfcUiState.PARSING
+        val duration = when (uiState) {
+            NfcUiState.READING -> 700
+            NfcUiState.PARSING -> 600
+            else -> 2200
+        }
+        
         val radiusScale by transition.animateFloat(
             initialValue = 0.4f,
             targetValue = 1.0f,
@@ -1310,7 +1460,12 @@ fun NfcScanLayout(
             label = "alpha"
         )
 
-        val accentColor = if (isUnsupported) (if (isDark) NeonRed else Color.Red) else (if (isDark) NeonCyan else GoldPrimary)
+        val accentColor = when (uiState) {
+            NfcUiState.PARSING -> if (isDark) NeonGreen else ForestGreen
+            NfcUiState.SUCCESS -> if (isDark) NeonGreen else ForestGreen
+            NfcUiState.ERROR -> if (isDark) NeonRed else Color.Red
+            else -> if (isDark) NeonCyan else GoldPrimary
+        }
 
         // 顶部 Overlay 状态返回导航
         Box(
@@ -1318,20 +1473,15 @@ fun NfcScanLayout(
                 .fillMaxWidth()
                 .align(Alignment.TopCenter)
                 .statusBarsPadding()
-                .padding(16.dp)
+                .padding(horizontal = 16.dp, vertical = 8.dp)
         ) {
-            IconButton(
+            AppBackButton(
                 onClick = onBack,
-                modifier = Modifier
-                    .background(Color.Black.copy(alpha = 0.15f), shape = CircleShape)
-                    .align(Alignment.CenterStart)
-            ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "返回",
-                    tint = if (isDark) Color.White else Color.Black
-                )
-            }
+                modifier = Modifier.align(Alignment.CenterStart),
+                tint = if (isDark) Color.White else Color.Black,
+                containerColor = if (isDark) Color.Black.copy(alpha = 0.42f) else Color.White.copy(alpha = 0.88f),
+                borderColor = accentColor.copy(alpha = 0.45f)
+            )
             Text(
                 text = "NFC 刷卡录入",
                 fontSize = 18.sp,
@@ -1351,20 +1501,22 @@ fun NfcScanLayout(
                 modifier = Modifier.size(240.dp),
                 contentAlignment = Alignment.Center
             ) {
-                // 绘制 3 层酷炫脉冲圆圈 (未支持状态下停止扩散波纹，表现宁静的高级质感)
+                // 绘制 3 层酷炫脉冲圆圈
                 Canvas(modifier = Modifier.fillMaxSize()) {
-                    val finalAlpha = if (isUnsupported) 0f else alphaVal
-                    val finalScale = if (isUnsupported) 0f else radiusScale
-                    drawCircle(
-                        color = accentColor.copy(alpha = finalAlpha),
-                        radius = size.minDimension / 2 * finalScale,
-                        style = Stroke(width = 4.dp.toPx())
-                    )
-                    drawCircle(
-                        color = accentColor.copy(alpha = (finalAlpha + 0.3f).coerceAtMost(0.5f) * finalAlpha),
-                        radius = size.minDimension / 2 * (finalScale - 0.25f).coerceAtLeast(0f),
-                        style = Stroke(width = 2.dp.toPx())
-                    )
+                    val finalAlpha = if (isAnimating) alphaVal else 0f
+                    val finalScale = if (isAnimating) radiusScale else 0f
+                    if (finalAlpha > 0f) {
+                        drawCircle(
+                            color = accentColor.copy(alpha = finalAlpha),
+                            radius = size.minDimension / 2 * finalScale,
+                            style = Stroke(width = 4.dp.toPx())
+                        )
+                        drawCircle(
+                            color = accentColor.copy(alpha = (finalAlpha + 0.3f).coerceAtMost(0.5f) * finalAlpha),
+                            radius = size.minDimension / 2 * (finalScale - 0.25f).coerceAtLeast(0f),
+                            style = Stroke(width = 2.dp.toPx())
+                        )
+                    }
                 }
 
                 // NFC 中央呼吸芯片区
@@ -1379,19 +1531,45 @@ fun NfcScanLayout(
                         ),
                     contentAlignment = Alignment.Center
                 ) {
-                    if (isReading) {
-                        CircularProgressIndicator(
-                            strokeWidth = 3.dp,
-                            color = Color.White,
-                            modifier = Modifier.size(48.dp)
-                        )
-                    } else {
-                        Icon(
-                            imageVector = Icons.Default.Nfc,
-                            contentDescription = "NFC芯片",
-                            modifier = Modifier.size(48.dp),
-                            tint = Color.White
-                        )
+                    when (uiState) {
+                        NfcUiState.READING -> {
+                            CircularProgressIndicator(
+                                strokeWidth = 3.dp,
+                                color = Color.White,
+                                modifier = Modifier.size(48.dp)
+                            )
+                        }
+                        NfcUiState.PARSING -> {
+                            CircularProgressIndicator(
+                                strokeWidth = 3.dp,
+                                color = Color.White,
+                                modifier = Modifier.size(48.dp)
+                            )
+                        }
+                        NfcUiState.SUCCESS -> {
+                            Icon(
+                                imageVector = Icons.Filled.Check,
+                                contentDescription = "成功",
+                                modifier = Modifier.size(48.dp),
+                                tint = Color.White
+                            )
+                        }
+                        NfcUiState.ERROR -> {
+                            Icon(
+                                imageVector = Icons.Filled.Close,
+                                contentDescription = "失败",
+                                modifier = Modifier.size(48.dp),
+                                tint = Color.White
+                            )
+                        }
+                        else -> {
+                            Icon(
+                                imageVector = Icons.Default.Nfc,
+                                contentDescription = "NFC芯片",
+                                modifier = Modifier.size(48.dp),
+                                tint = Color.White
+                            )
+                        }
                     }
                 }
             }
@@ -1399,27 +1577,31 @@ fun NfcScanLayout(
             Spacer(modifier = Modifier.height(36.dp))
 
             Text(
-                text = when {
-                    isUnsupported -> "暂不支持该卡片"
-                    isReading -> "正在读取，请勿移动卡片..."
-                    else -> "请将您的信用卡贴在手机背面"
+                text = when (uiState) {
+                    NfcUiState.WAITING -> "等待卡片靠近..."
+                    NfcUiState.READING -> "读取中，请勿移动卡片...."
+                    NfcUiState.PARSING -> "读取完成，正在解析数据....."
+                    NfcUiState.SUCCESS -> "解析成功"
+                    NfcUiState.ERROR -> "解析失败，该卡不支持读取"
                 },
                 fontSize = 17.sp,
                 fontWeight = FontWeight.Bold,
-                color = if (isUnsupported) (if (isDark) NeonRed else Color.Red) else (if (isDark) Color.White else Color.Black),
+                color = if (uiState == NfcUiState.ERROR) (if (isDark) NeonRed else Color.Red) else (if (isDark) Color.White else Color.Black),
                 textAlign = TextAlign.Center
             )
             
             Spacer(modifier = Modifier.height(8.dp))
 
             Text(
-                text = when {
-                    isUnsupported -> "由于卡片具备金融级高强度密钥防克隆屏蔽，暂无法非接触读取卡号。建议使用相机扫描或手动录入。"
-                    isReading -> "金融级数据解析中，请保持平稳..."
-                    else -> "系统正处于自动感应芯片监听中..."
+                text = when (uiState) {
+                    NfcUiState.WAITING -> "系统正处于自动感应芯片监听中..."
+                    NfcUiState.READING -> "金融级安全通道已建立，请保持平稳"
+                    NfcUiState.PARSING -> "高保真解密算法执行中，请稍候"
+                    NfcUiState.SUCCESS -> "卡号数据提取成功，正在前往录入表单"
+                    NfcUiState.ERROR -> "由于该卡片具备金融级防克隆屏蔽或非银行卡，暂不支持读取。建议使用相机扫描或手动录入。"
                 },
                 fontSize = 13.sp,
-                color = if (isUnsupported) (if (isDark) NeonRed.copy(alpha = 0.8f) else Color.Red.copy(alpha = 0.8f)) else (if (isDark) TextGray else TextMuted),
+                color = if (uiState == NfcUiState.ERROR) (if (isDark) NeonRed.copy(alpha = 0.8f) else Color.Red.copy(alpha = 0.8f)) else (if (isDark) TextGray else TextMuted),
                 textAlign = TextAlign.Center,
                 modifier = Modifier.padding(horizontal = 24.dp)
             )
@@ -1766,20 +1948,15 @@ fun CameraScanLayout(
                 .fillMaxWidth()
                 .align(Alignment.TopCenter)
                 .statusBarsPadding()
-                .padding(16.dp)
+                .padding(horizontal = 16.dp, vertical = 8.dp)
         ) {
-            IconButton(
+            AppBackButton(
                 onClick = onBack,
-                modifier = Modifier
-                    .background(Color.Black.copy(alpha = 0.4f), shape = CircleShape)
-                    .align(Alignment.CenterStart)
-            ) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                    contentDescription = "返回",
-                    tint = Color.White
-                )
-            }
+                modifier = Modifier.align(Alignment.CenterStart),
+                tint = Color.White,
+                containerColor = Color.Black.copy(alpha = 0.48f),
+                borderColor = Color.White.copy(alpha = 0.32f)
+            )
             Text(
                 text = scanTitle,
                 fontSize = 18.sp,
@@ -1979,4 +2156,62 @@ fun findExpiryFromText(text: String): String {
     val pattern = "\\b(0[1-9]|1[0-2])/([0-9]{2})\\b".toRegex()
     val match = pattern.find(text)
     return match?.value ?: ""
+}
+
+/**
+ * 手势捏合缩放（Pinch-to-zoom）、双击还原与拖拽 pan 的大图渲染组件
+ */
+@Composable
+private fun ZoomableImage(
+    bitmap: android.graphics.Bitmap,
+    contentDescription: String,
+    onScaleChanged: (Float) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var scale by remember { mutableStateOf(1f) }
+    var offset by remember { mutableStateOf(androidx.compose.ui.geometry.Offset.Zero) }
+
+    Box(
+        modifier = modifier
+            .clipToBounds()
+            .pointerInput(Unit) {
+                detectTransformGestures { _, pan, zoom, _ ->
+                    val newScale = (scale * zoom).coerceIn(1f, 5f)
+                    scale = newScale
+                    onScaleChanged(newScale)
+                    if (newScale > 1f) {
+                        offset += pan
+                    } else {
+                        offset = androidx.compose.ui.geometry.Offset.Zero
+                    }
+                }
+            }
+            .pointerInput(Unit) {
+                detectTapGestures(
+                    onDoubleTap = {
+                        if (scale > 1f) {
+                            scale = 1f
+                            offset = androidx.compose.ui.geometry.Offset.Zero
+                        } else {
+                            scale = 2.5f
+                        }
+                        onScaleChanged(scale)
+                    }
+                )
+            }
+    ) {
+        Image(
+            bitmap = bitmap.asImageBitmap(),
+            contentDescription = contentDescription,
+            modifier = Modifier
+                .fillMaxSize()
+                .graphicsLayer(
+                    scaleX = scale,
+                    scaleY = scale,
+                    translationX = offset.x,
+                    translationY = offset.y
+                ),
+            contentScale = ContentScale.Fit
+        )
+    }
 }

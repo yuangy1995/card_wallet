@@ -1,10 +1,7 @@
 package com.example.creditcard
 
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.unit.dp
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.ui.NavDisplay
@@ -19,17 +16,26 @@ import com.example.creditcard.ui.main.MainScreen
 @Composable
 fun MainNavigation() {
     val backStack = rememberNavBackStack(Main)
+    val popBackStack = {
+        if (backStack.size > 1) {
+            backStack.removeLastOrNull()
+        }
+    }
+
+    // 系统全面屏返回手势优先回退应用内导航栈，避免直接结束 Activity。
+    BackHandler(enabled = backStack.size > 1) {
+        popBackStack()
+    }
 
     NavDisplay(
         backStack = backStack,
-        onBack = { backStack.removeLastOrNull() },
+        onBack = popBackStack,
         entryProvider = entryProvider {
             
             // 1. 卡包主界面路由
             entry<Main> {
                 MainScreen(
-                    onItemClick = { navKey -> backStack.add(navKey) },
-                    modifier = Modifier.safeDrawingPadding()
+                    onItemClick = { navKey -> backStack.add(navKey) }
                 )
             }
             
@@ -37,7 +43,7 @@ fun MainNavigation() {
             entry<CardDetail> { key ->
                 CardDetailScreen(
                     cardId = key.cardId,
-                    onBack = { backStack.removeLastOrNull() },
+                    onBack = popBackStack,
                     onEdit = { id -> backStack.add(CardForm(id)) }
                 )
             }
@@ -48,7 +54,7 @@ fun MainNavigation() {
                     cardId = key.cardId,
                     prefillCardNumber = key.prefillCardNumber,
                     prefillValid = key.prefillValid,
-                    onBack = { backStack.removeLastOrNull() },
+                    onBack = popBackStack,
                     onNavigateToDetail = { id -> backStack.add(CardDetail(id)) }
                 )
             }
