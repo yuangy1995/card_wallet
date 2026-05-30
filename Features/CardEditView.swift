@@ -105,21 +105,17 @@ public struct CardEditView: View {
                     Form {
                         // Section 1: 四个核心字段必填，其余字段可留空
                         Section(header: Text("核心信息")) {
-                            Picker("国家/地区 *", selection: $country) {
-                                Text("请选择").tag("")
-                                ForEach(countries, id: \.self) { c in
-                                    Text(c).tag(c)
-                                }
-                            }
-                            .pickerStyle(.menu)
+                            EditableOptionField(
+                                title: "国家/地区 *",
+                                text: $country,
+                                options: countries
+                            )
                             
-                            Picker("发卡银行 *", selection: $bank) {
-                                Text("请选择").tag("")
-                                ForEach(banks, id: \.self) { b in
-                                    Text(b).tag(b)
-                                }
-                            }
-                            .pickerStyle(.menu)
+                            EditableOptionField(
+                                title: "发卡银行 *",
+                                text: $bank,
+                                options: banks
+                            )
                             .onChange(of: bank) { _, _ in
                                 checkExistingSharedLimit()
                             }
@@ -152,23 +148,19 @@ public struct CardEditView: View {
                                     self.cvv = String(newValue.replacingOccurrences(of: "\\D", with: "", options: .regularExpression).prefix(4))
                                 }
                             
-                            Picker("卡片等级", selection: $level) {
-                                Text("请选择").tag("")
-                                ForEach(levels, id: \.self) { l in
-                                    Text(l).tag(l)
-                                }
-                            }
-                            .pickerStyle(.menu)
+                            EditableOptionField(
+                                title: "卡片等级",
+                                text: $level,
+                                options: levels
+                            )
                         }
                         
                         DisclosureGroup("额度与年费", isExpanded: $isLimitFeeSectionExpanded) {
-                            Picker("币种", selection: $type) {
-                                Text("请选择").tag("")
-                                ForEach(currencies, id: \.self) { curr in
-                                    Text(curr).tag(curr)
-                                }
-                            }
-                            .pickerStyle(.menu)
+                            EditableOptionField(
+                                title: "币种",
+                                text: $type,
+                                options: currencies
+                            )
                             
                             Toggle("共享该行额度", isOn: $isSharedLimit)
                                 .toggleStyle(.checkbox)
@@ -615,6 +607,44 @@ public struct CardEditView: View {
         let base64 = asset.data.components(separatedBy: "base64,").last ?? asset.data
         guard let data = Data(base64Encoded: base64) else { return nil }
         return NSImage(data: data)
+    }
+}
+
+private struct EditableOptionField: View {
+    let title: String
+    @Binding var text: String
+    let options: [String]
+
+    private var filteredOptions: [String] {
+        let keyword = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !keyword.isEmpty else { return options }
+        return options.filter { $0.localizedCaseInsensitiveContains(keyword) }
+    }
+
+    var body: some View {
+        HStack {
+            Text(title)
+            Spacer()
+            TextField("可输入或选择", text: $text)
+                .textFieldStyle(.roundedBorder)
+                .frame(width: 260)
+
+            Menu {
+                if filteredOptions.isEmpty {
+                    Text("没有匹配项，可直接保存当前输入")
+                } else {
+                    ForEach(Array(filteredOptions.prefix(30)), id: \.self) { option in
+                        Button(option) {
+                            text = option
+                        }
+                    }
+                }
+            } label: {
+                Image(systemName: "chevron.down.circle")
+            }
+            .menuStyle(.borderlessButton)
+            .fixedSize()
+        }
     }
 }
 
