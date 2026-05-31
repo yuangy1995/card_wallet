@@ -9,8 +9,10 @@ import com.example.creditcard.data.SharedCard
 import com.example.creditcard.data.SyncHistoryEntry
 import com.example.creditcard.data.SyncSnapshot
 import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -65,6 +67,7 @@ object SyncCoordinator {
     private const val KEY_PENDING = "sync_pending"
     private const val KEY_SYNC_HISTORY = "sync_history"
     private const val KEY_PENDING_MUTATIONS = "pending_mutation_details"
+    private const val KEY_MUTATION_REVISION = "local_mutation_revision"
 
     // 用 MutableStateFlow 进行全局同步状态发布，Compose 侧可极其优雅地消费它
     private val _syncStatus = MutableStateFlow(SyncStatus())
@@ -82,6 +85,12 @@ object SyncCoordinator {
 
     private val syncScope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
     private val syncMutex = Mutex()
+    private val dbWriteLock = Any()
+    private val backgroundSyncLock = Any()
+    @Volatile private var cancelRequested = false
+    @Volatile private var activeSyncJob: Job? = null
+    @Volatile private var backgroundSyncScheduled = false
+    @Volatile private var backgroundSyncPublishLocalChanges = false
 
     /**
      * 加载本地缓存好的卡包数据，作为应用启动的主入口数据源
@@ -160,6 +169,24 @@ object SyncCoordinator {
     private fun isPending(context: Context): Boolean {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         return prefs.getBoolean(KEY_PENDING, false)
+    }
+
+    private fun mutationRevision(context: Context): Long {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getLong(KEY_MUTATION_REVISION, 0L)
+    }
+
+    private fun bumpMutationRevision(context: Context): Long {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val next = prefs.getLong(KEY_MUTATION_REVISION, 0L) + 1L
+        prefs.edit().putLong(KEY_MUTATION_REVISION, next).apply()
+        return next
+    }
+
+    private fun ensureSyncNotCancelled() {
+        if (cancelRequested) {
+            throw CancellationException("同步已被手动终止")
+        }
     }
 
     private fun updateStatus(msg: String, type: String, pending: Boolean, isSyncing: Boolean = false) {
@@ -383,39 +410,64 @@ object SyncCoordinator {
         return if (count <= 0) "未设置" else "$count 张"
     }
 
+    private fun loadMergedLocalRecords(db: DatabaseHelper): List<CardSyncRecord> {
+        var localRecords = db.getAllSyncRecords()
+        if (localRecords.isEmpty()) {
+            val existingCards = db.getAllCards()
+            if (existingCards.isNotEmpty()) {
+                val legacyRecords = existingCards.map { card ->
+                    CardSyncRecord(
+                        cardId = card.id,
+                        changedAt = SyncTime.isoFromMillis(card.lastModifyTime),
+                        state = "active",
+                        card = card
+                    )
+                }
+                db.saveSyncRecords(legacyRecords)
+                localRecords = legacyRecords
+            }
+        }
+        return SyncMergeEngine.merge(localRecords)
+    }
+
     /**
      * 产生一条新增或修改的本地变动，写入本地账本
      */
     fun commitCardChange(context: Context, card: SharedCard) {
-        val db = DatabaseHelper(context)
-        val beforeCard = if (card.id.isBlank()) null else db.getCardById(card.id)
-        
-        val nowMillis = SyncTime.nowMillis()
-        val isoNow = SyncTime.isoFromMillis(nowMillis)
-        if (card.id.isBlank()) {
-            card.id = UUID.randomUUID().toString()
+        val appContext = context.applicationContext
+        val latestCards = synchronized(dbWriteLock) {
+            val db = DatabaseHelper(appContext)
+            val beforeCard = if (card.id.isBlank()) null else db.getCardById(card.id)
+
+            val nowMillis = SyncTime.nowMillis()
+            val isoNow = SyncTime.isoFromMillis(nowMillis)
+            if (card.id.isBlank()) {
+                card.id = UUID.randomUUID().toString()
+            }
+            // Web/Mac 端会把 active record 的 lastModifyTime 规范为 changedAt 对应毫秒值。
+            card.lastModifyTime = nowMillis
+
+            // 1. 生成并保存本地 active 账本记录
+            val record = CardSyncRecord(
+                cardId = card.id,
+                changedAt = isoNow,
+                state = "active",
+                card = card
+            )
+
+            db.saveCard(card)
+            db.saveSyncRecord(record)
+            recordPendingMutation(
+                appContext,
+                buildCardChange(if (beforeCard == null) "added" else "modified", beforeCard, card)
+            )
+            bumpMutationRevision(appContext)
+            markPending(appContext, true)
+            db.getAllCards()
         }
-        // Web/Mac 端会把 active record 的 lastModifyTime 规范为 changedAt 对应毫秒值。
-        card.lastModifyTime = nowMillis
-        
-        // 1. 生成并保存本地 active 账本记录
-        val record = CardSyncRecord(
-            cardId = card.id,
-            changedAt = isoNow,
-            state = "active",
-            card = card
-        )
-        
-        db.saveCard(card)
-        db.saveSyncRecord(record)
-        recordPendingMutation(
-            context,
-            buildCardChange(if (beforeCard == null) "added" else "modified", beforeCard, card)
-        )
-        markPending(context, true)
-        
+
         // 刷新主页卡片流
-        _cardsFlow.value = db.getAllCards()
+        _cardsFlow.value = latestCards
         requestBackgroundSync(context, publishLocalChanges = true)
     }
 
@@ -423,25 +475,30 @@ object SyncCoordinator {
      * 产生一条删除的本地变动，写入本地账本
      */
     fun commitCardDelete(context: Context, cardId: String) {
-        val db = DatabaseHelper(context)
-        val beforeCard = db.getCardById(cardId)
-        
-        // 1. 生成并保存本地 deleted 账本记录
-        val isoNow = SyncTime.nowIso()
-        val record = CardSyncRecord(
-            cardId = cardId,
-            changedAt = isoNow,
-            state = "deleted",
-            card = null
-        )
-        
-        db.deleteCardById(cardId)
-        db.saveSyncRecord(record)
-        recordPendingMutation(context, buildCardChange("deleted", beforeCard, null))
-        markPending(context, true)
-        
+        val appContext = context.applicationContext
+        val latestCards = synchronized(dbWriteLock) {
+            val db = DatabaseHelper(appContext)
+            val beforeCard = db.getCardById(cardId)
+
+            // 1. 生成并保存本地 deleted 账本记录
+            val isoNow = SyncTime.nowIso()
+            val record = CardSyncRecord(
+                cardId = cardId,
+                changedAt = isoNow,
+                state = "deleted",
+                card = null
+            )
+
+            db.deleteCardById(cardId)
+            db.saveSyncRecord(record)
+            recordPendingMutation(appContext, buildCardChange("deleted", beforeCard, null))
+            bumpMutationRevision(appContext)
+            markPending(appContext, true)
+            db.getAllCards()
+        }
+
         // 刷新主页卡片流
-        _cardsFlow.value = db.getAllCards()
+        _cardsFlow.value = latestCards
         requestBackgroundSync(context, publishLocalChanges = true)
     }
 
@@ -451,54 +508,36 @@ object SyncCoordinator {
      */
     suspend fun synchronize(context: Context, publishLocalChanges: Boolean = false) = withContext(Dispatchers.IO) {
         syncMutex.withLock {
-            val config = loadConfig(context)
+            val appContext = context.applicationContext
+            val config = loadConfig(appContext)
             if (!config.isEnabled || config.url.isEmpty()) {
                 withContext(Dispatchers.Main) {
-                    updateStatus("未开启云同步，已将所有本机改动保存在本地", "info", isPending(context))
+                    updateStatus("未开启云同步，已将所有本机改动保存在本地", "info", isPending(appContext))
                     updateProgress("空闲", 0, 0)
                 }
                 return@withLock
             }
 
-            // 防止并发同步冲突
-            if (_syncStatus.value.isSyncing) return@withLock
-
+            cancelRequested = false
             val startedAt = SyncTime.nowIso()
-            val pendingLocalChangesAtStart = loadPendingMutations(context)
+            val pendingLocalChangesAtStart = loadPendingMutations(appContext)
+            var localChangesForHistory = pendingLocalChangesAtStart
             var downloadedFilenames = emptyList<String>()
             var uploadedFilename = ""
             var remoteChangeDetails = emptyList<CardChangeDetail>()
+            var needsFollowUpSync = false
 
             withContext(Dispatchers.Main) {
-                updateStatus("正在同步云端数据...", "info", isPending(context), isSyncing = true)
+                updateStatus("正在同步云端数据...", "info", isPending(appContext), isSyncing = true)
                 updateProgress("准备同步", 1, 6, "正在整理本机修改")
             }
 
             try {
-                val db = DatabaseHelper(context)
-                val beforeActiveCards = db.getAllCards()
-
-                // 1. 读取本地所有变动记录
-                var localRecords = db.getAllSyncRecords()
-
-                // 极致容错：如果本地账本为空，但 cards 快照表有历史数据（可能是老版本迁移而来），自动生成 legacyRecords 写入账本
-                if (localRecords.isEmpty()) {
-                    val existingCards = db.getAllCards()
-                    if (existingCards.isNotEmpty()) {
-                        val legacyRecs = existingCards.map { card ->
-                            val modifiedIso = SyncTime.isoFromMillis(card.lastModifyTime)
-                            CardSyncRecord(
-                                cardId = card.id,
-                                changedAt = modifiedIso,
-                                state = "active",
-                                card = card
-                            )
-                        }
-                        db.saveSyncRecords(legacyRecs)
-                        localRecords = legacyRecs
-                    }
+                val db = DatabaseHelper(appContext)
+                synchronized(dbWriteLock) {
+                    loadMergedLocalRecords(db)
                 }
-                localRecords = SyncMergeEngine.merge(localRecords)
+                ensureSyncNotCancelled()
 
                 withContext(Dispatchers.Main) {
                     updateProgress("读取云端", 2, 6, "正在查找云端备份")
@@ -506,15 +545,23 @@ object SyncCoordinator {
 
                 // 2. 从云端拉取备份列表并筛选自动同步文件
                 val rawFiles = WebDAVClient.getBackupList(config.url, config.user, config.pass)
+                ensureSyncNotCancelled()
                 val automaticFiles = rawFiles.filter { file ->
                     file.filename.contains("[SyncV3]") && file.filename.contains("[自]")
+                }.sortedWith(compareByDescending<BackupFile> { it.lastModified }.thenByDescending { it.filename })
+                val filesToRead = automaticFiles.take(5)
+                downloadedFilenames = filesToRead.map { it.filename }
+
+                val totalFilesText = if (automaticFiles.size > filesToRead.size) {
+                    "，云端共有 ${automaticFiles.size} 份，仅读取最近 ${filesToRead.size} 份"
+                } else {
+                    ""
                 }
-                downloadedFilenames = automaticFiles.map { it.filename }
 
                 // 特殊防丢数据警告：如果用户开启同步但云端是第一次设置且没有任何自动备份，但有非自动的其他历史备份
                 if (!publishLocalChanges && automaticFiles.isEmpty() && rawFiles.isNotEmpty()) {
                     appendSyncHistory(
-                        context,
+                        appContext,
                         SyncHistoryEntry(
                             id = UUID.randomUUID().toString(),
                             startedAt = startedAt,
@@ -533,13 +580,18 @@ object SyncCoordinator {
                 }
 
                 withContext(Dispatchers.Main) {
-                    updateProgress("读取备份", 3, 6, "正在下载并读取 ${automaticFiles.size} 份云端备份")
+                    updateProgress("读取备份", 3, 6, "正在下载并读取 ${filesToRead.size} 份云端备份$totalFilesText")
                 }
 
                 // 3. 下载并解密所有自动同步备份
                 val remoteRecords = ArrayList<CardSyncRecord>()
-                for (file in automaticFiles) {
+                for ((index, file) in filesToRead.withIndex()) {
+                    ensureSyncNotCancelled()
+                    withContext(Dispatchers.Main) {
+                        updateProgress("读取备份", 3, 6, "正在读取 ${index + 1}/${filesToRead.size}：${file.filename}")
+                    }
                     val fileContent = WebDAVClient.restoreBackup(config.url, config.user, config.pass, file.filename)
+                    ensureSyncNotCancelled()
                     if (!fileContent.isNullOrEmpty()) {
                         try {
                             val decryptedJson = CryptoManager.decrypt(fileContent)
@@ -557,21 +609,30 @@ object SyncCoordinator {
                     updateProgress("合并数据", 4, 6, "正在合并本机和云端修改")
                 }
 
-                // 4. 执行 CRDT 双向无冲突合流
-                val mergedRecords = SyncMergeEngine.merge(localRecords, remoteRecords)
+                lateinit var mergedRecords: List<CardSyncRecord>
+                lateinit var activeCards: List<SharedCard>
+                var changedByRemote = false
+                var snapshotRevision = 0L
 
-                // 比对合并前后的数据是否有更新
-                val changedByRemote = localRecords != mergedRecords
+                // 4/5. 落库前重新读取最新本地账本，防止同步期间新编辑被旧快照覆盖。
+                synchronized(dbWriteLock) {
+                    val beforeActiveCards = db.getAllCards()
+                    val latestLocalRecords = loadMergedLocalRecords(db)
+                    mergedRecords = SyncMergeEngine.merge(latestLocalRecords, remoteRecords)
+                    changedByRemote = latestLocalRecords != mergedRecords
 
-                // 5. 写入本地 SQLite 快照和变动账本
-                db.clearAllCards()
-                db.clearAllSyncRecords()
-                db.saveSyncRecords(mergedRecords)
-                val activeCards = SyncMergeEngine.extractActiveCards(mergedRecords)
-                for (card in activeCards) {
-                    db.saveCard(card)
+                    db.clearAllCards()
+                    db.clearAllSyncRecords()
+                    db.saveSyncRecords(mergedRecords)
+                    activeCards = SyncMergeEngine.extractActiveCards(mergedRecords)
+                    for (card in activeCards) {
+                        db.saveCard(card)
+                    }
+                    remoteChangeDetails = diffCards(beforeActiveCards, activeCards)
+                    snapshotRevision = mutationRevision(appContext)
+                    localChangesForHistory = loadPendingMutations(appContext)
                 }
-                remoteChangeDetails = diffCards(beforeActiveCards, activeCards)
+                ensureSyncNotCancelled()
 
                 withContext(Dispatchers.Main) {
                     updateProgress("保存云端", 5, 6, "检查是否需要把最新内容保存到云端")
@@ -579,7 +640,7 @@ object SyncCoordinator {
 
                 // 6. 是否需要把最新合流数据发布回云端？
                 // 如果本地有 pending、或者有远程合流变动、或者云端没有任何自动快照但本地有卡包
-                val hasPending = isPending(context)
+                val hasPending = isPending(appContext)
                 if (publishLocalChanges || changedByRemote || hasPending || (automaticFiles.isEmpty() && mergedRecords.isNotEmpty())) {
                     val isoNow = SyncTime.nowIso()
                     val snapshot = SyncSnapshot(
@@ -594,54 +655,116 @@ object SyncCoordinator {
                     val activeCount = activeCards.size
                     val filename = "${timeFilename}---($activeCount)[SyncV3][Android][自].json"
 
+                    ensureSyncNotCancelled()
                     val uploadSuccess = WebDAVClient.uploadSyncSnapshot(config.url, config.user, config.pass, filename, encryptedSnapshot)
+                    ensureSyncNotCancelled()
                     if (uploadSuccess) {
                         uploadedFilename = filename
-                        markPending(context, false)
-                        clearPendingMutations(context)
+                        if (mutationRevision(appContext) == snapshotRevision) {
+                            markPending(appContext, false)
+                            clearPendingMutations(appContext)
+                        } else {
+                            needsFollowUpSync = true
+                            markPending(appContext, true)
+                        }
 
                         // 7. 冗余备份清理：删除超过 5 个的老自动同步备份文件
                         val updatedFiles = WebDAVClient.getBackupList(config.url, config.user, config.pass)
+                        ensureSyncNotCancelled()
                         val oldAutoFiles = updatedFiles.filter { file ->
                             file.filename.contains("[SyncV3]") && file.filename.contains("[自]")
                         }.sortedWith(compareByDescending<BackupFile> { it.lastModified }.thenByDescending { it.filename })
                         if (oldAutoFiles.size > 5) {
                             val filesToDelete = oldAutoFiles.subList(5, oldAutoFiles.size)
                             for (fileDel in filesToDelete) {
+                                ensureSyncNotCancelled()
                                 WebDAVClient.deleteBackup(config.url, config.user, config.pass, fileDel.filename)
                             }
                         }
                     } else {
                         throw IOException("云端上传备份失败")
                     }
+                } else if (mutationRevision(appContext) != snapshotRevision) {
+                    needsFollowUpSync = true
                 }
 
                 appendSyncHistory(
-                    context,
+                    appContext,
                     SyncHistoryEntry(
                         id = UUID.randomUUID().toString(),
                         startedAt = startedAt,
                         finishedAt = SyncTime.nowIso(),
                         status = "success",
-                        message = "同步成功：本机与云端已更新",
+                        message = if (needsFollowUpSync) "同步成功：同步期间有新修改，正在继续同步" else "同步成功：本机与云端已更新",
                         uploadedFile = uploadedFilename,
                         downloadedFiles = downloadedFilenames,
-                        localChanges = pendingLocalChangesAtStart,
+                        localChanges = localChangesForHistory,
                         remoteChanges = remoteChangeDetails
                     )
                 )
 
                 // 8. 刷新主页卡片列表流
+                val currentCards = synchronized(dbWriteLock) {
+                    DatabaseHelper(appContext).getAllCards()
+                }
                 withContext(Dispatchers.Main) {
-                    _cardsFlow.value = db.getAllCards()
-                    updateStatus("云端同步成功，本机已是最新状态", "success", isPending(context))
-                    updateProgress("同步完成", 6, 6, "新增 ${remoteChangeDetails.count { it.kind == "added" }}，修改 ${remoteChangeDetails.count { it.kind == "modified" }}，删除 ${remoteChangeDetails.count { it.kind == "deleted" }}")
+                    _cardsFlow.value = currentCards
+                    if (needsFollowUpSync) {
+                        updateStatus("本次同步完成，检测到期间又有新修改，正在继续同步", "info", true)
+                        updateProgress("继续同步", 6, 6, "新修改已保留，将继续发布到云端")
+                    } else {
+                        updateStatus("云端同步成功，本机已是最新状态", "success", isPending(appContext))
+                        updateProgress("同步完成", 6, 6, "新增 ${remoteChangeDetails.count { it.kind == "added" }}，修改 ${remoteChangeDetails.count { it.kind == "modified" }}，删除 ${remoteChangeDetails.count { it.kind == "deleted" }}")
+                    }
+                }
+                if (needsFollowUpSync) {
+                    requestBackgroundSync(appContext, publishLocalChanges = true)
                 }
 
+            } catch (e: CancellationException) {
+                appendSyncHistory(
+                    appContext,
+                    SyncHistoryEntry(
+                        id = UUID.randomUUID().toString(),
+                        startedAt = startedAt,
+                        finishedAt = SyncTime.nowIso(),
+                        status = "warning",
+                        message = "同步已终止：本机未同步修改已保留",
+                        uploadedFile = uploadedFilename,
+                        downloadedFiles = downloadedFilenames,
+                        localChanges = loadPendingMutations(appContext),
+                        remoteChanges = remoteChangeDetails
+                    )
+                )
+                withContext(Dispatchers.Main) {
+                    updateStatus("同步已终止，本机未同步修改已保留", "warning", isPending(appContext))
+                    updateProgress("已终止", 0, 0, "可重新点击立即同步")
+                }
             } catch (e: Exception) {
+                if (cancelRequested) {
+                    appendSyncHistory(
+                        appContext,
+                        SyncHistoryEntry(
+                            id = UUID.randomUUID().toString(),
+                            startedAt = startedAt,
+                            finishedAt = SyncTime.nowIso(),
+                            status = "warning",
+                            message = "同步已终止：本机未同步修改已保留",
+                            uploadedFile = uploadedFilename,
+                            downloadedFiles = downloadedFilenames,
+                            localChanges = loadPendingMutations(appContext),
+                            remoteChanges = remoteChangeDetails
+                        )
+                    )
+                    withContext(Dispatchers.Main) {
+                        updateStatus("同步已终止，本机未同步修改已保留", "warning", isPending(appContext))
+                        updateProgress("已终止", 0, 0, "可重新点击立即同步")
+                    }
+                    return@withLock
+                }
                 e.printStackTrace()
                 appendSyncHistory(
-                    context,
+                    appContext,
                     SyncHistoryEntry(
                         id = UUID.randomUUID().toString(),
                         startedAt = startedAt,
@@ -650,13 +773,13 @@ object SyncCoordinator {
                         message = "同步失败：${e.message ?: "未知错误"}",
                         uploadedFile = uploadedFilename,
                         downloadedFiles = downloadedFilenames,
-                        localChanges = pendingLocalChangesAtStart,
+                        localChanges = loadPendingMutations(appContext).ifEmpty { pendingLocalChangesAtStart },
                         remoteChanges = remoteChangeDetails
                     )
                 )
                 // 同步失败，保留本地挂起标志，提示用户
                 withContext(Dispatchers.Main) {
-                    updateStatus("同步失败，本机改动已妥善保留，稍后可重试: ${e.message}", "warning", true)
+                    updateStatus("同步失败，本机改动已妥善保留，稍后可重试: ${e.message}", "warning", isPending(appContext))
                     updateProgress("同步失败", 0, 0, e.message ?: "未知错误")
                 }
             }
@@ -679,9 +802,48 @@ object SyncCoordinator {
         val appContext = context.applicationContext
         val config = loadConfig(appContext)
         if (!config.isEnabled || config.url.isBlank()) return
-        syncScope.launch {
-            synchronize(appContext, publishLocalChanges = publishLocalChanges)
+        val shouldLaunch = synchronized(backgroundSyncLock) {
+            backgroundSyncPublishLocalChanges = backgroundSyncPublishLocalChanges || publishLocalChanges
+            if (backgroundSyncScheduled) {
+                false
+            } else {
+                backgroundSyncScheduled = true
+                true
+            }
         }
+        if (!shouldLaunch) return
+        activeSyncJob = syncScope.launch {
+            while (true) {
+                val shouldPublishLocalChanges = synchronized(backgroundSyncLock) {
+                    val current = backgroundSyncPublishLocalChanges
+                    backgroundSyncPublishLocalChanges = false
+                    current
+                }
+                synchronize(appContext, publishLocalChanges = shouldPublishLocalChanges)
+                val shouldContinue = synchronized(backgroundSyncLock) {
+                    if (backgroundSyncPublishLocalChanges) {
+                        true
+                    } else {
+                        backgroundSyncScheduled = false
+                        false
+                    }
+                }
+                if (!shouldContinue) break
+            }
+        }
+    }
+
+    fun cancelCurrentSync(context: Context) {
+        val appContext = context.applicationContext
+        cancelRequested = true
+        synchronized(backgroundSyncLock) {
+            backgroundSyncPublishLocalChanges = false
+            backgroundSyncScheduled = false
+        }
+        WebDAVClient.cancelAll()
+        activeSyncJob?.cancel(CancellationException("用户手动终止同步"))
+        updateStatus("同步已终止，本机未同步修改已保留", "warning", isPending(appContext))
+        updateProgress("已终止", 0, 0, "可重新点击立即同步")
     }
 
     /**
@@ -689,10 +851,14 @@ object SyncCoordinator {
      */
     suspend fun clearSyncRecords(context: Context) {
         withContext(Dispatchers.IO) {
-            val db = DatabaseHelper(context.applicationContext)
-            db.clearAllSyncRecords()
-            clearPendingMutations(context.applicationContext)
-            markPending(context.applicationContext, false)
+            val appContext = context.applicationContext
+            synchronized(dbWriteLock) {
+                val db = DatabaseHelper(appContext)
+                db.clearAllSyncRecords()
+                clearPendingMutations(appContext)
+                markPending(appContext, false)
+                bumpMutationRevision(appContext)
+            }
             withContext(Dispatchers.Main) {
                 updateStatus("本机同步记录已重置", "info", false)
             }
@@ -704,10 +870,14 @@ object SyncCoordinator {
      */
     suspend fun resetLocalDatabase(context: Context) {
         withContext(Dispatchers.IO) {
-            val db = DatabaseHelper(context.applicationContext)
-            db.resetDatabase()
-            clearPendingMutations(context.applicationContext)
-            markPending(context.applicationContext, false)
+            val appContext = context.applicationContext
+            synchronized(dbWriteLock) {
+                val db = DatabaseHelper(appContext)
+                db.resetDatabase()
+                clearPendingMutations(appContext)
+                markPending(appContext, false)
+                bumpMutationRevision(appContext)
+            }
             withContext(Dispatchers.Main) {
                 _cardsFlow.value = emptyList()
                 updateStatus("已完全重置本地所有卡片数据为白板状态", "info", false)

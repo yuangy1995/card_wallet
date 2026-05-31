@@ -1,8 +1,16 @@
 package com.example.creditcard.ui.main
 
+import android.Manifest
 import android.content.Context
+import android.content.Intent
+import android.content.pm.PackageManager
+import android.net.Uri
+import android.os.Build
+import android.provider.Settings
 import android.widget.Toast
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.BorderStroke
@@ -14,6 +22,7 @@ import androidx.compose.foundation.gestures.detectDragGesturesAfterLongPress
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -47,6 +56,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import androidx.navigation3.runtime.NavKey
+import java.time.LocalDate
+import java.time.temporal.ChronoUnit
+import kotlin.math.min
 import com.example.creditcard.CardDetail
 import com.example.creditcard.CardForm
 import com.example.creditcard.data.CardChangeDetail
@@ -54,6 +66,8 @@ import com.example.creditcard.data.SharedCard
 import com.example.creditcard.data.SyncHistoryEntry
 import com.example.creditcard.theme.*
 import com.example.creditcard.ui.components.AppBackButton
+import com.example.creditcard.utils.AppStorageManager
+import com.example.creditcard.utils.AppStorageSnapshot
 import com.example.creditcard.utils.SyncCoordinator
 import com.example.creditcard.utils.NfcScannerManager
 import com.example.creditcard.utils.ThemeManager
@@ -68,14 +82,15 @@ private enum class ToolsMode {
     STATS,
     VERIFY_PREFETCH,
     VERIFY,
-    SYNC_LOG
+    SYNC_LOG,
+    BEST_USAGE
 }
 
 private const val TOOL_MENU_PREFS = "tool_menu_preferences"
 private const val TOOL_MENU_ORDER_KEY = "tool_menu_order"
 private const val TOOL_MENU_HIDDEN_KEY = "tool_menu_hidden"
 
-private val defaultToolMenuIds = listOf("stats", "verify", "sync_log")
+private val defaultToolMenuIds = listOf("stats", "verify", "best_usage", "sync_log")
 
 private data class ToolMenuItem(
     val id: String,
@@ -383,7 +398,8 @@ fun MainScreen(
                                     toolsMode = ToolsMode.VERIFY_PREFETCH
                                 }
                             },
-                            onOpenSyncHistory = { toolsMode = ToolsMode.SYNC_LOG }
+                            onOpenSyncHistory = { toolsMode = ToolsMode.SYNC_LOG },
+                            onOpenBestUsage = { toolsMode = ToolsMode.BEST_USAGE }
                         )
                         ToolsMode.STATS -> ToolsStatsPanel(
                             cards = cards,
@@ -406,6 +422,14 @@ fun MainScreen(
                         )
                         ToolsMode.SYNC_LOG -> ToolsSyncHistoryPanel(
                             isDark = isDark,
+                            onBack = { toolsMode = ToolsMode.HOME }
+                        )
+                        ToolsMode.BEST_USAGE -> BestUsagePanel(
+                            cards = cards,
+                            isDark = isDark,
+                            onConfigureCard = { cardId ->
+                                onItemClick(CardForm(cardId = cardId))
+                            },
                             onBack = { toolsMode = ToolsMode.HOME }
                         )
                     }
@@ -582,14 +606,16 @@ fun CreditCardTile(
                 EMVChip()
             }
 
-            // 第三行：遮罩卡号
+            // 第三行：分段完整卡号
             Text(
-                text = formatMaskedCardNumber(card.cardNumber),
+                text = formatSpacingCardNumber(card.cardNumber),
                 color = Color.White,
-                fontSize = 18.sp,
+                fontSize = 15.sp,
                 fontFamily = FontFamily.Monospace,
                 fontWeight = FontWeight.SemiBold,
-                letterSpacing = 1.5.sp
+                letterSpacing = 1.sp,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
             )
 
             // 第四行：额度与还款信息
@@ -640,7 +666,8 @@ fun ToolsPanel(
     isDark: Boolean,
     onOpenStats: () -> Unit,
     onStartVerify: () -> Unit,
-    onOpenSyncHistory: () -> Unit
+    onOpenSyncHistory: () -> Unit,
+    onOpenBestUsage: () -> Unit
 ) {
     val context = LocalContext.current
     var toolOrder by remember { mutableStateOf(loadToolMenuOrder(context)) }
@@ -666,6 +693,14 @@ fun ToolsPanel(
             subtitle = "先同步云端最新数据，再用 NFC 逐张核对本地卡包",
             accent = if (isDark) NeonGreen else ForestGreen,
             onClick = onStartVerify
+        ),
+        ToolMenuItem(
+            id = "best_usage",
+            icon = Icons.Filled.AutoAwesome,
+            title = "优惠用卡",
+            subtitle = "实时计算卡片当前可用免息期，智能推荐今日消费首选卡片",
+            accent = if (isDark) NeonPurple else NavySecondary,
+            onClick = onOpenBestUsage
         ),
         ToolMenuItem(
             id = "sync_log",
@@ -1034,6 +1069,8 @@ fun ToolsSyncHistoryPanel(
     isDark: Boolean,
     onBack: () -> Unit
 ) {
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
     val syncStatus by SyncCoordinator.syncStatus.collectAsState()
     val syncProgress by SyncCoordinator.syncProgress.collectAsState()
     val syncHistory by SyncCoordinator.syncHistory.collectAsState()
@@ -1079,7 +1116,16 @@ fun ToolsSyncHistoryPanel(
                 step = syncProgress.step,
                 total = syncProgress.total,
                 detail = syncProgress.detail,
-                isDark = isDark
+                isDark = isDark,
+                onCancel = {
+                    SyncCoordinator.cancelCurrentSync(context)
+                    Toast.makeText(context, "已请求终止当前同步", Toast.LENGTH_SHORT).show()
+                },
+                onRetry = {
+                    coroutineScope.launch {
+                        SyncCoordinator.synchronize(context, publishLocalChanges = true)
+                    }
+                }
             )
         }
 
@@ -1254,6 +1300,7 @@ fun QuickVerifyPanel(
     var currentScannedValid by remember { mutableStateOf("") }
     var showMissingDialog by remember { mutableStateOf(false) }
     var showSummaryDialog by remember { mutableStateOf(false) }
+    var isNumberVisible by androidx.compose.runtime.saveable.rememberSaveable { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
         launch {
@@ -1455,13 +1502,31 @@ fun QuickVerifyPanel(
                             .padding(12.dp)
                     ) {
                         Text("最近读取卡号", fontSize = 11.sp, color = if (isDark) TextGray else TextMuted)
-                        Text(
-                            text = formatMaskedCardNumber(currentScannedNumber),
-                            fontFamily = FontFamily.Monospace,
-                            fontSize = 18.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = if (isDark) NeonCyan else GoldPrimary
-                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = if (isNumberVisible) formatSpacingCardNumber(currentScannedNumber) else formatMaskedCardNumber(currentScannedNumber),
+                                fontFamily = FontFamily.Monospace,
+                                fontSize = 18.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isDark) NeonCyan else GoldPrimary,
+                                modifier = Modifier.weight(1f)
+                            )
+                            IconButton(
+                                onClick = { isNumberVisible = !isNumberVisible },
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Icon(
+                                    imageVector = if (isNumberVisible) Icons.Filled.Visibility else Icons.Filled.VisibilityOff,
+                                    contentDescription = "切换卡号防窥",
+                                    tint = (if (isDark) NeonCyan else GoldPrimary).copy(alpha = 0.8f),
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        }
                         if (currentScannedValid.isNotBlank()) {
                             Text("有效期：$currentScannedValid", fontSize = 12.sp, color = if (isDark) TextGray else TextMuted)
                         }
@@ -1499,7 +1564,7 @@ fun QuickVerifyPanel(
                             ) {
                                 Icon(Icons.Filled.CreditCardOff, contentDescription = "未录入", tint = if (isDark) NeonRed else WarmOrange, modifier = Modifier.size(18.dp))
                                 Spacer(modifier = Modifier.width(8.dp))
-                                Text(formatMaskedCardNumber(number), fontFamily = FontFamily.Monospace, fontSize = 14.sp, modifier = Modifier.weight(1f))
+                                Text(if (isNumberVisible) formatSpacingCardNumber(number) else formatMaskedCardNumber(number), fontFamily = FontFamily.Monospace, fontSize = 14.sp, modifier = Modifier.weight(1f))
                             }
                         }
                     }
@@ -1514,7 +1579,7 @@ fun QuickVerifyPanel(
         AlertDialog(
             onDismissRequest = { showMissingDialog = false },
             title = { Text("本地未录入这张卡") },
-            text = { Text("卡号 ${formatMaskedCardNumber(currentScannedNumber)} 不在本地数据中。可以现在录入，也可以继续验卡。") },
+            text = { Text("卡号 ${if (isNumberVisible) formatSpacingCardNumber(currentScannedNumber) else formatMaskedCardNumber(currentScannedNumber)} 不在本地数据中。可以现在录入，也可以继续验卡。") },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -2097,7 +2162,11 @@ fun AnalyticsPanel(cards: List<SharedCard>, isDark: Boolean) {
 
 private enum class SettingsMode {
     MAIN,
-    WEBDAV
+    WEBDAV,
+    HELP,
+    ABOUT,
+    PRIVACY,
+    STORAGE
 }
 
 @Composable
@@ -2110,11 +2179,39 @@ private fun SettingsPanel(
         SettingsMode.MAIN -> {
             SettingsMainPanel(
                 isDark = isDark,
-                onOpenWebDAV = { onSettingsModeChange(SettingsMode.WEBDAV) }
+                onOpenWebDAV = { onSettingsModeChange(SettingsMode.WEBDAV) },
+                onOpenHelp = { onSettingsModeChange(SettingsMode.HELP) },
+                onOpenAbout = { onSettingsModeChange(SettingsMode.ABOUT) },
+                onOpenPrivacy = { onSettingsModeChange(SettingsMode.PRIVACY) },
+                onOpenStorage = { onSettingsModeChange(SettingsMode.STORAGE) }
             )
         }
         SettingsMode.WEBDAV -> {
             SettingsWebDAVPanel(
+                isDark = isDark,
+                onBack = { onSettingsModeChange(SettingsMode.MAIN) }
+            )
+        }
+        SettingsMode.HELP -> {
+            SettingsHelpPanel(
+                isDark = isDark,
+                onBack = { onSettingsModeChange(SettingsMode.MAIN) }
+            )
+        }
+        SettingsMode.ABOUT -> {
+            SettingsAboutPanel(
+                isDark = isDark,
+                onBack = { onSettingsModeChange(SettingsMode.MAIN) }
+            )
+        }
+        SettingsMode.PRIVACY -> {
+            SettingsPrivacyPanel(
+                isDark = isDark,
+                onBack = { onSettingsModeChange(SettingsMode.MAIN) }
+            )
+        }
+        SettingsMode.STORAGE -> {
+            SettingsStoragePanel(
                 isDark = isDark,
                 onBack = { onSettingsModeChange(SettingsMode.MAIN) }
             )
@@ -2125,13 +2222,15 @@ private fun SettingsPanel(
 @Composable
 fun SettingsMainPanel(
     isDark: Boolean,
-    onOpenWebDAV: () -> Unit
+    onOpenWebDAV: () -> Unit,
+    onOpenHelp: () -> Unit,
+    onOpenAbout: () -> Unit,
+    onOpenPrivacy: () -> Unit,
+    onOpenStorage: () -> Unit
 ) {
     val context = LocalContext.current
-    var showResetDbDialog by remember { mutableStateOf(false) }
     val loadedConfig = remember { SyncCoordinator.loadConfig(context) }
     val isConfigured = remember(loadedConfig) { loadedConfig.url.isNotEmpty() && loadedConfig.user.isNotEmpty() }
-    val coroutineScope = rememberCoroutineScope()
 
     Column(
         modifier = Modifier
@@ -2242,77 +2341,585 @@ fun SettingsMainPanel(
             }
         }
 
-        // 3. 🚨 敏感操作与数据安全区 Section (高度防误触，清空本地变动流水账本已彻底安全清空)
-        DetailSection(title = "数据管理") {
+        // 🌟 使用帮助与关于我们 Section
+        DetailSection(title = "📖 帮助与支持") {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
                     .clip(RoundedCornerShape(10.dp))
                     .background(if (isDark) DarkBg else LightBg)
-                    .padding(14.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                    .padding(vertical = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp)
             ) {
-                Text(
-                    text = "清除后，当前设备上的卡片资料将无法在本机恢复。如果之前做过云端备份，可以稍后从云端恢复。",
-                    fontSize = 11.sp,
-                    lineHeight = 16.sp,
-                    color = (if (isDark) NeonRed else Color.Red).copy(alpha = 0.8f)
-                )
-                
-                Button(
-                    onClick = { showResetDbDialog = true },
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = (if (isDark) NeonRed else Color.Red).copy(alpha = 0.12f),
-                        contentColor = if (isDark) NeonRed else Color.Red
-                    ),
-                    border = BorderStroke(1.dp, (if (isDark) NeonRed else Color.Red).copy(alpha = 0.35f)),
-                    shape = RoundedCornerShape(8.dp)
+                // 1. 使用帮助
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onOpenHelp() }
+                        .padding(horizontal = 14.dp, vertical = 14.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Filled.HelpOutline,
+                            contentDescription = "使用帮助",
+                            tint = if (isDark) NeonCyan else GoldPrimary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = "使用帮助",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp
+                        )
+                    }
                     Icon(
-                        imageVector = Icons.Filled.DeleteForever,
-                        contentDescription = "清除本机数据",
+                        imageVector = Icons.Filled.ChevronRight,
+                        contentDescription = "进入使用帮助",
+                        tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),
                         modifier = Modifier.size(16.dp)
                     )
-                    Spacer(modifier = Modifier.width(6.dp))
-                    Text("清除本机所有卡片数据", fontSize = 12.sp, fontWeight = FontWeight.Bold)
                 }
+
+                // 分割线，纯 Box 渲染防 API 冲突
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp)
+                        .height(0.5.dp)
+                        .background((if (isDark) TextGray else TextMuted).copy(alpha = 0.12f))
+                )
+
+                // 2. 关于软件
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onOpenAbout() }
+                        .padding(horizontal = 14.dp, vertical = 14.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Filled.Info,
+                            contentDescription = "关于软件",
+                            tint = if (isDark) NeonCyan else GoldPrimary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = "关于软件",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp
+                        )
+                    }
+                    Icon(
+                        imageVector = Icons.Filled.ChevronRight,
+                        contentDescription = "进入关于",
+                        tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+
+                // 分割线，纯 Box 渲染防 API 冲突
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp)
+                        .height(0.5.dp)
+                        .background((if (isDark) TextGray else TextMuted).copy(alpha = 0.12f))
+                )
+
+                // 3. 隐私管理
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onOpenPrivacy() }
+                        .padding(horizontal = 14.dp, vertical = 14.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Filled.Security,
+                            contentDescription = "隐私管理",
+                            tint = if (isDark) NeonCyan else GoldPrimary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = "隐私权限管理",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp
+                        )
+                    }
+                    Icon(
+                        imageVector = Icons.Filled.ChevronRight,
+                        contentDescription = "进入隐私管理",
+                        tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+            }
+        }
+
+        DetailSection(title = "存储与重置") {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(if (isDark) DarkBg else LightBg)
+                    .clickable { onOpenStorage() }
+                    .padding(horizontal = 14.dp, vertical = 14.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Storage,
+                        contentDescription = "存储管理",
+                        tint = if (isDark) NeonCyan else GoldPrimary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        Text(
+                            text = "存储管理",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp
+                        )
+                        Text(
+                            text = "查看数据占用明细，或一键恢复初始状态",
+                            fontSize = 11.sp,
+                            color = if (isDark) TextGray else TextMuted,
+                            lineHeight = 15.sp
+                        )
+                    }
+                }
+                Icon(
+                    imageVector = Icons.Filled.ChevronRight,
+                    contentDescription = "进入存储管理",
+                    tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),
+                    modifier = Modifier.size(16.dp)
+                )
             }
         }
 
         Spacer(modifier = Modifier.height(40.dp))
     }
+}
 
-    // 清空本机数据二次确认 Dialog
-    if (showResetDbDialog) {
+@Composable
+fun SettingsStoragePanel(
+    isDark: Boolean,
+    onBack: () -> Unit
+) {
+    val context = LocalContext.current
+    val coroutineScope = rememberCoroutineScope()
+    var refreshSeed by remember { mutableIntStateOf(0) }
+    var snapshot by remember { mutableStateOf<AppStorageSnapshot?>(null) }
+    var showResetDialog by remember { mutableStateOf(false) }
+    var isResetting by remember { mutableStateOf(false) }
+
+    LaunchedEffect(refreshSeed) {
+        snapshot = withContext(Dispatchers.IO) {
+            AppStorageManager.inspect(context)
+        }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(if (isDark) DarkBg else LightBg)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            val accent = if (isDark) NeonCyan else GoldPrimary
+            AppBackButton(
+                onClick = onBack,
+                contentDescription = "返回设置",
+                tint = accent,
+                containerColor = MaterialTheme.colorScheme.surface,
+                borderColor = accent.copy(alpha = 0.34f)
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "存储管理",
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Black,
+                    color = if (isDark) TextWhite else TextDark
+                )
+                Text(
+                    text = "查看本机数据占用与重置应用",
+                    fontSize = 12.sp,
+                    color = if (isDark) NeonCyan else GoldPrimary,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+        }
+
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            item {
+                val current = snapshot
+                if (current == null) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(160.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        CircularProgressIndicator(
+                            color = if (isDark) NeonCyan else GoldPrimary
+                        )
+                    }
+                } else {
+                    StorageTotalCard(snapshot = current, isDark = isDark)
+                }
+            }
+
+            snapshot?.let { current ->
+                item {
+                    DetailSection(title = "占用明细") {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(if (isDark) DarkCardBg else LightCardBg)
+                                .padding(12.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            StorageUsageRow(
+                                icon = Icons.Filled.Dataset,
+                                title = "本地数据库",
+                                description = "卡片资料、同步账本以及内嵌图片的实际数据库文件",
+                                bytes = current.databaseBytes,
+                                totalBytes = current.totalBytes,
+                                isDark = isDark
+                            )
+                            StorageUsageRow(
+                                icon = Icons.Filled.Image,
+                                title = "卡片图片数据",
+                                description = "${current.imageCount} 张图片，当前版本以内嵌方式保存在数据库中",
+                                bytes = current.inlineImageBytes,
+                                totalBytes = current.totalBytes,
+                                isDark = isDark
+                            )
+                            StorageUsageRow(
+                                icon = Icons.Filled.PhotoLibrary,
+                                title = "旧版扫描图片",
+                                description = "历史版本保存在私有目录的扫描裁剪图",
+                                bytes = current.legacyImageBytes,
+                                totalBytes = current.totalBytes,
+                                isDark = isDark
+                            )
+                            StorageUsageRow(
+                                icon = Icons.Filled.SettingsApplications,
+                                title = "偏好与云同步配置",
+                                description = "主题、工具菜单、WebDAV 配置及同步状态",
+                                bytes = current.preferenceBytes,
+                                totalBytes = current.totalBytes,
+                                isDark = isDark
+                            )
+                            StorageUsageRow(
+                                icon = Icons.Filled.Cached,
+                                title = "临时缓存",
+                                description = "扫描、图片处理和系统运行产生的临时文件",
+                                bytes = current.cacheBytes,
+                                totalBytes = current.totalBytes,
+                                isDark = isDark
+                            )
+                            StorageUsageRow(
+                                icon = Icons.Filled.Folder,
+                                title = "其他私有文件",
+                                description = "应用沙盒中除旧版扫描图片以外的私有文件",
+                                bytes = current.privateFileBytes,
+                                totalBytes = current.totalBytes,
+                                isDark = isDark
+                            )
+                            StorageUsageRow(
+                                icon = Icons.Filled.MoreHoriz,
+                                title = "系统管理数据",
+                                description = "系统为应用维护的目录、锁文件或运行残留",
+                                bytes = current.otherBytes,
+                                totalBytes = current.totalBytes,
+                                isDark = isDark
+                            )
+                            Text(
+                                text = "总占用按应用私有沙盒实际大小统计。卡片图片数据已包含在数据库文件中，仅用于说明图片本身的占用规模。",
+                                fontSize = 10.sp,
+                                lineHeight = 15.sp,
+                                color = if (isDark) TextGray else TextMuted
+                            )
+                        }
+                    }
+                }
+            }
+
+            item {
+                DetailSection(title = "一键重置") {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(if (isDark) DarkCardBg else LightCardBg)
+                            .padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        Text(
+                            text = "重置会清除本机卡片、卡片图片、同步账本、WebDAV 配置、主题偏好、工具菜单设置和临时缓存，恢复到首次安装后的本地初始状态。云端备份文件不会被删除。",
+                            fontSize = 11.sp,
+                            lineHeight = 17.sp,
+                            color = (if (isDark) NeonRed else Color.Red).copy(alpha = 0.82f)
+                        )
+                        Button(
+                            onClick = { showResetDialog = true },
+                            enabled = !isResetting,
+                            modifier = Modifier.fillMaxWidth(),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = (if (isDark) NeonRed else Color.Red).copy(alpha = 0.12f),
+                                contentColor = if (isDark) NeonRed else Color.Red,
+                                disabledContainerColor = (if (isDark) TextGray else TextMuted).copy(alpha = 0.12f),
+                                disabledContentColor = if (isDark) TextGray else TextMuted
+                            ),
+                            border = BorderStroke(1.dp, (if (isDark) NeonRed else Color.Red).copy(alpha = 0.38f)),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Filled.DeleteForever,
+                                contentDescription = "重置应用",
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Text(
+                                text = if (isResetting) "正在重置..." else "一键重置 App",
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+            }
+
+            item {
+                Spacer(modifier = Modifier.height(20.dp))
+            }
+        }
+    }
+
+    if (showResetDialog) {
         AlertDialog(
-            onDismissRequest = { showResetDbDialog = false },
-            title = { Text("确认清除本机数据？", fontWeight = FontWeight.Bold, fontSize = 16.sp, color = Color.Red) },
+            onDismissRequest = { if (!isResetting) showResetDialog = false },
+            title = {
+                Text(
+                    text = "确认重置 App？",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 16.sp,
+                    color = if (isDark) NeonRed else Color.Red
+                )
+            },
             text = {
                 Text(
-                    text = "此操作会清除当前设备上的所有信用卡资料，且无法在本机恢复。如果您之前已经做过云端备份，可以稍后从云端重新恢复。",
-                    fontSize = 13.sp
+                    text = "此操作会清除当前设备上的全部本地数据与配置，完成后会回到初始空白状态，无法在本机撤销。",
+                    fontSize = 13.sp,
+                    lineHeight = 19.sp
                 )
             },
             confirmButton = {
                 TextButton(
+                    enabled = !isResetting,
                     onClick = {
-                        showResetDbDialog = false
+                        showResetDialog = false
                         coroutineScope.launch {
-                            SyncCoordinator.resetLocalDatabase(context)
-                            Toast.makeText(context, "本机卡片数据已清除", Toast.LENGTH_LONG).show()
+                            isResetting = true
+                            try {
+                                AppStorageManager.resetApplicationData(context)
+                                ThemeManager.resetToDefault(context)
+                                SyncCoordinator.initLocalData(context)
+                                refreshSeed += 1
+                                Toast.makeText(context, "App 已重置为初始状态", Toast.LENGTH_LONG).show()
+                            } catch (e: Exception) {
+                                Toast.makeText(context, "重置失败：${e.message ?: "未知错误"}", Toast.LENGTH_LONG).show()
+                            } finally {
+                                isResetting = false
+                            }
                         }
                     }
                 ) {
-                    Text("确认清除", color = Color.Red, fontWeight = FontWeight.Bold)
+                    Text("确认重置", color = if (isDark) NeonRed else Color.Red, fontWeight = FontWeight.Bold)
                 }
             },
             dismissButton = {
-                TextButton(onClick = { showResetDbDialog = false }) {
+                TextButton(
+                    enabled = !isResetting,
+                    onClick = { showResetDialog = false }
+                ) {
                     Text("取消", color = if (isDark) TextGray else TextMuted)
                 }
             }
         )
+    }
+}
+
+@Composable
+fun StorageTotalCard(
+    snapshot: AppStorageSnapshot,
+    isDark: Boolean
+) {
+    val accent = if (isDark) NeonCyan else GoldPrimary
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(MaterialTheme.colorScheme.surface)
+            .border(1.dp, accent.copy(alpha = 0.2f), RoundedCornerShape(14.dp))
+            .padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .size(44.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(accent.copy(alpha = 0.14f)),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.Storage,
+                    contentDescription = "总占用",
+                    tint = accent,
+                    modifier = Modifier.size(24.dp)
+                )
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "本机应用数据",
+                    fontSize = 13.sp,
+                    color = if (isDark) TextGray else TextMuted
+                )
+                Text(
+                    text = formatStorageBytes(snapshot.totalBytes),
+                    fontSize = 24.sp,
+                    fontWeight = FontWeight.Black,
+                    color = if (isDark) TextWhite else TextDark
+                )
+            }
+        }
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            StorageMetricChip("卡片 ${snapshot.cardCount}", isDark)
+            StorageMetricChip("图片 ${snapshot.imageCount}", isDark)
+        }
+    }
+}
+
+@Composable
+fun StorageMetricChip(
+    text: String,
+    isDark: Boolean
+) {
+    val accent = if (isDark) NeonCyan else GoldPrimary
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(30.dp))
+            .background(accent.copy(alpha = 0.1f))
+            .border(0.5.dp, accent.copy(alpha = 0.32f), RoundedCornerShape(30.dp))
+            .padding(horizontal = 10.dp, vertical = 5.dp)
+    ) {
+        Text(
+            text = text,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = accent
+        )
+    }
+}
+
+@Composable
+fun StorageUsageRow(
+    icon: ImageVector,
+    title: String,
+    description: String,
+    bytes: Long,
+    totalBytes: Long,
+    isDark: Boolean
+) {
+    val accent = if (isDark) NeonCyan else GoldPrimary
+    val progress = if (totalBytes <= 0L) 0f else (bytes.toFloat() / totalBytes.toFloat()).coerceIn(0f, 1f)
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = icon,
+                contentDescription = title,
+                tint = accent,
+                modifier = Modifier.size(18.dp)
+            )
+            Spacer(modifier = Modifier.width(10.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = title,
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Bold,
+                        color = if (isDark) TextWhite else TextDark,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Text(
+                        text = formatStorageBytes(bytes),
+                        fontSize = 11.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = accent
+                    )
+                }
+                Text(
+                    text = description,
+                    fontSize = 10.sp,
+                    lineHeight = 14.sp,
+                    color = if (isDark) TextGray else TextMuted
+                )
+            }
+        }
+        LinearProgressIndicator(
+            progress = { progress },
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(5.dp)
+                .clip(RoundedCornerShape(4.dp)),
+            color = accent,
+            trackColor = accent.copy(alpha = 0.14f)
+        )
+    }
+}
+
+private fun formatStorageBytes(bytes: Long): String {
+    if (bytes <= 0L) return "0 B"
+    val units = listOf("B", "KB", "MB", "GB")
+    var value = bytes.toDouble()
+    var unitIndex = 0
+    while (value >= 1024.0 && unitIndex < units.lastIndex) {
+        value /= 1024.0
+        unitIndex += 1
+    }
+    return if (unitIndex == 0) {
+        "${bytes} ${units[unitIndex]}"
+    } else {
+        String.format(java.util.Locale.US, "%.1f %s", value, units[unitIndex])
     }
 }
 
@@ -2456,6 +3063,24 @@ fun SettingsWebDAVPanel(
                                 Icon(imageVector = Icons.Filled.CloudSync, contentDescription = "立即同步", modifier = Modifier.size(16.dp))
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text("立即同步", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                            }
+                        }
+
+                        if (syncStatus.isSyncing) {
+                            Button(
+                                onClick = {
+                                    SyncCoordinator.cancelCurrentSync(context)
+                                    Toast.makeText(context, "已请求终止当前同步", Toast.LENGTH_SHORT).show()
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = (if (isDark) NeonRed else Color(0xFFD32F2F)).copy(alpha = 0.92f),
+                                    contentColor = Color.White
+                                )
+                            ) {
+                                Icon(imageVector = Icons.Filled.Cancel, contentDescription = "终止同步", modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text("终止当前同步", fontSize = 11.sp, fontWeight = FontWeight.Bold)
                             }
                         }
 
@@ -2624,7 +3249,9 @@ fun SyncProgressBlock(
     step: Int,
     total: Int,
     detail: String,
-    isDark: Boolean
+    isDark: Boolean,
+    onCancel: (() -> Unit)? = null,
+    onRetry: (() -> Unit)? = null
 ) {
     val accent = if (isDark) NeonCyan else GoldPrimary
     Column(
@@ -2672,6 +3299,37 @@ fun SyncProgressBlock(
             lineHeight = 17.sp,
             color = if (isDark) TextGray else TextMuted
         )
+        if (isSyncing && onCancel != null) {
+            Button(
+                onClick = onCancel,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = (if (isDark) NeonRed else Color(0xFFD32F2F)).copy(alpha = 0.92f),
+                    contentColor = Color.White
+                )
+            ) {
+                Icon(imageVector = Icons.Filled.Cancel, contentDescription = "终止同步", modifier = Modifier.size(16.dp))
+                Spacer(modifier = Modifier.width(6.dp))
+                Text("终止当前同步", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+            }
+        } else if (!isSyncing && onRetry != null) {
+            Button(
+                onClick = onRetry,
+                modifier = Modifier.fillMaxWidth(),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = accent,
+                    contentColor = if (isDark) DarkBg else Color.White
+                )
+            ) {
+                Icon(imageVector = Icons.Filled.CloudSync, contentDescription = "重新同步", modifier = Modifier.size(16.dp))
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(
+                    text = if (pending) "立即同步未同步修改" else "立即重试同步",
+                    fontSize = 12.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
     }
 }
 
@@ -3185,5 +3843,1287 @@ fun UnknownLogo(modifier: Modifier = Modifier) {
             tint = Color.White,
             modifier = Modifier.size(12.dp)
         )
+    }
+}
+
+// =============================================================================
+// 🥇 优惠用卡核心算法与面板渲染组件追加区
+// =============================================================================
+
+/**
+ * 智能计算信用卡的免息期天数。
+ *
+ * @param card 信用卡数据
+ * @param today 今天日期，方便进行单体测试或多边界检验（默认为 LocalDate.now()）
+ * @return 免息天数；如果卡片账单日或还款日未设置/非法，则返回 -1
+ */
+fun calculateInterestFreeDays(card: SharedCard, today: LocalDate = LocalDate.now()): Int {
+    val billDay = card.accountBillDate.toIntOrNull() ?: return -1
+    val dueDay = card.dueDate.toIntOrNull() ?: return -1
+
+    if (billDay !in 1..31 || dueDay !in 1..31) return -1
+
+    val spendDay = today.dayOfMonth
+
+    // 1. 确定消费会计入哪个月的账单日
+    val isNextBill = if (card.billingDaySpendingToNextBill) {
+        spendDay >= billDay
+    } else {
+        spendDay > billDay
+    }
+
+    val targetBillMonth = if (isNextBill) today.plusMonths(1) else today
+    val lengthOfBillMonth = targetBillMonth.lengthOfMonth()
+    
+    // 目标账单日对齐该月最大天数
+    val targetBillDate = LocalDate.of(
+        targetBillMonth.year,
+        targetBillMonth.month,
+        min(billDay, lengthOfBillMonth)
+    )
+
+    // 2. 计算对应的还款日
+    // 如果还款日天数 <= 账单日天数，说明在下个月还款
+    val isNextMonthDue = dueDay <= billDay
+    val targetDueMonth = if (isNextMonthDue) targetBillDate.plusMonths(1) else targetBillDate
+    val lengthOfDueMonth = targetDueMonth.lengthOfMonth()
+
+    val targetDueDate = LocalDate.of(
+        targetDueMonth.year,
+        targetDueMonth.month,
+        min(dueDay, lengthOfDueMonth)
+    )
+
+    // 3. 计算免息天数
+    val days = ChronoUnit.DAYS.between(today, targetDueDate).toInt()
+    return if (days >= 0) days else 0
+}
+
+@Composable
+fun BestUsagePanel(
+    cards: List<SharedCard>,
+    isDark: Boolean,
+    onConfigureCard: (String) -> Unit,
+    onBack: () -> Unit
+) {
+    val today = LocalDate.now()
+    
+    // 过滤出能够计算免息期的信用卡并按天数降序排序
+    val validCards = cards.map { card ->
+        card to calculateInterestFreeDays(card, today)
+    }.filter { it.second != -1 }
+     .sortedByDescending { it.second }
+
+    // 过滤出未配置账单信息的卡片
+    val invalidCards = cards.filter { card ->
+        calculateInterestFreeDays(card, today) == -1
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(if (isDark) DarkBg else LightBg)
+    ) {
+        // 精致扁平化零顶栏返回区域
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            val accent = if (isDark) NeonCyan else GoldPrimary
+            AppBackButton(
+                onClick = onBack,
+                contentDescription = "返回工具",
+                tint = accent,
+                containerColor = MaterialTheme.colorScheme.surface,
+                borderColor = accent.copy(alpha = 0.34f)
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "优惠用卡",
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Black,
+                    color = if (isDark) TextWhite else TextDark
+                )
+                Text(
+                    text = "智能账单周期演算与首选决策",
+                    fontSize = 12.sp,
+                    color = if (isDark) NeonCyan else GoldPrimary,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+        }
+
+        // 核心滚动区域
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .weight(1f),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            if (cards.isEmpty()) {
+                item {
+                    EmptyCardsState(isDark = isDark)
+                }
+            } else if (validCards.isEmpty() && invalidCards.isNotEmpty()) {
+                item {
+                    NoConfiguredCardsState(isDark = isDark)
+                }
+            } else {
+                itemsIndexed(validCards, key = { _, pair -> pair.first.id }) { index, (card, days) ->
+                    BestUsageCardTile(
+                        card = card,
+                        days = days,
+                        rank = index + 1,
+                        isDark = isDark,
+                        onClick = { onConfigureCard(card.id) }
+                    )
+                }
+            }
+
+            // 待配置折叠区域
+            if (invalidCards.isNotEmpty()) {
+                item {
+                    InvalidCardsCollapseSection(
+                        invalidCards = invalidCards,
+                        isDark = isDark,
+                        onConfigureCard = onConfigureCard
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun BestUsageCardTile(
+    card: SharedCard,
+    days: Int,
+    rank: Int,
+    isDark: Boolean,
+    onClick: () -> Unit
+) {
+    val brand = getCardBrand(card.cardNumber)
+    val gradientBrush = when (brand) {
+        "Visa" -> Brush.linearGradient(listOf(Color(0xFF0F2027), Color(0xFF203A43), Color(0xFF2C5364)))
+        "Mastercard" -> Brush.linearGradient(listOf(Color(0xFF373B44), Color(0xFF4286f4)))
+        "Amex" -> Brush.linearGradient(listOf(Color(0xFF11998e), Color(0xFF38ef7d)))
+        "UnionPay" -> Brush.linearGradient(listOf(Color(0xFF8A2387), Color(0xFFE94057), Color(0xFFF27121)))
+        "JCB" -> Brush.linearGradient(listOf(Color(0xFF1F1C2C), Color(0xFF928DAB)))
+        "Discover" -> Brush.linearGradient(listOf(Color(0xFFF000FF), Color(0xFF7B00FF)))
+        else -> Brush.linearGradient(listOf(Color(0xFF1F1C2C), Color(0xFF928DAB)))
+    }
+
+    val borderStroke = when (rank) {
+        1 -> BorderStroke(
+            2.5.dp, 
+            Brush.linearGradient(
+                listOf(
+                    if (isDark) NeonCyan else GoldPrimary, 
+                    if (isDark) NeonPurple else NavySecondary
+                )
+            )
+        )
+        2 -> BorderStroke(
+            1.5.dp, 
+            Brush.linearGradient(
+                listOf(
+                    if (isDark) NeonPurple else NavySecondary,
+                    if (isDark) NeonCyan else Color(0xFFB6C2CF)
+                )
+            )
+        )
+        3 -> BorderStroke(
+            1.5.dp, 
+            Brush.linearGradient(
+                listOf(
+                    if (isDark) NeonGreen else ForestGreen,
+                    if (isDark) NeonCyan else Color(0xFFE2E8F0)
+                )
+            )
+        )
+        else -> null
+    }
+
+    val containerShape = RoundedCornerShape(18.dp)
+    
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .let {
+                if (borderStroke != null) {
+                    it.border(borderStroke, containerShape)
+                } else {
+                    it
+                }
+            }
+            .clip(containerShape)
+            .background(if (isDark) DarkCardBg.copy(alpha = 0.85f) else LightCardBg)
+            .clickable { onClick() }
+            .padding(14.dp)
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    val badgeColor = when (rank) {
+                        1 -> if (isDark) NeonCyan else GoldPrimary
+                        2 -> if (isDark) NeonPurple else NavySecondary
+                        3 -> if (isDark) NeonGreen else ForestGreen
+                        else -> if (isDark) TextGray else TextMuted
+                    }
+                    val badgeText = when (rank) {
+                        1 -> "🥇 今日首选"
+                        2 -> "🥈 备选方案"
+                        3 -> "🥉 推荐刷卡"
+                        else -> "第 $rank 名"
+                    }
+                    
+                    Box(
+                        modifier = Modifier
+                            .clip(RoundedCornerShape(30.dp))
+                            .background(badgeColor.copy(alpha = 0.15f))
+                            .border(1.dp, badgeColor.copy(alpha = 0.4f), RoundedCornerShape(30.dp))
+                            .padding(horizontal = 10.dp, vertical = 4.dp)
+                    ) {
+                        Text(
+                            text = badgeText,
+                            color = badgeColor,
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Bold
+                        )
+                    }
+                }
+
+                Row(
+                    verticalAlignment = Alignment.Bottom,
+                    horizontalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    Text(
+                        text = "免息期",
+                        fontSize = 11.sp,
+                        color = if (isDark) TextGray else TextMuted,
+                        modifier = Modifier.padding(bottom = 2.dp)
+                    )
+                    Text(
+                        text = days.toString(),
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.Black,
+                        color = when (rank) {
+                            1 -> if (isDark) NeonCyan else GoldPrimary
+                            2 -> if (isDark) NeonPurple else NavySecondary
+                            3 -> if (isDark) NeonGreen else ForestGreen
+                            else -> if (isDark) TextWhite else TextDark
+                        }
+                    )
+                    Text(
+                        text = "天",
+                        fontSize = 11.sp,
+                        color = if (isDark) TextGray else TextMuted,
+                        modifier = Modifier.padding(bottom = 2.dp)
+                    )
+                }
+            }
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(84.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(gradientBrush)
+                    .padding(12.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column {
+                        Text(
+                            text = card.bank.ifEmpty { "信用银行" },
+                            color = Color.White,
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 13.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = card.alias.ifEmpty { "未命名别名" },
+                            color = Color.White.copy(alpha = 0.7f),
+                            fontSize = 9.sp,
+                            fontWeight = FontWeight.Light,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    Text(
+                        text = formatSpacingCardNumber(card.cardNumber),
+                        color = Color.White,
+                        fontSize = 12.sp,
+                        fontFamily = FontFamily.Monospace,
+                        fontWeight = FontWeight.SemiBold,
+                        letterSpacing = 0.8.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+                
+                Column(
+                    horizontalAlignment = Alignment.End,
+                    verticalArrangement = Arrangement.SpaceBetween
+                ) {
+                    CardBrandBadge(brand = brand)
+                    Spacer(modifier = Modifier.height(6.dp))
+                    EMVChip()
+                }
+            }
+
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(if (isDark) Color.White.copy(alpha = 0.04f) else Color.Black.copy(alpha = 0.02f))
+                    .padding(8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(horizontalAlignment = Alignment.Start) {
+                    Text("账单日", fontSize = 10.sp, color = if (isDark) TextGray else TextMuted)
+                    Text("每月 ${card.accountBillDate} 号", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (isDark) TextWhite else TextDark)
+                }
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text("还款日", fontSize = 10.sp, color = if (isDark) TextGray else TextMuted)
+                    Text("每月 ${card.dueDate} 号", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (isDark) TextWhite else TextDark)
+                }
+                Column(horizontalAlignment = Alignment.End) {
+                    Text("入账规则", fontSize = 10.sp, color = if (isDark) TextGray else TextMuted)
+                    Text(
+                        text = if (card.billingDaySpendingToNextBill) "账单日消费计入下期" else "账单日消费计入本期",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Medium,
+                        color = if (isDark) NeonCyan else GoldPrimary
+                    )
+                }
+            }
+
+            if (rank == 1) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(8.dp))
+                        .background((if (isDark) NeonCyan else GoldPrimary).copy(alpha = 0.08f))
+                        .border(0.5.dp, (if (isDark) NeonCyan else GoldPrimary).copy(alpha = 0.25f), RoundedCornerShape(8.dp))
+                        .padding(10.dp)
+                ) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.Top
+                    ) {
+                        Icon(
+                            imageVector = Icons.Filled.Lightbulb,
+                            contentDescription = "黄金提示",
+                            tint = if (isDark) NeonCyan else GoldPrimary,
+                            modifier = Modifier.size(16.dp).padding(top = 1.dp)
+                        )
+                        Column {
+                            Text(
+                                text = "💡 用卡黄金提示",
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isDark) NeonCyan else GoldPrimary
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = "今日刷卡处于最拉长周转账单期！本次消费款项将享受长达 $days 天的免息缓冲。建议优先在此卡额度内大额支出，最大化周转您的闲置资金。",
+                                fontSize = 10.sp,
+                                color = if (isDark) TextGray else TextMuted,
+                                lineHeight = 14.sp
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun EmptyCardsState(isDark: Boolean) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(if (isDark) DarkCardBg else LightCardBg)
+            .border(1.dp, (if (isDark) NeonCyan else GoldPrimary).copy(alpha = 0.18f), RoundedCornerShape(14.dp))
+            .padding(24.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Filled.CreditCardOff,
+                contentDescription = "暂无卡片",
+                tint = if (isDark) NeonCyan else GoldPrimary,
+                modifier = Modifier.size(36.dp)
+            )
+            Text(
+                text = "暂无信用卡",
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
+                color = if (isDark) TextWhite else TextDark
+            )
+            Text(
+                text = "请先在首页卡包中添加您的信用卡数据",
+                fontSize = 12.sp,
+                color = if (isDark) TextGray else TextMuted,
+                textAlign = TextAlign.Center
+            )
+        }
+    }
+}
+
+@Composable
+fun NoConfiguredCardsState(isDark: Boolean) {
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(if (isDark) DarkCardBg else LightCardBg)
+            .border(1.dp, (if (isDark) NeonCyan else GoldPrimary).copy(alpha = 0.18f), RoundedCornerShape(14.dp))
+            .padding(24.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Filled.Tune,
+                contentDescription = "待完善账单配置",
+                tint = if (isDark) NeonCyan else GoldPrimary,
+                modifier = Modifier.size(36.dp)
+            )
+            Text(
+                text = "未检测到已配置的信用卡账单",
+                fontSize = 15.sp,
+                fontWeight = FontWeight.Bold,
+                color = if (isDark) TextWhite else TextDark
+            )
+            Text(
+                text = "请先在下方“未配置账单信息的卡片”中配置“账单日”和“还款日”",
+                fontSize = 12.sp,
+                color = if (isDark) TextGray else TextMuted,
+                textAlign = TextAlign.Center
+            )
+        }
+    }
+}
+
+@Composable
+fun InvalidCardsCollapseSection(
+    invalidCards: List<SharedCard>,
+    isDark: Boolean,
+    onConfigureCard: (String) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+    
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(if (isDark) DarkCardBg.copy(alpha = 0.5f) else LightCardBg.copy(alpha = 0.8f))
+            .border(
+                0.5.dp, 
+                (if (isDark) TextGray else TextMuted).copy(alpha = 0.15f), 
+                RoundedCornerShape(14.dp)
+            )
+            .padding(14.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { expanded = !expanded },
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Filled.ErrorOutline,
+                    contentDescription = "待配置信息",
+                    tint = if (isDark) NeonPurple else NavySecondary,
+                    modifier = Modifier.size(18.dp)
+                )
+                Text(
+                    text = "待配置账单信息的卡片 (${invalidCards.size}张)",
+                    fontSize = 13.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = if (isDark) TextWhite else TextDark
+                )
+            }
+            Icon(
+                imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                contentDescription = "展开折叠",
+                tint = if (isDark) TextGray else TextMuted,
+                modifier = Modifier.size(18.dp)
+            )
+        }
+
+        if (expanded) {
+            Spacer(modifier = Modifier.height(10.dp))
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                invalidCards.forEach { card ->
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (isDark) Color.White.copy(alpha = 0.03f) else Color.Black.copy(alpha = 0.01f))
+                            .padding(8.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = card.bank.ifEmpty { "信用银行" },
+                                fontSize = 12.sp,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isDark) TextWhite else TextDark,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                text = card.alias.ifEmpty { "未命名别名" },
+                                fontSize = 10.sp,
+                                color = if (isDark) TextGray else TextMuted,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        
+                        Button(
+                            onClick = { onConfigureCard(card.id) },
+                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 2.dp),
+                            modifier = Modifier.height(28.dp),
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = (if (isDark) NeonPurple else NavySecondary).copy(alpha = 0.15f),
+                                contentColor = if (isDark) NeonPurple else NavySecondary
+                            ),
+                            border = BorderStroke(
+                                0.5.dp, 
+                                (if (isDark) NeonPurple else NavySecondary).copy(alpha = 0.5f)
+                            )
+                        ) {
+                            Text("去配置", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun SettingsHelpPanel(
+    isDark: Boolean,
+    onBack: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(if (isDark) DarkBg else LightBg)
+    ) {
+        // 顶部导航栏
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            val accent = if (isDark) NeonCyan else GoldPrimary
+            AppBackButton(
+                onClick = onBack,
+                contentDescription = "返回设置",
+                tint = accent,
+                containerColor = MaterialTheme.colorScheme.surface,
+                borderColor = accent.copy(alpha = 0.34f)
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "使用帮助",
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Black,
+                    color = if (isDark) TextWhite else TextDark
+                )
+                Text(
+                    text = "信用卡管理与同步常见问题解答",
+                    fontSize = 12.sp,
+                    color = if (isDark) NeonCyan else GoldPrimary,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+        }
+
+        // FAQ 列表
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .weight(1f),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            item {
+                FAQItem(
+                    question = "1. NFC 快速验卡或刷卡感应录入时没有反应怎么办？",
+                    answer = "常见排查方法如下：\n" +
+                            "• 芯片安全性屏蔽：部分高安全级别或防克隆的信用卡（包括特定的万事达和高安银联卡）对离线明文读取进行了芯片级保护，暂无法通过 NFC 感应读取明文卡号。本应用已支持智能兜底，对此类卡片将友好提示“暂不支持该卡片”，建议使用相机扫描或手动录入。\n" +
+                            "• 天线感应区偏离：NFC感应线圈通常位于手机背面的中上部（摄像头附近），贴卡时请将卡片正中对准此区域。\n" +
+                            "• 交互静止要求：贴卡感应时，请将卡片紧贴手机背部并保持静止 1-2 秒，请勿快速晃动或移开卡片，待提示“读取成功”后再行拿开。",
+                    isDark = isDark
+                )
+            }
+            item {
+                FAQItem(
+                    question = "2. 相机扫描卡面无法自动识别提取？",
+                    answer = "相机扫描识别要领：\n" +
+                            "• 避免强光反射：信用卡表面材质光滑，强光反射会导致卡面数字反光甚至失真。请在光线温和且均匀的室内环境下扫描。\n" +
+                            "• 推荐手动拍照：若自动扫描无法触发，推荐点击我们新设计的“手动拍照”按钮。在对齐框后按下拍照，系统会在后台以高精度本地 OCR 自动识别、智能提取卡片数字，并自动裁剪保存高保真的卡片大图。\n" +
+                            "• 磨损降级：对于表面磨损、字迹脱漆或无凹凸感印刷的卡片，可能导致本地分析率下降，此时建议一键切换为手动输入，极简完成录入。",
+                    isDark = isDark
+                )
+            }
+            item {
+                FAQItem(
+                    question = "3. WebDAV 备份的服务器地址和应用密码怎么填写？",
+                    answer = "三步快速配置指南：\n" +
+                            "• 服务器地址：根据您所用的云盘填写其 WebDAV 终结点。如坚果云为 `https://dav.jianguoyun.com/dav/`。\n" +
+                            "• 账号：填写您在该云盘的注册电子邮箱地址。\n" +
+                            "• 应用密码：**请注意，这绝对不是您的云盘登录密码**。您需要登录坚果云等云盘网页端，在“安全选项 -> 第三方应用密码”中点击“添加应用”来生成一个独立的 16 位专属应用密码。\n" +
+                            "• 安全原则：本应用为纯单机端到端直连，所有同步密码仅在本地设备沙箱加密保存，数据直接以 HTTPS 加密传输至您的私人云盘，绝无第三方中转。",
+                    isDark = isDark
+                )
+            }
+            item {
+                FAQItem(
+                    question = "4. 多张信用卡“共享额度”的算法规则是怎样的？",
+                    answer = "多卡合并与资产计算规则：\n" +
+                            "• 同行共享机制：许多银行对同一持卡人名下的多张信用卡实施“额度共享”（以额度最高的那张卡作为共享额度上限）。\n" +
+                            "• 额度合并算法：在系统中，若您将某几张卡勾选了“共享额度”开关，系统将自动激活共享资产合并算法——在财富统计和总额度中，这组卡片将仅取其中的额度最大值计入总额度，而非简单物理累加，从而实现百分之百真实科学的财务数据统计与额度预警。",
+                    isDark = isDark
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun FAQItem(
+    question: String,
+    answer: String,
+    isDark: Boolean
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val accent = if (isDark) NeonCyan else GoldPrimary
+    
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(12.dp))
+            .background(if (isDark) DarkCardBg else LightCardBg)
+            .border(
+                0.5.dp, 
+                (if (expanded) accent else (if (isDark) TextGray else TextMuted)).copy(alpha = 0.22f), 
+                RoundedCornerShape(12.dp)
+            )
+            .clickable { expanded = !expanded }
+            .padding(14.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = question,
+                fontSize = 14.sp,
+                fontWeight = FontWeight.Bold,
+                color = if (isDark) TextWhite else TextDark,
+                modifier = Modifier.weight(1f)
+            )
+            Icon(
+                imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                contentDescription = "展开FAQ回答",
+                tint = if (expanded) accent else (if (isDark) TextGray else TextMuted),
+                modifier = Modifier.size(18.dp)
+            )
+        }
+        
+        if (expanded) {
+            Spacer(modifier = Modifier.height(10.dp))
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(8.dp))
+                    .background((if (isDark) Color.White else Color.Black).copy(alpha = 0.03f))
+                    .padding(10.dp)
+            ) {
+                Text(
+                    text = answer,
+                    fontSize = 12.sp,
+                    color = if (isDark) TextGray else TextMuted,
+                    lineHeight = 18.sp
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun SettingsAboutPanel(
+    isDark: Boolean,
+    onBack: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(if (isDark) DarkBg else LightBg)
+    ) {
+        // 顶部导航
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            val accent = if (isDark) NeonCyan else GoldPrimary
+            AppBackButton(
+                onClick = onBack,
+                contentDescription = "返回设置",
+                tint = accent,
+                containerColor = MaterialTheme.colorScheme.surface,
+                borderColor = accent.copy(alpha = 0.34f)
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "关于软件",
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Black,
+                    color = if (isDark) TextWhite else TextDark
+                )
+                Text(
+                    text = "版本规约与隐私安全透明度声明",
+                    fontSize = 12.sp,
+                    color = if (isDark) NeonCyan else GoldPrimary,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+        }
+
+        // 关于我们主体文字
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .weight(1f)
+                .padding(horizontal = 16.dp)
+                .verticalScroll(rememberScrollState()),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Spacer(modifier = Modifier.height(6.dp))
+            
+            // 软件卡片
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(16.dp))
+                    .background(if (isDark) DarkCardBg else LightCardBg)
+                    .border(1.dp, (if (isDark) NeonCyan else GoldPrimary).copy(alpha = 0.18f), RoundedCornerShape(16.dp))
+                    .padding(20.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.AutoAwesome,
+                        contentDescription = "卡包卫士",
+                        tint = if (isDark) NeonCyan else GoldPrimary,
+                        modifier = Modifier.size(44.dp)
+                    )
+                    Text(
+                        text = "卡包卫士 Premium",
+                        fontSize = 18.sp,
+                        fontWeight = FontWeight.Black,
+                        color = if (isDark) TextWhite else TextDark
+                    )
+                    Text(
+                        text = "版本号：v2.2.0 Premium (2026)",
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.SemiBold,
+                        color = if (isDark) NeonCyan else GoldPrimary
+                    )
+                }
+            }
+
+            // 软件简介
+            DetailSection(title = "📝 软件简介") {
+                Text(
+                    text = "卡包卫士 Premium 是一款专注安全、精细拟真的信用卡智能账单与资产健康管理助手。应用通过完全离线的本地沙盒数据库以及高规格的本地 NFC 读卡、相机识别技术，让您能够轻松归集多行信用卡。同时支持科学推算共享额度、可用免息期，并通过端到端加密的 WebDAV 私人同步通道，给您的账单与财富管理筑起一道坚不可摧的隐私安全防护盾。",
+                    fontSize = 12.sp,
+                    color = if (isDark) TextGray else TextMuted,
+                    lineHeight = 18.sp,
+                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                )
+            }
+
+            // 隐私与权限说明
+            DetailSection(title = "🛡️ 权限与隐私声明") {
+                Column(
+                    modifier = Modifier.padding(horizontal = 4.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
+                ) {
+                    PrivacyPermissionRow(
+                        name = "NFC 读卡权限 (感应刷卡)",
+                        description = "仅在您主动使用 NFC 靠近验卡或雷达读卡时唤醒硬件，通过读取公开的非接触式 IC 卡标准指令，解析脱敏的卡号与有效期。本应用绝不也无权保存任何交易密码或敏感安全码。",
+                        isDark = isDark
+                    )
+                    PrivacyPermissionRow(
+                        name = "相机扫描权限 (卡号提取)",
+                        description = "用于启动拍摄镜头读取卡面数字及手动拍照备份。识别及卡片裁剪保存等分析处理全部发生在本机设备本地，绝对不会将您的卡面图像或数字向任何远端服务器进行传输或收集。",
+                        isDark = isDark
+                    )
+                    PrivacyPermissionRow(
+                        name = "本地存储空间 (沙盒隔离)",
+                        description = "用于加密存储本地卡包信息、卡片裁剪后的大图资源。数据严格储存在系统沙盒中，其他第三方应用无权读取，且会随着应用的卸载自动清除，保障物理隔离隐私。",
+                        isDark = isDark
+                    )
+                    PrivacyPermissionRow(
+                        name = "端到端网络同步 (WebDAV)",
+                        description = "仅在您配置了私人 WebDAV 云备份账号后，在本地与您的私人网盘之间进行直连备份。我们绝不架设中间服务器，没有任何广告、统计以及追踪 SDK 驻留，保证 100% 纯净度。",
+                        isDark = isDark
+                    )
+                }
+            }
+
+            // 条款与免责声明
+            DetailSection(title = "⚖️ 服务与免责条款") {
+                Text(
+                    text = "1. 数据免责：本应用提供的免息期天数推算、账单日与还款日提醒以及负债统计等结果，均根据您所录入的参数进行日历学与日期的数学映射推导，仅供个人合理消费规划参考。由于各行信用卡章程可能存在临时修订、国定假期顺延还款等细微差异，请务必以各发卡银行官方公告及账单信息为准。\n" +
+                            "2. 财务安全：用户应妥善管理个人手机密码以及 WebDAV 应用同步密码，由于设备丢失或泄露密码引发的数据损毁，需自行承担相应责任。本软件在任何情况下均不对由于依赖本计算结果产生的滞纳金或信用受损等任何直接与间接损失负责。",
+                    fontSize = 11.sp,
+                    color = if (isDark) TextGray else TextMuted,
+                    lineHeight = 16.sp,
+                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(20.dp))
+        }
+    }
+}
+
+@Composable
+fun PrivacyPermissionRow(
+    name: String,
+    description: String,
+    isDark: Boolean
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(8.dp))
+            .background(if (isDark) Color.White.copy(alpha = 0.03f) else Color.Black.copy(alpha = 0.01f))
+            .padding(10.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            Box(
+                modifier = Modifier
+                    .size(6.dp)
+                    .clip(CircleShape)
+                    .background(if (isDark) NeonCyan else GoldPrimary)
+            )
+            Text(
+                text = name,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                color = if (isDark) TextWhite else TextDark
+            )
+        }
+        Text(
+            text = description,
+            fontSize = 10.sp,
+            color = if (isDark) TextGray else TextMuted,
+            lineHeight = 15.sp
+        )
+    }
+}
+
+@Composable
+fun SettingsPrivacyPanel(
+    isDark: Boolean,
+    onBack: () -> Unit
+) {
+    val context = LocalContext.current
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+
+    var hasCamera by remember { mutableStateOf(isPermissionGranted(context, Manifest.permission.CAMERA)) }
+    var hasNotification by remember { mutableStateOf(isNotificationPermissionGranted(context)) }
+
+    fun refreshPermissionStates() {
+        hasCamera = isPermissionGranted(context, Manifest.permission.CAMERA)
+        hasNotification = isNotificationPermissionGranted(context)
+    }
+
+    DisposableEffect(lifecycleOwner, context) {
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                refreshPermissionStates()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
+    val cameraLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        hasCamera = isGranted
+        if (!isGranted) {
+            Toast.makeText(context, "相机权限被拒绝，无法使用扫描功能", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    val notificationLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        hasNotification = isNotificationPermissionGranted(context) || isGranted
+        if (!isGranted) {
+            Toast.makeText(context, "消息通知权限被拒绝，无法使用提醒功能", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(if (isDark) DarkBg else LightBg)
+    ) {
+        // 顶部零顶栏导航
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            val accent = if (isDark) NeonCyan else GoldPrimary
+            AppBackButton(
+                onClick = onBack,
+                contentDescription = "返回设置",
+                tint = accent,
+                containerColor = MaterialTheme.colorScheme.surface,
+                borderColor = accent.copy(alpha = 0.34f)
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "隐私权限管理",
+                    fontSize = 22.sp,
+                    fontWeight = FontWeight.Black,
+                    color = if (isDark) TextWhite else TextDark
+                )
+                Text(
+                    text = "应用所需核心功能授权与透明度公示",
+                    fontSize = 12.sp,
+                    color = if (isDark) NeonCyan else GoldPrimary,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+        }
+
+        // 核心滚动列表
+        LazyColumn(
+            modifier = Modifier
+                .fillMaxSize()
+                .weight(1f),
+            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            // 权限列表介绍
+            item {
+                Text(
+                    text = "卡包卫士 Premium 承诺严格保护持卡人资产与数据隐私。本软件为纯本地单机沙盒数据库运行，所有敏感权限仅在您激活对应场景（如贴卡、扫码）时在本地起效，绝无任何远端个人隐私收集行为。",
+                    fontSize = 12.sp,
+                    color = if (isDark) TextGray else TextMuted,
+                    lineHeight = 18.sp,
+                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)
+                )
+            }
+
+            // 1. 相机权限
+            item {
+                PermissionItem(
+                    name = "📷 相机扫描权限 (android.permission.CAMERA)",
+                    description = "用于启动后置摄像头对准实体信用卡进行高精准本地 OCR 扫描，或手动拍照备份大图。图像数据严格在本机内存中进行分析并智能裁剪保存，绝不上报。",
+                    isGranted = hasCamera,
+                    isDark = isDark,
+                    onRequestPermission = {
+                        cameraLauncher.launch(Manifest.permission.CAMERA)
+                    },
+                    onRevokePermission = {
+                        if (revokeSelfPermissionOrOpenSettings(context, Manifest.permission.CAMERA, "相机权限")) {
+                            hasCamera = false
+                        }
+                    }
+                )
+            }
+
+            // 2. 消息通知权限
+            item {
+                PermissionItem(
+                    name = "🔔 消息通知权限 (android.permission.POST_NOTIFICATIONS)",
+                    description = "主要用于在您的信用卡“还款日”或“年费产生”临近时，在系统后台为您推送还款警报提醒（仅当开启后台提醒并录入时间时生效）。",
+                    isGranted = hasNotification,
+                    isDark = isDark,
+                    onRequestPermission = {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                            notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                        } else {
+                            openNotificationSettings(context)
+                        }
+                    },
+                    onRevokePermission = {
+                        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                            if (revokeSelfPermissionOrOpenSettings(context, Manifest.permission.POST_NOTIFICATIONS, "消息通知权限")) {
+                                hasNotification = false
+                            }
+                        } else {
+                            openNotificationSettings(context)
+                        }
+                    }
+                )
+            }
+
+            // 3. NFC 感应权限
+            item {
+                PermissionItem(
+                    name = "📡 NFC 射频感应权限 (android.permission.NFC)",
+                    description = "用于非接触式物理刷卡交互，当信用卡靠近手机 NFC 天线区域时自动感应读取芯片公开的明文卡号及有效期。属于安卓系统普通级权限，安装时默认授予。",
+                    isGranted = true,
+                    isDark = isDark
+                )
+            }
+
+            // 4. 振动回馈权限
+            item {
+                PermissionItem(
+                    name = "📳 本地振动权限 (android.permission.VIBRATE)",
+                    description = "当您的卡片通过 NFC 感应读卡成功、或相机扫描出结果的一瞬间，驱动手机马达进行轻微振动反馈。属于系统普通权限，默认授予。",
+                    isGranted = true,
+                    isDark = isDark
+                )
+            }
+
+            // 5. 网络连接权限
+            item {
+                PermissionItem(
+                    name = "🌐 网络访问权限 (android.permission.INTERNET)",
+                    description = "本应用不架设中转服务器，网络访问仅用于加密对接您在设置中自行配置的私人 WebDAV 服务器进行卡片数据库文件的端到端安全云备份与恢复。",
+                    isGranted = true,
+                    isDark = isDark
+                )
+            }
+        }
+    }
+}
+
+@Composable
+fun PermissionItem(
+    name: String,
+    description: String,
+    isGranted: Boolean,
+    isDark: Boolean,
+    onRequestPermission: (() -> Unit)? = null,
+    onRevokePermission: (() -> Unit)? = null
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(if (isDark) DarkCardBg else LightCardBg)
+            .border(
+                0.5.dp, 
+                (if (isGranted) (if (isDark) NeonGreen else ForestGreen) else (if (isDark) NeonRed else WarmOrange)).copy(alpha = 0.22f), 
+                RoundedCornerShape(14.dp)
+            )
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = name,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                color = if (isDark) TextWhite else TextDark,
+                modifier = Modifier.weight(1f)
+            )
+            
+            // 荧光绿或警示红的授权状态标签
+            Box(
+                modifier = Modifier
+                    .clip(RoundedCornerShape(30.dp))
+                    .background(
+                        (if (isGranted) (if (isDark) NeonGreen else ForestGreen) else (if (isDark) NeonRed else WarmOrange)).copy(alpha = 0.12f)
+                    )
+                    .border(
+                        0.5.dp, 
+                        (if (isGranted) (if (isDark) NeonGreen else ForestGreen) else (if (isDark) NeonRed else WarmOrange)).copy(alpha = 0.4f), 
+                        RoundedCornerShape(30.dp)
+                    )
+                    .padding(horizontal = 10.dp, vertical = 4.dp)
+            ) {
+                Text(
+                    text = if (isGranted) "已授权" else "未授权",
+                    color = if (isGranted) (if (isDark) NeonGreen else ForestGreen) else (if (isDark) NeonRed else WarmOrange),
+                    fontSize = 10.sp,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        }
+
+        Text(
+            text = description,
+            fontSize = 11.sp,
+            color = if (isDark) TextGray else TextMuted,
+            lineHeight = 16.sp
+        )
+
+        if (isGranted && onRevokePermission != null) {
+            OutlinedButton(
+                onClick = onRevokePermission,
+                modifier = Modifier.fillMaxWidth().height(32.dp),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 2.dp),
+                colors = ButtonDefaults.outlinedButtonColors(
+                    contentColor = if (isDark) NeonRed else Color.Red
+                ),
+                border = BorderStroke(
+                    0.5.dp,
+                    (if (isDark) NeonRed else Color.Red).copy(alpha = 0.5f)
+                ),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Text("收回授权", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            }
+        } else if (!isGranted && onRequestPermission != null) {
+            Button(
+                onClick = onRequestPermission,
+                modifier = Modifier.fillMaxWidth().height(32.dp),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 2.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = (if (isDark) NeonRed else WarmOrange).copy(alpha = 0.1f),
+                    contentColor = if (isDark) NeonRed else WarmOrange
+                ),
+                border = BorderStroke(
+                    0.5.dp, 
+                    (if (isDark) NeonRed else WarmOrange).copy(alpha = 0.5f)
+                ),
+                shape = RoundedCornerShape(8.dp)
+            ) {
+                Text("申请取得授权", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+            }
+        }
+    }
+}
+
+private fun isPermissionGranted(context: Context, permission: String): Boolean {
+    return androidx.core.content.ContextCompat.checkSelfPermission(
+        context,
+        permission
+    ) == PackageManager.PERMISSION_GRANTED
+}
+
+private fun isNotificationPermissionGranted(context: Context): Boolean {
+    return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        isPermissionGranted(context, Manifest.permission.POST_NOTIFICATIONS)
+    } else {
+        androidx.core.app.NotificationManagerCompat.from(context).areNotificationsEnabled()
+    }
+}
+
+private fun revokeSelfPermissionOrOpenSettings(
+    context: Context,
+    permission: String,
+    label: String
+): Boolean {
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        return try {
+            context.revokeSelfPermissionOnKill(permission)
+            Toast.makeText(
+                context,
+                "$label 已收回；系统会在应用退出后正式取消，再次使用时会重新申请授权",
+                Toast.LENGTH_LONG
+            ).show()
+            true
+        } catch (e: Exception) {
+            Toast.makeText(context, "无法自动收回$label，请在系统设置中关闭", Toast.LENGTH_LONG).show()
+            openAppDetailsSettings(context)
+            false
+        }
+    }
+
+    Toast.makeText(context, "当前系统版本不支持应用内自动收回$label，请在系统设置中关闭", Toast.LENGTH_LONG).show()
+    openAppDetailsSettings(context)
+    return false
+}
+
+private fun openNotificationSettings(context: Context) {
+    val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+        Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+            putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+        }
+    } else {
+        Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+            data = Uri.fromParts("package", context.packageName, null)
+        }
+    }
+    runCatching {
+        context.startActivity(intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+    }.onFailure {
+        openAppDetailsSettings(context)
+    }
+}
+
+private fun openAppDetailsSettings(context: Context) {
+    val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+        data = Uri.fromParts("package", context.packageName, null)
+        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    }
+    runCatching {
+        context.startActivity(intent)
     }
 }

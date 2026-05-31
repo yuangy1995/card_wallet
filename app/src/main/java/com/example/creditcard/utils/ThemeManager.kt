@@ -30,4 +30,12 @@ object ThemeManager {
         val prefs = context.getSharedPreferences("credit_card_theme_prefs", Context.MODE_PRIVATE)
         prefs.edit().putBoolean("is_dark_theme", nextState).apply()
     }
+
+    fun resetToDefault(context: Context) {
+        _isDarkTheme.value = true
+        context.getSharedPreferences("credit_card_theme_prefs", Context.MODE_PRIVATE)
+            .edit()
+            .clear()
+            .apply()
+    }
 }

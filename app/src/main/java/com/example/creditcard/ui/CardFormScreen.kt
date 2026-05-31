@@ -1848,6 +1848,32 @@ fun CameraScanLayout(
     secondaryActionUseNfcIcon: Boolean = false
 ) {
     Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
+        // 动态相机权限检查与索要 Launcher
+        var hasCameraPermission by remember {
+            mutableStateOf(
+                androidx.core.content.ContextCompat.checkSelfPermission(
+                    context,
+                    android.Manifest.permission.CAMERA
+                ) == android.content.pm.PackageManager.PERMISSION_GRANTED
+            )
+        }
+
+        val permissionLauncher = rememberLauncherForActivityResult(
+            contract = ActivityResultContracts.RequestPermission()
+        ) { isGranted ->
+            hasCameraPermission = isGranted
+            if (!isGranted) {
+                Toast.makeText(context, "相机权限被拒绝，无法使用扫描功能", Toast.LENGTH_LONG).show()
+            }
+        }
+
+        // 进入页面时自动索要相机权限
+        LaunchedEffect(Unit) {
+            if (!hasCameraPermission) {
+                permissionLauncher.launch(android.Manifest.permission.CAMERA)
+            }
+        }
+
         var cameraBindError by remember { mutableStateOf(false) }
 
         // 用于刷卡或识别成功的震动提示器
@@ -1947,7 +1973,7 @@ fun CameraScanLayout(
             )
         }
 
-        if (!cameraBindError) {
+        if (hasCameraPermission && !cameraBindError) {
             AndroidView(
                 factory = { ctx ->
                     val previewView = PreviewView(ctx).apply {
@@ -1975,6 +2001,9 @@ fun CameraScanLayout(
                                 }
 
                                 val mediaImage = imageProxy.image
+                                if (mediaImage != mediaImage) {
+                                    // 无效判断，保证语法完整性
+                                }
                                 if (mediaImage != null) {
                                     val inputImage = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
                                     recognizer.process(inputImage)
@@ -2029,14 +2058,50 @@ fun CameraScanLayout(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .background(Brush.radialGradient(listOf(Color(0xFF0F172A), Color.Black))),
+                    .background(Brush.radialGradient(listOf(Color(0xFF0D1117), Color.Black))),
                 contentAlignment = Alignment.Center
             ) {
-                Text(
-                    text = "📸 智能聚焦感应器就绪...",
-                    color = Color.LightGray.copy(alpha = 0.5f),
-                    fontSize = 14.sp
-                )
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    modifier = Modifier.padding(28.dp)
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.PhotoCamera,
+                        contentDescription = "相机权限缺失",
+                        tint = (if (isDark) Color(0xFF22D3EE) else Color(0xFFC0A060)).copy(alpha = 0.4f),
+                        modifier = Modifier.size(48.dp)
+                    )
+                    Text(
+                        text = if (!hasCameraPermission) "⚠️ 未获得相机授权，无法使用扫描功能" else "📸 智能聚焦感应器就绪...",
+                        color = Color.LightGray.copy(alpha = 0.85f),
+                        fontSize = 15.sp,
+                        fontWeight = FontWeight.Bold,
+                        textAlign = TextAlign.Center
+                    )
+                    if (!hasCameraPermission) {
+                        Text(
+                            text = "扫描信用卡需要调用您的相机权限进行本地 OCR 识别。卡片图像严格在本地进行分析，绝不上报，100% 保护隐私安全。",
+                            color = Color.Gray,
+                            fontSize = 12.sp,
+                            textAlign = TextAlign.Center,
+                            lineHeight = 18.sp
+                        )
+                        Button(
+                            onClick = {
+                                permissionLauncher.launch(android.Manifest.permission.CAMERA)
+                            },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = (if (isDark) Color(0xFF22D3EE) else Color(0xFFC0A060)).copy(alpha = 0.15f),
+                                contentColor = if (isDark) Color(0xFF22D3EE) else Color(0xFFC0A060)
+                            ),
+                            border = androidx.compose.foundation.BorderStroke(1.dp, (if (isDark) Color(0xFF22D3EE) else Color(0xFFC0A060)).copy(alpha = 0.5f)),
+                            shape = RoundedCornerShape(8.dp)
+                        ) {
+                            Text("点击发起授权申请", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                        }
+                    }
+                }
             }
         }
 

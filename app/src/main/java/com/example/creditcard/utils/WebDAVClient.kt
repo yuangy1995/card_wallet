@@ -31,6 +31,8 @@ object WebDAVClient {
     private val client = OkHttpClient.Builder()
         .connectTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
         .readTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+        .writeTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+        .callTimeout(45, java.util.concurrent.TimeUnit.SECONDS)
         .build()
 
     // 默认的备份目录
@@ -87,8 +89,10 @@ object WebDAVClient {
         val backupFiles = ArrayList<BackupFile>()
         try {
             client.newCall(request).execute().use { response ->
-                if (!response.isSuccessful && response.code != 207) return emptyList()
-                val body = response.body?.string() ?: return emptyList()
+                if (!response.isSuccessful && response.code != 207) {
+                    throw IOException("备份列表读取失败，HTTP ${response.code}")
+                }
+                val body = response.body?.string() ?: throw IOException("备份列表响应为空")
                 
                 // 使用极其健壮的正则，切分出每个 response 块
                 val responsePattern = Pattern.compile("<[^:]*:response>(.*?)</[^:]*:response>", Pattern.DOTALL)
@@ -127,10 +131,15 @@ object WebDAVClient {
             }
         } catch (e: Exception) {
             e.printStackTrace()
+            throw IOException("备份列表读取失败: ${e.message ?: "未知网络错误"}", e)
         }
 
         // 按最后修改时间倒序排列
         return backupFiles.sortedByDescending { it.lastModified }
+    }
+
+    fun cancelAll() {
+        client.dispatcher.cancelAll()
     }
 
     /**
