@@ -1,5 +1,6 @@
 import { createClient } from 'webdav';
 import { encryptData, decryptData } from './encryption';
+import { encryptSyncEnvelopeV4 } from './syncCryptoV4';
 
 import { STORAGE_KEYS } from '@/config/constants'
 
@@ -151,72 +152,18 @@ export class WebDAVClient {
     }
   }
 
-  // 创建备份
-  async createBackup(data, tempPassword) {
+  async uploadSyncSnapshot(snapshot, syncPassword) {
     if (!this.client) {
-      throw new Error('云端备份服务还没有准备好');
+      throw new Error('云同步服务还没有准备好');
     }
-
-    try {
-      // 创建备份目录
-      const backupDir = '/credit-card-backup';
-      if (!await this.client.exists(backupDir)) {
-        await this.client.createDirectory(backupDir);
-      }
-
-      // 创建备份文件名
-      const now = new Date();
-      const timestamp = now.toLocaleString('zh-CN', {
-        year: 'numeric',
-        month: '2-digit',
-        day: '2-digit',
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-        hour12: false
-      }).replace(/[\/:]/g, '-').replace(/,?\s+/g, '-');
-      
-      // 解密数据获取卡片数量
-      const decryptedData = decryptData(data, tempPassword);
-      const cardCount = decryptedData.cards?.length || 0;
-      const filename = `${timestamp}---(${cardCount})${tempPassword ? '[密]' : ''}.json`;
-      const filepath = `${backupDir}/${filename}`;
-
-      // 报告开始上传
-      if (this.progressCallback) {
-        this.progressCallback('upload', 0);
-      }
-
-      const jsonData = JSON.stringify(data);
-      // 上传备份数据
-      await this.client.putFileContents(filepath, jsonData, {
-        overwrite: true,
-        contentLength: true
-      });
-
-      // 报告上传完成
-      if (this.progressCallback) {
-        this.progressCallback('upload', 100);
-      }
-
-      return {
-        success: true,
-        message: '备份成功',
-        filename: filename
-      };
-    } catch (error) {
-      return { success: false, message: error.message };
-    }
-  }
-
-  async uploadSyncSnapshot(snapshot) {
-    if (!this.client) {
-      throw new Error('云端备份服务还没有准备好');
+    const normalizedSyncPassword = String(syncPassword || '').trim();
+    if (!normalizedSyncPassword) {
+      throw new Error('请先设置同步密钥');
     }
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const activeCount = snapshot.records.filter(record => record.state === 'active').length;
-    const filename = `${timestamp}---(${activeCount})[SyncV3][Web][自].json`;
-    const encryptedSnapshot = encryptData(snapshot);
+    const filename = `${timestamp}---(${activeCount})[SyncV4][Web][自].json`;
+    const encryptedSnapshot = await encryptSyncEnvelopeV4(snapshot, normalizedSyncPassword);
     await this.client.putFileContents(`/credit-card-backup/${filename}`, encryptedSnapshot, {
       overwrite: true,
       contentLength: true
@@ -229,7 +176,7 @@ export class WebDAVClient {
     if (!this.client) {
       return {
         success: false,
-        message: '云端备份服务还没有准备好'
+        message: '云同步服务还没有准备好'
       };
     }
 
@@ -250,6 +197,7 @@ export class WebDAVClient {
         filename: file.basename,
         basename: file.basename,
         lastmod: file.lastmod,
+        lastModified: file.lastmod ? new Date(file.lastmod).getTime() : 0,
         size: file.size
       }));
 
@@ -268,7 +216,7 @@ export class WebDAVClient {
   // 恢复备份
   async restoreBackup(filename) {
     if (!this.client) {
-      throw new Error('云端备份服务还没有准备好');
+      throw new Error('云同步服务还没有准备好');
     }
 
     try {
@@ -311,7 +259,7 @@ export class WebDAVClient {
   // 删除备份
   async deleteBackup(filename) {
     if (!this.client) {
-      throw new Error('云端备份服务还没有准备好');
+      throw new Error('云同步服务还没有准备好');
     }
 
     try {
@@ -326,42 +274,6 @@ export class WebDAVClient {
     }
   }
 
-  // 重命名备份
-  async renameBackup(oldFilename, newFilename) {
-    if (!this.client) {
-      throw new Error('云端备份服务还没有准备好');
-    }
-
-    try {
-      const oldPath = `/credit-card-backup/${oldFilename}`;
-      const newPath = `/credit-card-backup/${newFilename}`;
-
-      // 获取基础URL，移除认证信息
-      const url = this.client.getFileDownloadLink(oldPath);
-      const baseUrl = url.replace(/^https?:\/\/[^@]+@/, 'https://');
-      
-      // 使用 fetch 直接发送 MOVE 请求
-      const response = await fetch(baseUrl, {
-        method: 'MOVE',
-        headers: {
-          'Authorization': 'Basic ' + btoa(`${this.config.username}:${this.config.password}`),
-          'Destination': baseUrl.replace(oldFilename, newFilename),
-          'Overwrite': 'T'
-        }
-      });
-
-      if (!response.ok) {
-        throw new Error(`重命名失败：${response.status} ${response.statusText}`);
-      }
-
-      return {
-        success: true,
-        message: '重命名成功'
-      };
-    } catch (error) {
-      return { success: false, message: error.message };
-    }
-  }
 }
 
 // 导出单例实例

@@ -2,28 +2,19 @@
  * 应用常量配置
  */
 
-// 备份相关常量
+// 数据维护相关常量
 export const BACKUP_CONSTANTS = {
-  MAX_BACKUP_COUNT: 50,          // 最大备份数量
-  ANNUAL_FEE_CHECK_DAYS: 60,     // 年费检查天数
-  WEBDAV_BACKUP_DIR: '/credit-card-backup'  // WebDAV备份目录
+  ANNUAL_FEE_CHECK_DAYS: 60     // 年费检查天数
 }
 
 // 存储相关常量
 export const STORAGE_KEYS = {
   CARD_DATA: 'cardData',
-  CARD_DATA_BACKUPS: 'cardDataBackups',
-  SYNC_RECORDS: 'cardSyncRecordsV3',
-  SYNC_PENDING: 'cardSyncPendingV3',
-  SYNC_REVISION: 'cardSyncMutationRevisionV3',
+  SYNC_RECORDS: 'cardSyncRecordsV4',
+  SYNC_PENDING: 'cardSyncPendingV4',
+  SYNC_REVISION: 'cardSyncMutationRevisionV4',
   WEBDAV_CONFIG: 'webdav_config',
   TABLE_CUSTOM_COLUMNS: 'tableCustomColumns'
-}
-
-// 加密相关常量
-export const ENCRYPTION_CONSTANTS = {
-  ENCRYPTED_PREFIX: 'ENCRYPTED:',
-  DEFAULT_PASSWORD: 'default_password_2023'
 }
 
 // UI相关常量

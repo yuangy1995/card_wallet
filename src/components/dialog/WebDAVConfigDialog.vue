@@ -63,6 +63,18 @@
         />
       </el-form-item>
 
+      <el-form-item label="同步密钥" prop="syncPassword">
+        <el-input
+          v-model="form.syncPassword"
+          type="password"
+          placeholder="请输入云同步密钥"
+          show-password
+        />
+        <div class="form-tip">
+          三端必须使用同一个同步密钥。它用于加密 WebDAV 上的云同步文件，请单独妥善保存。
+        </div>
+      </el-form-item>
+
       <el-form-item v-if="form.protocol === 'https'" label="忽略证书" prop="ignoreCert">
         <el-switch
           v-model="form.ignoreCert"
@@ -100,6 +112,7 @@ const form = reactive({
   path: '',
   username: '',
   password: '',
+  syncPassword: '',
   ignoreCert: false
 })
 
@@ -131,6 +144,19 @@ const handleProtocolChange = (protocol) => {
   }
 }
 
+const validateSyncPassword = (_rule, value, callback) => {
+  const trimmedValue = String(value || '').trim()
+  if (!trimmedValue) {
+    callback(new Error('请输入云同步密钥'))
+    return
+  }
+  if (trimmedValue.length < 10) {
+    callback(new Error('同步密钥至少 10 位'))
+    return
+  }
+  callback()
+}
+
 const rules = {
   protocol: [
     { required: true, message: '请选择连接方式', trigger: 'change' }
@@ -151,6 +177,9 @@ const rules = {
   ],
   password: [
     { required: true, message: '请输入密码', trigger: 'blur' }
+  ],
+  syncPassword: [
+    { validator: validateSyncPassword, trigger: 'blur' }
   ]
 }
 
@@ -173,6 +202,7 @@ const loadSavedConfig = () => {
       form.path = url.pathname
       form.username = config.username
       form.password = config.password
+      form.syncPassword = config.syncPassword || ''
       form.ignoreCert = config.ignoreCert
     } catch (error) {
       // 配置可能不完整或格式错误，忽略错误继续
@@ -190,6 +220,7 @@ const testConnection = async () => {
       url: fullUrl.value,
       username: form.username,
       password: form.password,
+      syncPassword: form.syncPassword.trim(),
       ignoreCert: form.ignoreCert
     })
 
@@ -246,6 +277,7 @@ const saveConfig = async () => {
       url: fullUrl.value,
       username: form.username,
       password: form.password,
+      syncPassword: form.syncPassword.trim(),
       ignoreCert: form.ignoreCert
     })
 
@@ -288,6 +320,13 @@ defineExpose({
   display: flex;
   justify-content: flex-end;
   gap: 10px;
+}
+
+.form-tip {
+  margin-top: 6px;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+  line-height: 1.5;
 }
 
 :deep(.el-input-number) {

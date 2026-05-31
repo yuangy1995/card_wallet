@@ -26,11 +26,7 @@
           </el-button>
           <template #dropdown>
             <el-dropdown-menu>
-              <el-dropdown-item command="export">
-                <el-icon><Download /></el-icon>
-                导出选中项
-              </el-dropdown-item>
-              <el-dropdown-item command="mark-qualified" divided>
+              <el-dropdown-item command="mark-qualified">
                 <el-icon><CircleCheck /></el-icon>
                 标记为达标
               </el-dropdown-item>
@@ -67,7 +63,6 @@ import {
   Delete, 
   Setting, 
   ArrowDown, 
-  Download, 
   CircleCheck, 
   Edit,
   Calendar,
@@ -84,7 +79,6 @@ export default {
     Delete,
     Setting,
     ArrowDown,
-    Download,
     CircleCheck,
     Edit,
     Calendar,
@@ -105,7 +99,6 @@ export default {
   },
   emits: [
     'batch-delete', 
-    'batch-export', 
     'batch-update-status',
     'batch-update-annual-fee',
     'batch-update-validity',
@@ -142,10 +135,6 @@ export default {
       const count = selectedCount.value
       
       switch (command) {
-        case 'export':
-          emit('batch-export', props.selectedRows)
-          break
-          
         case 'mark-qualified':
           try {
             await ElMessageBox.confirm(

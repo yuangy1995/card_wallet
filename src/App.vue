@@ -68,6 +68,7 @@
                     <span style="color: #ffffff !important;">云同步状态：{{ syncStateText }}</span>
                   </div>
                   <div v-if="syncLastTimeText" style="margin-bottom: 2px; color: rgba(255, 255, 255, 0.95) !important;">{{ syncLastTimeText }}</div>
+                  <div v-if="syncDurationText" style="margin-bottom: 2px; color: rgba(255, 255, 255, 0.95) !important;">{{ syncDurationText }}</div>
                   <div v-if="syncCountdownText" style="margin-bottom: 2px; color: rgba(255, 255, 255, 0.95) !important;">{{ syncCountdownText }}</div>
                   <div v-if="syncStatus.message" style="margin-top: 6px; border-top: 1px solid rgba(255,255,255,0.15); padding-top: 4px; color: rgba(255, 255, 255, 0.75) !important; max-width: 280px; word-break: break-all;">
                     {{ syncStatus.message }}
@@ -97,9 +98,6 @@
               <el-button type="primary" size="small" @click="addCreditCard">
                 <el-icon><Plus /></el-icon>新增信用卡
               </el-button>
-              <el-button type="primary" size="small" @click="handleBackup">
-                <el-icon><Upload /></el-icon>云端备份
-              </el-button>
               <el-button type="primary" size="small" @click="showStatistics">
                 <el-icon><TrendCharts /></el-icon>统计分析
               </el-button>
@@ -120,9 +118,6 @@
               <template #dropdown>
                 <el-dropdown-menu>
                   <!-- 移动端与小屏专属收纳操作项 (常态隐藏，小屏下自动显现) -->
-                  <el-dropdown-item command="cloudBackup" class="mobile-only-menu-item">
-                    <el-icon><Upload /></el-icon>云端备份
-                  </el-dropdown-item>
                   <el-dropdown-item command="statistics" class="mobile-only-menu-item">
                     <el-icon><TrendCharts /></el-icon>统计分析
                   </el-dropdown-item>
@@ -135,15 +130,6 @@
                   </el-dropdown-item>
                   <el-dropdown-item command="securitySettings">
                     <el-icon><Lock /></el-icon>安全设置
-                  </el-dropdown-item>
-                  <el-dropdown-item command="exportData">
-                    <el-icon><Share /></el-icon>导出数据
-                  </el-dropdown-item>
-                  <el-dropdown-item command="importData">
-                    <el-icon><FolderOpened /></el-icon>导入数据
-                  </el-dropdown-item>
-                  <el-dropdown-item command="localBackup">
-                    <el-icon><DocumentCopy /></el-icon>本机备份
                   </el-dropdown-item>
                   <el-dropdown-item command="tableCustom">
                     <el-icon><Setting /></el-icon>自定义列
@@ -196,7 +182,6 @@
         :selected-rows="selectedRows"
         :total-count="tableData.length"
         @batch-delete="handleBatchDelete"
-        @batch-export="handleBatchExport"
         @batch-update-status="handleBatchUpdateStatus"
         @batch-update-annual-fee="handleBatchUpdateAnnualFee"
         @batch-update-validity="handleBatchUpdateValidity"
@@ -238,9 +223,6 @@
       <CreditCardDialog v-model:visible="creditCardData.dialogFormVisible" :mode="status"
         :initial-data="creditCardData.data" :existing-cards="cardData" @submit="confirmAdd" @cancel="handleDialogCancel" class="mobile-dialog mobile-form" />
 
-      <ImportExportDialog v-model:visible="importExportDialogVisible" :is-import="isImportMode" :data="cardData"
-        @import="handleImportData" class="mobile-dialog" />
-
       <DeleteConfirmDialog v-model:visible="deleteDialogVisible" :card-info="cardToDelete" @confirm="confirmDelete" class="mobile-dialog" />
 
       <!-- 表格自定义框 -->
@@ -257,8 +239,6 @@
       </el-dialog>
       <HelpPage ref="helpPage" />
       <WebDAVConfigDialog ref="webDAVConfig" @saved="handleWebDAVConfigSaved" />
-      <BackupDialog ref="backup" @update="handleBackupUpdate" @showConfig="showWebDAVConfig" />
-      <LocalBackupDialog v-model="localBackupVisible" @restore="handleLocalBackupRestore" ref="localBackup" />
 
       <!-- 批量年费更新弹窗 -->
       <el-dialog
@@ -421,15 +401,11 @@ import {
   Delete,
   Setting,
   Plus,
-  Share,
-  FolderOpened,
   TrendCharts,
   Calendar,
   Star,
   QuestionFilled,
   Connection,
-  Upload,
-  DocumentCopy,
   CopyDocument,
   Menu,
   CreditCard,
@@ -447,14 +423,11 @@ import BatchOperationToolbar from '@/components/toolbar/BatchOperationToolbar.vu
 const CreditCardCardList = defineAsyncComponent(() => import('@/components/card/CreditCardCardList.vue'))
 const CreditCardDialog = defineAsyncComponent(() => import('@/components/dialog/CreditCardDialog.vue'))
 const DeleteConfirmDialog = defineAsyncComponent(() => import('@/components/dialog/DeleteConfirmDialog.vue'))
-const ImportExportDialog = defineAsyncComponent(() => import('@/components/dialog/ImportExportDialog.vue'))
 const TableCustomDialog = defineAsyncComponent(() => import('@/components/dialog/TableCustomDialog.vue'))
 const CardDetailsDialog = defineAsyncComponent(() => import('@/components/dialog/CardDetailsDialog.vue'))
 const Statistics = defineAsyncComponent(() => import('@/components/Statistics.vue'))
 const HelpPage = defineAsyncComponent(() => import('@/components/help/HelpPage.vue'))
 const WebDAVConfigDialog = defineAsyncComponent(() => import('@/components/dialog/WebDAVConfigDialog.vue'))
-const BackupDialog = defineAsyncComponent(() => import('@/components/dialog/BackupDialog.vue'))
-const LocalBackupDialog = defineAsyncComponent(() => import('@/components/dialog/LocalBackupDialog.vue'))
 
 // 安全功能组件导入
 import PasswordSetup from '@/components/security/PasswordSetup.vue'
@@ -466,12 +439,10 @@ import FloatingLockButton from '@/components/security/FloatingLockButton.vue'
 import { creditCardOptions } from '@/config/creditCardOptions'
 import SearchForm from '@/components/search/SearchForm.vue'
 import { generateMockData } from '@/utils/mockData'
-import { encryptData, decryptData } from '@/utils/encryption'
 import { formatDate, daysBetween } from '@/utils/dateUtils'
-import { getCurrentTimeFormatted, getCurrentTimestamp } from '@/utils/dateFormatter'
+import { getCurrentTimestamp } from '@/utils/dateFormatter'
 import { BACKUP_CONSTANTS, STORAGE_KEYS } from '@/config/constants'
-import { saveCardData, getCardData, saveBackupData, getBackupData, saveTableColumns, getTableColumns, CardDataStorage } from '@/utils/storage'
-import { autoMigrateLocalData } from '@/utils/cardDataMigration'
+import { saveCardData, saveTableColumns, getTableColumns, CardDataStorage } from '@/utils/storage'
 import { useDebouncedRef } from '@/composables/useDebounce'
 import { useKeyboardShortcuts } from '@/composables/useKeyboardShortcuts'
 import { useTheme } from '@/composables/useTheme'
@@ -495,6 +466,9 @@ const syncStatus = ref({
   nextSyncAt: null,
   lastSuccessfulSyncAt: null,
   lastFailedSyncAt: null,
+  syncStartedAt: null,
+  elapsedMs: 0,
+  lastDurationMs: null,
   intervalMs: 5 * 60 * 1000
 })
 const syncCountdownNow = ref(Date.now())
@@ -525,8 +499,18 @@ const formatDuration = (milliseconds) => {
   return `${seconds}秒`
 }
 
+const syncElapsedMs = computed(() => {
+  if (syncStatus.value.isSyncing) {
+    if (syncStatus.value.syncStartedAt) {
+      return Math.max(0, syncCountdownNow.value - syncStatus.value.syncStartedAt)
+    }
+    return syncStatus.value.elapsedMs || 0
+  }
+  return 0
+})
+
 const syncStateText = computed(() => {
-  if (syncStatus.value.isSyncing) return '正在同步'
+  if (syncStatus.value.isSyncing) return `正在同步 ${formatDuration(syncElapsedMs.value)}`
   if (syncStatus.value.type === 'success') return '更新成功'
   if (syncStatus.value.lastFailedSyncAt && ['warning', 'danger'].includes(syncStatus.value.type)) return '更新失败'
   if ((syncStatus.value.message || '').includes('设置')) return '未设置云同步'
@@ -550,6 +534,16 @@ const syncCountdownText = computed(() => {
   if (!syncStatus.value.nextSyncAt) return ''
   const remaining = syncStatus.value.nextSyncAt - syncCountdownNow.value
   return `下次自动同步：${formatDuration(remaining)}后`
+})
+
+const syncDurationText = computed(() => {
+  if (syncStatus.value.isSyncing) {
+    return `已用时：${formatDuration(syncElapsedMs.value)}`
+  }
+  if (syncStatus.value.lastDurationMs) {
+    return `上次耗时：${formatDuration(syncStatus.value.lastDurationMs)}`
+  }
+  return ''
 })
 
 const showTableCustomDialog = ref(false)
@@ -585,8 +579,6 @@ const currentCard = ref({
   remark: ''
 })
 const statisticsVisible = ref(false)
-const importExportDialogVisible = ref(false)
-const isImportMode = ref(false)
 const creditCardData = ref({
   dialogFormVisible: false,
   data: {},
@@ -605,9 +597,6 @@ const searchForm = ref({
 })
 const status = ref('add')
 const labelWidth = ref('120px')
-const localBackupVisible = ref(false)
-const localBackup = ref(null)
-let backupTimer = null
 
 const batchAnnualFeeDialogVisible = ref(false)
 const batchAnnualFeeTargetIds = ref([])
@@ -737,7 +726,6 @@ const isDev = import.meta.env.DEV || import.meta.env.MODE === 'development'
 // 组件引用
 const helpPage = ref(null)
 const webDAVConfig = ref(null)
-const backup = ref(null)
 
 // 计算属性 - 优化缓存
 const visibleColumns = computed(() => {
@@ -966,7 +954,7 @@ const persistSyncedMutation = async (options = {}) => {
   await webdavSyncService.commitCards(cardData.value, options)
 }
 
-const publishCurrentV3Snapshot = async (afterPublish) => {
+const publishCurrentV4Snapshot = async (afterPublish) => {
   try {
     await webdavSyncService.synchronize(true)
   } finally {
@@ -977,7 +965,7 @@ const publishCurrentV3Snapshot = async (afterPublish) => {
 }
 
 const handleImmediateSync = () => {
-  publishCurrentV3Snapshot()
+  publishCurrentV4Snapshot()
 }
 
 const applySyncedCards = (syncedCards) => {
@@ -1245,16 +1233,6 @@ const deleteCard = (row) => {
   deleteDialogVisible.value = true
 }
 
-const exportData = () => {
-  isImportMode.value = false
-  importExportDialogVisible.value = true
-}
-
-const importData = () => {
-  isImportMode.value = true
-  importExportDialogVisible.value = true
-}
-
 const handleMoreAction = async (command) => {
   switch (command) {
     case 'cloudSettings':
@@ -1262,15 +1240,6 @@ const handleMoreAction = async (command) => {
       break
     case 'securitySettings':
       showPasswordSetup.value = true
-      break
-    case 'exportData':
-      exportData()
-      break
-    case 'importData':
-      importData()
-      break
-    case 'localBackup':
-      showLocalBackup()
       break
     case 'tableCustom':
       openTableCustom()
@@ -1288,9 +1257,6 @@ const handleMoreAction = async (command) => {
       exportDesensitizedData()
       break
     // 移动端/小屏专属命令路由
-    case 'cloudBackup':
-      handleBackup()
-      break
     case 'statistics':
       showStatistics()
       break
@@ -1298,13 +1264,6 @@ const handleMoreAction = async (command) => {
       manualCheckAnnualFees()
       break
   }
-}
-
-const handleImportData = async (data) => {
-  const rawList = Array.isArray(data) ? data : []
-  const migrationResult = autoMigrateLocalData(rawList)
-  cardData.value = migrationResult.data || []
-  await persistSyncedMutation({ replace: true })
 }
 
 const viewDetails = (row) => {
@@ -1459,29 +1418,6 @@ const handleBatchDelete = async (rows) => {
     ElMessage.success(`成功删除 ${rows.length} 张信用卡`)
   } catch (error) {
     ElMessage.error('批量删除失败')
-  }
-}
-
-const handleBatchExport = (rows) => {
-  try {
-    const dataToExport = rows.map(row => {
-      const { ...exportData } = row
-      return exportData
-    })
-
-    const encryptedData = encryptData(JSON.stringify(dataToExport))
-    const blob = new Blob([encryptedData], { type: 'text/plain' })
-    const url = URL.createObjectURL(blob)
-
-    const link = document.createElement('a')
-    link.href = url
-    link.download = `credit_cards_batch_${getCurrentTimeFormatted()}.dat`
-    link.click()
-
-    URL.revokeObjectURL(url)
-    ElMessage.success(`成功导出 ${rows.length} 张信用卡数据`)
-  } catch (error) {
-    ElMessage.error('批量导出失败')
   }
 }
 
@@ -1905,60 +1841,14 @@ const showMigrationReport = async (migrationInfo) => {
   }
 }
 
-const handleBackup = () => {
-  backup.value?.open(cardData.value)
-}
-
-const handleBackupUpdate = async (data) => {
-  cardData.value = data.map(card => normalizeCardTimeFields(card, { fillLastModifyTime: true }))
-  await persistSyncedMutation({ replace: true })
-}
-
-const autoBackup = () => {
-  const backups = getBackupData()
-  const newBackup = {
-    timestamp: Date.now(),
-    data: JSON.parse(JSON.stringify(cardData.value)),
-    status: 'success'
-  }
-
-  backups.unshift(newBackup)
-  // 只保留最近备份
-  const updatedBackups = backups.slice(0, BACKUP_CONSTANTS.MAX_BACKUP_COUNT)
-  saveBackupData(updatedBackups)
-}
-
-const resetAutoBackupTimer = () => {
-  if (backupTimer) {
-    clearTimeout(backupTimer)
-  }
-  backupTimer = setTimeout(() => {
-    autoBackup()
-  }, 60000) // 1分钟后自动备份
-}
-
-const handleLocalBackupRestore = async (data) => {
-  cardData.value = data.map(card => normalizeCardTimeFields(card, { fillLastModifyTime: true }))
-  await persistSyncedMutation({ replace: true })
-}
-
-const showLocalBackup = () => {
-  localBackupVisible.value = true
-  localBackup.value?.handleOpen()
-}
-
 // 键盘快捷键配置
 const shortcuts = {
   'ctrl+n': addCreditCard,
   'ctrl+shift+n': generateRandomData,
-  'ctrl+e': exportData,
-  'ctrl+i': importData,
   'ctrl+h': showHelp,
   'ctrl+t': () => showTableCustomDialog.value = true,
   'ctrl+s': showStatistics,
   'ctrl+shift+c': confirmClearData,
-  'ctrl+b': handleBackup,
-  'ctrl+shift+b': () => localBackupVisible.value = true,
   'ctrl+shift+w': showWebDAVConfig,
   'f1': showHelp,
   'escape': () => {
@@ -1975,14 +1865,6 @@ const shortcuts = {
 useKeyboardShortcuts(shortcuts)
 
 watch(
-  cardData,
-  () => {
-    resetAutoBackupTimer()
-  },
-  { deep: true }
-)
-
-watch(
   () => [batchAnnualFeeForm.value.updateStatus, batchAnnualFeeForm.value.isQualified],
   ([updateStatus, isQualified]) => {
     if (updateStatus && isQualified === '3') {
@@ -1993,9 +1875,6 @@ watch(
 )
 
 onUnmounted(() => {
-  if (backupTimer) {
-    clearTimeout(backupTimer)
-  }
   if (syncCountdownTimer) {
     clearInterval(syncCountdownTimer)
   }
@@ -2054,7 +1933,7 @@ const handleForgotPasswordOption = (option) => {
 const handleResetAllData = async () => {
   try {
     await ElMessageBox.confirm(
-      '此操作将清除所有数据，包括信用卡信息、云同步配置和本机备份。确定继续吗？',
+      '此操作将清除所有数据，包括信用卡信息和云同步配置。确定继续吗？',
       '警告',
       {
         confirmButtonText: '确定清除',
@@ -2083,12 +1962,10 @@ const handleRecoverySuccess = () => {
 
 const closeAllDialogsForLock = () => {
   creditCardData.value.dialogFormVisible = false
-  importExportDialogVisible.value = false
   deleteDialogVisible.value = false
   showTableCustomDialog.value = false
   detailsVisible.value = false
   statisticsVisible.value = false
-  localBackupVisible.value = false
   batchAnnualFeeDialogVisible.value = false
   batchValidityDialogVisible.value = false
   showPasswordSetup.value = false
@@ -2097,8 +1974,6 @@ const closeAllDialogsForLock = () => {
 
   helpPage.value?.hideHelp?.()
   webDAVConfig.value?.closeDialog?.()
-  backup.value?.closeAll?.()
-  localBackup.value?.closeAll?.()
 }
 
 // 手动锁定应用

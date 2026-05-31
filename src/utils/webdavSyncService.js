@@ -1,7 +1,7 @@
-import { decryptData } from '@/utils/encryption'
 import { cardSyncLedger } from '@/utils/syncLedger'
 import { activeCards, createSnapshot, mergeRecords, SYNC_SCHEMA_VERSION } from '@/utils/syncProtocol'
 import { webdavClient } from '@/utils/webdav'
+import { decryptSyncEnvelopeV4 } from '@/utils/syncCryptoV4'
 
 class WebDAVSyncService {
   constructor() {
@@ -14,6 +14,8 @@ class WebDAVSyncService {
     this.nextSyncAt = null
     this.lastSuccessfulSyncAt = null
     this.lastFailedSyncAt = null
+    this.syncStartedAt = null
+    this.lastDurationMs = null
     this.queuedPublishLocalChanges = false
     this.status = {
       message: '正在准备云同步...',
@@ -23,11 +25,30 @@ class WebDAVSyncService {
       nextSyncAt: null,
       lastSuccessfulSyncAt: null,
       lastFailedSyncAt: null,
+      syncStartedAt: null,
+      elapsedMs: 0,
+      lastDurationMs: null,
       intervalMs: this.syncIntervalMs
     }
   }
 
+  startTiming() {
+    this.syncStartedAt = Date.now()
+    this.lastDurationMs = null
+  }
+
+  finishTiming() {
+    if (!this.syncStartedAt) return this.lastDurationMs || 0
+    const durationMs = Math.max(0, Date.now() - this.syncStartedAt)
+    this.syncStartedAt = null
+    this.lastDurationMs = durationMs
+    return durationMs
+  }
+
   updateStatus(message, type = 'info', pending = cardSyncLedger.isPending(), extra = {}) {
+    const elapsedMs = this.isSyncing && this.syncStartedAt
+      ? Math.max(0, Date.now() - this.syncStartedAt)
+      : 0
     this.status = {
       ...this.status,
       message,
@@ -37,6 +58,9 @@ class WebDAVSyncService {
       nextSyncAt: this.nextSyncAt,
       lastSuccessfulSyncAt: this.lastSuccessfulSyncAt,
       lastFailedSyncAt: this.lastFailedSyncAt,
+      syncStartedAt: this.syncStartedAt,
+      elapsedMs,
+      lastDurationMs: this.lastDurationMs,
       intervalMs: this.syncIntervalMs,
       ...extra
     }
@@ -153,8 +177,14 @@ class WebDAVSyncService {
       this.updateStatus('有本机改动待同步：请先完成云同步设置', 'warning', true)
       return
     }
+    const syncPassword = String(config.syncPassword || '').trim()
+    if (!syncPassword) {
+      this.updateStatus('请先在云同步设置中填写同步密钥', 'warning', cardSyncLedger.isPending())
+      return
+    }
 
     this.isSyncing = true
+    this.startTiming()
     this.updateStatus('正在同步云端数据...', 'info', cardSyncLedger.isPending(), { nextSyncAt: null })
     try {
       if (!webdavClient.client) {
@@ -163,26 +193,29 @@ class WebDAVSyncService {
       const listResult = await webdavClient.getBackupList()
       if (!listResult.success) throw new Error(listResult.message)
       const automaticFiles = listResult.data.filter((file) =>
-        file.filename.includes('[SyncV3]') && file.filename.includes('[自]')
+        file.filename.includes('[SyncV4]') && file.filename.includes('[自]')
       ).sort((a, b) => {
         const timeDiff = (b.lastModified || 0) - (a.lastModified || 0)
         return timeDiff || String(b.filename).localeCompare(String(a.filename))
       })
       const filesToRead = automaticFiles.slice(0, 5)
-      if (!publishLocalChanges && automaticFiles.length === 0 && listResult.data.length > 0) {
-        this.updateStatus('检测到历史备份：请先在云端备份中预览并确认恢复，或点击“立即同步”发布当前数据', 'warning', true)
+      if (!publishLocalChanges && automaticFiles.length === 0) {
+        this.updateStatus('云端还没有新版同步文件，可点击“立即同步”用当前本地数据初始化云同步', 'warning', true)
         return
       }
       const snapshots = await Promise.all(filesToRead.map(async (file) => {
         const restored = await webdavClient.restoreBackup(file.filename)
-        if (!restored.success || typeof restored.data !== 'string') return null
+        if (!restored.success || restored.data == null) return null
         try {
-          const snapshot = decryptData(restored.data)
+          const snapshot = await decryptSyncEnvelopeV4(restored.data, syncPassword)
           return snapshot.schemaVersion === SYNC_SCHEMA_VERSION ? snapshot : null
         } catch {
           return null
         }
       }))
+      if (filesToRead.length > 0 && snapshots.filter(Boolean).length === 0) {
+        throw new Error('无法解密云端同步文件，请检查同步密钥')
+      }
       const localRecords = cardSyncLedger.load()
       const remoteRecords = snapshots.filter(Boolean).flatMap(snapshot => snapshot.records)
       const merged = mergeRecords(localRecords, remoteRecords)
@@ -193,7 +226,7 @@ class WebDAVSyncService {
 
       if (publishLocalChanges || changedByRemote || cardSyncLedger.isPending() ||
           (automaticFiles.length === 0 && merged.length > 0)) {
-        await webdavClient.uploadSyncSnapshot(createSnapshot(merged))
+        await webdavClient.uploadSyncSnapshot(createSnapshot(merged), syncPassword)
         if (cardSyncLedger.revision() === snapshotRevision) {
           cardSyncLedger.setPending(false)
         } else {
@@ -203,7 +236,7 @@ class WebDAVSyncService {
         const updatedList = await webdavClient.getBackupList()
         if (updatedList.success) {
           const oldAutomaticFiles = updatedList.data.filter((file) =>
-            file.filename.includes('[SyncV3]') && file.filename.includes('[自]')
+            file.filename.includes('[SyncV4]') && file.filename.includes('[自]')
           ).sort((a, b) => {
             const timeDiff = (b.lastModified || 0) - (a.lastModified || 0)
             return timeDiff || String(b.filename).localeCompare(String(a.filename))
@@ -212,16 +245,22 @@ class WebDAVSyncService {
         }
       }
       this.lastSuccessfulSyncAt = Date.now()
+      const durationMs = this.finishTiming()
       this.updateStatus(
         this.queuedPublishLocalChanges ? '本次同步完成，检测到期间又有新修改，正在继续同步' : '云端数据已更新',
         this.queuedPublishLocalChanges ? 'info' : 'success',
-        cardSyncLedger.isPending()
+        cardSyncLedger.isPending(),
+        { lastDurationMs: durationMs }
       )
     } catch (error) {
       cardSyncLedger.setPending(true)
       this.lastFailedSyncAt = Date.now()
-      this.updateStatus(`同步失败，本机改动已保留，稍后可重试：${error.message}`, 'warning', true)
+      const durationMs = this.finishTiming()
+      this.updateStatus(`同步失败，本机改动已保留，稍后可重试：${error.message}`, 'warning', true, { lastDurationMs: durationMs })
     } finally {
+      if (this.syncStartedAt) {
+        this.finishTiming()
+      }
       this.isSyncing = false
       const shouldContinue = this.queuedPublishLocalChanges
       this.queuedPublishLocalChanges = false

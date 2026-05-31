@@ -9,7 +9,7 @@ const card = (id, lastModifyTime = '') => ({
   lastModifyTime
 })
 
-describe('v3 card sync protocol', () => {
+describe('v4 card sync protocol', () => {
   it('takes the newest mutation and carries the normalized timestamp into the card', () => {
     const older = activeRecord(card('one'), '2026-01-01T00:00:00.000Z')
     const newer = activeRecord(card('one'), '2026-01-02T00:00:00.000Z')
@@ -30,11 +30,11 @@ describe('v3 card sync protocol', () => {
     expect(activeCards(merged)).toEqual([])
   })
 
-  it('serializes deleted records without card data in a v3 snapshot', () => {
+  it('serializes deleted records without card data in a v4 snapshot', () => {
     const snapshot = createSnapshot([deletedRecord('gone')])
     const encoded = JSON.parse(JSON.stringify(snapshot))
 
-    expect(encoded.schemaVersion).toBe('3.0.0')
+    expect(encoded.schemaVersion).toBe('4.0.0')
     expect(encoded.records[0].card).toBeUndefined()
   })
 
@@ -67,7 +67,7 @@ describe('v3 card sync protocol', () => {
     expect(record.card.lastModifyTime).toBe(Date.parse('2026-05-27T00:00:00.000Z'))
   })
 
-  it('converts legacy identity aliases to id and removes alias fields from v3 card payload', () => {
+  it('converts legacy identity aliases to id and removes alias fields from v4 card payload', () => {
     const record = activeRecord({
       ...card(''),
       cardId: 'legacy-card-id',
@@ -92,7 +92,7 @@ describe('v3 card sync protocol', () => {
     expect(record.card.id).toBe(record.cardId)
   })
 
-  it('uses cardId as the identity inside a v3 record', () => {
+  it('uses cardId as the identity inside a v4 record', () => {
     const merged = mergeRecords([{
       cardId: 'record-id',
       mutationId: 'mutation',

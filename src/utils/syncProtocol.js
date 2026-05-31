@@ -1,6 +1,6 @@
 import { normalizeCardTimeFields, toCardTimestamp } from '@/utils/cardTimestamp'
 
-export const SYNC_SCHEMA_VERSION = '3.0.0'
+export const SYNC_SCHEMA_VERSION = '4.0.0'
 
 const TRANSIENT_CARD_FIELDS = new Set([
   'showCardNumber',

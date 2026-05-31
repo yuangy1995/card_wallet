@@ -56,12 +56,8 @@ export const DEFAULT_SHORTCUTS = {
   // 基本操作
   'ctrl+n': '新增信用卡',
   'ctrl+s': '统计分析',
-  'ctrl+e': '导出数据',
-  'ctrl+i': '导入数据',
   'ctrl+h': '使用帮助',
   'ctrl+t': '自定义列',
-  'ctrl+b': '云端备份',
-  'ctrl+shift+b': '本机备份',
   'ctrl+shift+w': '云同步设置',
   'ctrl+shift+c': '清除所有数据',
   'f1': '使用帮助',

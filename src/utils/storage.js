@@ -144,23 +144,6 @@ export class CardDataStorage {
   }
 
   /**
-   * 获取备份数据
-   * @returns {Array} 备份数据数组
-   */
-  static getBackupData() {
-    return StorageManager.get(STORAGE_KEYS.CARD_DATA_BACKUPS, [])
-  }
-
-  /**
-   * 保存备份数据
-   * @param {Array} backupData - 备份数据数组
-   * @returns {boolean} 是否保存成功
-   */
-  static saveBackupData(backupData) {
-    return StorageManager.set(STORAGE_KEYS.CARD_DATA_BACKUPS, backupData)
-  }
-
-  /**
    * 获取表格列配置
    * @returns {Array} 列配置数组
    */
@@ -200,7 +183,5 @@ export class CardDataStorage {
  */
 export const getCardData = CardDataStorage.getCardData
 export const saveCardData = CardDataStorage.saveCardData
-export const getBackupData = CardDataStorage.getBackupData
-export const saveBackupData = CardDataStorage.saveBackupData
 export const getTableColumns = CardDataStorage.getTableColumns
 export const saveTableColumns = CardDataStorage.saveTableColumns
