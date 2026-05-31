@@ -14,6 +14,7 @@ class WebDAVSyncService {
     this.nextSyncAt = null
     this.lastSuccessfulSyncAt = null
     this.lastFailedSyncAt = null
+    this.queuedPublishLocalChanges = false
     this.status = {
       message: '正在准备云同步...',
       type: 'info',
@@ -139,7 +140,13 @@ class WebDAVSyncService {
   }
 
   async synchronize(publishLocalChanges = false) {
-    if (this.isSyncing) return
+    if (this.isSyncing) {
+      this.queuedPublishLocalChanges = this.queuedPublishLocalChanges || publishLocalChanges
+      if (publishLocalChanges) {
+        this.updateStatus('当前修改会在本次同步结束后继续上传', 'info', true)
+      }
+      return
+    }
     this.clearScheduledSync()
     const config = webdavClient.loadConfig()
     if (!config) {
@@ -157,12 +164,16 @@ class WebDAVSyncService {
       if (!listResult.success) throw new Error(listResult.message)
       const automaticFiles = listResult.data.filter((file) =>
         file.filename.includes('[SyncV3]') && file.filename.includes('[自]')
-      )
+      ).sort((a, b) => {
+        const timeDiff = (b.lastModified || 0) - (a.lastModified || 0)
+        return timeDiff || String(b.filename).localeCompare(String(a.filename))
+      })
+      const filesToRead = automaticFiles.slice(0, 5)
       if (!publishLocalChanges && automaticFiles.length === 0 && listResult.data.length > 0) {
         this.updateStatus('检测到历史备份：请先在云端备份中预览并确认恢复，或点击“立即同步”发布当前数据', 'warning', true)
         return
       }
-      const snapshots = await Promise.all(automaticFiles.map(async (file) => {
+      const snapshots = await Promise.all(filesToRead.map(async (file) => {
         const restored = await webdavClient.restoreBackup(file.filename)
         if (!restored.success || typeof restored.data !== 'string') return null
         try {
@@ -178,29 +189,48 @@ class WebDAVSyncService {
       const changedByRemote = JSON.stringify(merged) !== JSON.stringify(localRecords)
       cardSyncLedger.save(merged)
       this.onCardsChanged?.(activeCards(merged))
+      const snapshotRevision = cardSyncLedger.revision()
 
       if (publishLocalChanges || changedByRemote || cardSyncLedger.isPending() ||
           (automaticFiles.length === 0 && merged.length > 0)) {
         await webdavClient.uploadSyncSnapshot(createSnapshot(merged))
-        cardSyncLedger.setPending(false)
+        if (cardSyncLedger.revision() === snapshotRevision) {
+          cardSyncLedger.setPending(false)
+        } else {
+          cardSyncLedger.setPending(true)
+          this.queuedPublishLocalChanges = true
+        }
         const updatedList = await webdavClient.getBackupList()
         if (updatedList.success) {
           const oldAutomaticFiles = updatedList.data.filter((file) =>
             file.filename.includes('[SyncV3]') && file.filename.includes('[自]')
-          ).slice(5)
+          ).sort((a, b) => {
+            const timeDiff = (b.lastModified || 0) - (a.lastModified || 0)
+            return timeDiff || String(b.filename).localeCompare(String(a.filename))
+          }).slice(5)
           await Promise.all(oldAutomaticFiles.map(file => webdavClient.deleteBackup(file.filename)))
         }
       }
       this.lastSuccessfulSyncAt = Date.now()
-      this.updateStatus('云端数据已更新', 'success', false)
+      this.updateStatus(
+        this.queuedPublishLocalChanges ? '本次同步完成，检测到期间又有新修改，正在继续同步' : '云端数据已更新',
+        this.queuedPublishLocalChanges ? 'info' : 'success',
+        cardSyncLedger.isPending()
+      )
     } catch (error) {
       cardSyncLedger.setPending(true)
       this.lastFailedSyncAt = Date.now()
       this.updateStatus(`同步失败，本机改动已保留，稍后可重试：${error.message}`, 'warning', true)
     } finally {
       this.isSyncing = false
-      this.scheduleNextSync(this.syncIntervalMs)
-      this.emitCurrentStatus()
+      const shouldContinue = this.queuedPublishLocalChanges
+      this.queuedPublishLocalChanges = false
+      if (shouldContinue) {
+        this.synchronize(true)
+      } else {
+        this.scheduleNextSync(this.syncIntervalMs)
+        this.emitCurrentStatus()
+      }
     }
   }
 }

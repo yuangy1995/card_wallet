@@ -48,7 +48,10 @@ class CardSyncLedger {
 
     const records = mergeRecords(current, newEvents)
     this.save(records)
-    this.setPending(newEvents.length > 0)
+    if (newEvents.length > 0) {
+      this.bumpRevision()
+      this.setPending(true)
+    }
     return records
   }
 
@@ -70,6 +73,16 @@ class CardSyncLedger {
 
   isPending() {
     return StorageManager.get(STORAGE_KEYS.SYNC_PENDING, false)
+  }
+
+  revision() {
+    return Number(StorageManager.get(STORAGE_KEYS.SYNC_REVISION, 0)) || 0
+  }
+
+  bumpRevision() {
+    const next = this.revision() + 1
+    StorageManager.set(STORAGE_KEYS.SYNC_REVISION, next)
+    return next
   }
 }
 

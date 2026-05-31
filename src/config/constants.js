@@ -15,6 +15,7 @@ export const STORAGE_KEYS = {
   CARD_DATA_BACKUPS: 'cardDataBackups',
   SYNC_RECORDS: 'cardSyncRecordsV3',
   SYNC_PENDING: 'cardSyncPendingV3',
+  SYNC_REVISION: 'cardSyncMutationRevisionV3',
   WEBDAV_CONFIG: 'webdav_config',
   TABLE_CUSTOM_COLUMNS: 'tableCustomColumns'
 }
