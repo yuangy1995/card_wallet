@@ -24,6 +24,7 @@ data class SyncHistoryEntry(
     val finishedAt: String,
     val status: String,
     val message: String,
+    val durationMs: Long = 0L,
     val uploadedFile: String = "",
     val downloadedFiles: List<String> = emptyList(),
     val localChanges: List<CardChangeDetail> = emptyList(),

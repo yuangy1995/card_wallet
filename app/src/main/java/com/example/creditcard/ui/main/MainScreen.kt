@@ -1112,6 +1112,8 @@ fun ToolsSyncHistoryPanel(
                 statusMessage = syncStatus.message,
                 isSyncing = syncStatus.isSyncing,
                 pending = syncStatus.pending,
+                elapsedMs = syncStatus.elapsedMs,
+                lastDurationMs = syncStatus.lastDurationMs,
                 phase = syncProgress.phase,
                 step = syncProgress.step,
                 total = syncProgress.total,
@@ -2247,12 +2249,12 @@ fun SettingsMainPanel(
             color = MaterialTheme.colorScheme.onBackground
         )
         Text(
-            text = "管理云备份连接参数、偏好设置与敏感数据重设。",
+            text = "管理加密云同步连接参数、偏好设置与敏感数据重设。",
             fontSize = 13.sp,
             color = if (isDark) TextGray else TextMuted
         )
 
-        // 1. WebDAV 云备份二级菜单入口卡片
+        // 1. WebDAV 云同步二级菜单入口卡片
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -2276,7 +2278,7 @@ fun SettingsMainPanel(
             ) {
                 Icon(
                     imageVector = Icons.Filled.CloudQueue,
-                    contentDescription = "WebDAV云备份",
+                    contentDescription = "WebDAV 云同步",
                     tint = if (isDark) NeonCyan else GoldPrimary,
                     modifier = Modifier.size(26.dp)
                 )
@@ -2284,14 +2286,14 @@ fun SettingsMainPanel(
             Spacer(modifier = Modifier.width(14.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "WebDAV 云备份设置",
+                    text = "WebDAV 云同步设置",
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.onBackground
                 )
                 Spacer(modifier = Modifier.height(3.dp))
                 Text(
-                    text = if (isConfigured) "服务正常连接，云端同步已开启" else "未配置，点击开启云端备份与数据恢复",
+                    text = if (isConfigured) "服务正常连接，加密云同步已开启" else "未配置，点击开启加密云同步",
                     fontSize = 12.sp,
                     color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.64f)
                 )
@@ -2341,129 +2343,6 @@ fun SettingsMainPanel(
             }
         }
 
-        // 🌟 使用帮助与关于我们 Section
-        DetailSection(title = "📖 帮助与支持") {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(if (isDark) DarkBg else LightBg)
-                    .padding(vertical = 4.dp),
-                verticalArrangement = Arrangement.spacedBy(2.dp)
-            ) {
-                // 1. 使用帮助
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onOpenHelp() }
-                        .padding(horizontal = 14.dp, vertical = 14.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Filled.HelpOutline,
-                            contentDescription = "使用帮助",
-                            tint = if (isDark) NeonCyan else GoldPrimary,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Text(
-                            text = "使用帮助",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp
-                        )
-                    }
-                    Icon(
-                        imageVector = Icons.Filled.ChevronRight,
-                        contentDescription = "进入使用帮助",
-                        tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),
-                        modifier = Modifier.size(16.dp)
-                    )
-                }
-
-                // 分割线，纯 Box 渲染防 API 冲突
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 14.dp)
-                        .height(0.5.dp)
-                        .background((if (isDark) TextGray else TextMuted).copy(alpha = 0.12f))
-                )
-
-                // 2. 关于软件
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onOpenAbout() }
-                        .padding(horizontal = 14.dp, vertical = 14.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Filled.Info,
-                            contentDescription = "关于软件",
-                            tint = if (isDark) NeonCyan else GoldPrimary,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Text(
-                            text = "关于软件",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp
-                        )
-                    }
-                    Icon(
-                        imageVector = Icons.Filled.ChevronRight,
-                        contentDescription = "进入关于",
-                        tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),
-                        modifier = Modifier.size(16.dp)
-                    )
-                }
-
-                // 分割线，纯 Box 渲染防 API 冲突
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 14.dp)
-                        .height(0.5.dp)
-                        .background((if (isDark) TextGray else TextMuted).copy(alpha = 0.12f))
-                )
-
-                // 3. 隐私管理
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onOpenPrivacy() }
-                        .padding(horizontal = 14.dp, vertical = 14.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Filled.Security,
-                            contentDescription = "隐私管理",
-                            tint = if (isDark) NeonCyan else GoldPrimary,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Text(
-                            text = "隐私权限管理",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp
-                        )
-                    }
-                    Icon(
-                        imageVector = Icons.Filled.ChevronRight,
-                        contentDescription = "进入隐私管理",
-                        tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),
-                        modifier = Modifier.size(16.dp)
-                    )
-                }
-            }
-        }
-
         DetailSection(title = "存储与重置") {
             Row(
                 modifier = Modifier
@@ -2506,6 +2385,128 @@ fun SettingsMainPanel(
                     tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),
                     modifier = Modifier.size(16.dp)
                 )
+            }
+        }
+
+        DetailSection(title = "📖 帮助与支持") {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(if (isDark) DarkBg else LightBg)
+                    .padding(vertical = 4.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                // 1. 隐私管理
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onOpenPrivacy() }
+                        .padding(horizontal = 14.dp, vertical = 14.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Filled.Security,
+                            contentDescription = "隐私管理",
+                            tint = if (isDark) NeonCyan else GoldPrimary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = "隐私权限管理",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp
+                        )
+                    }
+                    Icon(
+                        imageVector = Icons.Filled.ChevronRight,
+                        contentDescription = "进入隐私管理",
+                        tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+
+                // 分割线，纯 Box 渲染防 API 冲突
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp)
+                        .height(0.5.dp)
+                        .background((if (isDark) TextGray else TextMuted).copy(alpha = 0.12f))
+                )
+
+                // 2. 使用帮助
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onOpenHelp() }
+                        .padding(horizontal = 14.dp, vertical = 14.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Filled.HelpOutline,
+                            contentDescription = "使用帮助",
+                            tint = if (isDark) NeonCyan else GoldPrimary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = "使用帮助",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp
+                        )
+                    }
+                    Icon(
+                        imageVector = Icons.Filled.ChevronRight,
+                        contentDescription = "进入使用帮助",
+                        tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
+
+                // 分割线，纯 Box 渲染防 API 冲突
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp)
+                        .height(0.5.dp)
+                        .background((if (isDark) TextGray else TextMuted).copy(alpha = 0.12f))
+                )
+
+                // 3. 关于软件
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clickable { onOpenAbout() }
+                        .padding(horizontal = 14.dp, vertical = 14.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Filled.Info,
+                            contentDescription = "关于软件",
+                            tint = if (isDark) NeonCyan else GoldPrimary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = "关于软件",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp
+                        )
+                    }
+                    Icon(
+                        imageVector = Icons.Filled.ChevronRight,
+                        contentDescription = "进入关于",
+                        tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),
+                        modifier = Modifier.size(16.dp)
+                    )
+                }
             }
         }
 
@@ -2679,7 +2680,7 @@ fun SettingsStoragePanel(
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         Text(
-                            text = "重置会清除本机卡片、卡片图片、同步账本、WebDAV 配置、主题偏好、工具菜单设置和临时缓存，恢复到首次安装后的本地初始状态。云端备份文件不会被删除。",
+                            text = "重置会清除本机卡片、卡片图片、同步账本、WebDAV 配置、主题偏好、工具菜单设置和临时缓存，恢复到首次安装后的本地初始状态。云端同步文件不会被删除。",
                             fontSize = 11.sp,
                             lineHeight = 17.sp,
                             color = (if (isDark) NeonRed else Color.Red).copy(alpha = 0.82f)
@@ -2936,6 +2937,7 @@ fun SettingsWebDAVPanel(
     var url by remember { mutableStateOf(loadedConfig.url) }
     var user by remember { mutableStateOf(loadedConfig.user) }
     var pass by remember { mutableStateOf(loadedConfig.pass) }
+    var syncPassword by remember { mutableStateOf(loadedConfig.syncPassword) }
     var isEnabled by remember { mutableStateOf(loadedConfig.isEnabled) }
 
     // 2. 状态监听
@@ -2943,7 +2945,7 @@ fun SettingsWebDAVPanel(
     val syncStatus by SyncCoordinator.syncStatus.collectAsState()
 
     // 3. 配置模式控制
-    val isConfigured = remember(loadedConfig) { loadedConfig.url.isNotEmpty() && loadedConfig.user.isNotEmpty() }
+    val isConfigured = url.trim().isNotEmpty() && user.trim().isNotEmpty() && syncPassword.trim().isNotEmpty()
     var isEditingConfig by remember { mutableStateOf(!isConfigured) }
 
     Column(
@@ -2969,7 +2971,7 @@ fun SettingsWebDAVPanel(
             Column(modifier = Modifier.weight(1f)) {
                 Text("WebDAV 设置", fontSize = 22.sp, fontWeight = FontWeight.Black)
                 Text(
-                    text = "WebDAV 云备份参数与状态",
+                    text = "WebDAV 加密云同步参数与状态",
                     fontSize = 12.sp,
                     color = if (isDark) NeonCyan else GoldPrimary,
                     fontWeight = FontWeight.SemiBold
@@ -2995,7 +2997,7 @@ fun SettingsWebDAVPanel(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "WebDAV 云备份通道正常连接",
+                        text = "WebDAV 加密云同步通道正常连接",
                         fontWeight = FontWeight.Bold,
                         fontSize = 15.sp,
                         color = if (isDark) NeonGreen else ForestGreen,
@@ -3003,7 +3005,7 @@ fun SettingsWebDAVPanel(
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "同步云盘：${url.substringAfter("://").substringBefore("/")}\n同步账号：$user\n本机和云端会自动保持最新",
+                        text = "同步云盘：${url.substringAfter("://").substringBefore("/")}\n同步账号：$user\n同步方式：加密云同步\n本机和云端会自动保持最新",
                         fontSize = 11.sp,
                         lineHeight = 15.sp,
                         textAlign = TextAlign.Center,
@@ -3019,13 +3021,13 @@ fun SettingsWebDAVPanel(
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
                             Text("开启双向自动同步", fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                            Text("改动卡片时自动在后台执行静默同步备份", fontSize = 10.sp, color = if (isDark) TextGray else TextMuted)
+                            Text("改动卡片时自动在后台执行加密同步", fontSize = 10.sp, color = if (isDark) TextGray else TextMuted)
                         }
                         Switch(
                             checked = isEnabled,
                             onCheckedChange = { 
                                 isEnabled = it 
-                                val newConfig = WebDAVConfig(url.trim(), user.trim(), pass.trim(), it)
+                                val newConfig = WebDAVConfig(url.trim(), user.trim(), pass.trim(), syncPassword.trim(), it)
                                 SyncCoordinator.saveConfig(context, newConfig)
                                 Toast.makeText(context, "自动同步状态已成功更新", Toast.LENGTH_SHORT).show()
                             },
@@ -3131,6 +3133,23 @@ fun SettingsWebDAVPanel(
                         colors = getOutlinedTextFieldColors(isDark)
                     )
 
+                    OutlinedTextField(
+                        value = syncPassword,
+                        onValueChange = { syncPassword = it },
+                        label = { Text("同步密钥") },
+                        placeholder = { Text("三端必须填写同一个同步密钥") },
+                        singleLine = true,
+                        visualTransformation = PasswordVisualTransformation(),
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = getOutlinedTextFieldColors(isDark)
+                    )
+                    Text(
+                        text = "该密钥用于加密 WebDAV 上的云同步文件。忘记后无法解密云端同步数据。",
+                        fontSize = 10.sp,
+                        lineHeight = 14.sp,
+                        color = (if (isDark) TextGray else TextMuted).copy(alpha = 0.85f)
+                    )
+
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -3191,12 +3210,16 @@ fun SettingsWebDAVPanel(
 
                         Button(
                             onClick = {
-                                if (isEnabled && (url.trim().isEmpty() || user.trim().isEmpty() || pass.trim().isEmpty())) {
-                                    Toast.makeText(context, "开启同步时，必须填齐所有云参数", Toast.LENGTH_SHORT).show()
+                                if (isEnabled && (url.trim().isEmpty() || user.trim().isEmpty() || pass.trim().isEmpty() || syncPassword.trim().isEmpty())) {
+                                    Toast.makeText(context, "开启同步时，必须填齐 WebDAV 参数和同步密钥", Toast.LENGTH_SHORT).show()
+                                    return@Button
+                                }
+                                if (isEnabled && syncPassword.trim().length < 10) {
+                                    Toast.makeText(context, "同步密钥至少 10 位", Toast.LENGTH_SHORT).show()
                                     return@Button
                                 }
                                 
-                                val newConfig = WebDAVConfig(url.trim(), user.trim(), pass.trim(), isEnabled)
+                                val newConfig = WebDAVConfig(url.trim(), user.trim(), pass.trim(), syncPassword.trim(), isEnabled)
                                 SyncCoordinator.saveConfig(context, newConfig)
                                 Toast.makeText(context, "配置已保存，网络通道畅通", Toast.LENGTH_SHORT).show()
                                 isEditingConfig = false
@@ -3245,6 +3268,8 @@ fun SyncProgressBlock(
     statusMessage: String,
     isSyncing: Boolean,
     pending: Boolean,
+    elapsedMs: Long,
+    lastDurationMs: Long,
     phase: String,
     step: Int,
     total: Int,
@@ -3254,6 +3279,11 @@ fun SyncProgressBlock(
     onRetry: (() -> Unit)? = null
 ) {
     val accent = if (isDark) NeonCyan else GoldPrimary
+    val timingText = when {
+        isSyncing -> "已用时 ${formatSyncDuration(elapsedMs)}"
+        lastDurationMs > 0L -> "上次耗时 ${formatSyncDuration(lastDurationMs)}"
+        else -> ""
+    }
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -3299,6 +3329,14 @@ fun SyncProgressBlock(
             lineHeight = 17.sp,
             color = if (isDark) TextGray else TextMuted
         )
+        if (timingText.isNotBlank()) {
+            Text(
+                text = timingText,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = accent
+            )
+        }
         if (isSyncing && onCancel != null) {
             Button(
                 onClick = onCancel,
@@ -3387,6 +3425,13 @@ fun SyncHistoryCard(
                     color = statusColor,
                     fontWeight = FontWeight.SemiBold
                 )
+                if (entry.durationMs > 0L) {
+                    Text(
+                        text = "耗时 ${formatSyncDuration(entry.durationMs)}",
+                        fontSize = 10.sp,
+                        color = if (isDark) TextGray else TextMuted
+                    )
+                }
                 Icon(
                     imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
                     contentDescription = "展开同步记录",
@@ -3406,10 +3451,10 @@ fun SyncHistoryCard(
                 verticalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 if (entry.downloadedFiles.isNotEmpty()) {
-                    SyncFileLine("读取的备份", entry.downloadedFiles.joinToString("、"), isDark)
+                    SyncFileLine("读取的文件", entry.downloadedFiles.joinToString("、"), isDark)
                 }
                 if (entry.uploadedFile.isNotBlank()) {
-                    SyncFileLine("保存的备份", entry.uploadedFile, isDark)
+                    SyncFileLine("保存的文件", entry.uploadedFile, isDark)
                 }
                 ChangeGroup(title = "本机修改", changes = entry.localChanges, isDark = isDark)
                 ChangeGroup(title = "云端更新", changes = entry.remoteChanges, isDark = isDark)
@@ -3501,6 +3546,18 @@ fun changeKindText(kind: String): String = when (kind) {
 fun formatSyncTime(value: String): String {
     if (value.isBlank()) return "未知时间"
     return value.replace("T", " ").replace("Z", "").take(19)
+}
+
+fun formatSyncDuration(durationMs: Long): String {
+    val totalSeconds = ((durationMs.coerceAtLeast(0L) + 999L) / 1000L).coerceAtLeast(0L)
+    val hours = totalSeconds / 3600L
+    val minutes = (totalSeconds % 3600L) / 60L
+    val seconds = totalSeconds % 60L
+    return when {
+        hours > 0L -> "${hours}小时${minutes}分${seconds}秒"
+        minutes > 0L -> "${minutes}分${seconds}秒"
+        else -> "${seconds}秒"
+    }
 }
 
 // =============================================================================

@@ -1,10 +1,15 @@
 package com.example.creditcard.utils
 
 import android.util.Base64
+import com.example.creditcard.data.SyncEncryptedEnvelope
+import com.example.creditcard.data.SyncEncryptionMetadata
 import java.security.MessageDigest
 import java.security.SecureRandom
 import javax.crypto.Cipher
+import javax.crypto.SecretKeyFactory
+import javax.crypto.spec.GCMParameterSpec
 import javax.crypto.spec.IvParameterSpec
+import javax.crypto.spec.PBEKeySpec
 import javax.crypto.spec.SecretKeySpec
 
 /**
@@ -14,6 +19,10 @@ import javax.crypto.spec.SecretKeySpec
 object CryptoManager {
     private const val DEFAULT_PASSWORD = "defAult.@.Password."
     private val MAGIC_NUMBER = "Salted__".toByteArray(Charsets.UTF_8)
+    private const val SYNC_V4_SCHEMA_VERSION = "4.0.0"
+    private const val SYNC_V4_ITERATIONS = 310000
+    private const val SYNC_V4_SALT_BYTES = 16
+    private const val SYNC_V4_IV_BYTES = 12
 
     /**
      * 还原 OpenSSL EVP_BytesToKey / CryptoJS 密钥派生算法
@@ -127,5 +136,72 @@ object CryptoManager {
         val base64Cipher = Base64.encodeToString(outputBytes, Base64.NO_WRAP)
         val prefix = if (isDefault) "default:" else "encrypted:"
         return "$prefix$base64Cipher"
+    }
+
+    private fun base64NoWrap(bytes: ByteArray): String {
+        return Base64.encodeToString(bytes, Base64.NO_WRAP)
+    }
+
+    private fun deriveSyncV4Key(password: String, salt: ByteArray, iterations: Int): ByteArray {
+        val spec = PBEKeySpec(password.toCharArray(), salt, iterations, 256)
+        return try {
+            SecretKeyFactory.getInstance("PBKDF2WithHmacSHA256")
+                .generateSecret(spec)
+                .encoded
+        } finally {
+            spec.clearPassword()
+        }
+    }
+
+    fun encryptSyncEnvelopeV4(plainText: String, password: String): String {
+        val normalizedPassword = password.trim()
+        require(normalizedPassword.isNotEmpty()) { "请输入同步加密密码" }
+
+        val salt = ByteArray(SYNC_V4_SALT_BYTES)
+        val iv = ByteArray(SYNC_V4_IV_BYTES)
+        SecureRandom().nextBytes(salt)
+        SecureRandom().nextBytes(iv)
+
+        val key = deriveSyncV4Key(normalizedPassword, salt, SYNC_V4_ITERATIONS)
+        val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+        cipher.init(Cipher.ENCRYPT_MODE, SecretKeySpec(key, "AES"), GCMParameterSpec(128, iv))
+        val ciphertext = cipher.doFinal(plainText.toByteArray(Charsets.UTF_8))
+
+        val envelope = SyncEncryptedEnvelope(
+            schemaVersion = SYNC_V4_SCHEMA_VERSION,
+            encryption = SyncEncryptionMetadata(
+                iterations = SYNC_V4_ITERATIONS,
+                salt = base64NoWrap(salt),
+                iv = base64NoWrap(iv)
+            ),
+            ciphertext = base64NoWrap(ciphertext)
+        )
+        return AppJson.json.encodeToString(SyncEncryptedEnvelope.serializer(), envelope)
+    }
+
+    fun decryptSyncEnvelopeV4(rawEnvelope: String, password: String): String {
+        val normalizedPassword = password.trim()
+        require(normalizedPassword.isNotEmpty()) { "请输入同步加密密码" }
+
+        val envelope = AppJson.json.decodeFromString(SyncEncryptedEnvelope.serializer(), rawEnvelope)
+        if (envelope.schemaVersion != SYNC_V4_SCHEMA_VERSION ||
+            envelope.encryption.algorithm != "AES-256-GCM" ||
+            envelope.encryption.kdf != "PBKDF2-HMAC-SHA256"
+        ) {
+            throw IllegalArgumentException("不是有效的云同步加密文件")
+        }
+
+        val salt = Base64.decode(envelope.encryption.salt, Base64.DEFAULT)
+        val iv = Base64.decode(envelope.encryption.iv, Base64.DEFAULT)
+        val ciphertext = Base64.decode(envelope.ciphertext, Base64.DEFAULT)
+        val key = deriveSyncV4Key(normalizedPassword, salt, envelope.encryption.iterations)
+
+        return try {
+            val cipher = Cipher.getInstance("AES/GCM/NoPadding")
+            cipher.init(Cipher.DECRYPT_MODE, SecretKeySpec(key, "AES"), GCMParameterSpec(128, iv))
+            String(cipher.doFinal(ciphertext), Charsets.UTF_8)
+        } catch (e: Exception) {
+            throw IllegalArgumentException("云同步解密失败，请检查同步密钥是否正确", e)
+        }
     }
 }

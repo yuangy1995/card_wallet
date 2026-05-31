@@ -4,7 +4,7 @@ import kotlinx.serialization.Serializable
 import java.util.UUID
 
 /**
- * 变动账本记录模型，对应云端同步的 V3 Sync Record
+ * 变动账本记录模型，对应云端同步记录
  */
 @Serializable
 data class CardSyncRecord(

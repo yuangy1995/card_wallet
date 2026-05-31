@@ -14,6 +14,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -33,6 +34,7 @@ data class WebDAVConfig(
     val url: String = "",
     val user: String = "",
     val pass: String = "",
+    val syncPassword: String = "",
     val isEnabled: Boolean = false
 )
 
@@ -43,7 +45,9 @@ data class SyncStatus(
     val message: String = "未配置云同步，卡片数据将保存在本地",
     val type: String = "info", // "info", "success", "warning", "error"
     val isSyncing: Boolean = false,
-    val pending: Boolean = false
+    val pending: Boolean = false,
+    val elapsedMs: Long = 0L,
+    val lastDurationMs: Long = 0L
 )
 
 data class SyncProgress(
@@ -63,6 +67,7 @@ object SyncCoordinator {
     private const val KEY_URL = "webdav_url"
     private const val KEY_USER = "webdav_user"
     private const val KEY_PASS = "webdav_pass"
+    private const val KEY_SYNC_PASSWORD = "webdav_sync_password_v4"
     private const val KEY_ENABLED = "webdav_enabled"
     private const val KEY_PENDING = "sync_pending"
     private const val KEY_SYNC_HISTORY = "sync_history"
@@ -91,6 +96,8 @@ object SyncCoordinator {
     @Volatile private var activeSyncJob: Job? = null
     @Volatile private var backgroundSyncScheduled = false
     @Volatile private var backgroundSyncPublishLocalChanges = false
+    @Volatile private var syncStartedAtMillis = 0L
+    @Volatile private var syncElapsedJob: Job? = null
 
     /**
      * 加载本地缓存好的卡包数据，作为应用启动的主入口数据源
@@ -121,6 +128,9 @@ object SyncCoordinator {
                 // 如果传入了新密码，则保存加密密文或普通存储（此处为了兼容多端使用默认加密网关）
                 putString(KEY_PASS, CryptoManager.encrypt(config.pass))
             }
+            if (config.syncPassword.isNotEmpty()) {
+                putString(KEY_SYNC_PASSWORD, CryptoManager.encrypt(config.syncPassword))
+            }
             putBoolean(KEY_ENABLED, config.isEnabled)
             apply()
         }
@@ -140,6 +150,7 @@ object SyncCoordinator {
         val url = prefs.getString(KEY_URL, "") ?: ""
         val user = prefs.getString(KEY_USER, "") ?: ""
         val encryptedPass = prefs.getString(KEY_PASS, "") ?: ""
+        val encryptedSyncPassword = prefs.getString(KEY_SYNC_PASSWORD, "") ?: ""
         
         // 自动还原保存的密码
         val pass = if (encryptedPass.isNotEmpty()) {
@@ -150,8 +161,16 @@ object SyncCoordinator {
             }
         } else ""
 
+        val syncPassword = if (encryptedSyncPassword.isNotEmpty()) {
+            try {
+                CryptoManager.decrypt(encryptedSyncPassword)
+            } catch (e: Exception) {
+                ""
+            }
+        } else ""
+
         val isEnabled = prefs.getBoolean(KEY_ENABLED, false)
-        return WebDAVConfig(url, user, pass, isEnabled)
+        return WebDAVConfig(url, user, pass, syncPassword, isEnabled)
     }
 
     /**
@@ -189,12 +208,55 @@ object SyncCoordinator {
         }
     }
 
-    private fun updateStatus(msg: String, type: String, pending: Boolean, isSyncing: Boolean = false) {
-        _syncStatus.value = SyncStatus(msg, type, isSyncing, pending)
+    private fun updateStatus(
+        msg: String,
+        type: String,
+        pending: Boolean,
+        isSyncing: Boolean = false,
+        elapsedMs: Long = if (isSyncing) _syncStatus.value.elapsedMs else 0L,
+        lastDurationMs: Long = _syncStatus.value.lastDurationMs
+    ) {
+        _syncStatus.value = SyncStatus(msg, type, isSyncing, pending, elapsedMs.coerceAtLeast(0L), lastDurationMs.coerceAtLeast(0L))
     }
 
     private fun updateProgress(phase: String, step: Int, total: Int, detail: String = "") {
         _syncProgress.value = SyncProgress(phase, step, total, detail)
+    }
+
+    private fun startSyncElapsedTicker(startedAtMillis: Long) {
+        syncStartedAtMillis = startedAtMillis
+        syncElapsedJob?.cancel()
+        syncElapsedJob = syncScope.launch {
+            while (true) {
+                delay(1000)
+                val elapsed = (SyncTime.nowMillis() - syncStartedAtMillis).coerceAtLeast(0L)
+                _syncStatus.value = _syncStatus.value.copy(
+                    isSyncing = true,
+                    elapsedMs = elapsed
+                )
+            }
+        }
+    }
+
+    private fun syncDurationSince(startedAtMillis: Long): Long {
+        return if (startedAtMillis > 0L) {
+            (SyncTime.nowMillis() - startedAtMillis).coerceAtLeast(0L)
+        } else {
+            _syncStatus.value.elapsedMs.coerceAtLeast(0L)
+        }
+    }
+
+    private fun stopSyncElapsedTicker(durationMs: Long = syncDurationSince(syncStartedAtMillis)): Long {
+        val normalizedDuration = durationMs.coerceAtLeast(0L)
+        syncElapsedJob?.cancel()
+        syncElapsedJob = null
+        syncStartedAtMillis = 0L
+        _syncStatus.value = _syncStatus.value.copy(
+            isSyncing = false,
+            elapsedMs = 0L,
+            lastDurationMs = normalizedDuration
+        )
+        return normalizedDuration
     }
 
     private fun loadSyncHistory(context: Context): List<SyncHistoryEntry> {
@@ -394,6 +456,19 @@ object SyncCoordinator {
 
     private fun formatValue(value: String): String = value.trim().ifEmpty { "未设置" }
 
+    private fun formatDurationText(durationMs: Long): String {
+        val totalSeconds = ((durationMs.coerceAtLeast(0L) + 999L) / 1000L).coerceAtLeast(0L)
+        val minutes = totalSeconds / 60L
+        val seconds = totalSeconds % 60L
+        val hours = minutes / 60L
+        val remainingMinutes = minutes % 60L
+        return when {
+            hours > 0L -> "${hours}小时${remainingMinutes}分${seconds}秒"
+            minutes > 0L -> "${minutes}分${seconds}秒"
+            else -> "${seconds}秒"
+        }
+    }
+
     private fun qualificationText(value: String): String = when (value) {
         "1" -> "已达标"
         "2" -> "未达标"
@@ -517,9 +592,18 @@ object SyncCoordinator {
                 }
                 return@withLock
             }
+            if (config.syncPassword.isBlank()) {
+                withContext(Dispatchers.Main) {
+                    updateStatus("请先在 WebDAV 设置中填写同步密钥", "warning", isPending(appContext))
+                    updateProgress("等待配置", 0, 0, "缺少同步加密密码")
+                }
+                return@withLock
+            }
 
             cancelRequested = false
-            val startedAt = SyncTime.nowIso()
+            val startedAtMillis = SyncTime.nowMillis()
+            val startedAt = SyncTime.isoFromMillis(startedAtMillis)
+            startSyncElapsedTicker(startedAtMillis)
             val pendingLocalChangesAtStart = loadPendingMutations(appContext)
             var localChangesForHistory = pendingLocalChangesAtStart
             var downloadedFilenames = emptyList<String>()
@@ -528,7 +612,7 @@ object SyncCoordinator {
             var needsFollowUpSync = false
 
             withContext(Dispatchers.Main) {
-                updateStatus("正在同步云端数据...", "info", isPending(appContext), isSyncing = true)
+                updateStatus("正在同步云端数据...", "info", isPending(appContext), isSyncing = true, elapsedMs = 0L, lastDurationMs = 0L)
                 updateProgress("准备同步", 1, 6, "正在整理本机修改")
             }
 
@@ -540,14 +624,14 @@ object SyncCoordinator {
                 ensureSyncNotCancelled()
 
                 withContext(Dispatchers.Main) {
-                    updateProgress("读取云端", 2, 6, "正在查找云端备份")
+                    updateProgress("读取云端", 2, 6, "正在查找云同步文件")
                 }
 
                 // 2. 从云端拉取备份列表并筛选自动同步文件
                 val rawFiles = WebDAVClient.getBackupList(config.url, config.user, config.pass)
                 ensureSyncNotCancelled()
                 val automaticFiles = rawFiles.filter { file ->
-                    file.filename.contains("[SyncV3]") && file.filename.contains("[自]")
+                    file.filename.contains("[SyncV4]") && file.filename.contains("[自]")
                 }.sortedWith(compareByDescending<BackupFile> { it.lastModified }.thenByDescending { it.filename })
                 val filesToRead = automaticFiles.take(5)
                 downloadedFilenames = filesToRead.map { it.filename }
@@ -558,8 +642,7 @@ object SyncCoordinator {
                     ""
                 }
 
-                // 特殊防丢数据警告：如果用户开启同步但云端是第一次设置且没有任何自动备份，但有非自动的其他历史备份
-                if (!publishLocalChanges && automaticFiles.isEmpty() && rawFiles.isNotEmpty()) {
+                if (!publishLocalChanges && automaticFiles.isEmpty()) {
                     appendSyncHistory(
                         appContext,
                         SyncHistoryEntry(
@@ -567,42 +650,49 @@ object SyncCoordinator {
                             startedAt = startedAt,
                             finishedAt = SyncTime.nowIso(),
                             status = "warning",
-                            message = "检测到历史备份，未自动替换当前数据",
+                            message = "云端还没有同步文件",
+                            durationMs = syncDurationSince(startedAtMillis),
                             downloadedFiles = rawFiles.map { it.filename },
                             localChanges = pendingLocalChangesAtStart
                         )
                     )
                     withContext(Dispatchers.Main) {
-                        updateStatus("检测到历史备份：请先在设置里恢复备份，或点击“立即同步”保存当前数据", "warning", true)
-                        updateProgress("已暂停", 0, 0, "发现旧备份，需要先确认")
+                        val durationMs = stopSyncElapsedTicker(syncDurationSince(startedAtMillis))
+                        updateStatus("云端还没有新版同步文件，可点击“立即同步”用当前本机数据初始化云同步", "warning", true, lastDurationMs = durationMs)
+                        updateProgress("等待初始化", 0, 0, "耗时 ${formatDurationText(durationMs)}；旧版同步文件不会参与本次同步")
                     }
                     return@withLock
                 }
 
                 withContext(Dispatchers.Main) {
-                    updateProgress("读取备份", 3, 6, "正在下载并读取 ${filesToRead.size} 份云端备份$totalFilesText")
+                    updateProgress("读取文件", 3, 6, "正在下载并读取 ${filesToRead.size} 份云同步文件$totalFilesText")
                 }
 
-                // 3. 下载并解密所有自动同步备份
+                // 3. 下载并解密所有自动同步文件
                 val remoteRecords = ArrayList<CardSyncRecord>()
+                var validSnapshotCount = 0
                 for ((index, file) in filesToRead.withIndex()) {
                     ensureSyncNotCancelled()
                     withContext(Dispatchers.Main) {
-                        updateProgress("读取备份", 3, 6, "正在读取 ${index + 1}/${filesToRead.size}：${file.filename}")
+                        updateProgress("读取文件", 3, 6, "正在读取 ${index + 1}/${filesToRead.size}：${file.filename}")
                     }
                     val fileContent = WebDAVClient.restoreBackup(config.url, config.user, config.pass, file.filename)
                     ensureSyncNotCancelled()
                     if (!fileContent.isNullOrEmpty()) {
                         try {
-                            val decryptedJson = CryptoManager.decrypt(fileContent)
+                            val decryptedJson = CryptoManager.decryptSyncEnvelopeV4(fileContent, config.syncPassword)
                             val snapshot = AppJson.json.decodeFromString<SyncSnapshot>(decryptedJson)
-                            if (snapshot.schemaVersion == "3.0.0") {
+                            if (snapshot.schemaVersion == "4.0.0") {
+                                validSnapshotCount += 1
                                 remoteRecords.addAll(snapshot.records)
                             }
                         } catch (e: Exception) {
                             e.printStackTrace()
                         }
                     }
+                }
+                if (filesToRead.isNotEmpty() && validSnapshotCount == 0) {
+                    throw IllegalArgumentException("无法解密云端同步文件，请检查同步密钥")
                 }
 
                 withContext(Dispatchers.Main) {
@@ -648,12 +738,12 @@ object SyncCoordinator {
                         records = mergedRecords
                     )
                     val snapshotJson = AppJson.json.encodeToString(SyncSnapshot.serializer(), snapshot)
-                    val encryptedSnapshot = CryptoManager.encrypt(snapshotJson)
+                    val encryptedSnapshot = CryptoManager.encryptSyncEnvelopeV4(snapshotJson, config.syncPassword)
 
                     // 将文件名中的冒号与点替换为短横线，确保 WebDAV 磁盘极致兼容
                     val timeFilename = isoNow.replace(":", "-").replace(".", "-")
                     val activeCount = activeCards.size
-                    val filename = "${timeFilename}---($activeCount)[SyncV3][Android][自].json"
+                    val filename = "${timeFilename}---($activeCount)[SyncV4][Android][自].json"
 
                     ensureSyncNotCancelled()
                     val uploadSuccess = WebDAVClient.uploadSyncSnapshot(config.url, config.user, config.pass, filename, encryptedSnapshot)
@@ -668,11 +758,11 @@ object SyncCoordinator {
                             markPending(appContext, true)
                         }
 
-                        // 7. 冗余备份清理：删除超过 5 个的老自动同步备份文件
+                        // 7. 冗余文件清理：删除超过 5 个的老自动同步文件
                         val updatedFiles = WebDAVClient.getBackupList(config.url, config.user, config.pass)
                         ensureSyncNotCancelled()
                         val oldAutoFiles = updatedFiles.filter { file ->
-                            file.filename.contains("[SyncV3]") && file.filename.contains("[自]")
+                            file.filename.contains("[SyncV4]") && file.filename.contains("[自]")
                         }.sortedWith(compareByDescending<BackupFile> { it.lastModified }.thenByDescending { it.filename })
                         if (oldAutoFiles.size > 5) {
                             val filesToDelete = oldAutoFiles.subList(5, oldAutoFiles.size)
@@ -682,7 +772,7 @@ object SyncCoordinator {
                             }
                         }
                     } else {
-                        throw IOException("云端上传备份失败")
+                        throw IOException("云端上传同步文件失败")
                     }
                 } else if (mutationRevision(appContext) != snapshotRevision) {
                     needsFollowUpSync = true
@@ -696,6 +786,7 @@ object SyncCoordinator {
                         finishedAt = SyncTime.nowIso(),
                         status = "success",
                         message = if (needsFollowUpSync) "同步成功：同步期间有新修改，正在继续同步" else "同步成功：本机与云端已更新",
+                        durationMs = syncDurationSince(startedAtMillis),
                         uploadedFile = uploadedFilename,
                         downloadedFiles = downloadedFilenames,
                         localChanges = localChangesForHistory,
@@ -708,13 +799,14 @@ object SyncCoordinator {
                     DatabaseHelper(appContext).getAllCards()
                 }
                 withContext(Dispatchers.Main) {
+                    val durationMs = stopSyncElapsedTicker(syncDurationSince(startedAtMillis))
                     _cardsFlow.value = currentCards
                     if (needsFollowUpSync) {
-                        updateStatus("本次同步完成，检测到期间又有新修改，正在继续同步", "info", true)
-                        updateProgress("继续同步", 6, 6, "新修改已保留，将继续发布到云端")
+                        updateStatus("本次同步完成，检测到期间又有新修改，正在继续同步", "info", true, lastDurationMs = durationMs)
+                        updateProgress("继续同步", 6, 6, "本轮耗时 ${formatDurationText(durationMs)}，新修改已保留，将继续发布到云端")
                     } else {
-                        updateStatus("云端同步成功，本机已是最新状态", "success", isPending(appContext))
-                        updateProgress("同步完成", 6, 6, "新增 ${remoteChangeDetails.count { it.kind == "added" }}，修改 ${remoteChangeDetails.count { it.kind == "modified" }}，删除 ${remoteChangeDetails.count { it.kind == "deleted" }}")
+                        updateStatus("云端同步成功，本机已是最新状态", "success", isPending(appContext), lastDurationMs = durationMs)
+                        updateProgress("同步完成", 6, 6, "耗时 ${formatDurationText(durationMs)}；新增 ${remoteChangeDetails.count { it.kind == "added" }}，修改 ${remoteChangeDetails.count { it.kind == "modified" }}，删除 ${remoteChangeDetails.count { it.kind == "deleted" }}")
                     }
                 }
                 if (needsFollowUpSync) {
@@ -730,6 +822,7 @@ object SyncCoordinator {
                         finishedAt = SyncTime.nowIso(),
                         status = "warning",
                         message = "同步已终止：本机未同步修改已保留",
+                        durationMs = syncDurationSince(startedAtMillis),
                         uploadedFile = uploadedFilename,
                         downloadedFiles = downloadedFilenames,
                         localChanges = loadPendingMutations(appContext),
@@ -737,8 +830,9 @@ object SyncCoordinator {
                     )
                 )
                 withContext(Dispatchers.Main) {
-                    updateStatus("同步已终止，本机未同步修改已保留", "warning", isPending(appContext))
-                    updateProgress("已终止", 0, 0, "可重新点击立即同步")
+                    val durationMs = stopSyncElapsedTicker(syncDurationSince(startedAtMillis))
+                    updateStatus("同步已终止，本机未同步修改已保留", "warning", isPending(appContext), lastDurationMs = durationMs)
+                    updateProgress("已终止", 0, 0, "本次已运行 ${formatDurationText(durationMs)}，可重新点击立即同步")
                 }
             } catch (e: Exception) {
                 if (cancelRequested) {
@@ -750,6 +844,7 @@ object SyncCoordinator {
                             finishedAt = SyncTime.nowIso(),
                             status = "warning",
                             message = "同步已终止：本机未同步修改已保留",
+                            durationMs = syncDurationSince(startedAtMillis),
                             uploadedFile = uploadedFilename,
                             downloadedFiles = downloadedFilenames,
                             localChanges = loadPendingMutations(appContext),
@@ -757,8 +852,9 @@ object SyncCoordinator {
                         )
                     )
                     withContext(Dispatchers.Main) {
-                        updateStatus("同步已终止，本机未同步修改已保留", "warning", isPending(appContext))
-                        updateProgress("已终止", 0, 0, "可重新点击立即同步")
+                        val durationMs = stopSyncElapsedTicker(syncDurationSince(startedAtMillis))
+                        updateStatus("同步已终止，本机未同步修改已保留", "warning", isPending(appContext), lastDurationMs = durationMs)
+                        updateProgress("已终止", 0, 0, "本次已运行 ${formatDurationText(durationMs)}，可重新点击立即同步")
                     }
                     return@withLock
                 }
@@ -771,6 +867,7 @@ object SyncCoordinator {
                         finishedAt = SyncTime.nowIso(),
                         status = "error",
                         message = "同步失败：${e.message ?: "未知错误"}",
+                        durationMs = syncDurationSince(startedAtMillis),
                         uploadedFile = uploadedFilename,
                         downloadedFiles = downloadedFilenames,
                         localChanges = loadPendingMutations(appContext).ifEmpty { pendingLocalChangesAtStart },
@@ -779,8 +876,9 @@ object SyncCoordinator {
                 )
                 // 同步失败，保留本地挂起标志，提示用户
                 withContext(Dispatchers.Main) {
-                    updateStatus("同步失败，本机改动已妥善保留，稍后可重试: ${e.message}", "warning", isPending(appContext))
-                    updateProgress("同步失败", 0, 0, e.message ?: "未知错误")
+                    val durationMs = stopSyncElapsedTicker(syncDurationSince(startedAtMillis))
+                    updateStatus("同步失败，本机改动已妥善保留，稍后可重试: ${e.message}", "warning", isPending(appContext), lastDurationMs = durationMs)
+                    updateProgress("同步失败", 0, 0, "耗时 ${formatDurationText(durationMs)}；${e.message ?: "未知错误"}")
                 }
             }
         }
@@ -842,8 +940,9 @@ object SyncCoordinator {
         }
         WebDAVClient.cancelAll()
         activeSyncJob?.cancel(CancellationException("用户手动终止同步"))
-        updateStatus("同步已终止，本机未同步修改已保留", "warning", isPending(appContext))
-        updateProgress("已终止", 0, 0, "可重新点击立即同步")
+        val durationMs = stopSyncElapsedTicker()
+        updateStatus("同步已终止，本机未同步修改已保留", "warning", isPending(appContext), lastDurationMs = durationMs)
+        updateProgress("已终止", 0, 0, "本次已运行 ${formatDurationText(durationMs)}，可重新点击立即同步")
     }
 
     /**
