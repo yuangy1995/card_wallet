@@ -116,8 +116,8 @@ public struct CardSyncRecord: Codable, Identifiable, Hashable {
     }
 }
 
-public struct WebDAVSyncSnapshotV3: Codable, Hashable {
-    public static let schemaVersion = "3.0.0"
+public struct WebDAVSyncSnapshotV4: Codable, Hashable {
+    public static let schemaVersion = "4.0.0"
 
     public var schemaVersion: String
     public var snapshotId: String
@@ -136,6 +136,49 @@ public struct WebDAVSyncSnapshotV3: Codable, Hashable {
         self.generatedAt = generatedAt
         self.source = source
         self.records = CardSyncMergeEngine.merge([records])
+    }
+}
+
+public typealias WebDAVSyncSnapshotV3 = WebDAVSyncSnapshotV4
+
+public struct SyncEncryptionMetadata: Codable, Hashable {
+    public var version: Int
+    public var algorithm: String
+    public var kdf: String
+    public var iterations: Int
+    public var salt: String
+    public var iv: String
+
+    public init(
+        version: Int = 1,
+        algorithm: String = "AES-256-GCM",
+        kdf: String = "PBKDF2-HMAC-SHA256",
+        iterations: Int = 310000,
+        salt: String,
+        iv: String
+    ) {
+        self.version = version
+        self.algorithm = algorithm
+        self.kdf = kdf
+        self.iterations = iterations
+        self.salt = salt
+        self.iv = iv
+    }
+}
+
+public struct SyncEncryptedEnvelope: Codable, Hashable {
+    public var schemaVersion: String
+    public var encryption: SyncEncryptionMetadata
+    public var ciphertext: String
+
+    public init(
+        schemaVersion: String = WebDAVSyncSnapshotV4.schemaVersion,
+        encryption: SyncEncryptionMetadata,
+        ciphertext: String
+    ) {
+        self.schemaVersion = schemaVersion
+        self.encryption = encryption
+        self.ciphertext = ciphertext
     }
 }
 

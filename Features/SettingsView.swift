@@ -37,83 +37,6 @@ public struct SettingsView: View {
     
     public var body: some View {
         Form {
-            
-            // Section 3: 💾 本地自动多版本备份
-            Section(header: HStack {
-                HStack(spacing: 6) {
-                    Image(systemName: "doc.badge.arrow.up.fill")
-                        .foregroundColor(.purple)
-                    Text("本地自动备份记录 (最近50条)")
-                }
-                Spacer()
-                if !localBackups.isEmpty {
-                    Button(action: {
-                        withAnimation {
-                            isLocalBackupsExpanded.toggle()
-                        }
-                    }) {
-                        HStack(spacing: 4) {
-                            Text(isLocalBackupsExpanded ? "收起" : "展开")
-                            Image(systemName: isLocalBackupsExpanded ? "chevron.up" : "chevron.down")
-                        }
-                        .font(.caption)
-                        .foregroundColor(.purple)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }) {
-                HStack {
-                    Button("立即手动创建本地备份") {
-                        if LocalStorageManager.createLocalBackup(cards: currentCards, isManual: true) {
-                            fetchLocalBackups()
-                        }
-                    }
-                    .buttonStyle(.bordered)
-                    Spacer()
-                }
-                
-                if isLocalBackupsExpanded {
-                    if localBackups.isEmpty {
-                        Text("暂无本地备份记录")
-                            .foregroundColor(.secondary)
-                            .font(.caption)
-                    } else {
-                        // 使用分页获取数据切片展示
-                        let pageSize = 5
-                        let startIndex = (localPage - 1) * pageSize
-                        let displayedLocalBackups = Array(localBackups.dropFirst(startIndex).prefix(pageSize))
-                        
-                        VStack(alignment: .leading, spacing: 8) {
-                            ForEach(displayedLocalBackups) { record in
-                                BackupRowView(
-                                    title: record.filename,
-                                    subtitle: "备份时间: \(record.backupTime)  卡数: \(record.cardCount) 张",
-                                    iconName: "doc.fill",
-                                    iconColor: .purple,
-                                    onRestore: {
-                                        triggerLocalRestore(record.filename)
-                                    },
-                                    onDelete: {
-                                        if LocalStorageManager.deleteLocalBackup(filename: record.filename) {
-                                            fetchLocalBackups()
-                                        }
-                                    }
-                                )
-                            }
-                            
-                            if localBackups.count > pageSize {
-                                HStack {
-                                    Spacer()
-                                    PaginationView(currentPage: $localPage, totalItems: localBackups.count)
-                                    Spacer()
-                                }
-                                .padding(.top, 4)
-                            }
-                        }
-                    }
-                }
-            }
-            
             // Section 4: 🛡️ 全方位隐私安全与凭证保护 (锁屏防窥与凭证存储二合一，高级呼吸动效安心 UI)
             Section(header: HStack(spacing: 6) {
                 Image(systemName: "lock.shield.fill")
@@ -404,31 +327,10 @@ public struct SettingsView: View {
         }
         .formStyle(.grouped)
         .onAppear {
-            fetchLocalBackups()
-            
             isLockEnabled = AutoLockManager.shared.hasPassword
             if isLockEnabled {
                 lockPassword = "••••••"
             }
-            
-            // 💡 监听本地备份变动广播，以无感零延迟刷新记录列表
-            NotificationCenter.default.addObserver(forName: Notification.Name("LocalBackupsDidChange"), object: nil, queue: .main) { _ in
-                self.fetchLocalBackups()
-            }
-        }
-        // 💡 弹窗 1: 差异对比预览，解决备份恢复时的数据焦虑
-        .sheet(item: $diffPreviewRequest) { request in
-            DiffPreviewView(
-                currentCards: currentCards,
-                backupCards: request.backupCards,
-                requiresIdentityReview: request.requiresIdentityReview,
-                onConfirmRestore: { restoredCards in
-                    onDataRestored(restoredCards)
-                },
-                onConfirmMerge: { mergedCards in
-                    onDataRestored(mergedCards)
-                }
-            )
         }
     }
     

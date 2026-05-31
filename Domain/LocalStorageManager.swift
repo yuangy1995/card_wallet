@@ -38,7 +38,7 @@ public class LocalStorageManager {
         return backupDirectory
     }
     
-    /// 100% 稳健的加密数据写入 cards.json，并开启 1 分钟静默备份定时器
+    /// 100% 稳健的加密数据写入 cards.json
     /// - Parameters:
     ///   - cards: 卡片数据数组
     ///   - password: 自定义密码（可选）
@@ -59,9 +59,6 @@ public class LocalStorageManager {
             
             let fileURL = getAppSupportDirectory().appendingPathComponent(cardFileName)
             try cipherText.write(to: fileURL, atomically: true, encoding: .utf8)
-            
-            // 💡 触发本地 1 分钟自动备份机制（防抖并延迟 1 分钟静默保存）
-            scheduleAutoBackup(cards: cards)
             
             return true
         } catch {

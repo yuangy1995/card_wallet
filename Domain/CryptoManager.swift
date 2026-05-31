@@ -1,5 +1,6 @@
 import Foundation
 import CryptoSwift
+import CryptoKit
 
 public enum CryptoError: Error, LocalizedError {
     case invalidBase64
@@ -8,6 +9,7 @@ public enum CryptoError: Error, LocalizedError {
     case encryptionFailed
     case decryptionFailed
     case emptyPassword
+    case invalidSyncEnvelope
     
     public var errorDescription: String? {
         switch self {
@@ -17,12 +19,17 @@ public enum CryptoError: Error, LocalizedError {
         case .encryptionFailed: return "AES 加密失败"
         case .decryptionFailed: return "AES 解密失败，可能密码错误或数据损坏"
         case .emptyPassword: return "请输入自定义解密密码"
+        case .invalidSyncEnvelope: return "不是有效的云同步加密文件"
         }
     }
 }
 
 public class CryptoManager {
     private static let defaultPassword = "defAult.@.Password."
+    private static let syncV4SchemaVersion = "4.0.0"
+    private static let syncV4Iterations = 310000
+    private static let syncV4SaltBytes = 16
+    private static let syncV4IVBytes = 12
     
     /// 还原 OpenSSL EVP_BytesToKey / CryptoJS 密钥派生算法
     /// 派生出 48 字节数据 (32 字节 Key + 16 字节 IV)
@@ -135,5 +142,93 @@ public class CryptoManager {
         } catch {
             throw CryptoError.encryptionFailed
         }
+    }
+
+    private static func randomBytes(count: Int) throws -> [UInt8] {
+        var bytes = [UInt8](repeating: 0, count: count)
+        let status = SecRandomCopyBytes(kSecRandomDefault, count, &bytes)
+        guard status == errSecSuccess else {
+            throw CryptoError.encryptionFailed
+        }
+        return bytes
+    }
+
+    private static func deriveSyncV4Key(password: String, salt: [UInt8], iterations: Int) throws -> [UInt8] {
+        try PKCS5.PBKDF2(
+            password: Array(password.utf8),
+            salt: salt,
+            iterations: iterations,
+            keyLength: 32,
+            variant: .sha2(.sha256)
+        ).calculate()
+    }
+
+    public static func encryptSyncEnvelopeV4(plainText: String, password: String) throws -> String {
+        let normalizedPassword = password.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalizedPassword.isEmpty else {
+            throw CryptoError.emptyPassword
+        }
+
+        let salt = try randomBytes(count: syncV4SaltBytes)
+        let iv = try randomBytes(count: syncV4IVBytes)
+        let keyBytes = try deriveSyncV4Key(password: normalizedPassword, salt: salt, iterations: syncV4Iterations)
+        let key = SymmetricKey(data: Data(keyBytes))
+        let nonce = try CryptoKit.AES.GCM.Nonce(data: Data(iv))
+        let sealedBox = try CryptoKit.AES.GCM.seal(Data(plainText.utf8), using: key, nonce: nonce)
+
+        var ciphertextAndTag = Data(sealedBox.ciphertext)
+        ciphertextAndTag.append(sealedBox.tag)
+
+        let envelope = SyncEncryptedEnvelope(
+            schemaVersion: syncV4SchemaVersion,
+            encryption: SyncEncryptionMetadata(
+                iterations: syncV4Iterations,
+                salt: Data(salt).base64EncodedString(),
+                iv: Data(iv).base64EncodedString()
+            ),
+            ciphertext: ciphertextAndTag.base64EncodedString()
+        )
+        let data = try JSONEncoder().encode(envelope)
+        guard let json = String(data: data, encoding: .utf8) else {
+            throw CryptoError.encryptionFailed
+        }
+        return json
+    }
+
+    public static func decryptSyncEnvelopeV4(envelopeText: String, password: String) throws -> String {
+        let normalizedPassword = password.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !normalizedPassword.isEmpty else {
+            throw CryptoError.emptyPassword
+        }
+        guard let envelopeData = envelopeText.data(using: .utf8) else {
+            throw CryptoError.invalidSyncEnvelope
+        }
+        let envelope = try JSONDecoder().decode(SyncEncryptedEnvelope.self, from: envelopeData)
+        guard envelope.schemaVersion == syncV4SchemaVersion,
+              envelope.encryption.algorithm == "AES-256-GCM",
+              envelope.encryption.kdf == "PBKDF2-HMAC-SHA256",
+              let saltData = Data(base64Encoded: envelope.encryption.salt),
+              let ivData = Data(base64Encoded: envelope.encryption.iv),
+              let ciphertextAndTag = Data(base64Encoded: envelope.ciphertext),
+              ciphertextAndTag.count > 16 else {
+            throw CryptoError.invalidSyncEnvelope
+        }
+
+        let keyBytes = try deriveSyncV4Key(
+            password: normalizedPassword,
+            salt: Array(saltData),
+            iterations: envelope.encryption.iterations
+        )
+        let nonce = try CryptoKit.AES.GCM.Nonce(data: ivData)
+        let tagStartIndex = ciphertextAndTag.index(ciphertextAndTag.endIndex, offsetBy: -16)
+        let ciphertext = Data(ciphertextAndTag[..<tagStartIndex])
+        let tag = Data(ciphertextAndTag[tagStartIndex...])
+        let sealedBox = try CryptoKit.AES.GCM.SealedBox(nonce: nonce, ciphertext: ciphertext, tag: tag)
+        let plaintext = try CryptoKit.AES.GCM.open(sealedBox, using: SymmetricKey(data: Data(keyBytes)))
+
+        guard let json = String(data: plaintext, encoding: .utf8) else {
+            throw CryptoError.utf8DecodingFailed
+        }
+        return json
     }
 }

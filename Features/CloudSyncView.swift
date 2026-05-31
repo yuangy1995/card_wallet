@@ -18,6 +18,7 @@ public struct CloudSyncView: View {
     @State private var webdavUrl = ""
     @State private var webdavUsername = ""
     @State private var webdavPassword = ""
+    @State private var webdavSyncPassword = ""
     
     // 连接状态
     @State private var connectionStatus = ""
@@ -108,12 +109,12 @@ public struct CloudSyncView: View {
                                     .clipShape(Circle())
                                 
                                 VStack(alignment: .leading, spacing: 3) {
-                                    Text("云端备份同步已就绪")
+                                    Text("加密云同步已就绪")
                                         .font(.system(.subheadline, design: .rounded))
                                         .bold()
                                         .foregroundColor(.primary)
                                     
-                                    Text("您的信用卡信息会加密保存到云端，方便多设备同步。")
+                                    Text("同步文件使用同步密钥加密保存到 WebDAV，方便多设备同步。")
                                         .font(.system(size: 11))
                                         .foregroundColor(.secondary)
                                 }
@@ -141,6 +142,16 @@ public struct CloudSyncView: View {
                                         .foregroundColor(.secondary)
                                         .frame(width: 60, alignment: .leading)
                                     Text(webdavUsername)
+                                        .font(.system(size: 11, design: .monospaced))
+                                        .lineLimit(1)
+                                }
+
+                                HStack(spacing: 8) {
+                                    Text("同步方式:")
+                                        .font(.system(size: 11))
+                                        .foregroundColor(.secondary)
+                                        .frame(width: 60, alignment: .leading)
+                                    Text("加密云同步")
                                         .font(.system(size: 11, design: .monospaced))
                                         .lineLimit(1)
                                 }
@@ -172,13 +183,17 @@ public struct CloudSyncView: View {
                         TextField("WebDAV URL", text: $webdavUrl, prompt: Text("例如：https://dav.jianguoyun.com/dav/"))
                         TextField("用户名", text: $webdavUsername, prompt: Text("输入 WebDAV 账号邮箱"))
                         SecureField("应用密码", text: $webdavPassword, prompt: Text("输入 WebDAV 第三方应用独立授权密码"))
+                        SecureField("同步密钥", text: $webdavSyncPassword, prompt: Text("三端必须填写同一个同步密钥"))
+                        Text("该密钥用于加密 WebDAV 上的云同步文件。忘记后无法解密云端同步数据。")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
                         
                         HStack(spacing: 12) {
                             Button(action: saveWebDAVConfig) {
                                 Text(connectionSuccess ? "保存并重新测试" : "保存并测试连接")
                             }
                             .buttonStyle(.borderedProminent)
-                            .disabled(isTestingConnection || webdavUrl.isEmpty || webdavUsername.isEmpty || webdavPassword.isEmpty)
+                            .disabled(isTestingConnection || webdavUrl.isEmpty || webdavUsername.isEmpty || webdavPassword.isEmpty || webdavSyncPassword.isEmpty)
                             
                             if connectionSuccess {
                                 Button(action: {
@@ -220,7 +235,7 @@ public struct CloudSyncView: View {
                         .font(.caption)
                         .foregroundColor(cloudKitService.isAvailable ? .green : .secondary)
 
-                    Text("iCloud 同步需要使用已开启云能力的正式构建；不可用时，本地和云端备份同步仍可正常使用。")
+                    Text("iCloud 同步需要使用已开启云能力的正式构建；不可用时，WebDAV 加密云同步仍可正常使用。")
                         .font(.caption)
                         .foregroundColor(.secondary)
                 }
@@ -255,174 +270,26 @@ public struct CloudSyncView: View {
                         .font(.caption)
                         .foregroundColor(.secondary)
 
+                    if bridgeService.isSyncing {
+                        Text("已用时：\(formatSyncDuration(bridgeService.syncElapsedSeconds))")
+                            .font(.caption)
+                            .foregroundColor(.cyan)
+                    } else if let duration = bridgeService.lastSyncDurationSeconds {
+                        Text("上次耗时：\(formatSyncDuration(duration))")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+
                     Button("立即同步一次") {
                         WebDAVBridgeService.shared.synchronize(forceUpload: true)
                     }
                     .disabled(!enableWebDAVBridge || bridgeService.isSyncing)
-                }
-                
-                // Section 3: 云备份文件控制台
-                Section(header: HStack {
-                    HStack(spacing: 6) {
-                        Image(systemName: "arrow.clockwise.icloud.fill")
-                            .foregroundColor(.cyan)
-                        Text("云备份文件控制台")
-                    }
-                    Spacer()
-                    if !cloudBackups.isEmpty && !isLoadingCloud {
-                        Button(action: {
-                            withAnimation {
-                                isCloudBackupsExpanded.toggle()
-                            }
-                        }) {
-                            HStack(spacing: 4) {
-                                Text(isCloudBackupsExpanded ? "收起" : "展开")
-                                Image(systemName: isCloudBackupsExpanded ? "chevron.up" : "chevron.down")
-                            }
-                            .font(.caption)
-                            .foregroundColor(.cyan)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }) {
-                    if isCloudBackupsExpanded {
-                        if let filename = deletingCloudFilename {
-                            deleteOperationBanner(
-                                title: "正在删除云端备份...",
-                                filename: filename,
-                                color: .orange,
-                                showsProgress: true
-                            )
-                            .transition(.move(edge: .top).combined(with: .opacity))
-                        } else if let feedback = deleteFeedback {
-                            deleteOperationBanner(
-                                title: feedback.title,
-                                filename: feedback.filename,
-                                color: feedback.isSuccess ? .green : .red,
-                                iconName: feedback.isSuccess ? "checkmark.circle.fill" : "exclamationmark.circle.fill",
-                                showsProgress: false
-                            )
-                            .transition(.move(edge: .top).combined(with: .opacity))
-                        }
-
-                        if isLoadingCloud {
-                            // 骨架屏 Loading
-                            VStack(spacing: 12) {
-                                HStack(spacing: 8) {
-                                    ProgressView()
-                                        .scaleEffect(0.7)
-                                    Text("正在连接 WebDAV 云端服务器...")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                }
-                                .padding(.top, 4)
-                                
-                                VStack(spacing: 6) {
-                                    ForEach(0..<3, id: \.self) { _ in
-                                        HStack {
-                                            Circle()
-                                                .fill(Color.primary.opacity(0.04))
-                                                .frame(width: 24, height: 24)
-                                            
-                                            VStack(alignment: .leading, spacing: 4) {
-                                                RoundedRectangle(cornerRadius: 3)
-                                                    .fill(Color.primary.opacity(0.04))
-                                                    .frame(width: 160, height: 10)
-                                                RoundedRectangle(cornerRadius: 2)
-                                                    .fill(Color.primary.opacity(0.03))
-                                                    .frame(width: 240, height: 6)
-                                            }
-                                            
-                                            Spacer()
-                                            
-                                            RoundedRectangle(cornerRadius: 4)
-                                                .fill(Color.primary.opacity(0.04))
-                                                .frame(width: 44, height: 18)
-                                        }
-                                        .padding(.vertical, 6)
-                                        .padding(.horizontal, 10)
-                                        .background(Color.primary.opacity(0.01))
-                                        .cornerRadius(6)
-                                    }
-                                }
-                                .opacity(skeletonOpacity)
-                                .onAppear {
-                                    withAnimation(Animation.easeInOut(duration: 1.0).repeatForever(autoreverses: true)) {
-                                        skeletonOpacity = 0.95
-                                    }
-                                }
-                            }
-                            .padding(.vertical, 8)
-                            .transition(.opacity)
-                        } else if cloudBackups.isEmpty {
-                            Text("无云端备份文件，或尚未配置 WebDAV 同步。")
-                                .foregroundColor(.secondary)
-                                .font(.caption)
-                        } else {
-                            let pageSize = 5
-                            let startIndex = (cloudPage - 1) * pageSize
-                            let displayedCloudBackups = Array(cloudBackups.dropFirst(startIndex).prefix(pageSize))
-                            
-                            VStack(alignment: .leading, spacing: 8) {
-                                ForEach(displayedCloudBackups) { file in
-                                    BackupRowView(
-                                        title: file.filename,
-                                        subtitle: "修改时间: \(file.lastModified)  大小: \(formatFileSizeWithTwoDecimals(file.size))",
-                                        iconName: "icloud.and.arrow.down.fill",
-                                        iconColor: .cyan,
-                                        onRestore: {
-                                            triggerDownloadRestore(file.filename)
-                                        },
-                                        onDelete: {
-                                            requestDeleteCloud(file.filename)
-                                        },
-                                        onRename: {
-                                            oldFilenameToRename = file.filename
-                                            newFilenameToRename = file.filename
-                                            renameError = ""
-                                            showingRenamePrompt = true
-                                        },
-                                        isDeleting: deletingCloudFilename == file.filename
-                                    )
-                                    .disabled(deletingCloudFilename != nil)
-                                    .transition(.move(edge: .trailing).combined(with: .opacity))
-                                }
-                                
-                                if cloudBackups.count > pageSize {
-                                    HStack {
-                                        Spacer()
-                                        PaginationView(currentPage: $cloudPage, totalItems: cloudBackups.count)
-                                        Spacer()
-                                    }
-                                    .padding(.top, 4)
-                                }
-                            }
-                            .animation(.spring(response: 0.35, dampingFraction: 0.85), value: cloudBackups)
-                        }
-                    }
-                    
-                    HStack {
-                        Button(action: fetchCloudBackups) {
-                            Label("刷新备份列表", systemImage: "arrow.clockwise")
-                        }
-                        .buttonStyle(.bordered)
-                        .disabled(isLoadingCloud)
-                        
-                        Spacer()
-                    }
-                    .padding(.vertical, 4)
                 }
             }
             .formStyle(.grouped)
         }
         .onAppear {
             loadSavedConfig()
-            fetchCloudBackups()
-            
-            // 💡 监听云端备份变动广播，以无感零延迟刷新云备份控制台列表
-            NotificationCenter.default.addObserver(forName: Notification.Name("CloudBackupsDidChange"), object: nil, queue: .main) { _ in
-                self.fetchCloudBackups()
-            }
         }
         .alert("确认删除云端备份？", isPresented: $showingDeleteConfirmation) {
             Button("取消", role: .cancel) {
@@ -544,8 +411,9 @@ public struct CloudSyncView: View {
             webdavUrl = config.url
             webdavUsername = config.username
             webdavPassword = KeychainManager.load(key: "webdav_password") ?? ""
+            webdavSyncPassword = KeychainManager.load(key: "webdav_sync_password_v4") ?? ""
             
-            if !webdavUrl.isEmpty && !webdavUsername.isEmpty && !webdavPassword.isEmpty {
+            if !webdavUrl.isEmpty && !webdavUsername.isEmpty && !webdavPassword.isEmpty && !webdavSyncPassword.isEmpty {
                 connectionSuccess = true
                 connectionStatus = "✅ 连接成功！云端同步就绪。"
                 isEditingConfig = false
@@ -554,12 +422,20 @@ public struct CloudSyncView: View {
     }
     
     private func saveWebDAVConfig() {
+        let trimmedSyncPassword = webdavSyncPassword.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard trimmedSyncPassword.count >= 10 else {
+            connectionSuccess = false
+            connectionStatus = "❌ 同步密钥至少 10 位"
+            return
+        }
+
         isTestingConnection = true
         connectionStatus = "正在测试连接并验证 credit-card-backup 目录..."
         
         let result = WebDAVClient.shared.saveConfig(url: webdavUrl, username: webdavUsername, password: webdavPassword)
         switch result {
         case .success:
+            KeychainManager.save(key: "webdav_sync_password_v4", value: trimmedSyncPassword)
             WebDAVClient.shared.testConnection { res in
                 DispatchQueue.main.async {
                     self.isTestingConnection = false
@@ -570,7 +446,6 @@ public struct CloudSyncView: View {
                         withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
                             self.isEditingConfig = false
                         }
-                        self.fetchCloudBackups()
                         
                         syncCoordinator.setWebDAVBridgeEnabled(true)
                     case .failure(let error):
@@ -584,6 +459,20 @@ public struct CloudSyncView: View {
             connectionSuccess = false
             connectionStatus = "❌ \(error.localizedDescription)"
         }
+    }
+
+    private func formatSyncDuration(_ duration: TimeInterval) -> String {
+        let totalSeconds = max(0, Int(ceil(duration)))
+        let hours = totalSeconds / 3600
+        let minutes = (totalSeconds % 3600) / 60
+        let seconds = totalSeconds % 60
+        if hours > 0 {
+            return "\(hours)小时\(minutes)分\(seconds)秒"
+        }
+        if minutes > 0 {
+            return "\(minutes)分\(seconds)秒"
+        }
+        return "\(seconds)秒"
     }
     
     private func fetchCloudBackups() {

@@ -31,7 +31,7 @@ final class SyncMergeTests: XCTestCase {
         let data = try JSONEncoder().encode(snapshot)
         let decoded = try JSONDecoder().decode(WebDAVSyncSnapshotV3.self, from: data)
 
-        XCTAssertEqual(decoded.schemaVersion, "3.0.0")
+        XCTAssertEqual(decoded.schemaVersion, "4.0.0")
         XCTAssertEqual(decoded.records[0].state, .deleted)
         XCTAssertNil(decoded.records[0].card)
     }

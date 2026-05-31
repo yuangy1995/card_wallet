@@ -5,7 +5,7 @@ public final class SyncLedgerStore {
 
     private let fileManager = FileManager.default
     private let appFolderName = "CreditCardMac"
-    private let ledgerFileName = "sync-ledger.json"
+    private let ledgerFileName = "sync-ledger-v4.json"
 
     private init() {}
 
