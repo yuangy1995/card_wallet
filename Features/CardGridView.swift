@@ -791,8 +791,6 @@ public struct CardGroup: Identifiable {
     public let totalLimit: Double
 }
 
-/// 高质感毛玻璃吸顶 Section Header (集成折叠箭头与 Hover 高亮)
-/// 高阶悬浮毛玻璃圆角胶囊 Section Header (缩进排布、半透明霓虹描边、绿色授信胶囊及高保真立体 Hover 效果)
 public struct GroupSectionHeader: View {
     public let name: String
     public let iconName: String
@@ -805,6 +803,7 @@ public struct GroupSectionHeader: View {
     
     // 💡 悬浮状态管理
     @State private var isHovered = false
+    @Environment(\.colorScheme) private var colorScheme
     
     public init(
         name: String, 
@@ -823,90 +822,84 @@ public struct GroupSectionHeader: View {
     }
     
     public var body: some View {
-        HStack(spacing: 12) {
-            // 1. 灵动旋转小折叠箭头 (物理阻尼 Spring 动画)
-            Image(systemName: "chevron.right")
-                .font(.system(size: 9, weight: .bold))
-                .foregroundColor(.secondary.opacity(0.8))
-                .rotationEffect(.degrees(isCollapsed ? 0 : 90))
-                .animation(.spring(response: 0.25, dampingFraction: 0.7), value: isCollapsed)
-            
-            // 2. 渐透圆角分组类别图标
-            Image(systemName: iconName)
-                .font(.system(size: 11, weight: .bold))
-                .foregroundColor(.cyan)
-                .frame(width: 24, height: 24)
-                .background(Color.cyan.opacity(0.12))
-                .cornerRadius(6)
-            
-            // 3. 类别名称
-            Text(name)
-                .font(.system(.body, design: .rounded))
-                .bold()
-                .foregroundColor(.primary)
-            
-            // 4. 精致的卡片张数小胶囊药丸
-            Text("\(cardCount) 张")
-                .font(.system(size: 9, weight: .bold))
-                .foregroundColor(.cyan)
-                .padding(.horizontal, 8)
-                .padding(.vertical, 2.5)
-                .background(Color.cyan.opacity(0.08))
-                .cornerRadius(8)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8)
-                        .stroke(Color.cyan.opacity(0.15), lineWidth: 0.7)
-                )
-            
-            Spacer()
-            
-            // 5. 高拟物“本组授信”绿色呼吸胶囊 (彻底告别原本僵硬单调的灰色字)
-            HStack(spacing: 4) {
-                Image(systemName: "banknote.fill")
-                    .font(.system(size: 10))
-                    .foregroundColor(.green.opacity(0.8))
-                Text("本组授信")
-                    .font(.system(size: 9, weight: .semibold))
+        VStack(spacing: 8) {
+            HStack(spacing: 12) {
+                // 1. 左侧动态霓虹指示条 (代替传统箭头，全新的指示反馈)
+                RoundedRectangle(cornerRadius: 2)
+                    .fill(
+                        LinearGradient(
+                            colors: isCollapsed 
+                                ? [Color.gray.opacity(0.35), Color.gray.opacity(0.55)] 
+                                : [Color.cyan, Color.blue],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                    )
+                    .frame(width: 4, height: isCollapsed ? 14 : 18)
+                    .shadow(color: isCollapsed ? Color.clear : Color.cyan.opacity(0.5), radius: isCollapsed ? 0 : 4)
+                    .animation(.spring(response: 0.25, dampingFraction: 0.6), value: isCollapsed)
+                
+                // 2. 扁平分组图标
+                Image(systemName: iconName)
+                    .font(.system(size: 11, weight: .bold))
+                    .foregroundColor(isCollapsed ? .secondary : .cyan)
+                    .frame(width: 20, height: 20)
+                
+                // 3. 类别名称 (极简高阶字体)
+                Text(name)
+                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                    .foregroundColor(colorScheme == .dark ? .white : .black.opacity(0.85))
+                
+                // 4. 精致的 Cards 计数标签 (扁平极简 Outline)
+                Text("\(cardCount) Cards")
+                    .font(.system(size: 9, weight: .semibold, design: .rounded))
                     .foregroundColor(.secondary)
-                Text("¥\(Int(totalLimit).description)")
-                    .font(.system(.caption, design: .monospaced))
-                    .bold()
-                    .foregroundColor(.green)
+                    .padding(.horizontal, 6)
+                    .padding(.vertical, 2)
+                    .background(Color.primary.opacity(0.04))
+                    .cornerRadius(4)
+                
+                Spacer()
+                
+                // 5. 授信数额块 (极简扁平无边框)
+                HStack(spacing: 4) {
+                    Image(systemName: "banknote")
+                        .font(.system(size: 10))
+                        .foregroundColor(.green.opacity(0.8))
+                    Text("¥\(Int(totalLimit).description)")
+                        .font(.system(size: 12, weight: .bold, design: .monospaced))
+                        .foregroundColor(.green)
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color.green.opacity(0.08))
+                .cornerRadius(6)
             }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 4)
-            .background(Color.green.opacity(0.08))
-            .cornerRadius(8)
-            .overlay(
-                RoundedRectangle(cornerRadius: 8)
-                    .stroke(Color.green.opacity(0.12), lineWidth: 1)
-            )
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
+            .contentShape(Rectangle())
+            .onTapGesture {
+                onTap()
+            }
+            .onHover { hover in
+                isHovered = hover
+            }
+            
+            // 6. 底层装饰微光分隔线 (只在展开状态下呈现，优雅顺滑)
+            if !isCollapsed {
+                Rectangle()
+                    .fill(Color.primary.opacity(0.06))
+                    .frame(height: 0.5)
+                    .padding(.horizontal, 16)
+                    .transition(.scale(scale: 0.95, anchor: .leading).combined(with: .opacity))
+            }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 10)
-        // 💡 左右缩进 12px 悬空卡片化，彻底脱离死板的贴边大长条表格形态
-        .padding(.horizontal, 12)
         .background(
-            RoundedRectangle(cornerRadius: 12)
-                .fill(Color.primary.opacity(isHovered ? 0.03 : 0.015))
+            RoundedRectangle(cornerRadius: 8)
+                .fill(isHovered ? Color.primary.opacity(0.02) : Color.clear)
         )
-        .background(.ultraThinMaterial) // 💡 透底毛玻璃材质，吸顶滚动时遮罩折射，极其奢华
-        .cornerRadius(12)
-        .overlay(
-            RoundedRectangle(cornerRadius: 12)
-                .stroke(Color.primary.opacity(0.05), lineWidth: 1) // 💡 极细霓虹微光描边，悬浮必备
-        )
-        // 💡 立体 Hover 悬浮抬升效果
-        .shadow(color: Color.black.opacity(isHovered ? 0.06 : 0.02), radius: isHovered ? 8 : 4, x: 0, y: isHovered ? 4 : 2)
-        .scaleEffect(isHovered ? 1.006 : 1.0)
-        .animation(.easeOut(duration: 0.2), value: isHovered)
-        .contentShape(Rectangle())
-        .onTapGesture {
-            onTap()
-        }
-        .onHover { hover in
-            isHovered = hover
-        }
+        .padding(.horizontal, 12)
+        .animation(.easeInOut(duration: 0.15), value: isHovered)
     }
 }
 
@@ -1064,28 +1057,30 @@ public struct CardGridView: View {
                 }
                 .padding(20)
             } else {
-                // 有分组状态下：使用 LazyVStack 吸顶 Section Headers，提供一流的交互式透底质感
-                LazyVStack(spacing: 16, pinnedViews: [.sectionHeaders]) {
+                // 有分组状态下：使用 VStack 排布，提供一流的交互式透底质感，并确保完美无抖动且极其平滑的收折体验
+                VStack(spacing: 16) {
                     ForEach(groupedAndSortedCards) { group in
                         let isCollapsed = collapsedGroups.contains(group.name)
                         
-                        Section(header: GroupSectionHeader(
-                            name: group.name,
-                            iconName: group.iconName,
-                            cardCount: group.cards.count,
-                            totalLimit: group.totalLimit,
-                            isCollapsed: isCollapsed,
-                            onTap: {
-                                // 💡 施加极富苹果动感阻尼的 Spring 弹簧重排折拢动画
-                                withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                                    if isCollapsed {
-                                        collapsedGroups.remove(group.name)
-                                    } else {
-                                        collapsedGroups.insert(group.name)
+                        VStack(spacing: 0) {
+                            GroupSectionHeader(
+                                name: group.name,
+                                iconName: group.iconName,
+                                cardCount: group.cards.count,
+                                totalLimit: group.totalLimit,
+                                isCollapsed: isCollapsed,
+                                onTap: {
+                                    // 💡 施加极富平滑性且完全无抖动的标准折拢渐变动画
+                                    withAnimation(.easeInOut(duration: 0.2)) {
+                                        if isCollapsed {
+                                            collapsedGroups.remove(group.name)
+                                        } else {
+                                            collapsedGroups.insert(group.name)
+                                        }
                                     }
                                 }
-                            }
-                        )) {
+                            )
+                            
                             if !isCollapsed {
                                 LazyVGrid(columns: columns, spacing: 20) {
                                     ForEach(group.cards) { card in
@@ -1100,8 +1095,8 @@ public struct CardGridView: View {
                                 }
                                 .padding(.horizontal, 20)
                                 .padding(.vertical, 16)
-                                // 💡 折拢收纳时的顶部渐透和弹性缩放排布过渡，极其高级
-                                .transition(.opacity.combined(with: .scale(scale: 0.96, anchor: .top)))
+                                // 💡 渐透淡入淡出转场，防止卡片瞬间消失（闪烁），保证极其丝滑平顺的视觉过渡
+                                .transition(.opacity)
                             }
                         }
                     }
