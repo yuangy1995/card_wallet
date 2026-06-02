@@ -68,6 +68,8 @@ import com.example.creditcard.theme.*
 import com.example.creditcard.ui.components.AppBackButton
 import com.example.creditcard.utils.AppStorageManager
 import com.example.creditcard.utils.AppStorageSnapshot
+import com.example.creditcard.utils.BiometricAuthHelper
+import com.example.creditcard.utils.SecurityLockManager
 import com.example.creditcard.utils.SyncCoordinator
 import com.example.creditcard.utils.NfcScannerManager
 import com.example.creditcard.utils.ThemeManager
@@ -2165,6 +2167,7 @@ fun AnalyticsPanel(cards: List<SharedCard>, isDark: Boolean) {
 private enum class SettingsMode {
     MAIN,
     WEBDAV,
+    SECURITY,
     HELP,
     ABOUT,
     PRIVACY,
@@ -2182,6 +2185,7 @@ private fun SettingsPanel(
             SettingsMainPanel(
                 isDark = isDark,
                 onOpenWebDAV = { onSettingsModeChange(SettingsMode.WEBDAV) },
+                onOpenSecurity = { onSettingsModeChange(SettingsMode.SECURITY) },
                 onOpenHelp = { onSettingsModeChange(SettingsMode.HELP) },
                 onOpenAbout = { onSettingsModeChange(SettingsMode.ABOUT) },
                 onOpenPrivacy = { onSettingsModeChange(SettingsMode.PRIVACY) },
@@ -2190,6 +2194,12 @@ private fun SettingsPanel(
         }
         SettingsMode.WEBDAV -> {
             SettingsWebDAVPanel(
+                isDark = isDark,
+                onBack = { onSettingsModeChange(SettingsMode.MAIN) }
+            )
+        }
+        SettingsMode.SECURITY -> {
+            SettingsSecurityPanel(
                 isDark = isDark,
                 onBack = { onSettingsModeChange(SettingsMode.MAIN) }
             )
@@ -2225,6 +2235,7 @@ private fun SettingsPanel(
 fun SettingsMainPanel(
     isDark: Boolean,
     onOpenWebDAV: () -> Unit,
+    onOpenSecurity: () -> Unit,
     onOpenHelp: () -> Unit,
     onOpenAbout: () -> Unit,
     onOpenPrivacy: () -> Unit,
@@ -2233,6 +2244,10 @@ fun SettingsMainPanel(
     val context = LocalContext.current
     val loadedConfig = remember { SyncCoordinator.loadConfig(context) }
     val isConfigured = remember(loadedConfig) { loadedConfig.url.isNotEmpty() && loadedConfig.user.isNotEmpty() }
+    val securityState by SecurityLockManager.state.collectAsState()
+    val biometricLabel = remember(securityState.enabled, securityState.biometricEnabled) {
+        BiometricAuthHelper.modalityLabel(context)
+    }
 
     Column(
         modifier = Modifier
@@ -2339,6 +2354,55 @@ fun SettingsMainPanel(
                     fontSize = 12.sp,
                     fontWeight = FontWeight.SemiBold,
                     color = if (isDark) NeonCyan else GoldPrimary
+                )
+            }
+        }
+
+        DetailSection(title = "安全") {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(if (isDark) DarkBg else LightBg)
+                    .clickable { onOpenSecurity() }
+                    .padding(horizontal = 14.dp, vertical = 14.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Lock,
+                        contentDescription = "安全设置",
+                        tint = if (isDark) NeonCyan else GoldPrimary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                        Text(
+                            text = "应用安全锁",
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 14.sp
+                        )
+                        Text(
+                            text = if (securityState.enabled) {
+                                if (securityState.biometricEnabled) "已开启，支持数字密码与${biometricLabel}解锁" else "已开启，使用数字密码解锁"
+                            } else {
+                                "默认关闭，设置数字密码后启用"
+                            },
+                            fontSize = 11.sp,
+                            color = if (isDark) TextGray else TextMuted,
+                            lineHeight = 15.sp
+                        )
+                    }
+                }
+                Icon(
+                    imageVector = Icons.Filled.ChevronRight,
+                    contentDescription = "进入安全设置",
+                    tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),
+                    modifier = Modifier.size(16.dp)
                 )
             }
         }

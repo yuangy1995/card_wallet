@@ -6,16 +6,20 @@ import android.nfc.NfcAdapter
 import android.nfc.Tag
 import android.os.Bundle
 import android.widget.Toast
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.zIndex
+import androidx.fragment.app.FragmentActivity
 import com.example.creditcard.theme.CreditCardTheme
+import com.example.creditcard.ui.security.SecurityLockScreen
+import com.example.creditcard.utils.SecurityLockManager
 import com.example.creditcard.utils.SyncCoordinator
 import com.example.creditcard.utils.ThemeManager
 
@@ -25,7 +29,7 @@ import com.example.creditcard.utils.NfcScannerManager
 /**
  * 主页面 Activity，集成 NFC 前台事件捕捉与分发
  */
-class MainActivity : ComponentActivity() {
+class MainActivity : FragmentActivity() {
 
     private var nfcAdapter: NfcAdapter? = null
     private var pendingIntent: PendingIntent? = null
@@ -36,6 +40,10 @@ class MainActivity : ComponentActivity() {
         // 1. 初始化本地主题偏好及数据仓库
         ThemeManager.init(this)
         SyncCoordinator.initLocalData(this)
+        SecurityLockManager.init(this)
+        if (savedInstanceState == null) {
+            SecurityLockManager.lockIfEnabled(this)
+        }
 
         // 2. 初始化 NFC 适配器及前台调度意图
         nfcAdapter = NfcAdapter.getDefaultAdapter(this)
@@ -49,10 +57,19 @@ class MainActivity : ComponentActivity() {
         setContent {
             // 监听全局主题状态，动态响应热切换
             val isDark by ThemeManager.isDarkTheme.collectAsState()
+            val securityState by SecurityLockManager.state.collectAsState()
             
             CreditCardTheme(darkTheme = isDark) { 
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) { 
-                    MainNavigation() 
+                    Box(modifier = Modifier.fillMaxSize()) {
+                        MainNavigation()
+                        if (securityState.locked) {
+                            SecurityLockScreen(
+                                isDark = isDark,
+                                modifier = Modifier.zIndex(100f)
+                            )
+                        }
+                    }
                 } 
             }
         }
@@ -60,6 +77,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onResume() {
         super.onResume()
+        SecurityLockManager.refreshLockState(this)
         // 激活前台 NFC 调度，使 Activity 优先拦截感应到的卡片
         try {
             nfcAdapter?.enableForegroundDispatch(this, pendingIntent, null, null)
@@ -70,6 +88,7 @@ class MainActivity : ComponentActivity() {
 
     override fun onPause() {
         super.onPause()
+        SecurityLockManager.markInactive(this)
         // 挂起时暂停拦截
         try {
             nfcAdapter?.disableForegroundDispatch(this)
@@ -83,6 +102,10 @@ class MainActivity : ComponentActivity() {
      */
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        if (SecurityLockManager.state.value.locked) {
+            Toast.makeText(this, "请先解锁应用", Toast.LENGTH_SHORT).show()
+            return
+        }
         val action = intent.action
         if (NfcAdapter.ACTION_NDEF_DISCOVERED == action ||
             NfcAdapter.ACTION_TECH_DISCOVERED == action ||

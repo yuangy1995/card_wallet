@@ -68,6 +68,8 @@ dependencies {
   // Arch Components
   implementation(libs.androidx.lifecycle.runtime.compose)
   implementation(libs.androidx.lifecycle.viewmodel.compose)
+  implementation("androidx.fragment:fragment-ktx:1.8.5")
+  implementation("androidx.biometric:biometric:1.1.0")
 
   // Compose
   implementation(libs.androidx.compose.ui)
@@ -114,4 +116,3 @@ dependencies {
   // ExifInterface 图片 Exif 物理方向识别
   implementation("androidx.exifinterface:exifinterface:1.3.7")
 }
-

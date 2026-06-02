@@ -26,7 +26,8 @@ object AppStorageManager {
     private val knownPreferenceNames = listOf(
         "credit_card_sync_prefs",
         "credit_card_theme_prefs",
-        "tool_menu_preferences"
+        "tool_menu_preferences",
+        "credit_card_security_prefs"
     )
 
     fun inspect(context: Context): AppStorageSnapshot {
