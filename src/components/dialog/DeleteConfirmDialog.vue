@@ -14,7 +14,7 @@
         <template #title>
           <span class="warning-title">
             <el-icon class="warning-icon"><Warning /></el-icon>
-            确定要删除这张信用卡吗？
+            确定要删除这张卡片吗？
           </span>
         </template>
         <template #default>
@@ -23,9 +23,9 @@
             <p><strong>发卡行：</strong>{{ cardInfo.bankName }}</p>
             <p><strong>发行地区：</strong>{{ cardInfo.country }}</p>
             <p><strong>卡片等级：</strong>{{ cardInfo.level }}</p>
-            <p><strong>卡片额度：</strong>{{ cardInfo.limit }}</p>
+            <p v-if="cardInfo.limit"><strong>卡片额度：</strong>{{ cardInfo.limit }}</p>
           </div>
-          <p class="warning-text">此操作将永久删除该信用卡信息，无法恢复！</p>
+          <p class="warning-text">此操作将永久删除该卡片信息，无法恢复！</p>
         </template>
       </el-alert>
     </div>

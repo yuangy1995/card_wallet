@@ -54,7 +54,7 @@ export function useKeyboardShortcuts(shortcuts = {}) {
 // 预定义的快捷键配置
 export const DEFAULT_SHORTCUTS = {
   // 基本操作
-  'ctrl+n': '新增信用卡',
+  'ctrl+n': '新增卡片',
   'ctrl+s': '统计分析',
   'ctrl+h': '使用帮助',
   'ctrl+t': '自定义列',

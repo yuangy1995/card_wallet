@@ -95,6 +95,38 @@ function ensureNumber(value, defaultValue) {
   return isNaN(num) ? defaultValue : num
 }
 
+function normalizeCardCategory(value) {
+  return value === 'debit' ? 'debit' : 'credit'
+}
+
+function normalizeCardImages(value) {
+  if (!Array.isArray(value)) return []
+  return value
+    .map((item, index) => {
+      if (typeof item === 'string') {
+        const separatorIndex = item.indexOf(';')
+        return {
+          id: crypto.randomUUID(),
+          mimeType: item.startsWith('data:') && separatorIndex > 5 ? item.slice(5, separatorIndex) : 'image/jpeg',
+          data: item,
+          createdAt: nowCardTimestamp(),
+          source: 'legacy',
+          name: `card_image_${index + 1}.jpg`
+        }
+      }
+      if (!item || typeof item !== 'object') return null
+      return {
+        id: item.id || crypto.randomUUID(),
+        mimeType: item.mimeType || 'image/jpeg',
+        data: item.data || '',
+        createdAt: Number(item.createdAt) || nowCardTimestamp(),
+        source: item.source || 'web_upload',
+        name: item.name || ''
+      }
+    })
+    .filter(item => item?.data)
+}
+
 /**
  * 迁移单条卡片数据
  * @param {Object} oldCard - 老数据结构
@@ -121,6 +153,16 @@ export function migrateCardData(oldCard, trackChanges = false) {
     // 如果没有ID，生成一个新的UUID
     migratedCard.id = crypto.randomUUID()
     console.warn('卡片缺少内部编号，已自动补齐:', migratedCard.id)
+  }
+
+  migratedCard.cardCategory = normalizeCardCategory(oldCard.cardCategory)
+  if (trackChanges && oldCard.cardCategory === undefined) {
+    changes.push({
+      field: 'cardCategory',
+      oldValue: undefined,
+      newValue: migratedCard.cardCategory,
+      reason: '补齐卡片类别，历史数据默认按信用卡处理'
+    })
   }
   
   // 2. 复制基本字符串字段
@@ -249,6 +291,8 @@ export function migrateCardData(oldCard, trackChanges = false) {
     }
   }
   
+  migratedCard.cardImages = normalizeCardImages(oldCard.cardImages)
+
   // 8. 移除老数据中可能存在的废弃字段
   // 例如：annualFeeDate 字段已不再使用
   if (oldCard.annualFeeDate && trackChanges) {
@@ -480,6 +524,7 @@ export function needsMigration(card) {
   if (!card) return true
   
   // 检查是否缺少新字段
+  if (card.cardCategory === undefined) return true
   if (card.isSharedLimit === undefined) return true
   if (card.billingDaySpendingToNextBill === undefined) return true
   

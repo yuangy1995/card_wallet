@@ -42,6 +42,14 @@
                 <el-icon><Calendar /></el-icon>
                 批量更新有效期
               </el-dropdown-item>
+              <el-dropdown-item command="mark-credit" divided>
+                <el-icon><CreditCard /></el-icon>
+                改为信用卡
+              </el-dropdown-item>
+              <el-dropdown-item command="mark-debit">
+                <el-icon><Wallet /></el-icon>
+                改为储蓄卡
+              </el-dropdown-item>
             </el-dropdown-menu>
           </template>
         </el-dropdown>
@@ -69,7 +77,9 @@ import {
   Clock,
   Select,
   CircleClose,
-  Money
+  Money,
+  CreditCard,
+  Wallet
 } from '@element-plus/icons-vue'
 import { ElMessageBox } from 'element-plus'
 
@@ -85,7 +95,9 @@ export default {
     Clock,
     Select,
     CircleClose,
-    Money
+    Money,
+    CreditCard,
+    Wallet
   },
   props: {
     selectedRows: {
@@ -102,6 +114,7 @@ export default {
     'batch-update-status',
     'batch-update-annual-fee',
     'batch-update-validity',
+    'batch-update-category',
     'clear-selection',
     'toggle-select-all'
   ],
@@ -115,7 +128,7 @@ export default {
     const handleBatchDelete = async () => {
       try {
         await ElMessageBox.confirm(
-          `确定要删除选中的 ${selectedCount.value} 张信用卡吗？此操作不可撤销。`,
+              `确定要删除选中的 ${selectedCount.value} 张卡片吗？此操作不可撤销。`,
           '批量删除确认',
           {
             confirmButtonText: '删除',
@@ -169,6 +182,22 @@ export default {
         case 'update-validity':
           // 这里可以打开一个对话框来批量更新有效期
           emit('batch-update-validity', props.selectedRows)
+          break
+
+        case 'mark-credit':
+        case 'mark-debit':
+          try {
+            const category = command === 'mark-credit' ? 'credit' : 'debit'
+            const label = category === 'credit' ? '信用卡' : '储蓄卡'
+            await ElMessageBox.confirm(
+              `确定要将选中的 ${count} 张卡片改为${label}吗？`,
+              '批量修改卡类别',
+              { type: 'info' }
+            )
+            emit('batch-update-category', { rows: props.selectedRows, category })
+          } catch {
+            // 用户取消
+          }
           break
       }
     }

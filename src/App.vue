@@ -6,12 +6,8 @@
         <!-- 第一行：工具与操作控制栏 -->
         <div class="toolbar-row">
 
-          <!-- 左侧区：控制中心标题、表格模式切换、展开筛选 -->
+          <!-- 左侧区：表格模式切换、展开筛选 -->
           <div class="toolbar-left">
-            <span class="panel-title">
-              <el-icon><Setting /></el-icon>控制中心
-            </span>
-
             <!-- 表格模式/卡片模式选择器 -->
             <el-radio-group v-model="viewMode" size="small" class="view-mode-selector mobile-responsive">
               <el-radio-button value="table">
@@ -20,6 +16,12 @@
               <el-radio-button value="card">
                 <el-icon><CreditCard /></el-icon>卡片
               </el-radio-button>
+            </el-radio-group>
+
+            <el-radio-group v-model="cardCategoryFilter" size="small" class="view-mode-selector mobile-responsive">
+              <el-radio-button value="all">全部 {{ categoryCounts.all }}</el-radio-button>
+              <el-radio-button value="credit">信用卡 {{ categoryCounts.credit }}</el-radio-button>
+              <el-radio-button value="debit">储蓄卡 {{ categoryCounts.debit }}</el-radio-button>
             </el-radio-group>
 
             <div class="divider-line"></div>
@@ -95,8 +97,8 @@
           <!-- 右侧区：常用操作按钮组、主题与安全锁胶囊 -->
           <div class="toolbar-right">
             <el-button-group class="button-group mobile-responsive">
-              <el-button type="primary" size="small" @click="addCreditCard">
-                <el-icon><Plus /></el-icon>新增信用卡
+              <el-button type="primary" size="small" @click="addCard">
+                <el-icon><Plus /></el-icon>新增卡片
               </el-button>
               <el-button type="primary" size="small" @click="showStatistics">
                 <el-icon><TrendCharts /></el-icon>统计分析
@@ -185,6 +187,7 @@
         @batch-update-status="handleBatchUpdateStatus"
         @batch-update-annual-fee="handleBatchUpdateAnnualFee"
         @batch-update-validity="handleBatchUpdateValidity"
+        @batch-update-category="handleBatchUpdateCategory"
         @clear-selection="clearSelection"
         @toggle-select-all="toggleSelectAll"
       />
@@ -231,7 +234,7 @@
       <!-- 查看详情弹窗 -->
       <CardDetailsDialog v-model:visible="detailsVisible" :card-info="currentCard" class="mobile-dialog" />
       <!-- 统计分析弹窗 -->
-      <el-dialog v-model="statisticsVisible" top="5vh" title="信用卡统计分析" width="80%" :destroy-on-close="true" class="mobile-dialog">
+      <el-dialog v-model="statisticsVisible" top="5vh" title="银行卡统计分析" width="80%" :destroy-on-close="true" class="mobile-dialog">
         <el-scrollbar height="80vh">
           <Statistics v-if="statisticsVisible" :card-data="cardData" />
         </el-scrollbar>
@@ -415,7 +418,8 @@ import {
   ArrowUp,
   Filter,
   Lock,
-  Search
+  Search,
+  Wallet
 } from '@element-plus/icons-vue'
 import CreditCardTable from '@/components/table/CreditCardTable.vue'
 import BatchOperationToolbar from '@/components/toolbar/BatchOperationToolbar.vue'
@@ -448,8 +452,6 @@ import { useKeyboardShortcuts } from '@/composables/useKeyboardShortcuts'
 import { useTheme } from '@/composables/useTheme'
 import { useAutoLock } from '@/composables/useAutoLock'
 import { PasswordManager } from '@/utils/passwordManager'
-import { getBankDisplayName } from '@/utils/bankNameFormatter'
-import { normalizeCountryValue, normalizeBankValue } from '@/utils/referenceDataUtils'
 import { webdavSyncService } from '@/utils/webdavSyncService'
 import { formatCardTimestamp, normalizeCardTimeFields, timestampFromDateInput } from '@/utils/cardTimestamp'
 
@@ -482,6 +484,25 @@ watch(viewMode, (newValue) => {
   localStorage.setItem('creditCardViewMode', newValue)
   // 视图切换时，自动清除所有批量勾选状态，防范多视图数据和渲染不同步的 Bug
   clearSelection()
+})
+
+const normalizeCardCategory = (card) => card?.cardCategory === 'debit' ? 'debit' : 'credit'
+const isCreditCard = (card) => normalizeCardCategory(card) === 'credit'
+
+const cardCategoryFilter = ref(localStorage.getItem('cardCategoryFilter') || 'all')
+watch(cardCategoryFilter, (newValue) => {
+  localStorage.setItem('cardCategoryFilter', newValue)
+  clearSelection()
+})
+
+const categoryCounts = computed(() => {
+  const credit = cardData.value.filter(card => normalizeCardCategory(card) === 'credit').length
+  const debit = cardData.value.filter(card => normalizeCardCategory(card) === 'debit').length
+  return {
+    all: credit + debit,
+    credit,
+    debit
+  }
 })
 
 const formatDuration = (milliseconds) => {
@@ -559,6 +580,7 @@ const cardToDelete = ref({
 })
 const detailsVisible = ref(false)
 const currentCard = ref({
+  cardCategory: 'credit',
   country: '',
   bank: '',
   alias: '',
@@ -585,6 +607,7 @@ const creditCardData = ref({
   options: creditCardOptions,
 })
 const searchForm = ref({
+  cardCategory: '',
   type: '',  // 币种字段
   bank: '',
   cardNumber: '',
@@ -655,6 +678,7 @@ const debouncedQuickSearchQuery = useDebouncedRef(quickSearchQuery, 300)
 
 const resetSearchForm = (showToast = true) => {
   searchForm.value = {
+    cardCategory: '',
     type: '',
     bank: '',
     cardNumber: '',
@@ -676,6 +700,7 @@ const hasAdvancedSearchConditions = computed(() => {
   const form = searchForm.value
   return !!(
     form.type ||
+    form.cardCategory ||
     form.bank ||
     form.cardNumber ||
     form.level ||
@@ -739,11 +764,15 @@ const debouncedSearchForm = useDebouncedRef(searchForm, 300)
 
 const tableData = computed(() => {
   const query = debouncedQuickSearchQuery.value ? debouncedQuickSearchQuery.value.trim().toLowerCase() : ''
+  const categoryFilteredCards = cardData.value.filter(card =>
+    cardCategoryFilter.value === 'all' || normalizeCardCategory(card) === cardCategoryFilter.value
+  )
 
   let filtered = []
   if (query) {
     // 存在万能检索条件时：对卡片所有相关字段执行全局模糊检索
-    filtered = cardData.value.filter(card => {
+    filtered = categoryFilteredCards.filter(card => {
+      const cardCategoryMatch = (normalizeCardCategory(card) === 'credit' ? '信用卡 credit' : '储蓄卡 debit').includes(query)
       const bankMatch = card.bank && card.bank.toLowerCase().includes(query)
       const aliasMatch = card.alias && card.alias.toLowerCase().includes(query)
 
@@ -761,12 +790,16 @@ const tableData = computed(() => {
       // 额度检索
       const limitMatch = card.limit && card.limit.toString().includes(query)
 
-      return bankMatch || aliasMatch || cardNumberMatch || levelMatch || typeMatch || countryMatch || equityMatch || remarkMatch || limitMatch
+      return cardCategoryMatch || bankMatch || aliasMatch || cardNumberMatch || levelMatch || typeMatch || countryMatch || equityMatch || remarkMatch || limitMatch
     })
   } else {
     // 否则，使用高级搜索逻辑
     const form = debouncedSearchForm.value
-    filtered = cardData.value.filter(card => {
+    filtered = categoryFilteredCards.filter(card => {
+      const matchCardCategory = !form.cardCategory ||
+                       form.cardCategory.length === 0 ||
+                       form.cardCategory.includes(normalizeCardCategory(card));
+
       // 币种匹配
       const matchType = !form.type ||
                        (card.type && (form.type.includes(card.type) ||
@@ -813,7 +846,7 @@ const tableData = computed(() => {
       const matchRemark = !form.remark ||
                          (card.remark && card.remark.toLowerCase().includes(form.remark.toLowerCase()));
 
-      return matchType && matchBank && matchLevel && matchStatus && matchAlias &&
+      return matchCardCategory && matchType && matchBank && matchLevel && matchStatus && matchAlias &&
              matchCountry && matchCardNumber && matchLimit && matchEquity && matchRemark;
     });
   }
@@ -824,10 +857,8 @@ const tableData = computed(() => {
     const countryCompare = (a.country || '').localeCompare(b.country || '', 'zh-CN');
     if (countryCompare !== 0) return countryCompare;
 
-    // 然后按银行排序（去除括号部分）
-    const bankA = (a.bank || '').replace(/\(.*?\)/g, "").trim();
-    const bankB = (b.bank || '').replace(/\(.*?\)/g, "").trim();
-    const bankCompare = bankA.localeCompare(bankB, 'zh-CN');
+    // 然后按银行排序
+    const bankCompare = (a.bank || '').localeCompare(b.bank || '', 'zh-CN');
     if (bankCompare !== 0) return bankCompare;
 
     // 最后按别名排序
@@ -847,8 +878,8 @@ const tableData = computed(() => {
   const sharedLastTimeGroups = new Map();
 
   sorted.forEach(card => {
-    const country = normalizeCountryValue(card.country || '');
-    const bank = normalizeBankValue(card.bank || '');
+    const country = card.country || '';
+    const bank = card.bank || '';
     const countryBankKey = `${country}-${bank}`;
     const sharedLimitKey = card.isSharedLimit ? `${country}-${bank}-shared` : `${card.id}-individual`;
 
@@ -880,8 +911,8 @@ const tableData = computed(() => {
 
   // 第二遍遍历，生成显示数据
   sorted.forEach((card, index) => {
-    const country = normalizeCountryValue(card.country || '');
-    const bank = normalizeBankValue(card.bank || '');
+    const country = card.country || '';
+    const bank = card.bank || '';
     const countryBankKey = `${country}-${bank}`;
     const sharedLimitKey = card.isSharedLimit ? `${country}-${bank}-shared` : `${card.id}-individual`;
 
@@ -950,6 +981,20 @@ const hideLoading = () => {
   loadingState.value.visible = false
 }
 
+const mergeTableColumnsWithDefaults = (storedColumns = []) => {
+  if (!Array.isArray(storedColumns) || storedColumns.length === 0) {
+    return JSON.parse(JSON.stringify(creditCardOptions.tableCustomData))
+  }
+  const storedByValue = new Map(storedColumns.map(column => [column.value, column]))
+  const merged = creditCardOptions.tableCustomData.map(defaultColumn => ({
+    ...defaultColumn,
+    ...(storedByValue.get(defaultColumn.value) || {})
+  }))
+  const defaultValues = new Set(creditCardOptions.tableCustomData.map(column => column.value))
+  const customColumns = storedColumns.filter(column => column?.value && !defaultValues.has(column.value))
+  return merged.concat(customColumns)
+}
+
 const persistSyncedMutation = async (options = {}) => {
   await webdavSyncService.commitCards(cardData.value, options)
 }
@@ -968,8 +1013,13 @@ const handleImmediateSync = () => {
   publishCurrentV4Snapshot()
 }
 
+const normalizeSyncedCard = (card) => ({
+  ...normalizeCardTimeFields(card, { fillLastModifyTime: true }),
+  cardCategory: normalizeCardCategory(card)
+})
+
 const applySyncedCards = (syncedCards) => {
-  cardData.value = syncedCards.map(card => normalizeCardTimeFields(card, { fillLastModifyTime: true }))
+  cardData.value = syncedCards.map(normalizeSyncedCard)
 }
 
 const handleSyncStatusChanged = (newStatus) => {
@@ -987,15 +1037,13 @@ onMounted(async () => {
   try {
     // 加载列配置
     const storedColumns = getTableColumns()
-    if (storedColumns && storedColumns.length > 0) {
-      tableCustomColumns.value = storedColumns
-    }
+    tableCustomColumns.value = mergeTableColumnsWithDefaults(storedColumns)
 
     // 加载卡片数据（带迁移信息）
     showLoading('正在加载数据...')
     const result = CardDataStorage.getCardData(true)
     const migrationInfo = result.migrationInfo
-    cardData.value = result.data.map(card => normalizeCardTimeFields(card, { fillLastModifyTime: true }))
+    cardData.value = result.data.map(normalizeSyncedCard)
 
     // 检查并为没有 ID 的卡片生成唯一 ID
     let hasChanges = false
@@ -1045,6 +1093,7 @@ onMounted(async () => {
 const checkAnnualFeeQualified = async () => {
   const now = new Date()
   const warningCards = cardData.value.filter(card => {
+    if (!isCreditCard(card)) return false
     // 排除终免年费('3')、已经是未达标状态('2')、或没有年费收取时间的卡片
     if (card.isQualified === '3' || card.isQualified === '2' || !card.nextAnnualFeeCollectionTime) return false
     const dueDate = new Date(card.nextAnnualFeeCollectionTime)
@@ -1072,7 +1121,7 @@ const checkAnnualFeeQualified = async () => {
                 ${warningCards.map(card => `
                   <li class="annual-fee-card-item">
                     <div class="annual-fee-card-title">
-                      ${card.bank.replace(/\(.*?\)/g, "").trim()} - ${card.alias}
+                      ${card.bank || ''} - ${card.alias}
                     </div>
                     <div class="annual-fee-card-time">
                       下次年费收取时间：${formatCardTimestamp(card.nextAnnualFeeCollectionTime)}
@@ -1132,7 +1181,7 @@ const openTableCustom = () => {
 const confirmDelete = async () => {
   if (!cardToDelete.value.id) return
 
-  showLoading('正在删除信用卡...')
+  showLoading('正在删除卡片...')
 
   try {
     // 模拟删除延时
@@ -1148,7 +1197,7 @@ const confirmDelete = async () => {
 
       // 更好的删除反馈
       ElMessage({
-        message: `信用卡 "${cardName}" 已删除`,
+        message: `卡片 "${cardName}" 已删除`,
         type: 'success',
         duration: 2000,
         showClose: true
@@ -1159,11 +1208,15 @@ const confirmDelete = async () => {
   }
 }
 
-const addCreditCard = () => {
+const addCardWithCategory = (category = 'credit') => {
   status.value = 'add'
   creditCardData.value.dialogFormVisible = true
-  creditCardData.value.data = {}
+  creditCardData.value.data = {
+    cardCategory: category === 'debit' ? 'debit' : 'credit'
+  }
 }
+
+const addCard = () => addCardWithCategory('credit')
 
 const editCreditCard = (row) => {
   status.value = 'edit'
@@ -1172,7 +1225,8 @@ const editCreditCard = (row) => {
 }
 
 const confirmAdd = async (data) => {
-  showLoading(status.value === 'add' ? '正在添加信用卡...' : '正在保存修改...')
+  const categoryText = data.cardCategory === 'debit' ? '储蓄卡' : '信用卡'
+  showLoading(status.value === 'add' ? `正在添加${categoryText}...` : '正在保存修改...')
 
   try {
     // 模拟保存延时
@@ -1180,6 +1234,7 @@ const confirmAdd = async (data) => {
 
     creditCardData.value.dialogFormVisible = false
     // 添加最后修改时间
+    data.cardCategory = data.cardCategory === 'debit' ? 'debit' : 'credit'
     data.lastModifyTime = getCurrentTimestamp()
 
     if (status.value === 'add') {
@@ -1192,13 +1247,14 @@ const confirmAdd = async (data) => {
     }
 
     // 如果是共享额度，同步更新所有同银行共享额度的卡片
-    if (data.isSharedLimit && data.bank && data.country) {
-      const currentBank = (data.bank || '').replace(/\(.*?\)/g, "").trim()
+    if (isCreditCard(data) && data.isSharedLimit && data.bank && data.country) {
+      const currentBank = data.bank || ''
       cardData.value.forEach((card, idx) => {
         if (card.id !== data.id &&
             card.isSharedLimit === true &&
+            isCreditCard(card) &&
             card.country === data.country &&
-            (card.bank || '').replace(/\(.*?\)/g, "").trim() === currentBank) {
+            (card.bank || '') === currentBank) {
           cardData.value[idx].limit = data.limit
           cardData.value[idx].type = data.type
           cardData.value[idx].lastTime = data.lastTime
@@ -1211,7 +1267,7 @@ const confirmAdd = async (data) => {
 
     // 更好的成功反馈
     ElMessage({
-      message: status.value === 'add' ? '信用卡添加成功！' : '信用卡信息更新成功！',
+      message: status.value === 'add' ? `${categoryText}添加成功！` : `${categoryText}信息更新成功！`,
       type: 'success',
       duration: 2000,
       showClose: true
@@ -1222,12 +1278,13 @@ const confirmAdd = async (data) => {
 }
 
 const deleteCard = (row) => {
+  const categoryText = row.cardCategory === 'debit' ? '储蓄卡' : '信用卡'
   cardToDelete.value = {
-    cardName: row.alias || '未命名信用卡',
+    cardName: row.alias || `未命名${categoryText}`,
     bankName: row.bank || '',
     country: row.country || '',
     level: row.level || '',
-    limit: row.limit ? `${row.limit} ${row.type}` : '',
+    limit: isCreditCard(row) && row.limit ? `${row.limit} ${row.type}` : '',
     id: row.id
   }
   deleteDialogVisible.value = true
@@ -1282,6 +1339,7 @@ const manualCheckAnnualFees = async () => {
   const unqualifiedCards = []
 
   cardData.value.forEach(card => {
+    if (!isCreditCard(card)) return
     // 如果是未达标的卡片
     if (card.isQualified === '2' && card.nextAnnualFeeCollectionTime) {
       const dueDate = new Date(card.nextAnnualFeeCollectionTime)
@@ -1313,7 +1371,7 @@ const manualCheckAnnualFees = async () => {
       message += '<ul style="list-style-type: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 16px;">'
       unqualifiedCards.forEach(card => {
         message += `<li class="manual-check-card-item unqualified">
-          <div class="manual-check-card-title">${card.bank.replace(/\(.*?\)/g, "").trim()} - ${card.alias}</div>
+          <div class="manual-check-card-title">${card.bank || ''} - ${card.alias}</div>
           <div class="manual-check-card-desc">距离年费收取还有 ${card.diffDays} 天</div>
         </li>`
       })
@@ -1326,7 +1384,7 @@ const manualCheckAnnualFees = async () => {
       message += '<ul style="list-style-type: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 16px;">'
       warningCards.forEach(card => {
         message += `<li class="manual-check-card-item warning">
-          <div class="manual-check-card-title">${card.bank.replace(/\(.*?\)/g, "").trim()} - ${card.alias}</div>
+          <div class="manual-check-card-title">${card.bank || ''} - ${card.alias}</div>
           <div class="manual-check-card-desc">将在 ${Math.ceil((new Date(card.nextAnnualFeeCollectionTime) - now) / (1000 * 60 * 60 * 24))} 天后收取年费</div>
         </li>`
       })
@@ -1339,7 +1397,7 @@ const manualCheckAnnualFees = async () => {
       message += '<ul style="list-style-type: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 16px;">'
       overdueCards.forEach(card => {
         message += `<li class="manual-check-card-item overdue">
-          <div class="manual-check-card-title">${card.bank.replace(/\(.*?\)/g, "").trim()} - ${card.alias}</div>
+          <div class="manual-check-card-title">${card.bank || ''} - ${card.alias}</div>
           <div class="manual-check-card-desc">已过期 ${Math.ceil((now - new Date(card.nextAnnualFeeCollectionTime)) / (1000 * 60 * 60 * 24))} 天</div>
         </li>`
       })
@@ -1415,7 +1473,7 @@ const handleBatchDelete = async (rows) => {
     cardData.value = cardData.value.filter(card => !idsToDelete.includes(card.id))
     await persistSyncedMutation({ deletedCardIds: idsToDelete })
     clearSelection()
-    ElMessage.success(`成功删除 ${rows.length} 张信用卡`)
+    ElMessage.success(`成功删除 ${rows.length} 张卡片`)
   } catch (error) {
     ElMessage.error('批量删除失败')
   }
@@ -1423,7 +1481,11 @@ const handleBatchDelete = async (rows) => {
 
 const handleBatchUpdateStatus = async ({ rows, status }) => {
   try {
-    const idsToUpdate = rows.map(row => row.id)
+    const idsToUpdate = rows.filter(isCreditCard).map(row => row.id)
+    if (idsToUpdate.length === 0) {
+      ElMessage.warning('请选择信用卡执行年费状态操作')
+      return
+    }
     cardData.value.forEach(card => {
       if (idsToUpdate.includes(card.id)) {
         card.isQualified = status
@@ -1433,18 +1495,40 @@ const handleBatchUpdateStatus = async ({ rows, status }) => {
     await persistSyncedMutation()
     clearSelection()
     const statusText = status === '1' ? '达标' : '未达标'
-    ElMessage.success(`成功将 ${rows.length} 张信用卡标记为${statusText}`)
+    ElMessage.success(`成功将 ${idsToUpdate.length} 张信用卡标记为${statusText}`)
   } catch (error) {
     ElMessage.error('批量更新状态失败')
   }
 }
 
+const handleBatchUpdateCategory = async ({ rows, category }) => {
+  try {
+    const normalizedCategory = category === 'debit' ? 'debit' : 'credit'
+    const idsToUpdate = rows.map(row => row.id)
+    let updatedCount = 0
+    cardData.value.forEach(card => {
+      if (idsToUpdate.includes(card.id)) {
+        card.cardCategory = normalizedCategory
+        card.lastModifyTime = getCurrentTimestamp()
+        updatedCount += 1
+      }
+    })
+    await persistSyncedMutation()
+    clearSelection()
+    const label = normalizedCategory === 'debit' ? '储蓄卡' : '信用卡'
+    ElMessage.success(`已将 ${updatedCount} 张卡片改为${label}`)
+  } catch (error) {
+    ElMessage.error('批量修改卡类别失败')
+  }
+}
+
 const handleBatchUpdateAnnualFee = (rows) => {
-  if (!rows || rows.length === 0) {
+  const creditRows = (rows || []).filter(isCreditCard)
+  if (creditRows.length === 0) {
     ElMessage.warning('请先选择要更新的信用卡')
     return
   }
-  batchAnnualFeeTargetIds.value = rows.map(row => row.id).filter(Boolean)
+  batchAnnualFeeTargetIds.value = creditRows.map(row => row.id).filter(Boolean)
   resetBatchAnnualFeeForm()
   batchAnnualFeeDialogVisible.value = true
 }
@@ -1572,7 +1656,7 @@ const confirmBatchValidityUpdate = async () => {
 const confirmClearData = async () => {
   try {
     await ElMessageBox.confirm(
-      '此操作将清除所有信用卡数据，是否继续？',
+      '此操作将清除所有银行卡数据，是否继续？',
       '警告',
       {
         confirmButtonText: '确定',
@@ -1598,7 +1682,7 @@ const handleCvvVisibility = ({ id, isVisible }) => {
 
 const setAnnualFeeQualified = async (cardId) => {
   const card = cardData.value.find(c => c.id === cardId)
-  if (card) {
+  if (card && isCreditCard(card)) {
     card.isQualified = '1'
 
     // 若有下次年费收取时间，则顺延一年
@@ -1617,6 +1701,9 @@ const setAnnualFeeQualified = async (cardId) => {
 }
 
 const getRowClassName = ({ row }) => {
+  if (!isCreditCard(row)) {
+    return ''
+  }
   // 如果未达标，显示警告样式（橙色）
   if (row.isQualified === '2') {
     return 'warning-row'
@@ -1757,7 +1844,7 @@ const showMigrationReport = async (migrationInfo) => {
       // 卡片基本信息
       htmlContent += '<div style="margin-bottom: 10px; padding: 8px; background: white; border-radius: 4px;">'
       if (cardInfo.bank) {
-        htmlContent += `<p style="margin: 3px 0; font-size: 13px;"><strong>银行:</strong> ${getBankDisplayName(cardInfo.bank)}</p>`
+        htmlContent += `<p style="margin: 3px 0; font-size: 13px;"><strong>银行:</strong> ${cardInfo.bank}</p>`
       }
       if (cardInfo.alias) {
         htmlContent += `<p style="margin: 3px 0; font-size: 13px;"><strong>别名:</strong> ${cardInfo.alias}</p>`
@@ -1809,7 +1896,7 @@ const showMigrationReport = async (migrationInfo) => {
       htmlContent += '<div style="margin-bottom: 10px; padding: 10px; background: #f0fdf4; border-radius: 6px;">'
       htmlContent += `<p style="margin: 0; font-weight: bold;">卡片 #${idx + 1}</p>`
       if (cardInfo.bank) {
-        htmlContent += `<p style="margin: 5px 0 0 0; font-size: 13px; color: #666;">${getBankDisplayName(cardInfo.bank)}`
+        htmlContent += `<p style="margin: 5px 0 0 0; font-size: 13px; color: #666;">${cardInfo.bank}`
         if (cardInfo.alias) htmlContent += ` - ${cardInfo.alias}`
         htmlContent += '</p>'
       }
@@ -1843,7 +1930,7 @@ const showMigrationReport = async (migrationInfo) => {
 
 // 键盘快捷键配置
 const shortcuts = {
-  'ctrl+n': addCreditCard,
+  'ctrl+n': addCard,
   'ctrl+shift+n': generateRandomData,
   'ctrl+h': showHelp,
   'ctrl+t': () => showTableCustomDialog.value = true,

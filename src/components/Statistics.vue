@@ -1,5 +1,14 @@
 <template>
   <div class="statistics-container" v-loading="loading" element-loading-text="正在分析数据...">
+    <!-- 统计筛选器 -->
+    <div class="statistics-filter-wrapper">
+      <el-radio-group v-model="selectedCategory" size="default" class="tech-radio-group">
+        <el-radio-button value="all">📊 全部卡片 ({{ props.cardData.length }})</el-radio-button>
+        <el-radio-button value="credit">💳 仅信用卡 ({{ creditCountAll }})</el-radio-button>
+        <el-radio-button value="debit">🏧 仅储蓄卡 ({{ debitCountAll }})</el-radio-button>
+      </el-radio-group>
+    </div>
+
     <!-- 概览卡片 -->
     <div class="overview-cards">
       <el-row :gutter="20">
@@ -7,7 +16,7 @@
           <el-card class="stat-card">
             <div class="stat-icon">🎫</div>
             <div class="stat-content">
-              <div class="stat-title">信用卡总数</div>
+              <div class="stat-title">银行卡总数</div>
               <div class="stat-value">{{ totalCards }}</div>
             </div>
           </el-card>
@@ -16,8 +25,8 @@
           <el-card class="stat-card">
             <div class="stat-icon">🏦</div>
             <div class="stat-content">
-              <div class="stat-title">银行数量</div>
-              <div class="stat-value">{{ totalBanks }}</div>
+              <div class="stat-title">信用卡</div>
+              <div class="stat-value">{{ creditCardCount }}</div>
             </div>
           </el-card>
         </el-col>
@@ -25,8 +34,8 @@
           <el-card class="stat-card">
             <div class="stat-icon">🌍</div>
             <div class="stat-content">
-              <div class="stat-title">国家数量</div>
-              <div class="stat-value">{{ totalCountries }}</div>
+              <div class="stat-title">储蓄卡</div>
+              <div class="stat-value">{{ debitCardCount }}</div>
             </div>
           </el-card>
         </el-col>
@@ -34,42 +43,94 @@
           <el-card class="stat-card">
             <div class="stat-icon">💰</div>
             <div class="stat-content">
-              <div class="stat-title">币种数量</div>
-              <div class="stat-value">{{ totalCurrencies }}</div>
+              <div class="stat-title">银行数量</div>
+              <div class="stat-value">{{ totalBanks }}</div>
             </div>
           </el-card>
         </el-col>
       </el-row>
     </div>
 
-    <!-- 总额度汇总 -->
-    <el-card class="total-limits-card">
-          <template #header>
-            <div class="card-header">
-              <span>🎯 总额度汇总</span>
-            </div>
-          </template>
-          <el-row :gutter="20">
-            <el-col v-for="(amount, currency) in currencyTotals" :key="currency" :xs="12" :sm="8" :md="6">
-              <div class="currency-total">
-                <div class="currency-name">{{ currency }}</div>
-                <div class="currency-amount">{{ formatCurrency(amount, currency) }}</div>
-              </div>
-            </el-col>
-          </el-row>
-        </el-card>
-
-    <!-- 额度统计 -->
-    <el-card class="limit-stats-card">
+    <el-card v-if="debitCardCount > 0" class="total-limits-card">
       <template #header>
-        <div class="card-header">
-          <span>💳 额度统计分析</span>
-          <el-tooltip content="根据是否共享额度进行智能统计">
-            <el-icon><QuestionFilled /></el-icon>
-          </el-tooltip>
+        <div class="card-header collapse-header" @click="collapsedPanels.debitDistribution = !collapsedPanels.debitDistribution">
+          <span>🏧 储蓄卡分布</span>
+          <div class="header-actions">
+            <span class="fold-text">{{ collapsedPanels.debitDistribution ? '展开' : '收起' }}</span>
+            <el-icon :class="{ 'is-collapsed': collapsedPanels.debitDistribution }" class="fold-arrow">
+              <ArrowDown />
+            </el-icon>
+          </div>
         </div>
       </template>
-      <div class="limit-stats">
+      <div v-show="!collapsedPanels.debitDistribution">
+        <el-row :gutter="20">
+          <el-col :xs="24" :sm="8">
+            <div class="currency-total">
+              <div class="currency-name">国家/地区</div>
+              <div class="currency-amount">{{ debitCountryCount }}</div>
+            </div>
+          </el-col>
+          <el-col :xs="24" :sm="8">
+            <div class="currency-total">
+              <div class="currency-name">银行</div>
+              <div class="currency-amount">{{ debitBankCount }}</div>
+            </div>
+          </el-col>
+          <el-col :xs="24" :sm="8">
+            <div class="currency-total">
+              <div class="currency-name">币种</div>
+              <div class="currency-amount">{{ debitCurrencyCount }}</div>
+            </div>
+          </el-col>
+        </el-row>
+      </div>
+    </el-card>
+
+    <!-- 总额度汇总 -->
+    <el-card v-if="creditCardCount > 0" class="total-limits-card">
+      <template #header>
+        <div class="card-header collapse-header" @click="collapsedPanels.creditTotals = !collapsedPanels.creditTotals">
+          <span>🎯 信用卡总额度汇总</span>
+          <div class="header-actions">
+            <span class="fold-text">{{ collapsedPanels.creditTotals ? '展开' : '收起' }}</span>
+            <el-icon :class="{ 'is-collapsed': collapsedPanels.creditTotals }" class="fold-arrow">
+              <ArrowDown />
+            </el-icon>
+          </div>
+        </div>
+      </template>
+      <div v-show="!collapsedPanels.creditTotals">
+        <el-row :gutter="20">
+          <el-col v-for="(amount, currency) in currencyTotals" :key="currency" :xs="12" :sm="8" :md="6">
+            <div class="currency-total">
+              <div class="currency-name">{{ currency }}</div>
+              <div class="currency-amount">{{ formatCurrency(amount, currency) }}</div>
+            </div>
+          </el-col>
+        </el-row>
+      </div>
+    </el-card>
+
+    <!-- 额度统计 -->
+    <el-card v-if="creditCardCount > 0" class="limit-stats-card">
+      <template #header>
+        <div class="card-header collapse-header" @click="collapsedPanels.limitStats = !collapsedPanels.limitStats">
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <span>💳 信用卡额度统计分析</span>
+            <el-tooltip content="根据是否共享额度进行智能统计">
+              <el-icon @click.stop><QuestionFilled /></el-icon>
+            </el-tooltip>
+          </div>
+          <div class="header-actions">
+            <span class="fold-text">{{ collapsedPanels.limitStats ? '展开' : '收起' }}</span>
+            <el-icon :class="{ 'is-collapsed': collapsedPanels.limitStats }" class="fold-arrow">
+              <ArrowDown />
+            </el-icon>
+          </div>
+        </div>
+      </template>
+      <div v-show="!collapsedPanels.limitStats" class="limit-stats">
         <el-row :gutter="20">
           <el-col :xs="24" :lg="12">
             <div class="limit-section">
@@ -111,8 +172,6 @@
           </el-col>
         </el-row>
         
-        
-
         <!-- 新增分析模块 -->
         <el-row :gutter="20">
           <el-col :xs="24" :lg="12">
@@ -194,7 +253,7 @@
             <el-card class="analysis-card">
               <template #header>
                 <div class="card-header">
-                  <span>📈 提额分析</span>
+                  <span>📈 信用卡提额分析</span>
                 </div>
               </template>
               <div class="raise-limit-stats">
@@ -218,38 +277,46 @@
     </el-card>
 
     <!-- 年费状态分析 -->
-    <el-card class="annual-fee-card">
+    <el-card v-if="creditCardCount > 0" class="annual-fee-card">
       <template #header>
-        <div class="card-header">
-          <span>⏰ 年费状态分析</span>
+        <div class="card-header collapse-header" @click="collapsedPanels.annualFeeStats = !collapsedPanels.annualFeeStats">
+          <span>⏰ 信用卡年费状态分析</span>
+          <div class="header-actions">
+            <span class="fold-text">{{ collapsedPanels.annualFeeStats ? '展开' : '收起' }}</span>
+            <el-icon :class="{ 'is-collapsed': collapsedPanels.annualFeeStats }" class="fold-arrow">
+              <ArrowDown />
+            </el-icon>
+          </div>
         </div>
       </template>
-      <el-row :gutter="20">
-        <el-col :xs="24" :sm="6">
-          <div class="annual-stat-item normal">
-            <div class="annual-title">已达标</div>
-            <div class="annual-value">{{ annualFeeStats.qualified }}</div>
-          </div>
-        </el-col>
-        <el-col :xs="24" :sm="6">
-          <div class="annual-stat-item warning">
-            <div class="annual-title">未达标</div>
-            <div class="annual-value">{{ annualFeeStats.unqualified }}</div>
-          </div>
-        </el-col>
-        <el-col :xs="24" :sm="6">
-          <div class="annual-stat-item danger">
-            <div class="annual-title">即将到期</div>
-            <div class="annual-value">{{ annualFeeStats.warning }}</div>
-          </div>
-        </el-col>
-        <el-col :xs="24" :sm="6">
-          <div class="annual-stat-item success">
-            <div class="annual-title">终身免费</div>
-            <div class="annual-value">{{ annualFeeStats.lifetime }}</div>
-          </div>
-        </el-col>
-      </el-row>
+      <div v-show="!collapsedPanels.annualFeeStats">
+        <el-row :gutter="20">
+          <el-col :xs="24" :sm="6">
+            <div class="annual-stat-item normal">
+              <div class="annual-title">已达标</div>
+              <div class="annual-value">{{ annualFeeStats.qualified }}</div>
+            </div>
+          </el-col>
+          <el-col :xs="24" :sm="6">
+            <div class="annual-stat-item warning">
+              <div class="annual-title">未达标</div>
+              <div class="annual-value">{{ annualFeeStats.unqualified }}</div>
+            </div>
+          </el-col>
+          <el-col :xs="24" :sm="6">
+            <div class="annual-stat-item danger">
+              <div class="annual-title">即将到期</div>
+              <div class="annual-value">{{ annualFeeStats.warning }}</div>
+            </div>
+          </el-col>
+          <el-col :xs="24" :sm="6">
+            <div class="annual-stat-item success">
+              <div class="annual-title">终身免费</div>
+              <div class="annual-value">{{ annualFeeStats.lifetime }}</div>
+            </div>
+          </el-col>
+        </el-row>
+      </div>
     </el-card>
 
     <!-- 分布图表 -->
@@ -257,21 +324,33 @@
       <el-col :xs="24" :lg="12">
         <el-card class="chart-card">
           <template #header>
-            <div class="card-header">
+            <div class="card-header collapse-header" @click="toggleBankChart">
               <span>🏦 银行分布</span>
+              <div class="header-actions">
+                <span class="fold-text">{{ collapsedPanels.bankChart ? '展开' : '收起' }}</span>
+                <el-icon :class="{ 'is-collapsed': collapsedPanels.bankChart }" class="fold-arrow">
+                  <ArrowDown />
+                </el-icon>
+              </div>
             </div>
           </template>
-          <div ref="bankChart" class="chart"></div>
+          <div v-show="!collapsedPanels.bankChart" ref="bankChart" class="chart"></div>
         </el-card>
       </el-col>
       <el-col :xs="24" :lg="12">
         <el-card class="chart-card">
           <template #header>
-            <div class="card-header">
+            <div class="card-header collapse-header" @click="toggleCountryChart">
               <span>🌍 国家分布</span>
+              <div class="header-actions">
+                <span class="fold-text">{{ collapsedPanels.countryChart ? '展开' : '收起' }}</span>
+                <el-icon :class="{ 'is-collapsed': collapsedPanels.countryChart }" class="fold-arrow">
+                  <ArrowDown />
+                </el-icon>
+              </div>
             </div>
           </template>
-          <div ref="countryChart" class="chart"></div>
+          <div v-show="!collapsedPanels.countryChart" ref="countryChart" class="chart"></div>
         </el-card>
       </el-col>
     </el-row>
@@ -279,44 +358,54 @@
     <!-- 详细数据表格 -->
     <el-card class="table-card">
       <template #header>
-        <div class="card-header">
+        <div class="card-header collapse-header" @click="collapsedPanels.detailedTable = !collapsedPanels.detailedTable">
           <span>📊 详细数据分析</span>
-          <el-button type="primary" size="small" @click="exportData">
-            <el-icon><Download /></el-icon>
-            导出数据
-          </el-button>
+          <div class="header-actions">
+            <el-button type="primary" size="small" @click.stop="exportData">
+              <el-icon><Download /></el-icon>
+              导出数据
+            </el-button>
+            <span class="fold-text" style="margin-left: 10px;">{{ collapsedPanels.detailedTable ? '展开' : '收起' }}</span>
+            <el-icon :class="{ 'is-collapsed': collapsedPanels.detailedTable }" class="fold-arrow">
+              <ArrowDown />
+            </el-icon>
+          </div>
         </div>
       </template>
-      <el-table :data="detailedStats" stripe>
-        <el-table-column prop="country" label="国家" width="100" />
-        <el-table-column prop="bank" label="银行" width="150" />
-        <el-table-column prop="currency" label="币种" width="80" />
-        <el-table-column prop="cardCount" label="卡片数" width="80" align="right" />
-        <el-table-column prop="sharedType" label="额度类型" width="100">
-          <template #default="{ row }">
-            <el-tag v-if="row.isShared" type="success" size="small">共享</el-tag>
-            <el-tag v-else type="info" size="small">独立</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="totalLimit" label="总额度" align="right">
-          <template #default="{ row }">
-            {{ formatCurrency(row.totalLimit, row.currency) }}
-          </template>
-        </el-table-column>
-        <el-table-column prop="avgLimit" label="平均额度" align="right">
-          <template #default="{ row }">
-            {{ formatCurrency(row.avgLimit, row.currency) }}
-          </template>
-        </el-table-column>
-      </el-table>
+      <div v-show="!collapsedPanels.detailedTable">
+        <el-table :data="detailedStats" stripe>
+          <el-table-column prop="country" label="国家" width="100" />
+          <el-table-column prop="bank" label="银行" width="150" />
+          <el-table-column prop="currency" label="币种" width="80" />
+          <el-table-column prop="cardCount" label="卡片数" width="80" align="right" />
+          <el-table-column prop="sharedType" label="额度类型" width="100">
+            <template #default="{ row }">
+              <el-tag v-if="row.isShared" type="success" size="small">共享</el-tag>
+              <template v-else>
+                <el-tag type="info" size="small">独立</el-tag>
+              </template>
+            </template>
+          </el-table-column>
+          <el-table-column prop="totalLimit" label="总额度" align="right">
+            <template #default="{ row }">
+              {{ formatCurrency(row.totalLimit, row.currency) }}
+            </template>
+          </el-table-column>
+          <el-table-column prop="avgLimit" label="平均额度" align="right">
+            <template #default="{ row }">
+              {{ formatCurrency(row.avgLimit, row.currency) }}
+            </template>
+          </el-table-column>
+        </el-table>
+      </div>
     </el-card>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, nextTick, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { QuestionFilled, Download, WarningFilled, Clock, Check } from '@element-plus/icons-vue'
+import { QuestionFilled, Download, WarningFilled, Clock, Check, ArrowDown } from '@element-plus/icons-vue'
 import * as echarts from 'echarts'
 import { BACKUP_CONSTANTS } from '@/config/constants'
 
@@ -333,6 +422,32 @@ const props = defineProps({
 const loading = ref(false)
 const bankChart = ref(null)
 const countryChart = ref(null)
+
+const collapsedPanels = ref({
+  debitDistribution: false,
+  creditTotals: false,
+  limitStats: false,
+  annualFeeStats: false,
+  bankChart: false,
+  countryChart: false,
+  detailedTable: false
+})
+
+const normalizeCardCategory = (card) => card?.cardCategory === 'debit' ? 'debit' : 'credit'
+
+// 选择过滤类别与过滤后的数据
+const selectedCategory = ref('all')
+const creditCountAll = computed(() => props.cardData.filter(card => normalizeCardCategory(card) === 'credit').length)
+const debitCountAll = computed(() => props.cardData.filter(card => normalizeCardCategory(card) === 'debit').length)
+const filteredCardData = computed(() => {
+  if (selectedCategory.value === 'all') {
+    return props.cardData
+  }
+  return props.cardData.filter(card => normalizeCardCategory(card) === selectedCategory.value)
+})
+
+const creditCards = computed(() => filteredCardData.value.filter(card => normalizeCardCategory(card) === 'credit'))
+const debitCards = computed(() => filteredCardData.value.filter(card => normalizeCardCategory(card) === 'debit'))
 
 // 货币格式化
 const formatCurrency = (amount, currency) => {
@@ -359,37 +474,41 @@ const formatCurrency = (amount, currency) => {
 }
 
 // 基础统计
-const totalCards = computed(() => props.cardData.length)
+const totalCards = computed(() => filteredCardData.value.length)
+const creditCardCount = computed(() => creditCards.value.length)
+const debitCardCount = computed(() => debitCards.value.length)
 
 const totalBanks = computed(() => {
-  const banks = new Set(props.cardData.map(card => 
-    (card.bank || '').replace(/\(.*?\)/g, "").trim()
-  ))
+  const banks = new Set(filteredCardData.value.map(card => card.bank || ''))
   return banks.size
 })
 
 const totalCountries = computed(() => {
-  const countries = new Set(props.cardData.map(card => card.country))
+  const countries = new Set(filteredCardData.value.map(card => card.country))
   return countries.size
 })
 
 const totalCurrencies = computed(() => {
-  const currencies = new Set(props.cardData.map(card => card.type))
+  const currencies = new Set(filteredCardData.value.map(card => card.type))
   return currencies.size
 })
+
+const debitCountryCount = computed(() => new Set(debitCards.value.map(card => card.country).filter(Boolean)).size)
+const debitBankCount = computed(() => new Set(debitCards.value.map(card => card.bank).filter(Boolean)).size)
+const debitCurrencyCount = computed(() => new Set(debitCards.value.map(card => card.type).filter(Boolean)).size)
 
 // 额度统计分析（考虑共享额度）
 const sharedLimitStats = computed(() => {
   const sharedGroups = new Map()
   
-  props.cardData.forEach(card => {
+  creditCards.value.forEach(card => {
     if (card.isSharedLimit) {
-      const key = `${card.country}-${card.bank.replace(/\(.*?\)/g, "").trim()}-${card.type}`
+      const key = `${card.country}-${card.bank}-${card.type}`
       if (!sharedGroups.has(key)) {
         sharedGroups.set(key, {
           key,
           country: card.country,
-          bank: card.bank.replace(/\(.*?\)/g, "").trim(),
+          bank: card.bank,
           currency: card.type,
           totalLimit: parseFloat(card.limit) || 0,
           cardCount: 0
@@ -403,12 +522,12 @@ const sharedLimitStats = computed(() => {
 })
 
 const independentLimitStats = computed(() => {
-  return props.cardData
+  return creditCards.value
     .filter(card => !card.isSharedLimit)
     .map(card => ({
       key: card.id,
       country: card.country,
-      bank: card.bank.replace(/\(.*?\)/g, "").trim(),
+      bank: card.bank,
       alias: card.alias,
       currency: card.type,
       limit: parseFloat(card.limit) || 0
@@ -438,7 +557,7 @@ const annualFeeStats = computed(() => {
   const now = new Date()
   let qualified = 0, unqualified = 0, warning = 0, lifetime = 0
   
-  props.cardData.forEach(card => {
+  creditCards.value.forEach(card => {
     if (card.isQualified === '1') qualified++
     else if (card.isQualified === '2') unqualified++
     else if (card.isQualified === '3') lifetime++
@@ -458,12 +577,12 @@ const annualFeeStats = computed(() => {
 const levelStats = computed(() => {
   const levelMap = new Map()
   
-  props.cardData.forEach(card => {
+  creditCards.value.forEach(card => {
     const level = card.level || '未知'
     levelMap.set(level, (levelMap.get(level) || 0) + 1)
   })
   
-  const total = props.cardData.length
+  const total = filteredCardData.value.length
   const stats = Array.from(levelMap.entries())
     .map(([level, count]) => ({
       level,
@@ -477,17 +596,17 @@ const levelStats = computed(() => {
 
 // 年费分析统计
 const totalAnnualFee = computed(() => {
-  return props.cardData.reduce((total, card) => {
+  return creditCards.value.reduce((total, card) => {
     return total + (parseFloat(card.annualFee) || 0)
   }, 0)
 })
 
 const avgAnnualFee = computed(() => {
-  return props.cardData.length > 0 ? Math.round(totalAnnualFee.value / props.cardData.length) : 0
+  return creditCards.value.length > 0 ? Math.round(totalAnnualFee.value / creditCards.value.length) : 0
 })
 
 const freeAnnualFeeCards = computed(() => {
-  return props.cardData.filter(card => 
+  return creditCards.value.filter(card => 
     parseFloat(card.annualFee) === 0 || card.isQualified === '3'
   ).length
 })
@@ -500,7 +619,7 @@ const expiryStats = computed(() => {
   
   let expiredCards = 0, soonExpiring = 0, normalCards = 0
   
-  props.cardData.forEach(card => {
+  creditCards.value.forEach(card => {
     if (card.valid) {
       const [month, year] = card.valid.split('/')
       const expiryDate = new Date(2000 + parseInt(year), parseInt(month) - 1)
@@ -528,7 +647,7 @@ const raiseLimitStats = computed(() => {
   
   let recent6Months = 0, recent1Year = 0, never = 0
   
-  props.cardData.forEach(card => {
+  filteredCardData.value.forEach(card => {
     if (card.lastTime) {
       const lastRaiseDate = new Date(card.lastTime)
       if (lastRaiseDate >= sixMonthsAgo) {
@@ -602,12 +721,18 @@ const initCharts = async () => {
     
     await nextTick()
     
+    const isDark = document.documentElement.classList.contains('dark')
+    const textColor = isDark ? '#cbd5e1' : '#1e293b'
+
     // 银行分布图表
     if (bankChart.value) {
-      const bankInstance = echarts.init(bankChart.value)
+      let bankInstance = echarts.getInstanceByDom(bankChart.value)
+      if (!bankInstance) {
+        bankInstance = echarts.init(bankChart.value)
+      }
       const bankData = {}
-      props.cardData.forEach(card => {
-        const bank = card.bank.replace(/\(.*?\)/g, "").trim()
+      filteredCardData.value.forEach(card => {
+        const bank = card.bank || ''
         bankData[bank] = (bankData[bank] || 0) + 1
       })
       
@@ -624,6 +749,16 @@ const initCharts = async () => {
           type: 'pie',
           radius: ['40%', '70%'],
           data: bankChartData,
+          label: {
+            show: true,
+            color: textColor,
+            backgroundColor: 'transparent',
+            textBorderColor: 'transparent',
+            textBorderWidth: 0,
+            textShadowColor: 'transparent',
+            textShadowBlur: 0,
+            formatter: '{b}: {c}张'
+          },
           emphasis: {
             itemStyle: {
               shadowBlur: 10,
@@ -632,14 +767,17 @@ const initCharts = async () => {
             }
           }
         }]
-      })
+      }, true)
     }
     
     // 国家分布图表
     if (countryChart.value) {
-      const countryInstance = echarts.init(countryChart.value)
+      let countryInstance = echarts.getInstanceByDom(countryChart.value)
+      if (!countryInstance) {
+        countryInstance = echarts.init(countryChart.value)
+      }
       const countryData = {}
-      props.cardData.forEach(card => {
+      filteredCardData.value.forEach(card => {
         countryData[card.country] = (countryData[card.country] || 0) + 1
       })
       
@@ -656,6 +794,16 @@ const initCharts = async () => {
           type: 'pie',
           radius: ['40%', '70%'],
           data: countryChartData,
+          label: {
+            show: true,
+            color: textColor,
+            backgroundColor: 'transparent',
+            textBorderColor: 'transparent',
+            textBorderWidth: 0,
+            textShadowColor: 'transparent',
+            textShadowBlur: 0,
+            formatter: '{b}: {c}张'
+          },
           emphasis: {
             itemStyle: {
               shadowBlur: 10,
@@ -664,10 +812,41 @@ const initCharts = async () => {
             }
           }
         }]
-      })
+      }, true)
     }
   } finally {
     loading.value = false
+  }
+}
+
+// 展开/折叠图表时的 resize 逻辑
+const toggleBankChart = () => {
+  collapsedPanels.value.bankChart = !collapsedPanels.value.bankChart
+  if (!collapsedPanels.value.bankChart) {
+    nextTick(() => {
+      const chartDom = bankChart.value
+      if (chartDom) {
+        const instance = echarts.getInstanceByDom(chartDom)
+        if (instance) {
+          instance.resize()
+        }
+      }
+    })
+  }
+}
+
+const toggleCountryChart = () => {
+  collapsedPanels.value.countryChart = !collapsedPanels.value.countryChart
+  if (!collapsedPanels.value.countryChart) {
+    nextTick(() => {
+      const chartDom = countryChart.value
+      if (chartDom) {
+        const instance = echarts.getInstanceByDom(chartDom)
+        if (instance) {
+          instance.resize()
+        }
+      }
+    })
   }
 }
 
@@ -691,17 +870,36 @@ const exportData = () => {
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
   const link = document.createElement('a')
   link.href = URL.createObjectURL(blob)
-  link.download = `信用卡统计分析_${new Date().toISOString().split('T')[0]}.csv`
+  link.download = `银行卡统计分析_${new Date().toISOString().split('T')[0]}.csv`
   link.click()
   
   ElMessage.success('数据导出成功')
 }
 
+let resizeHandler = null
+
 onMounted(() => {
   initCharts()
+  resizeHandler = () => {
+    if (bankChart.value) {
+      const bankInstance = echarts.getInstanceByDom(bankChart.value)
+      if (bankInstance) bankInstance.resize()
+    }
+    if (countryChart.value) {
+      const countryInstance = echarts.getInstanceByDom(countryChart.value)
+      if (countryInstance) countryInstance.resize()
+    }
+  }
+  window.addEventListener('resize', resizeHandler)
 })
 
-watch(() => props.cardData, () => {
+onUnmounted(() => {
+  if (resizeHandler) {
+    window.removeEventListener('resize', resizeHandler)
+  }
+})
+
+watch([() => props.cardData, selectedCategory], () => {
   initCharts()
 }, { deep: true })
 </script>
@@ -1030,5 +1228,87 @@ watch(() => props.cardData, () => {
   .chart {
     height: 250px;
   }
+}
+
+.statistics-filter-wrapper {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 8px;
+  width: 100%;
+
+  .tech-radio-group {
+    background: var(--el-fill-color-light);
+    padding: 3px;
+    border-radius: 30px;
+    border: 1px solid var(--el-border-color-lighter);
+    display: inline-flex;
+    gap: 4px;
+
+    :deep(.el-radio-button__inner) {
+      border-radius: 20px !important;
+      border: none !important;
+      font-size: 13px !important;
+      font-weight: 600 !important;
+      padding: 6px 18px !important;
+      height: auto !important;
+      line-height: 1.2 !important;
+      box-shadow: none !important;
+      background: transparent !important;
+      color: var(--el-text-color-regular) !important;
+      transition: all 0.25s ease !important;
+
+      &:hover {
+        color: var(--el-text-color-primary) !important;
+      }
+    }
+
+    :deep(.el-radio-button__original-radio:checked + .el-radio-button__inner) {
+      background: var(--el-color-primary-light-8) !important;
+      color: var(--el-color-primary) !important;
+      box-shadow: none !important;
+    }
+  }
+}
+
+:global(html.dark) {
+  .statistics-filter-wrapper {
+    .tech-radio-group {
+      :deep(.el-radio-button__original-radio:checked + .el-radio-button__inner) {
+        background: rgba(0, 242, 254, 0.15) !important;
+        color: #00f2fe !important;
+        text-shadow: 0 0 6px rgba(0, 242, 254, 0.3) !important;
+      }
+    }
+  }
+}
+
+.collapse-header {
+  cursor: pointer;
+  user-select: none;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  width: 100%;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--el-text-color-secondary);
+}
+
+.fold-text {
+  font-weight: normal;
+}
+
+.fold-arrow {
+  transition: transform 0.3s ease;
+  font-size: 14px;
+}
+
+.fold-arrow.is-collapsed {
+  transform: rotate(-90deg);
 }
 </style>

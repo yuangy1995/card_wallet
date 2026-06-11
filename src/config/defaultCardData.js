@@ -11,6 +11,7 @@ import { nowCardTimestamp } from '@/utils/cardTimestamp'
  */
 export const DEFAULT_CARD_DATA = {
   // 基本信息
+  cardCategory: 'credit', // 卡片类别：credit 信用卡，debit 储蓄卡
   country: '',
   bank: '',
   alias: '',
@@ -64,6 +65,7 @@ export const REQUIRED_FIELDS = [
  */
 export const FIELD_TYPES = {
   id: 'string',
+  cardCategory: 'string',
   country: 'string',
   bank: 'string',
   alias: 'string',

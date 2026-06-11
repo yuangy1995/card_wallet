@@ -69,7 +69,7 @@
         <div class="radar-scan">
           <div class="radar-line"></div>
         </div>
-        <div class="empty-text">雷达未扫描到符合筛选条件的信用卡</div>
+        <div class="empty-text">雷达未扫描到符合筛选条件的银行卡</div>
         <div class="empty-sub">请尝试调整上方查询条件或新增一张卡片</div>
       </div>
       
@@ -99,7 +99,7 @@
               <span class="group-badge">{{ group.cards.length }}张</span>
             </div>
             <div class="group-limit-pill">
-              本组授信 <span class="limit-value">¥{{ group.limitSum.toLocaleString('zh-CN', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) }}</span>
+              本组信用额度 <span class="limit-value">¥{{ group.limitSum.toLocaleString('zh-CN', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) }}</span>
             </div>
           </div>
 
@@ -159,11 +159,11 @@
         </el-menu-item>
         <el-menu-item @click="handleContextMenuAction('edit')">
           <el-icon><Edit /></el-icon>
-          <span>快捷编辑信用卡</span>
+          <span>快捷编辑卡片</span>
         </el-menu-item>
         <el-menu-item @click="handleContextMenuAction('delete')">
           <el-icon><Delete /></el-icon>
-          <span>删除此信用卡</span>
+          <span>删除此卡片</span>
         </el-menu-item>
         <el-menu-item @click="handleContextMenuAction('details')">
           <el-icon><View /></el-icon>
@@ -204,9 +204,7 @@ const emit = defineEmits([
   'selection-change'
 ])
 
-import { getBankDisplayName } from '@/utils/bankNameFormatter'
-
-// 分组与排序过滤控制状态 (默认按照发卡行 bank 分组，对齐 Mac 端原生面板)
+// 分组与排序控制状态（默认按照发卡行 bank 分组，对齐 Mac 端原生面板）
 const groupBy = ref(localStorage.getItem('creditCardGroupMode') || 'bank')
 const sortBy = ref(localStorage.getItem('creditCardSortMode') || 'default')
 
@@ -291,15 +289,15 @@ const getCardOrganization = (card) => {
 // 获取卡组织美观名称
 const getCardOrganizationDisplayName = (org) => {
   const mapping = {
-    'visa': 'VISA 信用卡',
-    'mastercard': 'MasterCard 信用卡',
-    'unionpay': '银联 (UnionPay) 信用卡',
-    'amex': '美国运通 (AMEX) 信用卡',
-    'jcb': 'JCB 国际信用卡',
+    'visa': 'VISA 卡',
+    'mastercard': 'MasterCard 卡',
+    'unionpay': '银联 (UnionPay) 卡',
+    'amex': '美国运通 (AMEX) 卡',
+    'jcb': 'JCB 国际卡',
     'discover': 'Discover 发现卡',
-    'other': '其他卡组织信用卡'
+    'other': '其他卡组织卡'
   }
-  return mapping[org] || '其他卡组织信用卡'
+  return mapping[org] || '其他卡组织卡'
 }
 
 // 共享授信计算机制（同一银行共享额度合并取最大值，独立额度累加）
@@ -310,6 +308,8 @@ const calculateLimitSum = (cards) => {
   cards.forEach(card => {
     const limit = parseFloat(card.limit || 0)
     if (isNaN(limit)) return
+
+    if (card.cardCategory === 'debit') return
 
     if (card.isSharedLimit) {
       const bankKey = (card.bank || 'unknown').trim()
@@ -354,7 +354,7 @@ const groupedCards = computed(() => {
   if (groupBy.value === 'none') {
     return [{
       key: 'all',
-      title: '所有信用卡',
+      title: '所有银行卡',
       cards: sortedData,
       limitSum: calculateLimitSum(sortedData)
     }]
@@ -368,7 +368,7 @@ const groupedCards = computed(() => {
 
     if (groupBy.value === 'bank') {
       key = (card.bank || '未知发卡行').trim()
-      title = getBankDisplayName(card.bank)
+      title = card.bank || '未知发卡行'
     } else if (groupBy.value === 'country') {
       key = (card.country || '其他地区').trim()
       title = card.country || '其他地区'

@@ -30,10 +30,10 @@ const mapCardLevel = sharedCardLevelData.map(item => ({
 }))
 
 const mapCurrencyList = sharedCurrencyData.map(item => ({
-  name: `${item.chineseName}(${item.value})`,
+  name: item.chineseName,
   chineseName: item.value,
   englishName: item.englishName,
-  label: `${item.chineseName}(${item.value})`,
+  label: item.chineseName,
   value: item.value,
 }))
 
@@ -43,6 +43,10 @@ const qualificationStatus = sharedQualificationStatusData.map(item => ({
 }))
 
 export const creditCardOptions = {
+  cardCategory: [
+    { label: '信用卡', value: 'credit' },
+    { label: '储蓄卡', value: 'debit' },
+  ],
   countryData: mapCountryData,
   bankList: mapBankList,
   cardLevel: mapCardLevel,
@@ -79,6 +83,7 @@ export const creditCardOptions = {
     { value: '7', label: '积分兑换' },
   ],
   tableCustomData: [
+    { label: '卡类别', value: 'cardCategory', checked: true },
     { label: '国家', value: 'country', checked: true },
     { label: '银行', value: 'bank', checked: true },
     { label: '卡号', value: 'cardNumber', checked: true },

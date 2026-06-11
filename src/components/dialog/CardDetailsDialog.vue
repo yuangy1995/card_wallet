@@ -1,7 +1,7 @@
 <template>
   <el-dialog
     v-model="dialogVisible"
-    title="信用卡详情"
+    :title="`${cardCategoryText}详情`"
     center
     top="5vh"
     width="800px"
@@ -15,29 +15,30 @@
           <!-- 基本信息 -->
           <el-descriptions-item label="国家">{{ cardInfo.country }}</el-descriptions-item>
           <el-descriptions-item label="银行">{{ cardInfo.bank }}</el-descriptions-item>
+          <el-descriptions-item label="卡类别">{{ cardCategoryText }}</el-descriptions-item>
           <el-descriptions-item label="卡片别名">{{ cardInfo.alias }}</el-descriptions-item>
           <el-descriptions-item label="等级">{{ cardInfo.level }}</el-descriptions-item>
           <el-descriptions-item label="币种">{{ cardInfo.type }}</el-descriptions-item>
-          <el-descriptions-item label="额度">{{ cardInfo.limit }}</el-descriptions-item>
+          <el-descriptions-item v-if="isCreditCard" label="额度">{{ cardInfo.limit }}</el-descriptions-item>
           
           <!-- 卡片信息 -->
           <el-descriptions-item label="卡号">{{ formatCardNumber(cardInfo.cardNumber) }}</el-descriptions-item>
           <el-descriptions-item label="有效期">{{ cardInfo.valid }}</el-descriptions-item>
           <el-descriptions-item label="CVV码">{{ cardInfo.cvv }}</el-descriptions-item>
-          <el-descriptions-item label="账单日">{{ cardInfo.accountBillDate }}</el-descriptions-item>
-          <el-descriptions-item label="还款日">{{ cardInfo.dueDate }}</el-descriptions-item>
-          <el-descriptions-item label="年费">{{ cardInfo.annualFee }}</el-descriptions-item>
+          <el-descriptions-item v-if="isCreditCard" label="账单日">{{ cardInfo.accountBillDate }}</el-descriptions-item>
+          <el-descriptions-item v-if="isCreditCard" label="还款日">{{ cardInfo.dueDate }}</el-descriptions-item>
+          <el-descriptions-item v-if="isCreditCard" label="年费">{{ cardInfo.annualFee }}</el-descriptions-item>
 
           <!-- 年费信息 -->
-          <el-descriptions-item label="年费达标状态" :span="2">
+          <el-descriptions-item v-if="isCreditCard" label="年费达标状态" :span="2">
             <el-tag v-if="cardInfo.isQualified === '1'" type="success">已达标</el-tag>
             <el-tag v-if="cardInfo.isQualified === '2'" type="danger">未达标</el-tag>
             <el-tag v-if="cardInfo.isQualified === '3'" type="info">终免年费</el-tag>
           </el-descriptions-item>
-          <el-descriptions-item label="下次年费收取时间" :span="2">
+          <el-descriptions-item v-if="isCreditCard" label="下次年费收取时间" :span="2">
             {{ nextAnnualFeeCollectionTimeDisplay }}
           </el-descriptions-item>
-          <el-descriptions-item label="上次提额日期" :span="2">
+          <el-descriptions-item v-if="isCreditCard" label="上次提额日期" :span="2">
             <div style="white-space: pre-line">{{ lastTimeDisplay }}</div>
           </el-descriptions-item>
 
@@ -59,10 +60,11 @@
         <el-descriptions :column="2" border>
           <el-descriptions-item label="国家">{{ cardInfo.country }}</el-descriptions-item>
           <el-descriptions-item label="银行">{{ cardInfo.bank }}</el-descriptions-item>
+          <el-descriptions-item label="卡类别">{{ cardCategoryText }}</el-descriptions-item>
           <el-descriptions-item label="卡片别名">{{ cardInfo.alias }}</el-descriptions-item>
           <el-descriptions-item label="等级">{{ cardInfo.level }}</el-descriptions-item>
           <el-descriptions-item label="币种">{{ cardInfo.type }}</el-descriptions-item>
-          <el-descriptions-item label="额度">{{ cardInfo.limit }}</el-descriptions-item>
+          <el-descriptions-item v-if="isCreditCard" label="额度">{{ cardInfo.limit }}</el-descriptions-item>
         </el-descriptions>
       </el-tab-pane>
       
@@ -72,9 +74,9 @@
           <el-descriptions-item label="卡号">{{ formatCardNumber(cardInfo.cardNumber) }}</el-descriptions-item>
           <el-descriptions-item label="有效期">{{ cardInfo.valid }}</el-descriptions-item>
           <el-descriptions-item label="CVV码">{{ cardInfo.cvv }}</el-descriptions-item>
-          <el-descriptions-item label="账单日">{{ cardInfo.accountBillDate }}</el-descriptions-item>
-          <el-descriptions-item label="还款日">{{ cardInfo.dueDate }}</el-descriptions-item>
-          <el-descriptions-item label="年费">{{ cardInfo.annualFee }}</el-descriptions-item>
+          <el-descriptions-item v-if="isCreditCard" label="账单日">{{ cardInfo.accountBillDate }}</el-descriptions-item>
+          <el-descriptions-item v-if="isCreditCard" label="还款日">{{ cardInfo.dueDate }}</el-descriptions-item>
+          <el-descriptions-item v-if="isCreditCard" label="年费">{{ cardInfo.annualFee }}</el-descriptions-item>
         </el-descriptions>
       </el-tab-pane>
 
@@ -98,7 +100,7 @@
       </el-tab-pane>
 
       <!-- 年费信息标签页 -->
-      <el-tab-pane label="年费信息">
+      <el-tab-pane v-if="isCreditCard" label="年费信息">
         <el-descriptions :column="1" border>
           <el-descriptions-item label="年费达标状态">
             <el-tag v-if="cardInfo.isQualified === '1'" type="success">已达标</el-tag>
@@ -193,6 +195,12 @@ export default {
       return this.cardInfo.nextAnnualFeeCollectionTime
         ? formatCardTimestamp(this.cardInfo.nextAnnualFeeCollectionTime)
         : '-'
+    },
+    isCreditCard() {
+      return this.cardInfo.cardCategory !== 'debit'
+    },
+    cardCategoryText() {
+      return this.isCreditCard ? '信用卡' : '储蓄卡'
     },
     normalizedCardImages() {
       const images = Array.isArray(this.cardInfo.cardImages) ? this.cardInfo.cardImages : []

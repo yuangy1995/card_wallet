@@ -16,8 +16,9 @@
         <!-- 卡片顶部：银行与卡等级 -->
         <div class="card-header">
           <div class="bank-info">
-            <span class="bank-name">{{ getBankDisplayName(card.bank) }}</span>
+            <span class="bank-name">{{ card.bank || '' }}</span>
             <span class="country-tag">{{ card.country || '中国' }}</span>
+            <span class="country-tag">{{ isDebitCard ? '储蓄卡' : '信用卡' }}</span>
           </div>
           <div class="card-logo">
             <span class="card-level-badge" :class="card.level">{{ card.level || '普卡' }}</span>
@@ -102,9 +103,9 @@
         <!-- 卡片底部：额度与关键信息 -->
         <div class="card-footer">
           <div class="card-limit-info">
-            <span class="label">额度 ({{ card.type || 'CNY' }})</span>
-            <span class="value">{{ formatLimit(card.limit) }}</span>
-            <span v-if="card.isSharedLimit" class="shared-limit-badge">共享</span>
+            <span class="label">{{ isDebitCard ? '币种' : `额度 (${card.type || 'CNY'})` }}</span>
+            <span class="value">{{ isDebitCard ? (card.type || 'CNY') : formatLimit(card.limit) }}</span>
+            <span v-if="!isDebitCard && card.isSharedLimit" class="shared-limit-badge">共享</span>
           </div>
 
           <div class="card-dates">
@@ -126,7 +127,7 @@
       <!-- 背面：科技看板详细信息 -->
       <div class="physics-card-face physics-card-back">
         <div class="back-header">
-          <span class="title">卡片详细账目与年费</span>
+          <span class="title">{{ isDebitCard ? '储蓄卡详情' : '卡片详细账目与年费' }}</span>
           <el-button circle size="small" class="action-btn" @click.stop="flipCard">
             <el-icon><Refresh /></el-icon>
           </el-button>
@@ -134,7 +135,7 @@
 
         <div class="back-content">
           <!-- 账单与还款信息 -->
-          <div class="info-grid">
+          <div v-if="!isDebitCard" class="info-grid">
             <div class="info-item">
               <span class="label">账单日</span>
               <span class="value">{{ card.accountBillDate ? `${card.accountBillDate} 号` : '-' }}</span>
@@ -153,9 +154,27 @@
               <span class="value info-text" v-else>终免年费</span>
             </div>
           </div>
+          <div v-else class="info-grid">
+            <div class="info-item">
+              <span class="label">国家/地区</span>
+              <span class="value">{{ card.country || '-' }}</span>
+            </div>
+            <div class="info-item">
+              <span class="label">发卡银行</span>
+              <span class="value">{{ card.bank || '-' }}</span>
+            </div>
+            <div class="info-item">
+              <span class="label">卡组织</span>
+              <span class="value highlight-text">{{ card.level || cardOrganization || '-' }}</span>
+            </div>
+            <div class="info-item">
+              <span class="label">币种</span>
+              <span class="value">{{ card.type || 'CNY' }}</span>
+            </div>
+          </div>
 
           <!-- 年费状态快捷按钮 -->
-          <div class="annual-fee-status">
+          <div v-if="!isDebitCard" class="annual-fee-status">
             <span class="status-label">年费达标：</span>
             <el-tag v-if="card.isQualified === '1'" type="success" size="small">已达标</el-tag>
             <el-tag v-else-if="card.isQualified === '2'" type="danger" size="small" class="clickable-tag" @click.stop="setAnnualFeeQualified">未达标 (快捷达标)</el-tag>
@@ -168,7 +187,7 @@
 
           <!-- 提额与更新时间 -->
           <div class="time-info">
-            <div>上次提额时间: <span>{{ card.lastTime ? formatCardTimestamp(card.lastTime) : '暂无提额记录' }}</span></div>
+            <div v-if="!isDebitCard">上次提额时间: <span>{{ card.lastTime ? formatCardTimestamp(card.lastTime) : '暂无提额记录' }}</span></div>
             <div>上次修改时间: <span>{{ formatCardTimestamp(card.lastModifyTime) }}</span></div>
           </div>
 
@@ -201,7 +220,6 @@
 <script setup>
 import { ref, computed, onUnmounted } from 'vue'
 import { View, Hide, Refresh, Star, Notebook, Delete } from '@element-plus/icons-vue'
-import { getBankDisplayName } from '@/utils/bankNameFormatter'
 import { getDaysFromNow } from '@/utils/dateCalculator'
 import { ElMessage } from 'element-plus'
 import { formatCardTimestamp } from '@/utils/cardTimestamp'
@@ -226,6 +244,7 @@ const emit = defineEmits([
 const isFlipped = ref(false)
 const cardNumberVisible = ref(false)
 const cvvVisible = ref(false)
+const isDebitCard = computed(() => props.card.cardCategory === 'debit')
 
 // 3D 鼠标倾斜计算
 const cardContainerRef = ref(null)

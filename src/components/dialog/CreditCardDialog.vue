@@ -15,6 +15,20 @@
       <input type="password" style="position: absolute; top: -9999px; left: -9999px; width: 0; height: 0; opacity: 0;" />
 
       <el-descriptions :column="2" border>
+        <el-descriptions-item label="卡类别" :span="2">
+          <el-form-item prop="cardCategory">
+            <el-radio-group v-model="formData.cardCategory">
+              <el-radio-button
+                v-for="item in options.cardCategory"
+                :key="item.value"
+                :value="item.value"
+              >
+                {{ item.label }}
+              </el-radio-button>
+            </el-radio-group>
+          </el-form-item>
+        </el-descriptions-item>
+
         <el-descriptions-item label="国家">
           <el-form-item prop="country">
             <el-select
@@ -27,7 +41,7 @@
               <el-option
                 v-for="(item, index) in options.countryData"
                 :key="index"
-                :label="`${item.chineseName}(${item.name})`"
+                :label="item.chineseName"
                 :value="item.chineseName"
               />
             </el-select>
@@ -68,7 +82,7 @@
               @blur="cardNumberReadOnly = true"
             >
               <template #append>
-                <el-tooltip content="信用卡号通常为16位数字，某些卡可能为13-19位">
+                <el-tooltip content="银行卡号通常为13-19位数字">
                   <el-icon><QuestionFilled /></el-icon>
                 </el-tooltip>
               </template>
@@ -118,7 +132,12 @@
                 :key="item.name"
                 :label="item.name"
                 :value="item.chineseName"
-              />
+              >
+                <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                  <span>{{ item.name }}</span>
+                  <span style="color: var(--el-text-color-secondary); font-size: 12px; margin-left: 20px;">{{ item.value }}</span>
+                </div>
+              </el-option>
             </el-select>
           </el-form-item>
         </el-descriptions-item>
@@ -158,7 +177,7 @@
           </el-form-item>
         </el-descriptions-item>
 
-        <el-descriptions-item label="银行额度共享">
+        <el-descriptions-item v-if="isCreditCard" label="银行额度共享">
           <el-form-item prop="isSharedLimit">
             <el-radio-group v-model="formData.isSharedLimit" @change="handleLimitSharingChange">
               <el-radio :value="true" size="large">是</el-radio>
@@ -170,7 +189,7 @@
           </el-form-item>
         </el-descriptions-item>
 
-        <el-descriptions-item label="额度">
+        <el-descriptions-item v-if="isCreditCard" label="额度">
           <el-form-item prop="limit">
             <el-input-number
               v-model="formData.limit"
@@ -191,7 +210,7 @@
         </el-descriptions-item>
 
         <!-- 卡片信息 -->
-        <el-descriptions-item label="账单日">
+        <el-descriptions-item v-if="isCreditCard" label="账单日">
           <el-form-item prop="accountBillDate">
             <el-input
               v-model="formData.accountBillDate"
@@ -204,7 +223,7 @@
             />
           </el-form-item>
         </el-descriptions-item>
-        <el-descriptions-item label="还款日">
+        <el-descriptions-item v-if="isCreditCard" label="还款日">
           <el-form-item prop="dueDate">
             <el-input
               v-model="formData.dueDate"
@@ -218,7 +237,7 @@
           </el-form-item>
         </el-descriptions-item>
 
-        <el-descriptions-item label="账单日消费计入" :span="2">
+        <el-descriptions-item v-if="isCreditCard" label="账单日消费计入" :span="2">
           <el-form-item prop="billingDaySpendingToNextBill">
             <el-radio-group v-model="formData.billingDaySpendingToNextBill">
               <el-radio :value="false" size="large">当期账单</el-radio>
@@ -229,7 +248,7 @@
             </div>
           </el-form-item>
         </el-descriptions-item>
-        <el-descriptions-item label="年费">
+        <el-descriptions-item v-if="isCreditCard" label="年费">
           <el-input
             v-model="formData.annualFee"
             placeholder="请输入年费"
@@ -240,14 +259,14 @@
         </el-descriptions-item>
 
         <!-- 年费信息 -->
-        <el-descriptions-item label="年费状态" :span="2">
+        <el-descriptions-item v-if="isCreditCard" label="年费状态" :span="2">
           <el-radio-group v-model="formData.isQualified" class="annual-fee-status-group">
             <el-radio :value="'2'" size="large">未达标</el-radio>
             <el-radio :value="'1'" size="large">已达标</el-radio>
             <el-radio :value="'3'" size="large">终免年费</el-radio>
           </el-radio-group>
         </el-descriptions-item>
-        <el-descriptions-item label="下次年费收取时间" :span="2">
+        <el-descriptions-item v-if="isCreditCard" label="下次年费收取时间" :span="2">
           <el-date-picker
             v-model="formData.nextAnnualFeeCollectionTime"
             type="date"
@@ -258,7 +277,7 @@
             :disabled="formData.isQualified === '3'"
           />
         </el-descriptions-item>
-        <el-descriptions-item label="上次提额日期" :span="2">
+        <el-descriptions-item v-if="isCreditCard" label="上次提额日期" :span="2">
           <el-date-picker
             v-model="formData.lastTime"
             type="date"
@@ -486,6 +505,7 @@ export default {
     // 用于彻底阻止浏览器流氓自动填充表单的动态只读控制状态
     const cardNumberReadOnly = ref(true)
     const cvvReadOnly = ref(true)
+    const isCreditCard = computed(() => formData.value.cardCategory !== 'debit')
 
     // 表单验证规则
     const rules = {
@@ -548,7 +568,8 @@ export default {
 
     // 对话框标题
     const title = computed(() => {
-      const baseTitle = props.mode === 'add' ? '新增信用卡' : '编辑信用卡'
+      const categoryText = isCreditCard.value ? '信用卡' : '储蓄卡'
+      const baseTitle = props.mode === 'add' ? `新增${categoryText}` : `编辑${categoryText}`
       return cardType.value ? `${baseTitle} (${cardType.value})` : baseTitle
     })
 
@@ -566,6 +587,7 @@ export default {
 
     // 表单数据
     const formData = ref({
+      cardCategory: 'credit',
       country: '',
       bank: '',
       cardNumber: '',
@@ -619,6 +641,7 @@ export default {
           data.limit = data.limit === '' || data.limit === null || data.limit === undefined ? null : Number(data.limit)
           data.annualFee = data.annualFee === '' || data.annualFee === null || data.annualFee === undefined ? null : Number(data.annualFee)
           data.type = data.type || ''
+          data.cardCategory = data.cardCategory === 'debit' ? 'debit' : 'credit'
           data.isQualified = data.isQualified || ''
           data.nextAnnualFeeCollectionTime = formatTimestampForDateInput(data.nextAnnualFeeCollectionTime)
           data.lastTime = formatTimestampForDateInput(data.lastTime)
@@ -641,7 +664,7 @@ export default {
 
     // 处理额度共享变化
     const handleLimitSharingChange = (isShared) => {
-      if (isShared && formData.value.country && formData.value.bank) {
+      if (isCreditCard.value && isShared && formData.value.country && formData.value.bank) {
         checkExistingSharedLimit()
       } else {
         existingSharedLimitCard.value = null
@@ -650,16 +673,21 @@ export default {
 
     // 检查同银行现有卡片的额度
     const checkExistingSharedLimit = () => {
+      if (!isCreditCard.value) {
+        existingSharedLimitCard.value = null
+        return
+      }
       if (!formData.value.country || !formData.value.bank) return
 
       const currentCountry = formData.value.country
-      const currentBank = formData.value.bank.replace(/\(.*?\)/g, "").trim()
+      const currentBank = formData.value.bank
 
       // 查找同国家同银行的已有卡片（排除当前编辑的卡片）
       const existingCard = props.existingCards.find(card => {
-        const cardBank = (card.bank || '').replace(/\(.*?\)/g, "").trim()
+        const cardBank = card.bank || ''
         return card.country === currentCountry &&
                cardBank === currentBank &&
+               card.cardCategory !== 'debit' &&
                card.isSharedLimit === true &&
                card.id !== formData.value.id
       })
@@ -678,7 +706,15 @@ export default {
 
     // 监听国家和银行变化，当选择共享额度时自动检查
     watch([() => formData.value.country, () => formData.value.bank], () => {
-      if (formData.value.isSharedLimit) {
+      if (isCreditCard.value && formData.value.isSharedLimit) {
+        checkExistingSharedLimit()
+      }
+    })
+
+    watch(() => formData.value.cardCategory, (newVal) => {
+      if (newVal === 'debit') {
+        existingSharedLimitCard.value = null
+      } else if (formData.value.isSharedLimit) {
         checkExistingSharedLimit()
       }
     })
@@ -699,9 +735,15 @@ export default {
         cardNumberReadOnly.value = true
         cvvReadOnly.value = true
 
+        if (newVal && props.mode === 'add') {
+          formData.value.cardCategory = props.initialData?.cardCategory === 'debit' ? 'debit' : 'credit'
+          return
+        }
+
         if (!newVal) {
           // 重置表单数据
           formData.value = {
+            cardCategory: props.initialData?.cardCategory === 'debit' ? 'debit' : 'credit',
             country: '',
             bank: '',
             cardNumber: '',
@@ -736,6 +778,7 @@ export default {
 
     // 选项数据
     const options = {
+      cardCategory: creditCardOptions.cardCategory,
       countryData: creditCardOptions.countryData,
       bankList: creditCardOptions.bankList,
       cardLevel: creditCardOptions.cardLevel,
@@ -822,6 +865,7 @@ export default {
         }
         // 处理提交数据
         const submitData = { ...formData.value }
+        submitData.cardCategory = submitData.cardCategory === 'debit' ? 'debit' : 'credit'
         submitData.nextAnnualFeeCollectionTime = submitData.isQualified === '3'
           ? null
           : timestampFromDateInput(submitData.nextAnnualFeeCollectionTime)
@@ -857,7 +901,8 @@ export default {
       handleLimitSharingChange,
       existingSharedLimitCard,
       cardNumberReadOnly,
-      cvvReadOnly
+      cvvReadOnly,
+      isCreditCard
     }
   }
 }

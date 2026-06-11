@@ -2,6 +2,16 @@
   <div class="search-form-clean">
     <el-form :inline="true" :model="formData" :label-width="labelWidth" size="small">
       <div class="form-grid-layout">
+        <el-form-item label="卡类别">
+          <el-select v-model="formData.cardCategory" placeholder="请选择卡类别" filterable clearable multiple collapse-tags>
+            <el-option
+              v-for="item in options.cardCategory"
+              :key="item.value"
+              :label="item.label"
+              :value="item.value"
+            />
+          </el-select>
+        </el-form-item>
         <el-form-item label="别名">
           <el-input v-model="formData.alias" autocomplete="off" clearable />
         </el-form-item>
@@ -10,7 +20,7 @@
             <el-option 
               v-for="(item, index) in options.countryData" 
               :key="index"
-              :label="`${item.chineseName}(${item.name})`" 
+              :label="item.chineseName" 
               :value="item.chineseName" 
             />
           </el-select>

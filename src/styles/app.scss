@@ -984,3 +984,14 @@ body.dark,
     }
   }
 }
+
+/* ==========================================================================
+   ⚡ 胶囊单选按钮高端半透明微光选中态重塑 (Premium Translucent Radio Buttons)
+   ========================================================================== */
+.el-radio-button__original-radio:checked + .el-radio-button__inner {
+  background-color: rgba(0, 168, 180, 0.08) !important;
+  border-color: rgba(0, 168, 180, 0.35) !important;
+  color: #007780 !important;
+  box-shadow: -1px 0 0 0 rgba(0, 168, 180, 0.35) !important;
+}
+

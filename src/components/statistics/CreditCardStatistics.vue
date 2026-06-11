@@ -13,6 +13,9 @@
         <el-descriptions-item label="信用卡总数">
           {{ statistics.totalCards }}
         </el-descriptions-item>
+        <el-descriptions-item label="储蓄卡总数">
+          {{ statistics.debitCards }}
+        </el-descriptions-item>
         <el-descriptions-item label="总额度">
           {{ formatCurrency(statistics.totalLimit) }}
         </el-descriptions-item>
@@ -95,6 +98,7 @@ export default {
     return {
       statistics: {
         totalCards: 0,
+        debitCards: 0,
         totalLimit: 0,
         averageLimit: 0,
         maxLimit: 0,
@@ -113,6 +117,7 @@ export default {
       // 重置统计数据
       this.statistics = {
         totalCards: 0,
+        debitCards: 0,
         totalLimit: 0,
         averageLimit: 0,
         maxLimit: 0,
@@ -125,10 +130,13 @@ export default {
       }
 
       // 基本统计
-      this.statistics.totalCards = this.cardData.length
+      const creditCards = this.cardData.filter(card => card.cardCategory !== 'debit')
+      const debitCards = this.cardData.filter(card => card.cardCategory === 'debit')
+      this.statistics.totalCards = creditCards.length
+      this.statistics.debitCards = debitCards.length
       
       // 遍历卡片数据进行统计
-      this.cardData.forEach(card => {
+      creditCards.forEach(card => {
         // 额度统计
         const limit = parseFloat(card.limit) || 0
         this.statistics.totalLimit += limit

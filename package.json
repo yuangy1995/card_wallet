@@ -35,7 +35,7 @@
     "vite": "^4.4.6",
     "vitest": "^3.0.8"
   },
-  "description": "一个基于 Vue.js 的现代化信用卡管理系统，帮助用户高效管理多张信用卡信息。",
+  "description": "一个基于 Vue.js 的现代化银行卡管理系统，帮助用户高效管理信用卡和储蓄卡信息。",
   "main": "vite.config.js",
   "directories": {
     "doc": "docs"

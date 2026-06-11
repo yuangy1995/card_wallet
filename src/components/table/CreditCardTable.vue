@@ -41,6 +41,11 @@
               @visibility-change="(visible) => handleVisibilityChange({ id: scope.row.id, isVisible: visible, type: 'cardNumber' })"
             />
           </template>
+          <template v-else-if="column.value === 'cardCategory'" #default="{ row }">
+            <span :class="['category-badge', row.cardCategory === 'debit' ? 'debit' : 'credit']">
+              {{ row.cardCategory === 'debit' ? '储蓄卡' : '信用卡' }}
+            </span>
+          </template>
           <template v-else-if="column.value === 'cvv'" #default="scope">
             <SecureField 
               :id="`cvv-${scope.$index}`"
@@ -65,16 +70,13 @@
             </div>
             <span v-else>-</span>
           </template>
-          <template v-else-if="column.value === 'bank'" #default="{ row }">
-            <span>{{ row.bank.replace(/\(.*?\)/g, "").trim() }}</span>
-          </template>
           <template v-else-if="column.value === 'isQualified'" #default="{ row }">
             <el-tag v-if="row.isQualified === '1'" type="success">已达标</el-tag>
             <el-tag v-if="row.isQualified === '2'" type="danger">未达标</el-tag>
             <el-tag v-if="row.isQualified === '3'" type="info">终免年费</el-tag>
           </template>
           <template v-else-if="column.value === 'interestFreePeriod'" #default="{ row }">
-            <span>{{ calculateInterestFreePeriod(row.accountBillDate, row.dueDate, row.billingDaySpendingToNextBill) }}</span>
+            <span>{{ row.cardCategory === 'debit' ? '-' : calculateInterestFreePeriod(row.accountBillDate, row.dueDate, row.billingDaySpendingToNextBill) }}</span>
           </template>
           <template v-else-if="column.value === 'nextAnnualFeeCollectionTime'" #default="{ row }">
             <div style="display: flex; flex-direction: column; align-items: center;">
@@ -333,6 +335,7 @@ export default {
     const getColumnWidth = (columnValue) => {
       switch (columnValue) {
         case 'country': return '100'
+        case 'cardCategory': return '100'
         case 'bank': return '150'
         case 'alias': return '200'
         case 'level': return '110'
@@ -356,6 +359,7 @@ export default {
     const getColumnMinWidth = (columnValue) => {
       switch (columnValue) {
         case 'country': return '80'
+        case 'cardCategory': return '80'
         case 'bank': return '100'
         case 'alias': return '120'
         case 'level': return '80'
@@ -377,7 +381,7 @@ export default {
     }
 
     const isColumnFixed = (columnValue) => {
-      return ['country', 'bank', 'alias'].includes(columnValue)
+      return ['cardCategory', 'country', 'bank', 'alias'].includes(columnValue)
     }
 
     const isSortable = (columnValue) => {
@@ -453,7 +457,7 @@ export default {
     const showAnnualFeeOption = computed(() => {
       if (!selectedRow.value) return false
       // 只在未达标的情况下显示
-      return selectedRow.value.isQualified === '2'
+      return selectedRow.value.cardCategory !== 'debit' && selectedRow.value.isQualified === '2'
     })
 
     // 处理双击行事件
@@ -796,6 +800,46 @@ export default {
   min-height: 0;
   position: relative;
 }
+
+.category-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 3px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 12px;
+  border: 1px solid transparent;
+  line-height: 1.2;
+  transition: all 0.2s ease;
+
+  &.credit {
+    background: rgba(0, 168, 180, 0.06) !important;
+    border: 1px solid rgba(0, 168, 180, 0.18) !important;
+    color: #008892 !important;
+  }
+
+  &.debit {
+    background: rgba(217, 119, 6, 0.08) !important;
+    border: 1px solid rgba(217, 119, 6, 0.18) !important;
+    color: #d97706 !important;
+  }
+
+  :global(html.dark) & {
+    &.credit {
+      background: rgba(0, 242, 254, 0.06) !important;
+      border: 1px solid rgba(0, 242, 254, 0.15) !important;
+      color: #00f2fe !important;
+    }
+
+    &.debit {
+      background: rgba(245, 158, 11, 0.08) !important;
+      border: 1px solid rgba(245, 158, 11, 0.2) !important;
+      color: #fbbf24 !important;
+    }
+  }
+}
+
 
 :global(html.dark),
 :global(body.dark) {

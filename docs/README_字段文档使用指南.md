@@ -47,7 +47,7 @@
 
 **重点内容**:
 - UUID生成规范
-- 银行名称处理工具函数
+- 国家和银行字段原样显示规则
 - 卡号Luhn算法验证
 - CVV安全要求
 - ⭐ 有效期MM/YY格式变更
@@ -253,7 +253,6 @@ src/config/constants.js             - 常量定义
 ### 核心工具文件
 ```
 src/utils/cardDataMigration.js      - 数据迁移工具
-src/utils/bankNameFormatter.js      - 银行名称处理
 src/utils/storage.js                - 数据存储
 src/utils/dateFormatter.js          - 日期格式化
 src/utils/dateCalculator.js         - 日期计算
