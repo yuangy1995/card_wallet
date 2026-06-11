@@ -37,7 +37,7 @@ public struct SidebarView: View {
         List(selection: $selection) {
             Section(header: Text("导航栏")) {
                 NavigationLink(value: NavigationSection.allCards) {
-                    Label("所有信用卡", systemImage: "creditcard")
+                    Label("银行卡", systemImage: "creditcard")
                 }
                 
                 // 💡 年费提醒角标：存在待处理卡片时显示急需处理数量

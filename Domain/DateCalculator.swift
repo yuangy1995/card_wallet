@@ -259,7 +259,8 @@ public class DateCalculator {
         warningDays: Int = 60,
         now: Date = Date()
     ) -> AnnualFeeDetectionResult? {
-        annualFeeDetection(
+        guard card.cardCategory != "debit" else { return nil }
+        return annualFeeDetection(
             isQualified: card.isQualified,
             nextAnnualFeeDate: card.nextAnnualFeeCollectionTime,
             warningDays: warningDays,

@@ -4,6 +4,21 @@ private struct CardEditRequest: Identifiable {
     let id = UUID()
     let mode: String
     let card: SharedCard?
+    let cardCategory: String
+    
+    init(mode: String, card: SharedCard?, cardCategory: String = "credit") {
+        self.mode = mode
+        self.card = card
+        self.cardCategory = cardCategory == "debit" ? "debit" : "credit"
+    }
+}
+
+private enum CardCategoryFilter: String, CaseIterable, Identifiable {
+    case all = "全部"
+    case credit = "信用卡"
+    case debit = "储蓄卡"
+    
+    var id: String { rawValue }
 }
 
 struct ContentView: View {
@@ -15,6 +30,7 @@ struct ContentView: View {
     // 💡 分组和排序状态管理
     @State private var groupBy: GroupOption = .bank
     @State private var sortBy: SortOption = .limitDesc
+    @State private var cardCategoryFilter: CardCategoryFilter = .all
     @State private var showingFilterPopover = false
     
     // 编辑弹窗请求，创建弹窗时一并携带模式和目标卡片
@@ -26,16 +42,31 @@ struct ContentView: View {
     @State private var lockManager = AutoLockManager.shared
     
     var filteredCards: [SharedCard] {
+        let categoryCards: [SharedCard]
+        switch cardCategoryFilter {
+        case .all:
+            categoryCards = cards
+        case .credit:
+            categoryCards = cards.filter { $0.cardCategory != "debit" }
+        case .debit:
+            categoryCards = cards.filter { $0.cardCategory == "debit" }
+        }
+        
         if searchText.isEmpty {
-            return cards
+            return categoryCards
         } else {
-            return cards.filter { card in
-                card.bank.localizedCaseInsensitiveContains(searchText) ||
+            return categoryCards.filter { card in
+                let categoryText = card.cardCategory == "debit" ? "储蓄卡 debit" : "信用卡 credit"
+                return card.bank.localizedCaseInsensitiveContains(searchText) ||
                 (card.alias ?? "").localizedCaseInsensitiveContains(searchText) ||
-                card.cardNumber.localizedCaseInsensitiveContains(searchText)
+                card.cardNumber.localizedCaseInsensitiveContains(searchText) ||
+                categoryText.localizedCaseInsensitiveContains(searchText)
             }
         }
     }
+    
+    private var creditCardCount: Int { cards.filter { $0.cardCategory != "debit" }.count }
+    private var debitCardCount: Int { cards.filter { $0.cardCategory == "debit" }.count }
     
     var body: some View {
         ZStack {
@@ -57,13 +88,9 @@ struct ContentView: View {
                         case .statistics:
                             StatisticsView(cards: cards)
                         case .cloudSync:
-                            CloudSyncView(currentCards: cards, onDataRestored: { restoredCards in
-                                self.cards = syncCoordinator.restore(cards: restoredCards)
-                            })
+                            CloudSyncView()
                         case .settings:
-                            SettingsView(currentCards: cards, onDataRestored: { restoredCards in
-                                self.cards = syncCoordinator.restore(cards: restoredCards)
-                            })
+                            SettingsView()
                         case .none:
                             VStack {
                                 Image(systemName: "creditcard")
@@ -97,6 +124,7 @@ struct ContentView: View {
             CardEditView(
                 mode: request.mode,
                 cardToEdit: request.card,
+                initialCardCategory: request.card?.cardCategory ?? request.cardCategory,
                 existingCards: cards,
                 onSubmit: { finalCard in
                     if request.mode == "add" {
@@ -107,12 +135,13 @@ struct ContentView: View {
                         }
                     }
                     
-                    // 💡 联动同步：如果卡片启用了共享额度，自动同步批量更新其他同银行的共享额度卡片
-                    if finalCard.isSharedLimit {
+                    // 💡 联动同步：如果信用卡启用了共享额度，自动同步批量更新其他同银行的共享额度卡片
+                    if finalCard.cardCategory != "debit", finalCard.isSharedLimit {
                         let cleanBank = finalCard.bank.replacingOccurrences(of: "\\(.*\\)", with: "", options: .regularExpression).trimmingCharacters(in: .whitespaces)
                         for i in 0..<cards.count {
                             let itemBank = cards[i].bank.replacingOccurrences(of: "\\(.*\\)", with: "", options: .regularExpression).trimmingCharacters(in: .whitespaces)
                             if cards[i].id != finalCard.id &&
+                                cards[i].cardCategory != "debit" &&
                                 cards[i].country == finalCard.country &&
                                itemBank == cleanBank &&
                                cards[i].isSharedLimit {
@@ -148,7 +177,7 @@ struct ContentView: View {
                     Image(systemName: "creditcard.fill")
                         .font(.title2)
                         .foregroundColor(.cyan)
-                    Text("所有信用卡")
+                    Text("银行卡")
                         .font(.title2)
                         .bold()
                 }
@@ -159,7 +188,7 @@ struct ContentView: View {
                 HStack {
                     Image(systemName: "magnifyingglass")
                         .foregroundColor(.secondary)
-                    TextField("搜索银行、别名、卡号...", text: $searchText)
+                    TextField("搜索银行、别名、卡号、卡类别...", text: $searchText)
                         .textFieldStyle(.plain)
                         .frame(width: 180)
                     if !searchText.isEmpty {
@@ -180,6 +209,15 @@ struct ContentView: View {
                     RoundedRectangle(cornerRadius: 8)
                         .stroke(Color.primary.opacity(0.15), lineWidth: 1)
                 )
+                
+                Picker("卡类别", selection: $cardCategoryFilter) {
+                    Text("全部 \(cards.count)").tag(CardCategoryFilter.all)
+                    Text("信用卡 \(creditCardCount)").tag(CardCategoryFilter.credit)
+                    Text("储蓄卡 \(debitCardCount)").tag(CardCategoryFilter.debit)
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .frame(width: 260)
                 
                 // 💡 筛选与组合排序胶囊控制按钮
                 Button {
@@ -292,7 +330,7 @@ struct ContentView: View {
                 
                 // 新增按钮
                 Button {
-                    cardEditRequest = CardEditRequest(mode: "add", card: nil)
+                    cardEditRequest = CardEditRequest(mode: "add", card: nil, cardCategory: "credit")
                 } label: {
                     Label("新增卡片", systemImage: "plus")
                 }
@@ -311,7 +349,7 @@ struct ContentView: View {
                     Image(systemName: "creditcard")
                         .font(.system(size: 48))
                         .foregroundColor(.gray.opacity(0.4))
-                    Text(searchText.isEmpty ? "目前暂无信用卡数据，点击右上方新增卡片吧！" : "没有找到符合搜索条件的卡片")
+                    Text(searchText.isEmpty ? "目前暂无银行卡数据，点击右上方新增卡片吧！" : "没有找到符合搜索条件的卡片")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                 }
@@ -363,7 +401,7 @@ struct ContentView: View {
                 .background(Color.white.opacity(0.1))
             
             let alertCards = cards.filter { card in
-                DateCalculator.annualFeeDetection(for: card) != nil
+                card.cardCategory != "debit" && DateCalculator.annualFeeDetection(for: card) != nil
             }
             
             if alertCards.isEmpty {
@@ -418,7 +456,8 @@ struct ContentView: View {
     
     private func checkAnnualFeeQualifiedStatus() {
         let warningCards = cards.filter { card in
-            guard card.isQualified != "3",
+            guard card.cardCategory != "debit",
+                  card.isQualified != "3",
                   card.isQualified != "2",
                   let diffDays = DateCalculator.annualFeeRemainingDays(card.nextAnnualFeeCollectionTime) else {
                 return false
@@ -461,7 +500,7 @@ struct ContentView: View {
     
     private func deleteCard(_ card: SharedCard) {
         let alert = NSAlert()
-        alert.messageText = "确认要删除此信用卡吗？"
+        alert.messageText = "确认要删除此卡片吗？"
         alert.informativeText = "银行：\(card.bank)\n别名：\(card.alias ?? "无")\n卡号：\(card.cardNumber.suffix(4))\n\n删除后不可撤销，确认删除吗？"
         alert.alertStyle = .warning
         alert.addButton(withTitle: "删除")
@@ -474,6 +513,7 @@ struct ContentView: View {
     }
     
     private func updateCardStatus(_ card: SharedCard, status: String) {
+        guard card.cardCategory != "debit" else { return }
         if let index = cards.firstIndex(where: { $0.id == card.id }) {
             var updatedCard = cards[index]
             updatedCard.isQualified = status

@@ -2,9 +2,6 @@ import SwiftUI
 import LocalAuthentication
 
 public struct SettingsView: View {
-    public var currentCards: [SharedCard]
-    public var onDataRestored: ([SharedCard]) -> Void
-    
     // 💡 敏感安全凭证存储介质
     @State private var securityStorageMode = KeychainManager.currentStorageMode
     @State private var storageMigrationStatusText = ""
@@ -18,22 +15,6 @@ public struct SettingsView: View {
     @State private var lockPassword = ""
     @State private var isLockEnabled = false
     @State private var passwordStatusText = ""
-    
-    // 列表控制
-    @State private var localBackups: [LocalBackupRecord] = []
-    @State private var isLocalBackupsExpanded = true
-    @State private var localPage = 1
-    
-    // Diff 预览控制
-    @State private var diffPreviewRequest: DiffPreviewRequest?
-    
-    public init(
-        currentCards: [SharedCard],
-        onDataRestored: @escaping ([SharedCard]) -> Void
-    ) {
-        self.currentCards = currentCards
-        self.onDataRestored = onDataRestored
-    }
     
     public var body: some View {
         Form {
@@ -350,146 +331,5 @@ public struct SettingsView: View {
                 storageMigrationStatusText = ""
             }
         }
-    }
-
-    
-    private func fetchLocalBackups() {
-        localBackups = LocalStorageManager.listLocalBackups()
-        localPage = 1 // 重置分页
-    }
-    
-    // 触发本地恢复 (带 Diff 比对)
-    private func triggerLocalRestore(_ filename: String) {
-        let result = LocalStorageManager.loadLocalBackupForPreview(filename: filename)
-        switch result {
-        case .success(let cards):
-            // 并不直接覆盖，而是拉起 Diff 页面
-            self.diffPreviewRequest = DiffPreviewRequest(backupCards: cards, requiresIdentityReview: true)
-        case .failure(let error):
-            // 假如报错，可能使用了自定义密码加密，拉起密码弹窗进行安全解密
-            print("本地恢复报错: \(error.localizedDescription)")
-        }
-    }
-    
-
-}
-
-// ==========================================
-// 💡 原生 macOS 极致质感备份行与物理分页组件
-// ==========================================
-struct BackupRowView: View {
-    let title: String
-    let subtitle: String
-    let iconName: String
-    let iconColor: Color
-    let onRestore: () -> Void
-    let onDelete: () -> Void
-    var onRename: (() -> Void)? = nil
-    var isDeleting = false
-    
-    var body: some View {
-        HStack(spacing: 12) {
-            Image(systemName: iconName)
-                .font(.system(size: 14, weight: .semibold))
-                .foregroundColor(iconColor)
-                .frame(width: 28, height: 28)
-                .background(iconColor.opacity(0.12))
-                .cornerRadius(6)
-            
-            VStack(alignment: .leading, spacing: 2) {
-                Text(title)
-                    .font(.system(.body, design: .monospaced))
-                    .bold()
-                Text(subtitle)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            }
-            
-            Spacer()
-            
-            HStack(spacing: 8) {
-                if let onRename = onRename {
-                    Button(action: onRename) {
-                        Text("重命名")
-                            .font(.caption)
-                    }
-                    .buttonStyle(.bordered)
-                    .tint(.cyan)
-                }
-                
-                Button(action: onRestore) {
-                    Text("比对")
-                        .font(.caption)
-                        .bold()
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(.green)
-                
-                Button(action: onDelete) {
-                    HStack(spacing: 4) {
-                        if isDeleting {
-                            ProgressView()
-                                .controlSize(.mini)
-                        }
-                        Text(isDeleting ? "删除中" : "删除")
-                            .font(.caption)
-                    }
-                }
-                .buttonStyle(.bordered)
-                .tint(.red)
-                .disabled(isDeleting)
-            }
-        }
-        .padding(.vertical, 8)
-        .padding(.horizontal, 12)
-        .background(Color.primary.opacity(0.02))
-        .cornerRadius(8)
-        .overlay(
-            RoundedRectangle(cornerRadius: 8)
-                .stroke(Color.primary.opacity(0.05), lineWidth: 1)
-        )
-    }
-}
-
-struct PaginationView: View {
-    @Binding var currentPage: Int
-    let totalItems: Int
-    let pageSize: Int = 5
-    
-    var totalPages: Int {
-        let pages = Int(ceil(Double(totalItems) / Double(pageSize)))
-        return max(1, pages)
-    }
-    
-    var body: some View {
-        HStack {
-            Button(action: {
-                if currentPage > 1 {
-                    currentPage -= 1
-                }
-            }) {
-                Image(systemName: "chevron.left")
-                    .font(.system(size: 10, weight: .bold))
-            }
-            .disabled(currentPage == 1)
-            .buttonStyle(.bordered)
-            
-            Text("第 \(currentPage) / \(totalPages) 页 (共 \(totalItems) 条)")
-                .font(.footnote)
-                .foregroundColor(.secondary)
-                .padding(.horizontal, 8)
-            
-            Button(action: {
-                if currentPage < totalPages {
-                    currentPage += 1
-                }
-            }) {
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 10, weight: .bold))
-            }
-            .disabled(currentPage == totalPages)
-            .buttonStyle(.bordered)
-        }
-        .padding(.vertical, 6)
     }
 }

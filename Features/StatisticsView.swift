@@ -9,11 +9,19 @@ public struct StatisticsView: View {
     @State private var selectedFeeStatus: String? = "未达标" // 💡 默认锁定“未达标”以防呆警示
     
     // 统计派生属性
+    private var creditCards: [SharedCard] {
+        cards.filter { $0.cardCategory != "debit" }
+    }
+    
+    private var debitCards: [SharedCard] {
+        cards.filter { $0.cardCategory == "debit" }
+    }
+    
     private var totalLimitByCurrency: [String: Double] {
         var dict: [String: Double] = [:]
         var processedSharedGroups = Set<String>()
         
-        for card in cards {
+        for card in creditCards {
             let currency = (card.type ?? "CNY").uppercased().trimmingCharacters(in: .whitespacesAndNewlines)
             if card.isSharedLimit {
                 let cleanBank = card.bank.replacingOccurrences(of: "\\(.*\\)", with: "", options: .regularExpression).trimmingCharacters(in: .whitespaces)
@@ -64,10 +72,24 @@ public struct StatisticsView: View {
     }
     
     private var cardCount: Int { cards.count }
+    private var creditCardCount: Int { creditCards.count }
+    private var debitCardCount: Int { debitCards.count }
     
     private var bankCount: Int {
         let banks = cards.map { $0.bank.replacingOccurrences(of: "\\(.*\\)", with: "", options: .regularExpression).trimmingCharacters(in: .whitespaces) }
         return Set(banks).count
+    }
+    
+    private var debitCountryCount: Int {
+        Set(debitCards.map { $0.country }.filter { !$0.isEmpty }).count
+    }
+    
+    private var debitBankCount: Int {
+        Set(debitCards.map { $0.bank.replacingOccurrences(of: "\\(.*\\)", with: "", options: .regularExpression).trimmingCharacters(in: .whitespaces) }.filter { !$0.isEmpty }).count
+    }
+    
+    private var debitCurrencyCount: Int {
+        Set(debitCards.map { ($0.type ?? "").uppercased() }.filter { !$0.isEmpty }).count
     }
     
     // 按银行统计额度结构
@@ -88,7 +110,7 @@ public struct StatisticsView: View {
         var dict: [String: Double] = [:]
         var processedSharedGroups = Set<String>()
         
-        for card in cards {
+        for card in creditCards {
             let cleanBank = card.bank.replacingOccurrences(of: "\\(.*\\)", with: "", options: .regularExpression).trimmingCharacters(in: .whitespaces)
             let currency = (card.type ?? "CNY").uppercased().trimmingCharacters(in: .whitespacesAndNewlines)
             
@@ -161,7 +183,7 @@ public struct StatisticsView: View {
     
     // 💡 获取特定年费达标状态下的卡片列表明细
     private func cardsWithFeeStatus(_ status: String) -> [SharedCard] {
-        return cards.filter { card in
+        return creditCards.filter { card in
             switch status {
             case "已达标":
                 return card.isQualified == "1"
@@ -181,7 +203,7 @@ public struct StatisticsView: View {
     }
     
     private var maxSingleLimitText: String {
-        guard let maxCard = cards.max(by: { ($0.limit ?? 0.0) < ($1.limit ?? 0.0) }),
+        guard let maxCard = creditCards.max(by: { ($0.limit ?? 0.0) < ($1.limit ?? 0.0) }),
               let limit = maxCard.limit else {
             return "¥0"
         }
@@ -212,7 +234,7 @@ public struct StatisticsView: View {
         var jcb = 0
         var others = 0
         
-        for card in cards {
+        for card in creditCards {
             let number = card.cardNumber.replacingOccurrences(of: " ", with: "")
             if number.hasPrefix("4") {
                 visa += 1
@@ -245,7 +267,7 @@ public struct StatisticsView: View {
         var midMonth = 0   // 11~20
         var lateMonth = 0  // 21~31
         
-        for card in cards {
+        for card in creditCards {
             if let dueStr = card.dueDate, let dueDay = Int(dueStr) {
                 if dueDay <= 10 {
                     earlyMonth += 1
@@ -270,7 +292,7 @@ public struct StatisticsView: View {
     
     // 💡 年费达标率健康度警告与评级
     private var unqualifiedCardCount: Int {
-        cards.filter { $0.isQualified == "2" || ($0.isQualified ?? "").isEmpty }.count
+        creditCards.filter { $0.isQualified == "2" || ($0.isQualified ?? "").isEmpty }.count
     }
     
     private var annualFeeHealthText: String {
@@ -297,8 +319,8 @@ public struct StatisticsView: View {
     
     // 💡 年费达标率百分比
     private var qualifiedFeeRateText: String {
-        let qualifiedCount = cards.filter { $0.isQualified == "1" || $0.isQualified == "3" }.count
-        let total = cards.count
+        let qualifiedCount = creditCards.filter { $0.isQualified == "1" || $0.isQualified == "3" }.count
+        let total = creditCards.count
         guard total > 0 else { return "0.0%" }
         let rate = Double(qualifiedCount) / Double(total) * 100.0
         return String(format: "%.1f%%", rate)
@@ -323,7 +345,7 @@ public struct StatisticsView: View {
         var unqualified = 0
         var ultimateFree = 0
         
-        for card in cards {
+        for card in creditCards {
             switch card.isQualified {
             case "1": qualified += 1
             case "2": unqualified += 1
@@ -399,7 +421,7 @@ public struct StatisticsView: View {
     
     private var pendingFeeCards: [PendingFeeCard] {
         var list: [PendingFeeCard] = []
-        for card in cards {
+        for card in creditCards {
             let isUnqualified = card.isQualified == "2" || (card.isQualified ?? "").isEmpty
             if isUnqualified, let days = daysBetweenToday(and: card.nextAnnualFeeCollectionTime) {
                 if days >= 0 && days <= 60 {
@@ -420,7 +442,7 @@ public struct StatisticsView: View {
     
     private var totalUnqualifiedAnnualFeeText: String {
         var feeByCurrency: [String: Double] = [:]
-        for card in cards {
+        for card in creditCards {
             let isUnqualified = card.isQualified == "2" || (card.isQualified ?? "").isEmpty
             if isUnqualified {
                 let currency = (card.type ?? "CNY").uppercased().trimmingCharacters(in: .whitespacesAndNewlines)
@@ -477,7 +499,7 @@ public struct StatisticsView: View {
     
     private var limitIncreaseRecommendations: [LimitIncreaseRecommendation] {
         var list: [LimitIncreaseRecommendation] = []
-        for card in cards {
+        for card in creditCards {
             if let days = daysSinceTimestamp(card.lastTime) {
                 if days >= 180 {
                     list.append(LimitIncreaseRecommendation(cardId: card.id, card: card, daysSince: days))
@@ -503,7 +525,7 @@ public struct StatisticsView: View {
     
     private var microCards: [MicroCardAlert] {
         var list: [MicroCardAlert] = []
-        for card in cards {
+        for card in creditCards {
             let currency = (card.type ?? "CNY").uppercased().trimmingCharacters(in: .whitespacesAndNewlines)
             let limit = card.limit ?? 0.0
             
@@ -546,11 +568,11 @@ public struct StatisticsView: View {
                 // 1. 顶部极简科技感卡片指标
                 HStack(spacing: 16) {
                     MetricCard(
-                        title: "总持卡数",
+                        title: "银行卡总数",
                         value: "\(cardCount) 张",
                         icon: "creditcard.fill",
                         color: .purple,
-                        subtext: "含主卡与各专属附属卡"
+                        subtext: "信用卡与储蓄卡合并统计"
                     )
                     
                     MetricCard(
@@ -562,11 +584,37 @@ public struct StatisticsView: View {
                     )
                     
                     MetricCard(
-                        title: "授信总额",
+                        title: "信用授信总额",
                         value: formattedTotalLimit,
                         icon: "dollarsign.circle.fill",
                         color: .green,
-                        subtext: "已自动排除同银行共享额度"
+                        subtext: "仅统计信用卡，已排除共享额度重复"
+                    )
+                }
+                
+                HStack(spacing: 16) {
+                    MetricCard(
+                        title: "信用卡",
+                        value: "\(creditCardCount) 张",
+                        icon: "creditcard.fill",
+                        color: .cyan,
+                        subtext: "参与额度、年费与免息期统计"
+                    )
+                    
+                    MetricCard(
+                        title: "储蓄卡",
+                        value: "\(debitCardCount) 张",
+                        icon: "wallet.pass.fill",
+                        color: .teal,
+                        subtext: "不参与信用额度、年费和免息期统计"
+                    )
+                    
+                    MetricCard(
+                        title: "储蓄卡覆盖",
+                        value: "\(debitCountryCount) 地区 / \(debitBankCount) 行 / \(debitCurrencyCount) 币种",
+                        icon: "globe.asia.australia.fill",
+                        color: .indigo,
+                        subtext: "按国家/地区、银行和币种去重"
                     )
                 }
                 
@@ -1136,13 +1184,16 @@ public struct StatisticsView: View {
         let savePanel = NSSavePanel()
         savePanel.allowedContentTypes = [.commaSeparatedText]
         savePanel.directoryURL = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first
-        savePanel.nameFieldStringValue = "信用卡统计分析报告_\(DateFormatter.iso8601String(from: Date()).prefix(10)).csv"
+        savePanel.nameFieldStringValue = "银行卡统计分析报告_\(DateFormatter.iso8601String(from: Date()).prefix(10)).csv"
         
         savePanel.begin { response in
             if response == .OK, let fileURL = savePanel.url {
-                var csvText = "分类统计报告\n"
-                csvText += "总持卡数,发卡银行数,综合信用额度(去重)\n"
-                csvText += "\(cardCount),\(bankCount),\"\(formattedTotalLimit)\"\n\n"
+                var csvText = "银行卡分类统计报告\n"
+                csvText += "银行卡总数,信用卡数量,储蓄卡数量,发卡银行数,综合信用额度(去重)\n"
+                csvText += "\(cardCount),\(creditCardCount),\(debitCardCount),\(bankCount),\"\(formattedTotalLimit)\"\n\n"
+                csvText += "储蓄卡去重覆盖\n"
+                csvText += "国家/地区数,银行数,币种数\n"
+                csvText += "\(debitCountryCount),\(debitBankCount),\(debitCurrencyCount)\n\n"
                 
                 csvText += "各银行额度去重分布\n"
                 csvText += "银行,信用总额(包含币种)\n"

@@ -1,6 +1,6 @@
 import Foundation
 
-/// 7大银行卡种品牌枚举
+/// 7大银行卡组织品牌枚举
 public enum CardBrand: String, Codable, CaseIterable {
     case visa
     case mastercard
@@ -11,7 +11,7 @@ public enum CardBrand: String, Codable, CaseIterable {
     case jcb
     case unknown
     
-    /// 根据卡号实时侦测卡种品牌的高精度正则算法 (增加卡片级别智能纠偏)
+    /// 根据卡号实时侦测卡组织品牌的高精度正则算法 (增加卡片级别智能纠偏)
     public static func detect(from cardNumber: String, level: String? = nil) -> CardBrand {
         // 💡 优先通过卡片等级（level）进行明确的卡组织强制映射，解决 Discover 与银联的双边通道号段重合误判
         if let levelStr = level {
@@ -108,6 +108,7 @@ public struct CardImageAsset: Codable, Identifiable, Hashable {
 
 public struct SharedCard: Codable, Identifiable, Hashable {
     public var id: String
+    public var cardCategory: String
     public var country: String
     public var bank: String
     public var cardNumber: String
@@ -141,6 +142,7 @@ public struct SharedCard: Codable, Identifiable, Hashable {
 
     private enum CodingKeys: String, CodingKey {
         case id
+        case cardCategory
         case country
         case bank
         case cardNumber
@@ -166,6 +168,7 @@ public struct SharedCard: Codable, Identifiable, Hashable {
 
     public init(
         id: String = UUID().uuidString,
+        cardCategory: String = "credit",
         country: String,
         bank: String,
         cardNumber: String,
@@ -189,6 +192,7 @@ public struct SharedCard: Codable, Identifiable, Hashable {
         cardImages: [CardImageAsset] = []
     ) {
         self.id = id
+        self.cardCategory = Self.normalizeCardCategory(cardCategory)
         self.country = country
         self.bank = bank
         self.cardNumber = cardNumber
@@ -216,6 +220,7 @@ public struct SharedCard: Codable, Identifiable, Hashable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
 
         self.id = Self.decodeString(container, forKey: .id) ?? UUID().uuidString
+        self.cardCategory = Self.normalizeCardCategory(Self.decodeString(container, forKey: .cardCategory) ?? "credit")
         self.country = Self.decodeString(container, forKey: .country) ?? "中国"
         self.bank = Self.decodeString(container, forKey: .bank) ?? "未知银行"
         self.cardNumber = Self.decodeString(container, forKey: .cardNumber) ?? ""
@@ -242,6 +247,7 @@ public struct SharedCard: Codable, Identifiable, Hashable {
     public func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(id, forKey: .id)
+        try container.encode(Self.normalizeCardCategory(cardCategory), forKey: .cardCategory)
         try container.encode(country, forKey: .country)
         try container.encode(bank, forKey: .bank)
         try container.encode(cardNumber, forKey: .cardNumber)
@@ -279,6 +285,10 @@ public struct SharedCard: Codable, Identifiable, Hashable {
             return String(value)
         }
         return nil
+    }
+
+    private static func normalizeCardCategory(_ value: String) -> String {
+        value == "debit" ? "debit" : "credit"
     }
 
     private static func decodeDouble(_ container: KeyedDecodingContainer<CodingKeys>, forKey key: CodingKeys) -> Double? {

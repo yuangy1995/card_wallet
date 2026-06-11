@@ -18,7 +18,7 @@
 ### 1. 核心卡包主界面与交互 (The Card Wallet Grid)
 *   **Web 实现**: 用 Element Plus 的表格展示卡片信息，通过列显示隐藏进行响应式适配，展示额度、下次提额时间等。
 *   **macOS 原生人机实现**:
-    *   **布局逻辑**: 抛弃冰冷的复杂大表格，默认采用符合人类审美的 **“精美卡包网格视图 (Grid Card View)”**。通过 SwiftUI `ScrollView` 与 `LazyVGrid` 渲染高对比度金属卡片。卡片左侧为银行与卡种，中间为卡号，底部为额度与免息剩余天数。
+    *   **布局逻辑**: 抛弃冰冷的复杂大表格，默认采用符合人类审美的 **“精美卡包网格视图 (Grid Card View)”**。通过 SwiftUI `ScrollView` 与 `LazyVGrid` 渲染高对比度金属卡片。卡片左侧为银行与卡类别，中间为卡号，底部为额度与免息剩余天数。
     *   **悬浮 3D 动效**: SwiftUI 中利用 `.rotation3DEffect` 与 `.onHover`，当鼠标移入某张卡片时，卡片随光标微幅倾斜，边缘展现霓虹流光，直观告知用户“此项目可点击操作”。
     *   **快速切换视图**: 依然在顶部导航栏保留一个切换按钮，可一键切换为 macOS 原生的 `Table` 列表视图（支持多列自定义排序、列宽度拖拽），满足习惯看紧凑表格的高级用户。
 
@@ -110,7 +110,7 @@
   - [ ] 编写 `project.yml` 配置，加入 `CryptoSwift` 原生 Swift Package SPM 依赖。
   - [ ] 执行 `xcodegen generate`，一键拉起 Xcode 编译工程。
 - [ ] **数据模型与迁移器设计**:
-  - [ ] 建立 `CardModels.swift`（符合 `SharedCard` 基线，定义 7 大卡种枚举）。
+  - [ ] 建立 `CardModels.swift`（符合 `SharedCard` 基线，定义 7 大卡组织品牌枚举）。
   - [ ] 编写 `DataMigrationManager.swift`，百分百还原 Web 端 8 大迁移规则。
 - [ ] **AES CryptoJS Bridge 加解密**:
   - [ ] 编写 `CryptoManager.swift`，手动利用 `CryptoSwift` 轮转 MD5 衍生 Key & IV，兼容解密 `default:` 和 `encrypted:` 前缀密文。
@@ -126,7 +126,7 @@
 - [ ] **主框架 UI (Sidebar & Navigation)**: 构建带有左侧三栏式磨砂玻璃归类 Sidebar，支持国家、银行、年费临近角标。
 - [ ] **手绘 7 大品牌矢量卡标**: 实现 `CardBrandIcon.swift` 纯代码完美渲染 Visa, MC, Amex, Diners, Discover, JCB, 银联卡标。
 - [ ] **卡片网格界面 (Grid Wallet)**: 渲染 1:1.586 黄金卡包，支持 Hover 浮起与流光溢彩，并实现卡片上 CVV/卡号 5 秒智能自动环形倒计时进度条隐藏功能。
-- [ ] **智能表单 Sheets**: 实现流畅的卡片编辑表单，集成额度共享联动警告与卡号输入卡种高精度前缀侦测。
+- [ ] **智能表单 Sheets**: 实现流畅的卡片编辑表单，集成额度共享联动警告与卡号输入卡组织高精度前缀侦测。
 - [ ] **快速右键菜单 (ContextMenu)**: 行右键一键快速更改年费达标状态。
 
 ### 第四阶段：数据分析、多版本 Diff 比对与交付 (Phase 4)

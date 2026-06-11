@@ -230,6 +230,8 @@ public class DataMigrationManager {
         // 历史同步数据可能把身份字段放在 cardId/_id/uuid，迁移时必须优先保留，不能重生成。
         let idStr = firstStringValue(in: dict, keys: ["id", "cardId", "_id", "uuid"]) ?? ""
         let finalId = idStr.isEmpty ? UUID().uuidString : idStr
+        let rawCardCategory = (dict["cardCategory"] as? String) ?? "credit"
+        let cardCategory = rawCardCategory == "debit" ? "debit" : "credit"
         
         // 2. 基本字段规范化为 String
         let country = (dict["country"] as? String) ?? "中国"
@@ -273,6 +275,7 @@ public class DataMigrationManager {
         
         return SharedCard(
             id: finalId,
+            cardCategory: cardCategory,
             country: country,
             bank: bank,
             cardNumber: cardNumber,

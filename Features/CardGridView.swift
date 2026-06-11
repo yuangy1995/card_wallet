@@ -1,7 +1,7 @@
 import SwiftUI
 import AppKit
 
-/// 极具科技感的信用卡磁贴组件 (1:1.586 黄金比例)
+/// 极具科技感的银行卡磁贴组件 (1:1.586 黄金比例)
 public struct CreditCardView: View {
     public let card: SharedCard
     
@@ -19,6 +19,10 @@ public struct CreditCardView: View {
     
     private var brand: CardBrand {
         return CardBrand.detect(from: card.cardNumber, level: card.level)
+    }
+    
+    private var isDebitCard: Bool {
+        card.cardCategory == "debit"
     }
     
     public init(
@@ -83,6 +87,13 @@ public struct CreditCardView: View {
                     }
                     .buttonStyle(.plain)
                     .help("查看详情")
+                    Text(isDebitCard ? "储蓄卡" : "信用卡")
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 7)
+                        .padding(.vertical, 3)
+                        .background(Color.white.opacity(0.16))
+                        .cornerRadius(5)
                     CardBrandIcon(brand: brand)
                         .scaleEffect(0.9)
                 }
@@ -174,33 +185,34 @@ public struct CreditCardView: View {
                     
                     Spacer()
                     
-                    // 免息期或额度展示
+                    // 信用卡展示额度与免息期，储蓄卡展示币种
                     VStack(alignment: .trailing, spacing: 4) {
-                        let limitType = card.isSharedLimit ? "共享额度" : "独立额度"
+                        let limitType = isDebitCard ? "币种" : (card.isSharedLimit ? "共享额度" : "独立额度")
                         Text(limitType)
                             .font(.system(size: 8))
                             .foregroundColor(.white.opacity(0.5))
                         
-                        // 币种加额度
                         let symbol = getCurrencySymbol(card.type ?? "CNY")
-                        Text("\(symbol)\(Int(card.limit ?? 0).description)")
+                        Text(isDebitCard ? (card.type ?? "CNY") : "\(symbol)\(Int(card.limit ?? 0).description)")
                             .font(.system(.body, design: .rounded))
                             .bold()
                             .foregroundColor(.white)
                         
-                        // 免息天数显示
-                        let days = DateCalculator.calculateInterestFreePeriod(
-                            accountBillDate: card.accountBillDate ?? "",
-                            dueDate: card.dueDate ?? "",
-                            billingDayToNextBill: card.billingDaySpendingToNextBill
-                        )
-                        Text("免息期: \(days)天")
-                            .font(.system(size: 10, weight: .semibold))
-                            .foregroundColor(.cyan)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(Color.cyan.opacity(0.15))
-                            .cornerRadius(4)
+                        if !isDebitCard {
+                            // 免息天数显示
+                            let days = DateCalculator.calculateInterestFreePeriod(
+                                accountBillDate: card.accountBillDate ?? "",
+                                dueDate: card.dueDate ?? "",
+                                billingDayToNextBill: card.billingDaySpendingToNextBill
+                            )
+                            Text("免息期: \(days)天")
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundColor(.cyan)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(Color.cyan.opacity(0.15))
+                                .cornerRadius(4)
+                        }
                     }
                 }
                 .padding(.bottom, 16)
@@ -224,19 +236,21 @@ public struct CreditCardView: View {
         }
         // macOS 原生右键上下文快捷菜单，符合人类直观习惯
         .contextMenu {
-            Section(header: Text("年费达标快捷标记")) {
-                Button { onUpdateStatus("1") } label: {
-                    Label("已达标", systemImage: "checkmark.circle.fill")
+            if !isDebitCard {
+                Section(header: Text("年费达标快捷标记")) {
+                    Button { onUpdateStatus("1") } label: {
+                        Label("已达标", systemImage: "checkmark.circle.fill")
+                    }
+                    Button { onUpdateStatus("2") } label: {
+                        Label("未达标", systemImage: "exclamationmark.circle.fill")
+                    }
+                    Button { onUpdateStatus("3") } label: {
+                        Label("终免年费", systemImage: "infinity.circle.fill")
+                    }
                 }
-                Button { onUpdateStatus("2") } label: {
-                    Label("未达标", systemImage: "exclamationmark.circle.fill")
-                }
-                Button { onUpdateStatus("3") } label: {
-                    Label("终免年费", systemImage: "infinity.circle.fill")
-                }
+                
+                Divider()
             }
-            
-            Divider()
             
             Button(action: onViewDetails) {
                 Label("查看详情", systemImage: "info.circle")
@@ -361,6 +375,14 @@ struct CardDetailView: View {
         CardBrand.detect(from: card.cardNumber, level: card.level)
     }
     
+    private var isDebitCard: Bool {
+        card.cardCategory == "debit"
+    }
+    
+    private var cardCategoryText: String {
+        isDebitCard ? "储蓄卡" : "信用卡"
+    }
+    
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -372,6 +394,7 @@ struct CardDetailView: View {
                     }
                     
                     CardDetailSection(title: "核心信息", systemImage: "creditcard.fill") {
+                        CardDetailInfoRow(title: "卡类别", value: cardCategoryText)
                         CardDetailInfoRow(title: "国家/地区", value: cleanValue(card.country))
                         CardDetailInfoRow(title: "发卡银行", value: cleanValue(card.bank))
                         CardDetailInfoRow(title: "卡片别名", value: cleanValue(card.alias))
@@ -392,21 +415,27 @@ struct CardDetailView: View {
                         )
                     }
                     
-                    CardDetailSection(title: "额度与年费", systemImage: "banknote.fill") {
-                        CardDetailInfoRow(title: "币种", value: cleanValue(card.type))
-                        CardDetailInfoRow(title: "额度", value: amountText(card.limit, currency: card.type))
-                        CardDetailInfoRow(title: "额度类型", value: card.isSharedLimit ? "共享额度" : "独立额度")
-                        CardDetailInfoRow(title: "年费", value: amountText(card.annualFee, currency: card.type))
-                        CardDetailInfoRow(title: "年费减免政策", value: annualFeeStatusText(card.isQualified))
-                        CardDetailInfoRow(title: "下次年费收取", value: timestampDateText(card.nextAnnualFeeCollectionTime))
-                        CardDetailInfoRow(title: "上次提额时间", value: timestampDateText(card.lastTime))
+                    if !isDebitCard {
+                        CardDetailSection(title: "额度与年费", systemImage: "banknote.fill") {
+                            CardDetailInfoRow(title: "币种", value: cleanValue(card.type))
+                            CardDetailInfoRow(title: "额度", value: amountText(card.limit, currency: card.type))
+                            CardDetailInfoRow(title: "额度类型", value: card.isSharedLimit ? "共享额度" : "独立额度")
+                            CardDetailInfoRow(title: "年费", value: amountText(card.annualFee, currency: card.type))
+                            CardDetailInfoRow(title: "年费减免政策", value: annualFeeStatusText(card.isQualified))
+                            CardDetailInfoRow(title: "下次年费收取", value: timestampDateText(card.nextAnnualFeeCollectionTime))
+                            CardDetailInfoRow(title: "上次提额时间", value: timestampDateText(card.lastTime))
+                        }
                     }
                     
-                    CardDetailSection(title: "账单与权益", systemImage: "calendar.badge.clock") {
-                        CardDetailInfoRow(title: "账单日", value: dayText(card.accountBillDate))
-                        CardDetailInfoRow(title: "还款日", value: dayText(card.dueDate))
-                        CardDetailInfoRow(title: "账单日消费归属", value: card.billingDaySpendingToNextBill ? "下期账单" : "当期账单")
-                        CardDetailInfoRow(title: "最长免息期", value: interestFreePeriodText)
+                    CardDetailSection(title: isDebitCard ? "权益与备注" : "账单与权益", systemImage: "calendar.badge.clock") {
+                        if !isDebitCard {
+                            CardDetailInfoRow(title: "账单日", value: dayText(card.accountBillDate))
+                            CardDetailInfoRow(title: "还款日", value: dayText(card.dueDate))
+                            CardDetailInfoRow(title: "账单日消费归属", value: card.billingDaySpendingToNextBill ? "下期账单" : "当期账单")
+                            CardDetailInfoRow(title: "最长免息期", value: interestFreePeriodText)
+                        } else {
+                            CardDetailInfoRow(title: "币种", value: cleanValue(card.type))
+                        }
                         CardDetailInfoRow(title: "最后修改时间", value: DateCalculator.formatTimestampDateTime(card.lastModifyTime))
                         
                         VStack(alignment: .leading, spacing: 8) {
@@ -430,7 +459,7 @@ struct CardDetailView: View {
                 }
                 .padding(24)
             }
-            .navigationTitle("信用卡详情")
+            .navigationTitle("\(cardCategoryText)详情")
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("关闭") {
@@ -501,10 +530,10 @@ struct CardDetailView: View {
                     Spacer()
                     
                     VStack(alignment: .trailing, spacing: 3) {
-                        Text(card.isSharedLimit ? "共享额度" : "独立额度")
+                        Text(isDebitCard ? "币种" : (card.isSharedLimit ? "共享额度" : "独立额度"))
                             .font(.system(size: 9, weight: .medium))
                             .foregroundStyle(.white.opacity(0.55))
-                        Text(amountText(card.limit, currency: card.type))
+                        Text(isDebitCard ? cleanValue(card.type) : amountText(card.limit, currency: card.type))
                             .font(.system(.title3, design: .rounded))
                             .bold()
                             .foregroundStyle(.white)
@@ -782,7 +811,7 @@ private struct CardDetailInfoRow: View {
     }
 }
 
-/// 用于表示分组信用卡的内部中转结构体
+/// 用于表示分组银行卡的内部中转结构体
 public struct CardGroup: Identifiable {
     public let id = UUID()
     public let name: String
@@ -861,12 +890,12 @@ public struct GroupSectionHeader: View {
                 
                 Spacer()
                 
-                // 5. 授信数额块 (极简扁平无边框)
+                // 5. 信用卡授信数额块 (极简扁平无边框)
                 HStack(spacing: 4) {
                     Image(systemName: "banknote")
                         .font(.system(size: 10))
                         .foregroundColor(.green.opacity(0.8))
-                    Text("¥\(Int(totalLimit).description)")
+                    Text("信用额度 ¥\(Int(totalLimit).description)")
                         .font(.system(size: 12, weight: .bold, design: .monospaced))
                         .foregroundColor(.green)
                 }
@@ -903,7 +932,7 @@ public struct GroupSectionHeader: View {
     }
 }
 
-/// 信用卡包主视图 (支持多维分组与组合排序，以及分组折叠)
+/// 银行卡包主视图 (支持多维分组与组合排序，以及分组折叠)
 public struct CardGridView: View {
     public var cards: [SharedCard]
     public var groupBy: GroupOption
@@ -971,28 +1000,28 @@ public struct CardGridView: View {
             let sorted = groupCards.sorted { c1, c2 in
                 switch sortBy {
                 case .limitDesc:
-                    return (c1.limit ?? 0) > (c2.limit ?? 0)
+                    return (c1.cardCategory == "debit" ? 0 : (c1.limit ?? 0)) > (c2.cardCategory == "debit" ? 0 : (c2.limit ?? 0))
                 case .limitAsc:
-                    return (c1.limit ?? 0) < (c2.limit ?? 0)
+                    return (c1.cardCategory == "debit" ? 0 : (c1.limit ?? 0)) < (c2.cardCategory == "debit" ? 0 : (c2.limit ?? 0))
                 case .daysDesc:
-                    let days1 = DateCalculator.calculateInterestFreePeriod(
+                    let days1 = c1.cardCategory == "debit" ? -1 : DateCalculator.calculateInterestFreePeriod(
                         accountBillDate: c1.accountBillDate ?? "",
                         dueDate: c1.dueDate ?? "",
                         billingDayToNextBill: c1.billingDaySpendingToNextBill
                     )
-                    let days2 = DateCalculator.calculateInterestFreePeriod(
+                    let days2 = c2.cardCategory == "debit" ? -1 : DateCalculator.calculateInterestFreePeriod(
                         accountBillDate: c2.accountBillDate ?? "",
                         dueDate: c2.dueDate ?? "",
                         billingDayToNextBill: c2.billingDaySpendingToNextBill
                     )
                     return days1 > days2
                 case .daysAsc:
-                    let days1 = DateCalculator.calculateInterestFreePeriod(
+                    let days1 = c1.cardCategory == "debit" ? Int.max : DateCalculator.calculateInterestFreePeriod(
                         accountBillDate: c1.accountBillDate ?? "",
                         dueDate: c1.dueDate ?? "",
                         billingDayToNextBill: c1.billingDaySpendingToNextBill
                     )
-                    let days2 = DateCalculator.calculateInterestFreePeriod(
+                    let days2 = c2.cardCategory == "debit" ? Int.max : DateCalculator.calculateInterestFreePeriod(
                         accountBillDate: c2.accountBillDate ?? "",
                         dueDate: c2.dueDate ?? "",
                         billingDayToNextBill: c2.billingDaySpendingToNextBill
@@ -1011,6 +1040,7 @@ public struct CardGridView: View {
                 var processedSharedGroups = Set<String>()
                 
                 for card in sorted {
+                    guard card.cardCategory != "debit" else { continue }
                     let currency = (card.type ?? "CNY").uppercased().trimmingCharacters(in: .whitespacesAndNewlines)
                     let cleanBank = card.bank.replacingOccurrences(of: "\\(.*\\)", with: "", options: .regularExpression).trimmingCharacters(in: .whitespaces)
                     
@@ -1059,6 +1089,52 @@ public struct CardGridView: View {
             } else {
                 // 有分组状态下：使用 VStack 排布，提供一流的交互式透底质感，并确保完美无抖动且极其平滑的收折体验
                 VStack(spacing: 16) {
+                    // 💡 一键展开/收起控制按钮栏（有超过1个分组时自动浮现，保持界面灵活性）
+                    if groupedAndSortedCards.count > 1 {
+                        HStack {
+                            Spacer()
+                            Button {
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    collapsedGroups.removeAll()
+                                }
+                            } label: {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "chevron.down.circle")
+                                    Text("一键展开")
+                                }
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundColor(.cyan)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(Color.cyan.opacity(0.08))
+                                .cornerRadius(6)
+                            }
+                            .buttonStyle(.plain)
+                            
+                            Button {
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    let allNames = groupedAndSortedCards.map { $0.name }
+                                    collapsedGroups = Set(allNames)
+                                }
+                            } label: {
+                                HStack(spacing: 4) {
+                                    Image(systemName: "chevron.up.circle")
+                                    Text("一键收起")
+                                }
+                                .font(.system(size: 11, weight: .medium))
+                                .foregroundColor(.secondary)
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 4)
+                                .background(Color.primary.opacity(0.05))
+                                .cornerRadius(6)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        .padding(.horizontal, 20)
+                        .padding(.top, 8)
+                        .padding(.bottom, -4)
+                    }
+                    
                     ForEach(groupedAndSortedCards) { group in
                         let isCollapsed = collapsedGroups.contains(group.name)
                         

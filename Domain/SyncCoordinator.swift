@@ -162,6 +162,7 @@ public final class SyncCoordinator: ObservableObject {
         if normalized.id.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             normalized.id = UUID().uuidString
         }
+        normalized.cardCategory = normalized.cardCategory == "debit" ? "debit" : "credit"
         return normalized
     }
 }
