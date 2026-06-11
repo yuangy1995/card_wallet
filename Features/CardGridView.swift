@@ -87,13 +87,7 @@ public struct CreditCardView: View {
                     }
                     .buttonStyle(.plain)
                     .help("查看详情")
-                    Text(isDebitCard ? "储蓄卡" : "信用卡")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundColor(.white)
-                        .padding(.horizontal, 7)
-                        .padding(.vertical, 3)
-                        .background(Color.white.opacity(0.16))
-                        .cornerRadius(5)
+
                     CardBrandIcon(brand: brand)
                         .scaleEffect(0.9)
                 }
