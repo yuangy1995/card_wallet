@@ -54,6 +54,7 @@ fun MainNavigation() {
                     cardId = key.cardId,
                     prefillCardNumber = key.prefillCardNumber,
                     prefillValid = key.prefillValid,
+                    initialCardCategory = key.cardCategory,
                     onBack = popBackStack,
                     onNavigateToDetail = { id -> backStack.add(CardDetail(id)) }
                 )

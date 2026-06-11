@@ -101,6 +101,8 @@ fun CardDetailScreen(
         }
         return
     }
+    val isDebitCard = card.cardCategory == "debit"
+    val cardCategoryText = if (isDebitCard) "储蓄卡" else "信用卡"
 
     // 1. 本地安全沙盒图片路径引用及加载
     val cardImageFile = remember(cardId) {
@@ -156,7 +158,7 @@ fun CardDetailScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("卡片详情", fontWeight = FontWeight.Bold) },
+                title = { Text("${cardCategoryText}详情", fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     AppBackButton(
                         onClick = onBack,
@@ -211,6 +213,9 @@ fun CardDetailScreen(
                 expanded = coreSectionExpanded,
                 onExpandedChange = { coreSectionExpanded = it }
             ) {
+                InfoRow(label = "卡类别", value = cardCategoryText)
+                DetailDivider(isDark = isDark)
+
                 CardNumberInfoRow(
                     cardNumber = card.cardNumber,
                     visible = isNumberVisible,
@@ -242,7 +247,7 @@ fun CardDetailScreen(
 
                 InfoRow(label = "卡片别名", value = displayOrDash(card.alias))
                 InfoRow(label = "卡片等级", value = displayOrDash(card.level))
-                InfoRow(label = "结算币种", value = displayOrDash(card.type))
+                InfoRow(label = if (isDebitCard) "币种" else "结算币种", value = displayOrDash(card.type))
                 InfoRow(label = "最后修改时间", value = formatDateTime(card.lastModifyTime))
             }
 
@@ -250,7 +255,7 @@ fun CardDetailScreen(
 
             // 3. 年费收取到期橙色警示栏
             val annualFeeWarning = getAnnualFeeWarningMessage(card)
-            if (annualFeeWarning != null) {
+            if (!isDebitCard && annualFeeWarning != null) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -319,52 +324,54 @@ fun CardDetailScreen(
                 Spacer(modifier = Modifier.height(16.dp))
             }
 
-            // 4. 额度年费区块
-            CollapsibleDetailSection(
-                title = "额度与年费",
-                expanded = limitFeeSectionExpanded,
-                onExpandedChange = { limitFeeSectionExpanded = it }
-            ) {
-                val limitText = if (card.limit > 0.0) {
-                    formatCurrencyAmount(card.type, card.limit)
-                } else {
-                    "--"
+            // 4. 额度年费区块仅适用于信用卡
+            if (!isDebitCard) {
+                CollapsibleDetailSection(
+                    title = "额度与年费",
+                    expanded = limitFeeSectionExpanded,
+                    onExpandedChange = { limitFeeSectionExpanded = it }
+                ) {
+                    val limitText = if (card.limit > 0.0) {
+                        formatCurrencyAmount(card.type, card.limit)
+                    } else {
+                        "--"
+                    }
+                    InfoRow(label = "额度", value = limitText)
+                    InfoRow(label = "账单日", value = if (card.accountBillDate.isNotEmpty()) "每月 ${card.accountBillDate} 日" else "--")
+                    InfoRow(label = "还款日", value = if (card.dueDate.isNotEmpty()) "每月 ${card.dueDate} 日" else "--")
+                    InfoRow(
+                        label = "账单日消费计入下期", 
+                        value = if (card.billingDaySpendingToNextBill) "是，延长免息期" else "否，计入本期"
+                    )
+                    InfoRow(
+                        label = "额度共享状态", 
+                        value = if (card.isSharedLimit) "是 (与同银行共享额度)" else "否 (独立额度)"
+                    )
+                    
+                    val statusText = when (card.isQualified) {
+                        "1" -> "已达标"
+                        "2" -> "未达标"
+                        "3" -> "终免年费"
+                        else -> "--"
+                    }
+                    val statusColor = when (card.isQualified) {
+                        "1" -> if (isDark) NeonGreen else ForestGreen
+                        "2" -> if (isDark) NeonRed else WarmOrange
+                        else -> if (isDark) NeonCyan else GoldPrimary
+                    }
+                    
+                    InfoRow(label = "年费达标状态", value = statusText, valueColor = statusColor)
+                    InfoRow(label = "年费金额", value = annualFeeAmountText(card))
+                    
+                    InfoRow(
+                        label = "下次年费扣除日",
+                        value = if (card.nextAnnualFeeCollectionTime != null && card.isQualified != "3") formatDate(card.nextAnnualFeeCollectionTime!!) else "--"
+                    )
+                    InfoRow(label = "上次提额日期", value = card.lastTime?.let { formatDate(it) } ?: "--")
                 }
-                InfoRow(label = "额度", value = limitText)
-                InfoRow(label = "账单日", value = if (card.accountBillDate.isNotEmpty()) "每月 ${card.accountBillDate} 日" else "--")
-                InfoRow(label = "还款日", value = if (card.dueDate.isNotEmpty()) "每月 ${card.dueDate} 日" else "--")
-                InfoRow(
-                    label = "账单日消费计入下期", 
-                    value = if (card.billingDaySpendingToNextBill) "是，延长免息期" else "否，计入本期"
-                )
-                InfoRow(
-                    label = "额度共享状态", 
-                    value = if (card.isSharedLimit) "是 (与同银行共享额度)" else "否 (独立额度)"
-                )
-                
-                val statusText = when (card.isQualified) {
-                    "1" -> "已达标"
-                    "2" -> "未达标"
-                    "3" -> "终免年费"
-                    else -> "--"
-                }
-                val statusColor = when (card.isQualified) {
-                    "1" -> if (isDark) NeonGreen else ForestGreen
-                    "2" -> if (isDark) NeonRed else WarmOrange
-                    else -> if (isDark) NeonCyan else GoldPrimary
-                }
-                
-                InfoRow(label = "年费达标状态", value = statusText, valueColor = statusColor)
-                InfoRow(label = "年费金额", value = annualFeeAmountText(card))
-                
-                InfoRow(
-                    label = "下次年费扣除日",
-                    value = if (card.nextAnnualFeeCollectionTime != null && card.isQualified != "3") formatDate(card.nextAnnualFeeCollectionTime!!) else "--"
-                )
-                InfoRow(label = "上次提额日期", value = card.lastTime?.let { formatDate(it) } ?: "--")
-            }
 
-            Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(16.dp))
+            }
 
             // 5. 附加权益与备注区块
             CollapsibleDetailSection(
@@ -373,7 +380,7 @@ fun CardDetailScreen(
                 onExpandedChange = { benefitSectionExpanded = it }
             ) {
                 Column(modifier = Modifier.padding(vertical = 6.dp)) {
-                    Text("核心年费权益", color = if (isDark) TextGray else TextMuted, fontSize = 12.sp)
+                    Text(if (isDebitCard) "卡片权益" else "核心年费权益", color = if (isDark) TextGray else TextMuted, fontSize = 12.sp)
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = displayOrDash(card.equity),
@@ -666,7 +673,7 @@ private fun CardNumberInfoRow(
     ) {
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = "信用卡卡号 *",
+                text = "银行卡卡号 *",
                 color = if (isDark) TextGray else TextMuted,
                 fontSize = 12.sp
             )
@@ -960,7 +967,7 @@ private fun copyCardNumberToClipboard(context: android.content.Context, cardNumb
     }
 
     val clipboard = context.getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
-    clipboard.setPrimaryClip(android.content.ClipData.newPlainText("信用卡卡号", cleanNumber))
+    clipboard.setPrimaryClip(android.content.ClipData.newPlainText("银行卡卡号", cleanNumber))
     Toast.makeText(context, "已复制完整卡号", Toast.LENGTH_SHORT).show()
 }
 
@@ -1019,6 +1026,9 @@ fun formatSpacingCardNumber(rawNum: String): String {
  * 获取年费收取提示
  */
 private fun getAnnualFeeWarningMessage(card: SharedCard): String? {
+    if (card.cardCategory == "debit") {
+        return null
+    }
     if (card.isQualified == "3" || card.nextAnnualFeeCollectionTime == null || card.isQualified == "1") {
         return null
     }

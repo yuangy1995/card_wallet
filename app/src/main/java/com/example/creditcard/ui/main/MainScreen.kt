@@ -110,7 +110,7 @@ private data class VerifiedCardRecord(
 )
 
 /**
- * Android 原生信用卡客户端 ── 体验精塑与共享额度算法修正重塑主屏幕
+ * Android 原生卡包客户端 ── 体验精塑与共享额度算法修正重塑主屏幕
  * 高内聚集成：零顶栏极简视觉、动态四态云同步微标、财富分析面板、内聚大融合设置
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -152,18 +152,29 @@ fun MainScreen(
     
     // 卡包搜索状态
     var searchQuery by remember { mutableStateOf("") }
+    var cardCategoryFilter by remember { mutableStateOf("all") }
+    var showAddMenu by remember { mutableStateOf(false) }
+    val creditCardCount = remember(cards) { cards.count { it.cardCategory != "debit" } }
+    val debitCardCount = remember(cards) { cards.count { it.cardCategory == "debit" } }
 
     // 过滤后的卡片列表
-    val filteredCards = remember(cards, searchQuery) {
+    val filteredCards = remember(cards, searchQuery, cardCategoryFilter) {
+        val categoryFiltered = when (cardCategoryFilter) {
+            "credit" -> cards.filter { it.cardCategory != "debit" }
+            "debit" -> cards.filter { it.cardCategory == "debit" }
+            else -> cards
+        }
         if (searchQuery.isBlank()) {
-            cards
+            categoryFiltered
         } else {
-            cards.filter { card ->
+            categoryFiltered.filter { card ->
+                val categoryText = if (card.cardCategory == "debit") "储蓄卡 debit" else "信用卡 credit"
                 card.bank.contains(searchQuery, ignoreCase = true) ||
                 card.alias.contains(searchQuery, ignoreCase = true) ||
                 card.cardNumber.replace(" ", "").contains(searchQuery.replace(" ", "")) ||
                 card.remark.contains(searchQuery, ignoreCase = true) ||
-                getCardBrand(card.cardNumber).contains(searchQuery, ignoreCase = true)
+                getCardBrand(card.cardNumber).contains(searchQuery, ignoreCase = true) ||
+                categoryText.contains(searchQuery, ignoreCase = true)
             }
         }
     }
@@ -226,14 +237,39 @@ fun MainScreen(
         },
         floatingActionButton = {
             if (selectedTab == 0) {
-                FloatingActionButton(
-                    onClick = { onItemClick(CardForm(null)) },
-                    containerColor = if (isDark) NeonCyan else GoldPrimary,
-                    contentColor = if (isDark) DarkBg else Color.White,
-                    shape = CircleShape,
-                    modifier = Modifier.padding(bottom = 16.dp, end = 8.dp)
+                Box(
+                    modifier = Modifier.padding(bottom = 16.dp, end = 8.dp),
+                    contentAlignment = Alignment.BottomEnd
                 ) {
-                    Icon(imageVector = Icons.Filled.Add, contentDescription = "新增信用卡")
+                    FloatingActionButton(
+                        onClick = { showAddMenu = true },
+                        containerColor = if (isDark) NeonCyan else GoldPrimary,
+                        contentColor = if (isDark) DarkBg else Color.White,
+                        shape = CircleShape
+                    ) {
+                        Icon(imageVector = Icons.Filled.Add, contentDescription = "新增卡片")
+                    }
+                    DropdownMenu(
+                        expanded = showAddMenu,
+                        onDismissRequest = { showAddMenu = false }
+                    ) {
+                        DropdownMenuItem(
+                            text = { Text("新增信用卡") },
+                            leadingIcon = { Icon(Icons.Filled.CreditCard, contentDescription = null) },
+                            onClick = {
+                                showAddMenu = false
+                                onItemClick(CardForm(cardId = null, cardCategory = "credit"))
+                            }
+                        )
+                        DropdownMenuItem(
+                            text = { Text("新增储蓄卡") },
+                            leadingIcon = { Icon(Icons.Filled.AccountBalanceWallet, contentDescription = null) },
+                            onClick = {
+                                showAddMenu = false
+                                onItemClick(CardForm(cardId = null, cardCategory = "debit"))
+                            }
+                        )
+                    }
                 }
             }
         },
@@ -301,7 +337,7 @@ fun MainScreen(
                             onValueChange = { searchQuery = it },
                             placeholder = {
                                 Text(
-                                    text = "搜索银行、卡号、别名、备注或卡组织...",
+                                    text = "搜索银行、卡号、别名、备注、卡组织或卡类别...",
                                     color = if (isDark) TextGray.copy(alpha = 0.5f) else TextMuted.copy(alpha = 0.5f),
                                     fontSize = 12.sp
                                 )
@@ -349,6 +385,32 @@ fun MainScreen(
 
                         Spacer(modifier = Modifier.height(12.dp))
 
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            listOf(
+                                Triple("all", "全部", cards.size),
+                                Triple("credit", "信用卡", creditCardCount),
+                                Triple("debit", "储蓄卡", debitCardCount)
+                            ).forEach { (code, label, count) ->
+                                FilterChip(
+                                    selected = cardCategoryFilter == code,
+                                    onClick = { cardCategoryFilter = code },
+                                    label = { Text("$label $count", fontSize = 12.sp) },
+                                    modifier = Modifier.weight(1f),
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = if (isDark) NeonCyan.copy(alpha = 0.2f) else GoldPrimary.copy(alpha = 0.15f),
+                                        selectedLabelColor = if (isDark) NeonCyan else GoldPrimary
+                                    )
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
                         // C. 过滤渲染卡片列表
                         if (filteredCards.isEmpty()) {
                             Box(
@@ -358,7 +420,7 @@ fun MainScreen(
                                 contentAlignment = Alignment.Center
                             ) {
                                 Text(
-                                    text = if (searchQuery.isEmpty()) "暂无信用卡，点击右下角新增卡片" else "未匹配到符合条件的信用卡",
+                                    text = if (searchQuery.isEmpty()) "暂无卡片，点击右下角新增银行卡" else "未匹配到符合条件的卡片",
                                     color = if (isDark) TextGray else TextMuted,
                                     fontSize = 14.sp
                                 )
@@ -525,7 +587,7 @@ fun DynamicSyncBadge(
 }
 
 /**
- * 1:1.586 实体卡比例的高质感拟真信用卡磁贴
+ * 1:1.586 实体卡比例的高质感拟真银行卡磁贴
  */
 @Composable
 fun CreditCardTile(
@@ -534,6 +596,7 @@ fun CreditCardTile(
     onClick: () -> Unit
 ) {
     val brand = getCardBrand(card.cardNumber)
+    val isDebitCard = card.cardCategory == "debit"
     
     // 自定义卡片背景渐变
     val gradientBrush = when (brand) {
@@ -579,7 +642,7 @@ fun CreditCardTile(
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = card.bank.ifEmpty { "信用银行" },
+                        text = card.bank.ifEmpty { "发卡银行" },
                         color = Color.White,
                         fontWeight = FontWeight.Bold,
                         fontSize = 16.sp,
@@ -596,8 +659,10 @@ fun CreditCardTile(
                     )
                 }
 
-                // 全套高保真卡组织徽标
-                CardBrandBadge(brand = brand)
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    // 全套高保真卡组织徽标
+                    CardBrandBadge(brand = brand)
+                }
             }
 
             // 第二行：智能安全金属金芯片 (EMV Chip) 的高保真绘制
@@ -628,12 +693,12 @@ fun CreditCardTile(
             ) {
                 Column {
                     Text(
-                        text = "信用额度",
+                        text = if (isDebitCard) "币种" else "信用额度",
                         color = Color.White.copy(alpha = 0.6f),
                         fontSize = 9.sp
                     )
                     Text(
-                        text = "${card.type} $${String.format("%,.0f", card.limit)}",
+                        text = if (isDebitCard) card.type.ifBlank { "未设置" } else "${card.type} $${String.format("%,.0f", card.limit)}",
                         color = Color.White,
                         fontSize = 16.sp,
                         fontWeight = FontWeight.Bold
@@ -684,7 +749,7 @@ fun ToolsPanel(
             id = "stats",
             icon = Icons.Filled.Analytics,
             title = "统计分析",
-            subtitle = "查看额度、币种、共享额度和年费预警",
+            subtitle = "查看信用额度、储蓄卡币种、共享额度和年费预警",
             accent = if (isDark) NeonCyan else GoldPrimary,
             onClick = onOpenStats
         ),
@@ -1804,9 +1869,15 @@ fun AnalyticsPanel(cards: List<SharedCard>, isDark: Boolean) {
         return
     }
 
+    val creditCards = remember(cards) { cards.filter { it.cardCategory != "debit" } }
+    val debitCards = remember(cards) { cards.filter { it.cardCategory == "debit" } }
+    val debitCountryCount = remember(debitCards) { debitCards.map { it.country }.filter { it.isNotBlank() }.distinct().size }
+    val debitBankCount = remember(debitCards) { debitCards.map { it.bank }.filter { it.isNotBlank() }.distinct().size }
+    val debitCurrencyCount = remember(debitCards) { debitCards.map { it.type }.filter { it.isNotBlank() }.distinct().size }
+
     // A. 重构多币种总资产额度算法 - 完美实现共享限额去重 (第 5 点)
-    val currencySummary = remember(cards) {
-        cards.groupBy { it.type }.mapValues { entry ->
+    val currencySummary = remember(creditCards) {
+        creditCards.groupBy { it.type }.mapValues { entry ->
             val cardList = entry.value
             
             // 1. 过滤出非共享额度的卡片，无条件直接求和
@@ -1826,10 +1897,10 @@ fun AnalyticsPanel(cards: List<SharedCard>, isDark: Boolean) {
     }
 
     // B. 年费距离扣缴不足 60 天且未达标卡片警示列表
-    val feeAlerts = remember(cards) {
+    val feeAlerts = remember(creditCards) {
         val now = System.currentTimeMillis()
         val limitTime = now + 60L * 24 * 3600 * 1000 // 60天
-        cards.filter { card ->
+        creditCards.filter { card ->
             card.isQualified == "2" && // 未达标
             card.nextAnnualFeeCollectionTime != null &&
             card.nextAnnualFeeCollectionTime!! in now..limitTime
@@ -1837,8 +1908,8 @@ fun AnalyticsPanel(cards: List<SharedCard>, isDark: Boolean) {
     }
 
     // C. 共享额度组看板数据
-    val sharedLimitGroups = remember(cards) {
-        cards.filter { it.isSharedLimit && it.bank.isNotEmpty() }
+    val sharedLimitGroups = remember(creditCards) {
+        creditCards.filter { it.isSharedLimit && it.bank.isNotEmpty() }
             .groupBy { it.bank }
             .filter { it.value.size > 1 }
     }
@@ -1854,6 +1925,34 @@ fun AnalyticsPanel(cards: List<SharedCard>, isDark: Boolean) {
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         Spacer(modifier = Modifier.height(6.dp))
+
+        DetailSection(title = "📌 卡包概览") {
+            Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                SmallMetric("全部", "${cards.size}", "张", isDark, Modifier.weight(1f))
+                SmallMetric("信用卡", "${creditCards.size}", "张", isDark, Modifier.weight(1f))
+                SmallMetric("储蓄卡", "${debitCards.size}", "张", isDark, Modifier.weight(1f))
+            }
+            if (debitCards.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(10.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                    SmallMetric("储蓄卡国家/地区", "$debitCountryCount", "个", isDark, Modifier.weight(1f))
+                    SmallMetric("储蓄卡银行", "$debitBankCount", "家", isDark, Modifier.weight(1f))
+                    SmallMetric("储蓄卡币种", "$debitCurrencyCount", "种", isDark, Modifier.weight(1f))
+                }
+            }
+        }
+
+        if (creditCards.isEmpty()) {
+            DetailSection(title = "💳 信用卡统计") {
+                Text(
+                    text = "当前卡包仅包含储蓄卡，信用额度、年费和免息期统计不适用。",
+                    fontSize = 13.sp,
+                    lineHeight = 18.sp,
+                    color = if (isDark) TextGray else TextMuted
+                )
+            }
+            Spacer(modifier = Modifier.height(30.dp))
+        } else {
 
         // 1. Canvas 手工绘制的拟真资产额度占比 Donut 环形图 (按去重额度比例展示)
         DetailSection(title = "📊 信用额度占比图") {
@@ -2156,7 +2255,8 @@ fun AnalyticsPanel(cards: List<SharedCard>, isDark: Boolean) {
             }
         }
 
-        Spacer(modifier = Modifier.height(30.dp))
+            Spacer(modifier = Modifier.height(30.dp))
+        }
     }
 }
 
@@ -4028,15 +4128,16 @@ fun BestUsagePanel(
     onBack: () -> Unit
 ) {
     val today = LocalDate.now()
+    val creditCards = remember(cards) { cards.filter { it.cardCategory != "debit" } }
     
     // 过滤出能够计算免息期的信用卡并按天数降序排序
-    val validCards = cards.map { card ->
+    val validCards = creditCards.map { card ->
         card to calculateInterestFreeDays(card, today)
     }.filter { it.second != -1 }
      .sortedByDescending { it.second }
 
-    // 过滤出未配置账单信息的卡片
-    val invalidCards = cards.filter { card ->
+    // 过滤出未配置账单信息的信用卡
+    val invalidCards = creditCards.filter { card ->
         calculateInterestFreeDays(card, today) == -1
     }
 
@@ -4085,7 +4186,7 @@ fun BestUsagePanel(
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            if (cards.isEmpty()) {
+            if (creditCards.isEmpty()) {
                 item {
                     EmptyCardsState(isDark = isDark)
                 }
@@ -4402,13 +4503,13 @@ fun EmptyCardsState(isDark: Boolean) {
                 modifier = Modifier.size(36.dp)
             )
             Text(
-                text = "暂无信用卡",
+                text = "暂无可用于免息期计算的信用卡",
                 fontSize = 15.sp,
                 fontWeight = FontWeight.Bold,
                 color = if (isDark) TextWhite else TextDark
             )
             Text(
-                text = "请先在首页卡包中添加您的信用卡数据",
+                text = "请先在首页卡包中添加信用卡，储蓄卡不会参与免息期计算",
                 fontSize = 12.sp,
                 color = if (isDark) TextGray else TextMuted,
                 textAlign = TextAlign.Center
@@ -4593,7 +4694,7 @@ fun SettingsHelpPanel(
                     color = if (isDark) TextWhite else TextDark
                 )
                 Text(
-                    text = "信用卡管理与同步常见问题解答",
+                    text = "银行卡管理与同步常见问题解答",
                     fontSize = 12.sp,
                     color = if (isDark) NeonCyan else GoldPrimary,
                     fontWeight = FontWeight.SemiBold
@@ -4613,7 +4714,7 @@ fun SettingsHelpPanel(
                 FAQItem(
                     question = "1. NFC 快速验卡或刷卡感应录入时没有反应怎么办？",
                     answer = "常见排查方法如下：\n" +
-                            "• 芯片安全性屏蔽：部分高安全级别或防克隆的信用卡（包括特定的万事达和高安银联卡）对离线明文读取进行了芯片级保护，暂无法通过 NFC 感应读取明文卡号。本应用已支持智能兜底，对此类卡片将友好提示“暂不支持该卡片”，建议使用相机扫描或手动录入。\n" +
+                            "• 芯片安全性屏蔽：部分高安全级别或防克隆的银行卡（包括特定的万事达和高安银联卡）对离线明文读取进行了芯片级保护，暂无法通过 NFC 感应读取明文卡号。本应用已支持智能兜底，对此类卡片将友好提示“暂不支持该卡片”，建议使用相机扫描或手动录入。\n" +
                             "• 天线感应区偏离：NFC感应线圈通常位于手机背面的中上部（摄像头附近），贴卡时请将卡片正中对准此区域。\n" +
                             "• 交互静止要求：贴卡感应时，请将卡片紧贴手机背部并保持静止 1-2 秒，请勿快速晃动或移开卡片，待提示“读取成功”后再行拿开。",
                     isDark = isDark
@@ -4623,7 +4724,7 @@ fun SettingsHelpPanel(
                 FAQItem(
                     question = "2. 相机扫描卡面无法自动识别提取？",
                     answer = "相机扫描识别要领：\n" +
-                            "• 避免强光反射：信用卡表面材质光滑，强光反射会导致卡面数字反光甚至失真。请在光线温和且均匀的室内环境下扫描。\n" +
+                            "• 避免强光反射：银行卡表面材质光滑，强光反射会导致卡面数字反光甚至失真。请在光线温和且均匀的室内环境下扫描。\n" +
                             "• 推荐手动拍照：若自动扫描无法触发，推荐点击我们新设计的“手动拍照”按钮。在对齐框后按下拍照，系统会在后台以高精度本地 OCR 自动识别、智能提取卡片数字，并自动裁剪保存高保真的卡片大图。\n" +
                             "• 磨损降级：对于表面磨损、字迹脱漆或无凹凸感印刷的卡片，可能导致本地分析率下降，此时建议一键切换为手动输入，极简完成录入。",
                     isDark = isDark
@@ -4645,7 +4746,7 @@ fun SettingsHelpPanel(
                     question = "4. 多张信用卡“共享额度”的算法规则是怎样的？",
                     answer = "多卡合并与资产计算规则：\n" +
                             "• 同行共享机制：许多银行对同一持卡人名下的多张信用卡实施“额度共享”（以额度最高的那张卡作为共享额度上限）。\n" +
-                            "• 额度合并算法：在系统中，若您将某几张卡勾选了“共享额度”开关，系统将自动激活共享资产合并算法——在财富统计和总额度中，这组卡片将仅取其中的额度最大值计入总额度，而非简单物理累加，从而实现百分之百真实科学的财务数据统计与额度预警。",
+                            "• 额度合并算法：在系统中，若您将某几张信用卡勾选了“共享额度”开关，系统将自动激活共享资产合并算法——在财富统计和总额度中，这组卡片将仅取其中的额度最大值计入总额度，而非简单物理累加。储蓄卡不会参与信用额度、年费和免息期统计。",
                     isDark = isDark
                 )
             }
@@ -4806,7 +4907,7 @@ fun SettingsAboutPanel(
             // 软件简介
             DetailSection(title = "📝 软件简介") {
                 Text(
-                    text = "卡包卫士 Premium 是一款专注安全、精细拟真的信用卡智能账单与资产健康管理助手。应用通过完全离线的本地沙盒数据库以及高规格的本地 NFC 读卡、相机识别技术，让您能够轻松归集多行信用卡。同时支持科学推算共享额度、可用免息期，并通过端到端加密的 WebDAV 私人同步通道，给您的账单与财富管理筑起一道坚不可摧的隐私安全防护盾。",
+                    text = "卡包卫士 Premium 是一款专注安全、精细拟真的银行卡管理助手。应用通过完全离线的本地沙盒数据库以及高规格的本地 NFC 读卡、相机识别技术，让您能够轻松归集信用卡和储蓄卡。信用卡支持共享额度、年费和免息期推算，储蓄卡保留国家/地区、银行、币种、权益、备注与卡片媒体，并通过端到端加密的 WebDAV 私人同步通道保护数据。",
                     fontSize = 12.sp,
                     color = if (isDark) TextGray else TextMuted,
                     lineHeight = 18.sp,
@@ -4846,7 +4947,7 @@ fun SettingsAboutPanel(
             // 条款与免责声明
             DetailSection(title = "⚖️ 服务与免责条款") {
                 Text(
-                    text = "1. 数据免责：本应用提供的免息期天数推算、账单日与还款日提醒以及负债统计等结果，均根据您所录入的参数进行日历学与日期的数学映射推导，仅供个人合理消费规划参考。由于各行信用卡章程可能存在临时修订、国定假期顺延还款等细微差异，请务必以各发卡银行官方公告及账单信息为准。\n" +
+                    text = "1. 数据免责：本应用提供的免息期天数推算、账单日与还款日提醒以及信用额度统计等结果，仅针对信用卡并根据您所录入的参数进行日历学与日期的数学映射推导，仅供个人合理消费规划参考。由于各行信用卡章程可能存在临时修订、国定假期顺延还款等细微差异，请务必以各发卡银行官方公告及账单信息为准。\n" +
                             "2. 财务安全：用户应妥善管理个人手机密码以及 WebDAV 应用同步密码，由于设备丢失或泄露密码引发的数据损毁，需自行承担相应责任。本软件在任何情况下均不对由于依赖本计算结果产生的滞纳金或信用受损等任何直接与间接损失负责。",
                     fontSize = 11.sp,
                     color = if (isDark) TextGray else TextMuted,
@@ -5006,7 +5107,7 @@ fun SettingsPrivacyPanel(
             item {
                 PermissionItem(
                     name = "📷 相机扫描权限 (android.permission.CAMERA)",
-                    description = "用于启动后置摄像头对准实体信用卡进行高精准本地 OCR 扫描，或手动拍照备份大图。图像数据严格在本机内存中进行分析并智能裁剪保存，绝不上报。",
+                    description = "用于启动后置摄像头对准实体银行卡进行高精准本地 OCR 扫描，或手动拍照备份大图。图像数据严格在本机内存中进行分析并智能裁剪保存，绝不上报。",
                     isGranted = hasCamera,
                     isDark = isDark,
                     onRequestPermission = {
@@ -5024,7 +5125,7 @@ fun SettingsPrivacyPanel(
             item {
                 PermissionItem(
                     name = "🔔 消息通知权限 (android.permission.POST_NOTIFICATIONS)",
-                    description = "主要用于在您的信用卡“还款日”或“年费产生”临近时，在系统后台为您推送还款警报提醒（仅当开启后台提醒并录入时间时生效）。",
+                    description = "主要用于在您的信用卡“还款日”或“年费产生”临近时，在系统后台为您推送还款警报提醒；储蓄卡不会触发这些信用卡专属提醒。",
                     isGranted = hasNotification,
                     isDark = isDark,
                     onRequestPermission = {
@@ -5050,7 +5151,7 @@ fun SettingsPrivacyPanel(
             item {
                 PermissionItem(
                     name = "📡 NFC 射频感应权限 (android.permission.NFC)",
-                    description = "用于非接触式物理刷卡交互，当信用卡靠近手机 NFC 天线区域时自动感应读取芯片公开的明文卡号及有效期。属于安卓系统普通级权限，安装时默认授予。",
+                    description = "用于非接触式物理刷卡交互，当银行卡靠近手机 NFC 天线区域时自动感应读取芯片公开的卡号及有效期。本应用不会读取余额、PIN 或交易数据。",
                     isGranted = true,
                     isDark = isDark
                 )

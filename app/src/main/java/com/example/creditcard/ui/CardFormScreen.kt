@@ -100,7 +100,7 @@ import java.util.Date
 import java.util.UUID
 
 /**
- * 录入信用卡三阶段状态机
+ * 录入银行卡三阶段状态机
  */
 enum class FormStep {
     SCAN_NFC,     // 1. NFC 扫描录入状态
@@ -114,6 +114,7 @@ fun CardFormScreen(
     cardId: String?,
     prefillCardNumber: String = "",
     prefillValid: String = "",
+    initialCardCategory: String = "credit",
     onBack: () -> Unit,
     onNavigateToDetail: (String) -> Unit
 ) {
@@ -155,6 +156,8 @@ fun CardFormScreen(
     // 表单状态变量
     // ==========================================
     var country by remember { mutableStateOf(originalCard?.country ?: "") }
+    var cardCategory by remember { mutableStateOf(originalCard?.cardCategory ?: if (initialCardCategory == "debit") "debit" else "credit") }
+    val isDebitCard = cardCategory == "debit"
     var bank by remember { mutableStateOf(originalCard?.bank ?: "") }
     var alias by remember { mutableStateOf(originalCard?.alias ?: "") }
     var level by remember { mutableStateOf(CardReferenceData.normalizeLevel(originalCard?.level) ?: "") }
@@ -311,10 +314,10 @@ fun CardFormScreen(
     // 共享额度智能联动逻辑
     // ==========================================
     // 查询同国家同银行是否存在其他的“共享额度”卡片，并提取其共享额度
-    val existingSharedLimitCard = remember(cardId, country, bank, type, isSharedLimit) {
-        if (isSharedLimit && bank.trim().isNotEmpty()) {
+    val existingSharedLimitCard = remember(cardId, country, bank, type, isSharedLimit, cardCategory) {
+        if (!isDebitCard && isSharedLimit && bank.trim().isNotEmpty()) {
             val all = db.getAllCards()
-            all.firstOrNull { it.id != cardId && it.country == country && it.bank == bank && it.type == type && it.isSharedLimit }
+            all.firstOrNull { it.id != cardId && it.cardCategory != "debit" && it.country == country && it.bank == bank && it.type == type && it.isSharedLimit }
         } else null
     }
     val shouldLockSharedLimitInput = !isEditMode && existingSharedLimitCard != null
@@ -392,7 +395,7 @@ fun CardFormScreen(
             Scaffold(
                 topBar = {
                     TopAppBar(
-                        title = { Text(if (isEditMode) "修改信用卡" else "添加信用卡", fontWeight = FontWeight.Bold) },
+                        title = { Text(if (isEditMode) "修改${if (isDebitCard) "储蓄卡" else "信用卡"}" else "添加${if (isDebitCard) "储蓄卡" else "信用卡"}", fontWeight = FontWeight.Bold) },
                         navigationIcon = {
                             AppBackButton(
                                 onClick = handleBackAction,
@@ -429,8 +432,8 @@ fun CardFormScreen(
                                 val cleanBank = bank.trim()
                                 val cleanCardNumber = cardNumber.filter { it.isDigit() }
                                 val cleanValid = valid.trim()
-                                val parsedLimit = parseAmountOrNull(limitText) ?: 0.0
-                                val parsedAnnualFee = parseAmountOrNull(annualFeeText) ?: 0.0
+                                val parsedLimit = if (isDebitCard) 0.0 else parseAmountOrNull(limitText) ?: 0.0
+                                val parsedAnnualFee = if (isDebitCard) 0.0 else parseAmountOrNull(annualFeeText) ?: 0.0
 
                                 // 四个核心字段必填，其余字段仅在填写后校验。
                                 if (cleanCountry.isEmpty()) {
@@ -453,22 +456,22 @@ fun CardFormScreen(
                                     Toast.makeText(context, "请输入有效期，格式为 MM/YY", Toast.LENGTH_SHORT).show()
                                     return@IconButton
                                 }
-                                if (limitText.isNotBlank() && parseAmountOrNull(limitText) == null) {
+                                if (!isDebitCard && limitText.isNotBlank() && parseAmountOrNull(limitText) == null) {
                                     Toast.makeText(context, "请输入正确的额度", Toast.LENGTH_SHORT).show()
                                     return@IconButton
                                 }
-                                if (annualFeeText.isNotBlank() && parseAmountOrNull(annualFeeText) == null) {
+                                if (!isDebitCard && annualFeeText.isNotBlank() && parseAmountOrNull(annualFeeText) == null) {
                                     Toast.makeText(context, "请输入正确的年费金额", Toast.LENGTH_SHORT).show()
                                     return@IconButton
                                 }
-                                if (isQualified.isNotBlank() && isQualified !in listOf("1", "2", "3")) {
+                                if (!isDebitCard && isQualified.isNotBlank() && isQualified !in listOf("1", "2", "3")) {
                                     Toast.makeText(context, "请选择正确的年费减免政策", Toast.LENGTH_SHORT).show()
                                     return@IconButton
                                 }
 
                                 // 检测是否发生了共享额度的“全局修改”
-                                val sameGroupCards = if (isSharedLimit) {
-                                    db.getAllCards().filter { it.id != cardId && it.country == cleanCountry && it.bank == cleanBank && it.type == type && it.isSharedLimit }
+                                val sameGroupCards = if (!isDebitCard && isSharedLimit) {
+                                    db.getAllCards().filter { it.id != cardId && it.cardCategory != "debit" && it.country == cleanCountry && it.bank == cleanBank && it.type == type && it.isSharedLimit }
                                 } else emptyList()
 
                                 if (sameGroupCards.isNotEmpty() && parsedLimit != sameGroupCards[0].limit) {
@@ -478,7 +481,7 @@ fun CardFormScreen(
                                     // 直接保存，设置 isSaved = true 避免图片垃圾回收
                                     isSaved = true
                                     executeSaveCard(
-                                        context, db, cardId, originalCard, cleanCountry, cleanBank, alias, level,
+                                        context, db, cardId, originalCard, cardCategory, cleanCountry, cleanBank, alias, level,
                                         cleanCardNumber, cvv, cleanValid, parsedLimit, type, isSharedLimit,
                                         accountBillDate, dueDate, billingDaySpendingToNextBill,
                                         parsedAnnualFee, isQualified, nextAnnualFeeCollectionTime, lastTime, equity, remark,
@@ -519,6 +522,27 @@ fun CardFormScreen(
                         expanded = coreSectionExpanded,
                         onExpandedChange = { coreSectionExpanded = it }
                     ) {
+                        Text("卡类别", fontSize = 12.sp, color = if (isDark) TextGray else TextMuted)
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            listOf("credit" to "信用卡", "debit" to "储蓄卡").forEach { (code, labelText) ->
+                                FilterChip(
+                                    selected = cardCategory == code,
+                                    onClick = { cardCategory = code },
+                                    label = { Text(labelText) },
+                                    modifier = Modifier.weight(1f),
+                                    colors = FilterChipDefaults.filterChipColors(
+                                        selectedContainerColor = if (isDark) NeonCyan.copy(alpha = 0.2f) else GoldPrimary.copy(alpha = 0.15f),
+                                        selectedLabelColor = if (isDark) NeonCyan else GoldPrimary
+                                    )
+                                )
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(10.dp))
+
                         ReferenceDropdownField(
                             value = country,
                             onValueChange = { country = it },
@@ -548,7 +572,7 @@ fun CardFormScreen(
                                 val filtered = input.filter { it.isDigit() }.take(20)
                                 cardNumber = filtered
                             },
-                            label = { Text("信用卡卡号 *") },
+                            label = { Text("银行卡号 *") },
                             placeholder = { Text("请输入数字") },
                             trailingIcon = {
                                 if (detectedBrand != "Unknown") {
@@ -627,6 +651,18 @@ fun CardFormScreen(
                             isDark = isDark,
                             modifier = Modifier.fillMaxWidth(),
                         )
+
+                        if (isDebitCard) {
+                            Spacer(modifier = Modifier.height(10.dp))
+                            ReferenceDropdownField(
+                                value = type,
+                                onValueChange = { type = it },
+                                label = "币种",
+                                options = CardReferenceData.currencies,
+                                isDark = isDark,
+                                modifier = Modifier.fillMaxWidth(),
+                            )
+                        }
                     }
 
                     CollapsibleFormSection(
@@ -652,11 +688,12 @@ fun CardFormScreen(
                         )
                     }
 
-                    CollapsibleFormSection(
-                        title = "额度与年费",
-                        expanded = limitFeeSectionExpanded,
-                        onExpandedChange = { limitFeeSectionExpanded = it }
-                    ) {
+                    if (!isDebitCard) {
+                        CollapsibleFormSection(
+                            title = "额度与年费",
+                            expanded = limitFeeSectionExpanded,
+                            onExpandedChange = { limitFeeSectionExpanded = it }
+                        ) {
                         ReferenceDropdownField(
                             value = type,
                             onValueChange = { type = it },
@@ -899,6 +936,7 @@ fun CardFormScreen(
                                 )
                             }
                         }
+                        }
                     }
 
                     CollapsibleFormSection(
@@ -940,7 +978,7 @@ fun CardFormScreen(
         AlertDialog(
             onDismissRequest = { showSharedLimitWarningDialog = false },
             title = { Text("确认修改共享总额度吗？") },
-            text = { Text("⚠️ 修改该共享额度，将会自动一并批量更新该银行旗下其它全部共享信用卡的额度。") },
+            text = { Text("⚠️ 修改该共享额度，将会自动一并批量更新该银行旗下其它全部共享信用卡的额度。储蓄卡不参与额度同步。") },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -953,7 +991,7 @@ fun CardFormScreen(
                         // 批量修改并保存
                         isSaved = true
                         executeSaveCard(
-                            context, db, cardId, originalCard, cleanCountry, cleanBank, alias, level,
+                            context, db, cardId, originalCard, cardCategory, cleanCountry, cleanBank, alias, level,
                             cleanCardNumber, cvv, valid.trim(), parsedLimit, type, isSharedLimit,
                             accountBillDate, dueDate, billingDaySpendingToNextBill,
                             parsedAnnualFee, isQualified, nextAnnualFeeCollectionTime, lastTime, equity, remark,
@@ -961,7 +999,7 @@ fun CardFormScreen(
                         )
                         // 批量更新同组其它共享卡片的额度
                         val otherCards = db.getAllCards().filter {
-                            it.id != cardId && it.country == cleanCountry && it.bank == cleanBank && it.type == type && it.isSharedLimit
+                            it.id != cardId && it.cardCategory != "debit" && it.country == cleanCountry && it.bank == cleanBank && it.type == type && it.isSharedLimit
                         }
                         for (other in otherCards) {
                             other.limit = parsedLimit
@@ -1444,6 +1482,7 @@ fun executeSaveCard(
     db: DatabaseHelper,
     cardId: String?,
     originalCard: SharedCard?,
+    cardCategory: String,
     country: String,
     bank: String,
     alias: String,
@@ -1467,6 +1506,7 @@ fun executeSaveCard(
 ) {
     val finalCard = SharedCard(
         id = cardId ?: UUID.randomUUID().toString(),
+        cardCategory = if (cardCategory == "debit") "debit" else "credit",
         country = country.trim(),
         bank = bank.trim(),
         alias = alias.trim(),
@@ -1476,14 +1516,14 @@ fun executeSaveCard(
         valid = valid.trim(),
         limit = limit,
         type = type.trim().uppercase(),
-        isSharedLimit = isSharedLimit,
+        isSharedLimit = if (cardCategory == "debit") false else isSharedLimit,
         accountBillDate = accountBillDate,
         dueDate = dueDate,
         billingDaySpendingToNextBill = billingDaySpendingToNextBill,
-        annualFee = annualFee,
-        isQualified = isQualified,
-        nextAnnualFeeCollectionTime = nextAnnualFeeCollectionTime,
-        lastTime = lastTime,
+        annualFee = if (cardCategory == "debit") 0.0 else annualFee,
+        isQualified = if (cardCategory == "debit") "" else isQualified,
+        nextAnnualFeeCollectionTime = if (cardCategory == "debit") null else nextAnnualFeeCollectionTime,
+        lastTime = if (cardCategory == "debit") null else lastTime,
         equity = equity.trim(),
         remark = remark.trim(),
         cardImages = cardImages
@@ -2081,7 +2121,7 @@ fun CameraScanLayout(
                     )
                     if (!hasCameraPermission) {
                         Text(
-                            text = "扫描信用卡需要调用您的相机权限进行本地 OCR 识别。卡片图像严格在本地进行分析，绝不上报，100% 保护隐私安全。",
+                            text = "扫描银行卡需要调用您的相机权限进行本地 OCR 识别。卡片图像严格在本地进行分析，绝不上报，100% 保护隐私安全。",
                             color = Color.Gray,
                             fontSize = 12.sp,
                             textAlign = TextAlign.Center,
@@ -2370,7 +2410,7 @@ fun parseCardInfoFromText(text: String): Pair<String, String>? {
 }
 
 /**
- * 信用卡标准卡号 Luhn 逻辑校验算法
+ * 银行卡标准卡号 Luhn 逻辑校验算法
  */
 fun luhnCheck(number: String): Boolean {
     var sum = 0

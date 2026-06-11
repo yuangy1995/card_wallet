@@ -185,7 +185,7 @@ object SecurityLockManager {
 
         val cvvCards = cards.filter { normalizeDigits(it.cvv).isNotBlank() && normalizeDigits(it.cardNumber).isNotBlank() }
         val expiryCards = cards.filter { parseExpiry(it.valid) != null && normalizeDigits(it.cardNumber).isNotBlank() }
-        val limitCards = cards.filter { normalizeLimitAnswer(it.limit).isNotBlank() && it.limit > 0.0 }
+        val limitCards = cards.filter { it.cardCategory != "debit" && normalizeLimitAnswer(it.limit).isNotBlank() && it.limit > 0.0 }
         if (cvvCards.isEmpty() && expiryCards.isEmpty()) {
             throw IllegalStateException("已保存卡片缺少 CVV 或有效期，无法生成找回问题")
         }

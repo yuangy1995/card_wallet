@@ -377,6 +377,7 @@ object SyncCoordinator {
 
     private fun snapshotFields(card: SharedCard, isNew: Boolean): List<FieldChangeDetail> {
         return listOf(
+            "卡类别" to cardCategoryText(card),
             "国家 / 地区" to card.country,
             "发卡银行" to card.bank,
             "卡片别名" to card.alias,
@@ -408,6 +409,7 @@ object SyncCoordinator {
 
     private fun compareFields(before: SharedCard, after: SharedCard): List<FieldChangeDetail> {
         val fields = listOf(
+            Triple("卡类别", cardCategoryText(before), cardCategoryText(after)),
             Triple("国家 / 地区", before.country, after.country),
             Triple("发卡银行", before.bank, after.bank),
             Triple("卡片别名", before.alias, after.alias),
@@ -444,6 +446,10 @@ object SyncCoordinator {
         val bank = card.bank.trim().ifEmpty { "未知银行" }
         val suffix = maskCardNumber(card.cardNumber)
         return listOf(bank, alias, suffix).filter { it.isNotBlank() && it != "未设置" }.joinToString(" / ")
+    }
+
+    private fun cardCategoryText(card: SharedCard): String {
+        return if (card.cardCategory == "debit") "储蓄卡" else "信用卡"
     }
 
     private fun maskCardNumber(value: String): String {
@@ -519,6 +525,7 @@ object SyncCoordinator {
             if (card.id.isBlank()) {
                 card.id = UUID.randomUUID().toString()
             }
+            card.cardCategory = if (card.cardCategory == "debit") "debit" else "credit"
             // Web/Mac 端会把 active record 的 lastModifyTime 规范为 changedAt 对应毫秒值。
             card.lastModifyTime = nowMillis
 
@@ -890,10 +897,6 @@ object SyncCoordinator {
 
     fun getIsoTimestamp(): String {
         return SyncTime.nowIso()
-    }
-
-    private fun formatEpochToIso(epochMs: Long): String {
-        return SyncTime.isoFromMillis(epochMs)
     }
 
     private fun requestBackgroundSync(context: Context, publishLocalChanges: Boolean) {

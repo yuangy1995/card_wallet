@@ -4,12 +4,14 @@ import kotlinx.serialization.Serializable
 import java.util.UUID
 
 /**
- * 共享信用卡数据模型（与 Web/Mac 端 DEFAULT_CARD_DATA 100% 对齐）
+ * 共享银行卡数据模型（与 Web/Mac 端 DEFAULT_CARD_DATA 100% 对齐）
  */
 @Serializable
 data class SharedCard(
     @Serializable(with = FlexibleStringSerializer::class)
     var id: String = UUID.randomUUID().toString(),
+    @Serializable(with = FlexibleStringSerializer::class)
+    var cardCategory: String = "credit", // "credit": 信用卡，"debit": 储蓄卡
     @Serializable(with = FlexibleStringSerializer::class)
     var country: String = "",
     @Serializable(with = FlexibleStringSerializer::class)

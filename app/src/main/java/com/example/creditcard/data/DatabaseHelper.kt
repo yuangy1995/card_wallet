@@ -16,7 +16,7 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
 
     companion object {
         private const val DATABASE_NAME = "credit_card.db"
-        private const val DATABASE_VERSION = 2
+        private const val DATABASE_VERSION = 3
 
         // 表名
         private const val TABLE_CARDS = "cards"
@@ -24,6 +24,7 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
 
         // cards 表字段名
         private const val KEY_ID = "id"
+        private const val KEY_CARD_CATEGORY = "cardCategory"
         private const val KEY_COUNTRY = "country"
         private const val KEY_BANK = "bank"
         private const val KEY_ALIAS = "alias"
@@ -58,6 +59,7 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
         // 创建 cards 表
         val createCardsTable = ("CREATE TABLE " + TABLE_CARDS + "("
                 + KEY_ID + " TEXT PRIMARY KEY,"
+                + KEY_CARD_CATEGORY + " TEXT DEFAULT 'credit',"
                 + KEY_COUNTRY + " TEXT,"
                 + KEY_BANK + " TEXT,"
                 + KEY_ALIAS + " TEXT,"
@@ -95,6 +97,9 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
         if (oldVersion < 2) {
             addColumnIfMissing(db, TABLE_CARDS, KEY_CARD_IMAGES, "TEXT DEFAULT '[]'")
         }
+        if (oldVersion < 3) {
+            addColumnIfMissing(db, TABLE_CARDS, KEY_CARD_CATEGORY, "TEXT DEFAULT 'credit'")
+        }
     }
 
     // ==========================================
@@ -111,6 +116,7 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
             do {
                 val card = SharedCard(
                     id = cursor.getString(cursor.getColumnIndexOrThrow(KEY_ID)),
+                    cardCategory = cursor.getStringOrEmpty(KEY_CARD_CATEGORY).normalizeCardCategory(),
                     country = cursor.getStringOrEmpty(KEY_COUNTRY),
                     bank = cursor.getStringOrEmpty(KEY_BANK),
                     alias = cursor.getStringOrEmpty(KEY_ALIAS),
@@ -151,6 +157,7 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
         if (cursor.moveToFirst()) {
             card = SharedCard(
                 id = cursor.getString(cursor.getColumnIndexOrThrow(KEY_ID)),
+                cardCategory = cursor.getStringOrEmpty(KEY_CARD_CATEGORY).normalizeCardCategory(),
                 country = cursor.getStringOrEmpty(KEY_COUNTRY),
                 bank = cursor.getStringOrEmpty(KEY_BANK),
                 alias = cursor.getStringOrEmpty(KEY_ALIAS),
@@ -182,6 +189,7 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
         val db = this.writableDatabase
         val values = ContentValues().apply {
             put(KEY_ID, card.id)
+            put(KEY_CARD_CATEGORY, card.cardCategory.normalizeCardCategory())
             put(KEY_COUNTRY, card.country)
             put(KEY_BANK, card.bank)
             put(KEY_ALIAS, card.alias)
@@ -297,8 +305,13 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
     }
 
     private fun Cursor.getStringOrEmpty(columnName: String): String {
-        val index = getColumnIndexOrThrow(columnName)
+        val index = getColumnIndex(columnName)
+        if (index < 0) return ""
         return if (isNull(index)) "" else getString(index).orEmpty()
+    }
+
+    private fun String.normalizeCardCategory(): String {
+        return if (this == "debit") "debit" else "credit"
     }
 
     private fun Cursor.getCardImages(): List<CardImageAsset> {

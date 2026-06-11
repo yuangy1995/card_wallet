@@ -13,5 +13,6 @@ import kotlinx.serialization.Serializable
 @Serializable data class CardForm(
     val cardId: String? = null,
     val prefillCardNumber: String = "",
-    val prefillValid: String = ""
+    val prefillValid: String = "",
+    val cardCategory: String = "credit"
 ) : NavKey

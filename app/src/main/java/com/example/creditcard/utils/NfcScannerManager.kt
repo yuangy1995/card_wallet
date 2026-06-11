@@ -17,7 +17,7 @@ object NfcScannerManager {
 
     /**
      * 当物理 NFC 模块感应或解析卡片成功时回调
-     * @param number 识别出的信用卡卡号
+     * @param number 识别出的银行卡卡号
      * @param valid 识别出的有效期，格式：MM/YY
      */
     fun onCardScanned(number: String, valid: String) {
@@ -49,4 +49,3 @@ object NfcScannerManager {
         _nfcUnsupportedCard.tryEmit(Unit)
     }
 }
-
