@@ -356,6 +356,7 @@ import { creditCardOptions } from '@/config/creditCardOptions'
 import { QuestionFilled } from '@element-plus/icons-vue'
 import { useAutoLock } from '@/composables/useAutoLock'
 import { formatTimestampForDateInput, timestampFromDateInput } from '@/utils/cardTimestamp'
+import { bankNamesReferToSameBank } from '@/utils/bankName'
 
 // 信用卡类型识别
 const CARD_TYPES = {
@@ -686,7 +687,7 @@ export default {
       const existingCard = props.existingCards.find(card => {
         const cardBank = card.bank || ''
         return card.country === currentCountry &&
-               cardBank === currentBank &&
+               bankNamesReferToSameBank(cardBank, currentBank) &&
                card.cardCategory !== 'debit' &&
                card.isSharedLimit === true &&
                card.id !== formData.value.id

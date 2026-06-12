@@ -71,7 +71,7 @@ class WebDAVSyncService {
     this.updateStatus(this.status.message, this.status.type, this.status.pending)
   }
 
-  async start(cards, onCardsChanged, onStatusChanged) {
+  start(cards, onCardsChanged, onStatusChanged) {
     this.onCardsChanged = onCardsChanged
     this.onStatusChanged = onStatusChanged
     const records = cardSyncLedger.initialize(cards)
@@ -82,21 +82,20 @@ class WebDAVSyncService {
       this.updateStatus('还未设置云同步，本机改动会先保存在本地', 'info')
       return
     }
-    try {
-      this.startAutoSync()
-      if (!webdavClient.client) {
-        await webdavClient.initialize(config)
-      }
-      await this.synchronize(false)
-    } catch (error) {
+    this.startAutoSync()
+    this.updateStatus('正在后台检查云端数据...', 'info', cardSyncLedger.isPending())
+    this.synchronize(false).catch((error) => {
       this.updateStatus(`云同步暂时不可用：${error.message}`, 'warning')
-    }
+    })
   }
 
-  async commitCards(cards, options = {}) {
+  commitCards(cards, options = {}) {
     cardSyncLedger.commit(cards, options)
     this.onCardsChanged?.(activeCards(cardSyncLedger.load()))
-    await this.synchronize(true)
+    this.synchronize(true).catch((error) => {
+      cardSyncLedger.setPending(true)
+      this.updateStatus(`同步失败，本机改动已保留，稍后可重试：${error.message}`, 'warning', true)
+    })
   }
 
   startAutoSync(intervalMs = this.syncIntervalMs) {

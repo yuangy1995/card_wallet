@@ -454,6 +454,7 @@ import { useAutoLock } from '@/composables/useAutoLock'
 import { PasswordManager } from '@/utils/passwordManager'
 import { webdavSyncService } from '@/utils/webdavSyncService'
 import { formatCardTimestamp, normalizeCardTimeFields, timestampFromDateInput } from '@/utils/cardTimestamp'
+import { bankNamesReferToSameBank, displayBankName, shouldPropagateBankRename } from '@/utils/bankName'
 
 // 主题控制
 const { isDarkMode, toggleTheme } = useTheme()
@@ -995,8 +996,29 @@ const mergeTableColumnsWithDefaults = (storedColumns = []) => {
   return merged.concat(customColumns)
 }
 
-const persistSyncedMutation = async (options = {}) => {
-  await webdavSyncService.commitCards(cardData.value, options)
+const persistSyncedMutation = (options = {}) => {
+  webdavSyncService.commitCards(cardData.value, options)
+}
+
+const propagateBankRename = (previousCard, updatedCard) => {
+  const previousBank = previousCard?.bank || ''
+  const nextBank = updatedCard?.bank || ''
+  if (!shouldPropagateBankRename(previousBank, nextBank)) return 0
+
+  const now = getCurrentTimestamp()
+  let updatedCount = 0
+  cardData.value.forEach((card, index) => {
+    if (card.id === updatedCard.id) return
+    if (!bankNamesReferToSameBank(card.bank, previousBank)) return
+    if (displayBankName(card.bank) === displayBankName(nextBank)) return
+    cardData.value[index] = {
+      ...card,
+      bank: nextBank,
+      lastModifyTime: now
+    }
+    updatedCount += 1
+  })
+  return updatedCount
 }
 
 const publishCurrentV4Snapshot = async (afterPublish) => {
@@ -1236,6 +1258,9 @@ const confirmAdd = async (data) => {
     // 添加最后修改时间
     data.cardCategory = data.cardCategory === 'debit' ? 'debit' : 'credit'
     data.lastModifyTime = getCurrentTimestamp()
+    const previousCard = status.value === 'edit'
+      ? cardData.value.find(item => item.id === data.id)
+      : null
 
     if (status.value === 'add') {
       cardData.value.push(data)
@@ -1246,6 +1271,8 @@ const confirmAdd = async (data) => {
       }
     }
 
+    const renamedBankCount = propagateBankRename(previousCard, data)
+
     // 如果是共享额度，同步更新所有同银行共享额度的卡片
     if (isCreditCard(data) && data.isSharedLimit && data.bank && data.country) {
       const currentBank = data.bank || ''
@@ -1254,7 +1281,7 @@ const confirmAdd = async (data) => {
             card.isSharedLimit === true &&
             isCreditCard(card) &&
             card.country === data.country &&
-            (card.bank || '') === currentBank) {
+            bankNamesReferToSameBank(card.bank, currentBank)) {
           cardData.value[idx].limit = data.limit
           cardData.value[idx].type = data.type
           cardData.value[idx].lastTime = data.lastTime
@@ -1267,7 +1294,9 @@ const confirmAdd = async (data) => {
 
     // 更好的成功反馈
     ElMessage({
-      message: status.value === 'add' ? `${categoryText}添加成功！` : `${categoryText}信息更新成功！`,
+      message: status.value === 'add'
+        ? `${categoryText}添加成功！`
+        : `${categoryText}信息更新成功！${renamedBankCount ? `已同步更新 ${renamedBankCount} 张同银行银行卡。` : ''}`,
       type: 'success',
       duration: 2000,
       showClose: true

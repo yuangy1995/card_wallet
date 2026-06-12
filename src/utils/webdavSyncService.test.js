@@ -95,4 +95,35 @@ describe('webdav sync service', () => {
     ])
     expect(mocks.webdavClient.uploadSyncSnapshot).toHaveBeenCalled()
   })
+
+  it('starts initial cloud sync in the background without blocking app entry', async () => {
+    const onCardsChanged = vi.fn()
+    const onStatusChanged = vi.fn()
+    let resolveBackupList
+    mocks.webdavClient.getBackupList.mockReturnValue(new Promise((resolve) => {
+      resolveBackupList = resolve
+    }))
+
+    const result = webdavSyncService.start([
+      {
+        id: 'local-card',
+        country: 'CN',
+        bank: 'Local Bank',
+        cardNumber: '6224000000000000',
+        lastModifyTime: Date.parse('2026-06-01T00:00:00.000Z')
+      }
+    ], onCardsChanged, onStatusChanged)
+
+    expect(result).toBeUndefined()
+    expect(onCardsChanged).toHaveBeenCalledWith([
+      expect.objectContaining({ id: 'local-card', bank: 'Local Bank' })
+    ])
+    expect(mocks.webdavClient.getBackupList).toHaveBeenCalled()
+    expect(onStatusChanged).toHaveBeenCalledWith(
+      expect.objectContaining({ message: '正在后台检查云端数据...', isSyncing: false })
+    )
+
+    resolveBackupList({ success: true, data: [] })
+    await Promise.resolve()
+  })
 })
