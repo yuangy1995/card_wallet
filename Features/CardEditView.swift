@@ -456,13 +456,10 @@ public struct CardEditView: View {
             return
         }
         
-        let cleanBank = bank.replacingOccurrences(of: "\\(.*\\)", with: "", options: .regularExpression).trimmingCharacters(in: .whitespaces)
-        
         let match = existingCards.first { item in
-            let itemBank = item.bank.replacingOccurrences(of: "\\(.*\\)", with: "", options: .regularExpression).trimmingCharacters(in: .whitespaces)
             return item.country == country &&
                    item.cardCategory != "debit" &&
-                   itemBank == cleanBank &&
+                   BankNameNormalizer.namesReferToSameBank(item.bank, bank) &&
                    item.isSharedLimit &&
                    item.id != cardToEdit?.id
         }

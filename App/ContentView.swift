@@ -127,6 +127,10 @@ struct ContentView: View {
                 initialCardCategory: request.card?.cardCategory ?? request.cardCategory,
                 existingCards: cards,
                 onSubmit: { finalCard in
+                    let previousCard = request.mode == "edit"
+                        ? (cards.first { $0.id == finalCard.id } ?? request.card)
+                        : nil
+
                     if request.mode == "add" {
                         cards.append(finalCard)
                     } else {
@@ -134,16 +138,16 @@ struct ContentView: View {
                             cards[index] = finalCard
                         }
                     }
+
+                    _ = propagateBankRename(from: previousCard, to: finalCard)
                     
                     // 💡 联动同步：如果信用卡启用了共享额度，自动同步批量更新其他同银行的共享额度卡片
                     if finalCard.cardCategory != "debit", finalCard.isSharedLimit {
-                        let cleanBank = finalCard.bank.replacingOccurrences(of: "\\(.*\\)", with: "", options: .regularExpression).trimmingCharacters(in: .whitespaces)
                         for i in 0..<cards.count {
-                            let itemBank = cards[i].bank.replacingOccurrences(of: "\\(.*\\)", with: "", options: .regularExpression).trimmingCharacters(in: .whitespaces)
                             if cards[i].id != finalCard.id &&
                                 cards[i].cardCategory != "debit" &&
                                 cards[i].country == finalCard.country &&
-                               itemBank == cleanBank &&
+                               BankNameNormalizer.namesReferToSameBank(cards[i].bank, finalCard.bank) &&
                                cards[i].isSharedLimit {
                                 cards[i].limit = finalCard.limit
                                 cards[i].lastModifyTime = DateCalculator.timestamp(from: Date())
@@ -510,6 +514,26 @@ struct ContentView: View {
             cards.removeAll { $0.id == card.id }
             cards = syncCoordinator.commit(cards: cards, deletedCardIDs: [card.id])
         }
+    }
+
+    private func propagateBankRename(from previousCard: SharedCard?, to updatedCard: SharedCard) -> Int {
+        guard BankNameNormalizer.shouldPropagateRename(from: previousCard?.bank, to: updatedCard.bank) else {
+            return 0
+        }
+
+        let nowTimestamp = DateCalculator.timestamp(from: Date())
+        var updatedCount = 0
+        for index in cards.indices {
+            guard cards[index].id != updatedCard.id,
+                  BankNameNormalizer.namesReferToSameBank(cards[index].bank, previousCard?.bank),
+                  BankNameNormalizer.display(cards[index].bank) != BankNameNormalizer.display(updatedCard.bank) else {
+                continue
+            }
+            cards[index].bank = updatedCard.bank
+            cards[index].lastModifyTime = nowTimestamp
+            updatedCount += 1
+        }
+        return updatedCount
     }
     
     private func updateCardStatus(_ card: SharedCard, status: String) {

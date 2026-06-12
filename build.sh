@@ -8,6 +8,23 @@ RED='\033[0;31m'
 NC='\033[0m' # 无颜色
 
 echo -e "${YELLOW}=== 开始打包 macOS 原生信用卡管理客户端 ===${NC}"
+mkdir -p build
+BUILD_LOG="./build/xcodebuild-archive.log"
+
+run_xcodebuild_archive() {
+    echo -e "${YELLOW}xcodebuild 归档日志: $(pwd)/${BUILD_LOG#./}${NC}"
+    set +e
+    "$@" 2>&1 | tee "$BUILD_LOG"
+    local archive_status=${PIPESTATUS[0]}
+    set -e
+
+    if [ "$archive_status" -ne 0 ]; then
+        echo -e "${RED}❌ xcodebuild 归档失败，退出码: ${archive_status}${NC}"
+        echo -e "${RED}最近 120 行日志如下，完整日志见: $(pwd)/${BUILD_LOG#./}${NC}"
+        tail -n 120 "$BUILD_LOG"
+        exit "$archive_status"
+    fi
+}
 
 # 1. 自动利用 sips 和 iconutil 生成系统级 .icns 图标
 ICON_PNG="$(dirname "$0")/Resources/AppIcon.png"
@@ -44,24 +61,22 @@ if [ "${CLOUDKIT_SIGNED_BUILD:-0}" = "1" ]; then
         exit 1
     fi
     echo -e "${YELLOW}正在生成带 CloudKit entitlement 的签名归档...${NC}"
-    xcodebuild archive \
+    run_xcodebuild_archive xcodebuild archive \
         -project CreditCardMac.xcodeproj \
         -scheme CreditCardMac \
         -archivePath ./build/CreditCardMac.xcarchive \
         DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" \
-        CODE_SIGN_STYLE=Automatic \
-        > /dev/null 2>&1
+        CODE_SIGN_STYLE=Automatic
 else
     echo -e "${YELLOW}正在编译离线归档；此产物不具备真实 iCloud/CloudKit 验证能力。${NC}"
-    xcodebuild archive \
+    run_xcodebuild_archive xcodebuild archive \
         -project CreditCardMac.xcodeproj \
         -scheme CreditCardMac \
         -archivePath ./build/CreditCardMac.xcarchive \
         CODE_SIGNING_ALLOWED=NO \
         CODE_SIGNING_REQUIRED=NO \
         CODE_SIGN_IDENTITY="" \
-        CODE_SIGN_ENTITLEMENTS="" \
-        > /dev/null 2>&1
+        CODE_SIGN_ENTITLEMENTS=""
 fi
 
 # 4. 提取生成的 .app 包到规范输出目录 dist/

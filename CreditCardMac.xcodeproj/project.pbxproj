@@ -34,6 +34,7 @@
 		DC012DCCDDDC6B43D8969ADF /* AutoLockManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8CC4D72F0F18F7121E795BC /* AutoLockManager.swift */; };
 		DD84F0DEBBFE70A67AD407DB /* SyncLedgerStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC0FDDFB92ADC90BD0EE7A0D /* SyncLedgerStore.swift */; };
 		EBAF354C03FB20594CFB43ED /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAF19E198886B14379EAD841 /* ContentView.swift */; };
+		FAB986A72819BDF5D7C79621 /* BankNameNormalizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6DCB69F819080E42F97B875A /* BankNameNormalizer.swift */; };
 		FE3CF5414A77B782CC80D2E8 /* CryptoSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 47F951393718AD64162C98B4 /* CryptoSwift */; };
 /* End PBXBuildFile section */
 
@@ -60,6 +61,7 @@
 		3C0278348791C024271E1A98 /* DateCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DateCalculator.swift; sourceTree = "<group>"; };
 		41C92BECFAFA8B4024698F6B /* CreditCardMac.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = CreditCardMac.entitlements; sourceTree = "<group>"; };
 		580EA1E3A67161B26D4D2D97 /* CreditCardMac.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CreditCardMac.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		6DCB69F819080E42F97B875A /* BankNameNormalizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BankNameNormalizer.swift; sourceTree = "<group>"; };
 		78703BAB79809F69FC1B7206 /* DataMigrationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataMigrationManager.swift; sourceTree = "<group>"; };
 		7F2338F3ED803328C4E1077D /* CloudSyncView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudSyncView.swift; sourceTree = "<group>"; };
 		852CD8E0C8F1F82A9AC867D7 /* SyncModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncModels.swift; sourceTree = "<group>"; };
@@ -107,6 +109,7 @@
 			isa = PBXGroup;
 			children = (
 				F8CC4D72F0F18F7121E795BC /* AutoLockManager.swift */,
+				6DCB69F819080E42F97B875A /* BankNameNormalizer.swift */,
 				F2438DA162090A1129CF9648 /* CardModels.swift */,
 				36EA37FCF17EA8F9A43FD7D4 /* CloudKitSyncService.swift */,
 				C315C733366CF89A7169E701 /* CryptoManager.swift */,
@@ -280,6 +283,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				DC012DCCDDDC6B43D8969ADF /* AutoLockManager.swift in Sources */,
+				FAB986A72819BDF5D7C79621 /* BankNameNormalizer.swift in Sources */,
 				761306178F25FE49E1706893 /* CardBrandIcon.swift in Sources */,
 				B6099858631471B3850F36C9 /* CardEditView.swift in Sources */,
 				9A901A8A5576595768F5A2F5 /* CardGridView.swift in Sources */,
