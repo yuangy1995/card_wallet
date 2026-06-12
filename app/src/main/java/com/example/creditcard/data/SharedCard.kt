@@ -29,7 +29,7 @@ data class SharedCard(
     @Serializable(with = FlexibleDoubleSerializer::class)
     var limit: Double = 0.0,
     @Serializable(with = FlexibleStringSerializer::class)
-    var type: String = "CNY",
+    var type: String = "",
     @Serializable(with = FlexibleBooleanSerializer::class)
     var isSharedLimit: Boolean = true,
     @Serializable(with = FlexibleStringSerializer::class)

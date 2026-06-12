@@ -37,6 +37,8 @@ object WebDAVClient {
 
     // 默认的备份目录
     private const val BACKUP_DIR = "credit-card-backup"
+    private val ensureBackupDirLock = Any()
+    @Volatile private var ensuredBackupDirKey: String? = null
 
     /**
      * 测试 WebDAV 连接是否畅通
@@ -233,6 +235,8 @@ object WebDAVClient {
 
     private fun backupDirUrl(baseUrl: String): String = "$baseUrl/$BACKUP_DIR/"
 
+    private fun ensureCacheKey(baseUrl: String, credential: String): String = "$baseUrl\n$credential"
+
     private fun backupFileUrl(baseUrl: String, filename: String): String {
         return backupDirUrl(baseUrl) + encodePathSegment(filename)
     }
@@ -248,6 +252,13 @@ object WebDAVClient {
      * 自动检测并确保云端的 /credit-card-backup 目录存在，如果不存在则进行 MKCOL 创建
      */
     private fun ensureBackupDirExists(baseUrl: String, credential: String) {
+        val cacheKey = ensureCacheKey(baseUrl, credential)
+        if (ensuredBackupDirKey == cacheKey) return
+
+        synchronized(ensureBackupDirLock) {
+            if (ensuredBackupDirKey == cacheKey) return
+        }
+
         val dirUrl = backupDirUrl(baseUrl)
         
         // 先发 PROPFIND 验证目录是否存在
@@ -268,7 +279,15 @@ object WebDAVClient {
                         .header("Authorization", credential)
                         .build()
                     client.newCall(mkcolRequest).execute().use { mkcolRes ->
-                        // 目录创建成功
+                        if (mkcolRes.isSuccessful || mkcolRes.code == 201 || mkcolRes.code == 405) {
+                            synchronized(ensureBackupDirLock) {
+                                ensuredBackupDirKey = cacheKey
+                            }
+                        }
+                    }
+                } else if (response.isSuccessful || response.code == 207) {
+                    synchronized(ensureBackupDirLock) {
+                        ensuredBackupDirKey = cacheKey
                     }
                 }
             }

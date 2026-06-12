@@ -985,7 +985,7 @@ private fun decodePreviewBitmap(preview: PreviewImage): android.graphics.Bitmap?
 }
 
 private fun formatCurrencyAmount(currency: String, value: Double): String {
-    val currencyCode = currency.ifBlank { "CNY" }
+    val currencyCode = currency.trim()
     val symbol = when (currencyCode.uppercase()) {
         "CNY", "JPY" -> "¥"
         "USD" -> "$"
@@ -999,7 +999,8 @@ private fun formatCurrencyAmount(currency: String, value: Double): String {
         "CAD" -> "C$"
         else -> ""
     }
-    return "$currencyCode $symbol${String.format("%,.2f", value)}".trim()
+    val amountText = "$symbol${String.format("%,.2f", value)}"
+    return listOf(currencyCode, amountText).filter { it.isNotBlank() }.joinToString(" ")
 }
 
 private fun annualFeeAmountText(card: SharedCard): String {

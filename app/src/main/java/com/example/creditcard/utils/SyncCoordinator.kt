@@ -14,6 +14,9 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
@@ -675,29 +678,34 @@ object SyncCoordinator {
                     updateProgress("读取文件", 3, 6, "正在下载并读取 ${filesToRead.size} 份云同步文件$totalFilesText")
                 }
 
-                // 3. 下载并解密所有自动同步文件
-                val remoteRecords = ArrayList<CardSyncRecord>()
-                var validSnapshotCount = 0
-                for ((index, file) in filesToRead.withIndex()) {
-                    ensureSyncNotCancelled()
-                    withContext(Dispatchers.Main) {
-                        updateProgress("读取文件", 3, 6, "正在读取 ${index + 1}/${filesToRead.size}：${file.filename}")
-                    }
-                    val fileContent = WebDAVClient.restoreBackup(config.url, config.user, config.pass, file.filename)
-                    ensureSyncNotCancelled()
-                    if (!fileContent.isNullOrEmpty()) {
-                        try {
-                            val decryptedJson = CryptoManager.decryptSyncEnvelopeV4(fileContent, config.syncPassword)
-                            val snapshot = AppJson.json.decodeFromString<SyncSnapshot>(decryptedJson)
-                            if (snapshot.schemaVersion == "4.0.0") {
-                                validSnapshotCount += 1
-                                remoteRecords.addAll(snapshot.records)
+                // 3. 下载并解密最近自动同步文件。Android 之前串行处理 5 份快照，
+                // 每份都要 310k PBKDF2 派生；并发后与 Web/Mac 的行为一致。
+                val snapshots = coroutineScope {
+                    filesToRead.mapIndexed { index, file ->
+                        async(Dispatchers.IO) {
+                            ensureSyncNotCancelled()
+                            withContext(Dispatchers.Main) {
+                                updateProgress("读取文件", 3, 6, "正在读取 ${index + 1}/${filesToRead.size}：${file.filename}")
                             }
-                        } catch (e: Exception) {
-                            e.printStackTrace()
+                            val fileContent = WebDAVClient.restoreBackup(config.url, config.user, config.pass, file.filename)
+                            ensureSyncNotCancelled()
+                            if (fileContent.isNullOrEmpty()) {
+                                null
+                            } else {
+                                try {
+                                    val decryptedJson = CryptoManager.decryptSyncEnvelopeV4(fileContent, config.syncPassword)
+                                    val snapshot = AppJson.json.decodeFromString<SyncSnapshot>(decryptedJson)
+                                    if (snapshot.schemaVersion == "4.0.0") snapshot else null
+                                } catch (e: Exception) {
+                                    e.printStackTrace()
+                                    null
+                                }
+                            }
                         }
-                    }
+                    }.awaitAll()
                 }
+                val remoteRecords = snapshots.filterNotNull().flatMap { it.records }
+                val validSnapshotCount = snapshots.count { it != null }
                 if (filesToRead.isNotEmpty() && validSnapshotCount == 0) {
                     throw IllegalArgumentException("无法解密云端同步文件，请检查同步密钥")
                 }
@@ -718,13 +726,8 @@ object SyncCoordinator {
                     mergedRecords = SyncMergeEngine.merge(latestLocalRecords, remoteRecords)
                     changedByRemote = latestLocalRecords != mergedRecords
 
-                    db.clearAllCards()
-                    db.clearAllSyncRecords()
-                    db.saveSyncRecords(mergedRecords)
                     activeCards = SyncMergeEngine.extractActiveCards(mergedRecords)
-                    for (card in activeCards) {
-                        db.saveCard(card)
-                    }
+                    db.replaceSyncedData(mergedRecords, activeCards)
                     remoteChangeDetails = diffCards(beforeActiveCards, activeCards)
                     snapshotRevision = mutationRevision(appContext)
                     localChangesForHistory = loadPendingMutations(appContext)
@@ -773,9 +776,13 @@ object SyncCoordinator {
                         }.sortedWith(compareByDescending<BackupFile> { it.lastModified }.thenByDescending { it.filename })
                         if (oldAutoFiles.size > 5) {
                             val filesToDelete = oldAutoFiles.subList(5, oldAutoFiles.size)
-                            for (fileDel in filesToDelete) {
-                                ensureSyncNotCancelled()
-                                WebDAVClient.deleteBackup(config.url, config.user, config.pass, fileDel.filename)
+                            coroutineScope {
+                                filesToDelete.map { fileDel ->
+                                    async(Dispatchers.IO) {
+                                        ensureSyncNotCancelled()
+                                        WebDAVClient.deleteBackup(config.url, config.user, config.pass, fileDel.filename)
+                                    }
+                                }.awaitAll()
                             }
                         }
                     } else {

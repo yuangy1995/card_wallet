@@ -125,7 +125,7 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
                     cvv = cursor.getStringOrEmpty(KEY_CVV),
                     valid = cursor.getStringOrEmpty(KEY_VALID),
                     limit = cursor.getDouble(cursor.getColumnIndexOrThrow(KEY_LIMIT)),
-                    type = cursor.getStringOrEmpty(KEY_TYPE).ifEmpty { "CNY" },
+                    type = cursor.getStringOrEmpty(KEY_TYPE),
                     isSharedLimit = cursor.getInt(cursor.getColumnIndexOrThrow(KEY_IS_SHARED_LIMIT)) == 1,
                     accountBillDate = cursor.getStringOrEmpty(KEY_ACCOUNT_BILL_DATE),
                     dueDate = cursor.getStringOrEmpty(KEY_DUE_DATE),
@@ -166,7 +166,7 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
                 cvv = cursor.getStringOrEmpty(KEY_CVV),
                 valid = cursor.getStringOrEmpty(KEY_VALID),
                 limit = cursor.getDouble(cursor.getColumnIndexOrThrow(KEY_LIMIT)),
-                type = cursor.getStringOrEmpty(KEY_TYPE).ifEmpty { "CNY" },
+                type = cursor.getStringOrEmpty(KEY_TYPE),
                 isSharedLimit = cursor.getInt(cursor.getColumnIndexOrThrow(KEY_IS_SHARED_LIMIT)) == 1,
                 accountBillDate = cursor.getStringOrEmpty(KEY_ACCOUNT_BILL_DATE),
                 dueDate = cursor.getStringOrEmpty(KEY_DUE_DATE),
@@ -187,7 +187,11 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
 
     fun saveCard(card: SharedCard) {
         val db = this.writableDatabase
-        val values = ContentValues().apply {
+        db.insertWithOnConflict(TABLE_CARDS, null, cardValues(card), SQLiteDatabase.CONFLICT_REPLACE)
+    }
+
+    private fun cardValues(card: SharedCard): ContentValues {
+        return ContentValues().apply {
             put(KEY_ID, card.id)
             put(KEY_CARD_CATEGORY, card.cardCategory.normalizeCardCategory())
             put(KEY_COUNTRY, card.country)
@@ -212,7 +216,6 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
             put(KEY_REMARK, card.remark)
             put(KEY_CARD_IMAGES, encodeCardImages(card.cardImages))
         }
-        db.insertWithOnConflict(TABLE_CARDS, null, values, SQLiteDatabase.CONFLICT_REPLACE)
     }
 
     fun deleteCardById(id: String) {
@@ -262,6 +265,10 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
 
     fun saveSyncRecord(record: CardSyncRecord) {
         val db = this.writableDatabase
+        db.insertWithOnConflict(TABLE_SYNC_RECORDS, null, syncRecordValues(record), SQLiteDatabase.CONFLICT_REPLACE)
+    }
+
+    private fun syncRecordValues(record: CardSyncRecord): ContentValues {
         val cardJson = record.card?.let {
             try {
                 AppJson.json.encodeToString(SharedCard.serializer(), it)
@@ -277,7 +284,7 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
             put(KEY_REC_STATE, record.state)
             put(KEY_REC_CARD_JSON, cardJson)
         }
-        db.insertWithOnConflict(TABLE_SYNC_RECORDS, null, values, SQLiteDatabase.CONFLICT_REPLACE)
+        return values
     }
 
     fun saveSyncRecords(records: List<CardSyncRecord>) {
@@ -285,7 +292,7 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
         db.beginTransaction()
         try {
             for (record in records) {
-                saveSyncRecord(record)
+                db.insertWithOnConflict(TABLE_SYNC_RECORDS, null, syncRecordValues(record), SQLiteDatabase.CONFLICT_REPLACE)
             }
             db.setTransactionSuccessful()
         } finally {
@@ -296,6 +303,24 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
     fun clearAllSyncRecords() {
         val db = this.writableDatabase
         db.delete(TABLE_SYNC_RECORDS, null, null)
+    }
+
+    fun replaceSyncedData(records: List<CardSyncRecord>, cards: List<SharedCard>) {
+        val db = this.writableDatabase
+        db.beginTransaction()
+        try {
+            db.delete(TABLE_CARDS, null, null)
+            db.delete(TABLE_SYNC_RECORDS, null, null)
+            for (record in records) {
+                db.insertWithOnConflict(TABLE_SYNC_RECORDS, null, syncRecordValues(record), SQLiteDatabase.CONFLICT_REPLACE)
+            }
+            for (card in cards) {
+                db.insertWithOnConflict(TABLE_CARDS, null, cardValues(card), SQLiteDatabase.CONFLICT_REPLACE)
+            }
+            db.setTransactionSuccessful()
+        } finally {
+            db.endTransaction()
+        }
     }
 
     fun resetDatabase() {

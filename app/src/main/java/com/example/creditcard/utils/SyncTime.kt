@@ -68,6 +68,14 @@ object SyncTime {
         return lhsMillis.compareTo(rhsMillis)
     }
 
+    fun formatLocalDateTime(value: String, fallback: String = "未知时间"): String {
+        val millis = parseMillis(value) ?: return fallback
+        return SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.CHINA).apply {
+            timeZone = TimeZone.getDefault()
+            isLenient = false
+        }.format(Date(millis))
+    }
+
     private fun tryParse(value: String, pattern: String): Long? {
         return try {
             val formatter = SimpleDateFormat(pattern, Locale.US).apply {

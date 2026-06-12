@@ -71,6 +71,7 @@ import com.example.creditcard.utils.AppStorageSnapshot
 import com.example.creditcard.utils.BiometricAuthHelper
 import com.example.creditcard.utils.SecurityLockManager
 import com.example.creditcard.utils.SyncCoordinator
+import com.example.creditcard.utils.SyncTime
 import com.example.creditcard.utils.NfcScannerManager
 import com.example.creditcard.utils.ThemeManager
 import com.example.creditcard.utils.WebDAVClient
@@ -3708,8 +3709,7 @@ fun changeKindText(kind: String): String = when (kind) {
 }
 
 fun formatSyncTime(value: String): String {
-    if (value.isBlank()) return "未知时间"
-    return value.replace("T", " ").replace("Z", "").take(19)
+    return SyncTime.formatLocalDateTime(value)
 }
 
 fun formatSyncDuration(durationMs: Long): String {

@@ -81,10 +81,7 @@ object SyncMergeEngine {
             )
         }
 
-        val normalizedCard = record.card?.copy(
-            id = cardId,
-            lastModifyTime = SyncTime.parseMillis(normalizedChangedAt) ?: SyncTime.nowMillis()
-        ) ?: return null
+        val normalizedCard = normalizeCard(record.card ?: return null, cardId, normalizedChangedAt)
 
         return CardSyncRecord(
             cardId = cardId,
@@ -92,6 +89,15 @@ object SyncMergeEngine {
             changedAt = normalizedChangedAt,
             state = STATE_ACTIVE,
             card = normalizedCard
+        )
+    }
+
+    private fun normalizeCard(card: SharedCard, cardId: String, changedAt: String): SharedCard {
+        return card.copy(
+            id = cardId,
+            cardCategory = if (card.cardCategory == "debit") "debit" else "credit",
+            type = card.type.trim(),
+            lastModifyTime = SyncTime.parseMillis(changedAt) ?: SyncTime.nowMillis()
         )
     }
 }
