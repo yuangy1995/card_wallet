@@ -2,6 +2,7 @@ package com.example.creditcard.ui
 
 import android.app.DatePickerDialog
 import android.widget.Toast
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.ComponentActivity
@@ -61,14 +62,19 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalFocusManager
+import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
+import androidx.compose.ui.window.PopupProperties
 import com.example.creditcard.data.CardImageAsset
 import com.example.creditcard.data.CardReferenceData
 import com.example.creditcard.data.DatabaseHelper
@@ -82,6 +88,9 @@ import com.example.creditcard.utils.ThemeManager
 import com.example.creditcard.utils.NfcScannerManager
 import com.example.creditcard.utils.CardScanProgressManager
 import com.example.creditcard.utils.CardImageCodec
+import com.example.creditcard.utils.bankNamesReferToSameBank
+import com.example.creditcard.utils.displayBankName
+import com.example.creditcard.utils.shouldPropagateBankRename
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
@@ -107,6 +116,8 @@ enum class FormStep {
     SCAN_CAMERA,  // 2. 相机激光扫描录入状态
     MANUAL_FORM   // 3. 常规手动表单录入状态
 }
+
+private const val REFERENCE_AUTO_MATCH_DELAY_MILLIS = 200L
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -165,6 +176,15 @@ fun CardFormScreen(
     var cardNumber by remember { mutableStateOf(originalCard?.cardNumber ?: prefillCardNumber) }
     var cvv by remember { mutableStateOf(originalCard?.cvv ?: "") }
     var valid by remember { mutableStateOf(originalCard?.valid ?: prefillValid) }
+    var validFieldValue by remember {
+        mutableStateOf(TextFieldValue(valid, selection = TextRange(valid.length)))
+    }
+
+    LaunchedEffect(valid) {
+        if (validFieldValue.text != valid) {
+            validFieldValue = TextFieldValue(valid, selection = TextRange(valid.length))
+        }
+    }
     
     var limitText by remember {
         mutableStateOf(if (isEditMode) formatEditableAmount(originalCard?.limit ?: 0.0) else "")
@@ -223,11 +243,60 @@ fun CardFormScreen(
         }
     }
 
-    val cameraPhotoLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicturePreview()) { bitmap ->
-        if (bitmap != null) {
-            CardImageCodec.fromBitmap(bitmap, "manual_camera")?.let { image ->
+    var pendingCameraPhotoFile by remember { mutableStateOf<File?>(null) }
+    val cameraPhotoLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
+        val photoFile = pendingCameraPhotoFile
+        pendingCameraPhotoFile = null
+
+        if (success && photoFile != null && photoFile.exists() && photoFile.length() > 0L) {
+            CardImageCodec.fromFile(photoFile, "manual_camera")?.let { image ->
                 cardImages = cardImages + image
                 Toast.makeText(context, "已添加拍摄图片", Toast.LENGTH_SHORT).show()
+            } ?: Toast.makeText(context, "拍摄图片读取失败", Toast.LENGTH_SHORT).show()
+        }
+
+        try {
+            photoFile?.delete()
+        } catch (e: Exception) {
+            // 临时拍照文件会随系统缓存清理，删除失败不影响图片保存。
+        }
+    }
+
+    fun launchManualCameraPhoto() {
+        val photoFile = try {
+            File.createTempFile("manual_card_", ".jpg", context.cacheDir)
+        } catch (e: Exception) {
+            Toast.makeText(context, "创建拍照临时文件失败", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        val photoUri = try {
+            FileProvider.getUriForFile(
+                context,
+                "${context.packageName}.fileprovider",
+                photoFile
+            )
+        } catch (e: Exception) {
+            try { photoFile.delete() } catch (_: Exception) {}
+            Toast.makeText(context, "无法启动高清拍照", Toast.LENGTH_SHORT).show()
+            return
+        }
+
+        pendingCameraPhotoFile = photoFile
+        try {
+            cameraPhotoLauncher.launch(photoUri)
+        } catch (e: Exception) {
+            pendingCameraPhotoFile = null
+            try { photoFile.delete() } catch (_: Exception) {}
+            Toast.makeText(context, "未找到可用的相机应用", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    DisposableEffect(Unit) {
+        onDispose {
+            try {
+                pendingCameraPhotoFile?.delete()
+            } catch (e: Exception) {
             }
         }
     }
@@ -317,7 +386,14 @@ fun CardFormScreen(
     val existingSharedLimitCard = remember(cardId, country, bank, type, isSharedLimit, cardCategory) {
         if (!isDebitCard && isSharedLimit && bank.trim().isNotEmpty()) {
             val all = db.getAllCards()
-            all.firstOrNull { it.id != cardId && it.cardCategory != "debit" && it.country == country && it.bank == bank && it.type == type && it.isSharedLimit }
+            all.firstOrNull {
+                it.id != cardId &&
+                    it.cardCategory != "debit" &&
+                    it.country == country &&
+                    bankNamesReferToSameBank(it.bank, bank) &&
+                    it.type == type &&
+                    it.isSharedLimit
+            }
         } else null
     }
     val shouldLockSharedLimitInput = !isEditMode && existingSharedLimitCard != null
@@ -471,7 +547,14 @@ fun CardFormScreen(
 
                                 // 检测是否发生了共享额度的“全局修改”
                                 val sameGroupCards = if (!isDebitCard && isSharedLimit) {
-                                    db.getAllCards().filter { it.id != cardId && it.cardCategory != "debit" && it.country == cleanCountry && it.bank == cleanBank && it.type == type && it.isSharedLimit }
+                                    db.getAllCards().filter {
+                                        it.id != cardId &&
+                                            it.cardCategory != "debit" &&
+                                            it.country == cleanCountry &&
+                                            bankNamesReferToSameBank(it.bank, cleanBank) &&
+                                            it.type == type &&
+                                            it.isSharedLimit
+                                    }
                                 } else emptyList()
 
                                 if (sameGroupCards.isNotEmpty() && parsedLimit != sameGroupCards[0].limit) {
@@ -598,16 +681,14 @@ fun CardFormScreen(
 
                         Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                             OutlinedTextField(
-                                value = valid,
+                                value = validFieldValue,
                                 onValueChange = { input ->
-                                    // 自动排版有效期 MM/YY，当输入两位月数后，自动补上斜杠 '/'
-                                    var clean = input.replace("/", "")
-                                    if (clean.length > 4) clean = clean.substring(0, 4)
-                                    valid = if (clean.length >= 2) {
-                                        clean.substring(0, 2) + "/" + clean.substring(2)
-                                    } else {
-                                        clean
-                                    }
+                                    val formatted = formatExpiryInput(input.text, validFieldValue.text)
+                                    valid = formatted
+                                    validFieldValue = TextFieldValue(
+                                        text = formatted,
+                                        selection = TextRange(formatted.length)
+                                    )
                                 },
                                 label = { Text("有效期 *") },
                                 placeholder = { Text("MM/YY") },
@@ -673,7 +754,7 @@ fun CardFormScreen(
                         CardMediaSection(
                             images = cardImages,
                             isDark = isDark,
-                            onTakePhoto = { cameraPhotoLauncher.launch(null) },
+                            onTakePhoto = { launchManualCameraPhoto() },
                             onPickImages = { galleryLauncher.launch("image/*") },
                             onDelete = { imageId ->
                                 cardImages = cardImages.filterNot { it.id == imageId }
@@ -999,7 +1080,12 @@ fun CardFormScreen(
                         )
                         // 批量更新同组其它共享卡片的额度
                         val otherCards = db.getAllCards().filter {
-                            it.id != cardId && it.cardCategory != "debit" && it.country == cleanCountry && it.bank == cleanBank && it.type == type && it.isSharedLimit
+                            it.id != cardId &&
+                                it.cardCategory != "debit" &&
+                                it.country == cleanCountry &&
+                                bankNamesReferToSameBank(it.bank, cleanBank) &&
+                                it.type == type &&
+                                it.isSharedLimit
                         }
                         for (other in otherCards) {
                             other.limit = parsedLimit
@@ -1266,6 +1352,8 @@ fun ReferenceDropdownField(
     modifier: Modifier = Modifier
 ) {
     var expanded by remember { mutableStateOf(false) }
+    var pendingAutoMatch by remember { mutableStateOf(false) }
+    val focusManager = LocalFocusManager.current
     val filteredOptions = remember(value, options) {
         val keyword = value.trim()
         if (keyword.isEmpty()) {
@@ -1275,20 +1363,42 @@ fun ReferenceDropdownField(
         }
     }
     val canUseCustomValue = value.trim().isNotEmpty() && options.none { it == value.trim() }
+
+    LaunchedEffect(value, pendingAutoMatch) {
+        if (!pendingAutoMatch) return@LaunchedEffect
+
+        val keyword = value.trim()
+        if (keyword.isEmpty()) {
+            expanded = false
+            pendingAutoMatch = false
+            return@LaunchedEffect
+        }
+
+        delay(REFERENCE_AUTO_MATCH_DELAY_MILLIS)
+        if (filteredOptions.isNotEmpty() || canUseCustomValue) {
+            expanded = true
+        }
+        pendingAutoMatch = false
+    }
+
     Box(modifier = modifier) {
         OutlinedTextField(
             value = value,
             onValueChange = {
                 onValueChange(it)
-                expanded = true
+                expanded = false
+                pendingAutoMatch = true
             },
             label = { Text(label) },
             singleLine = true,
             trailingIcon = {
-                IconButton(onClick = { expanded = !expanded }) {
+                IconButton(onClick = {
+                    pendingAutoMatch = false
+                    expanded = !expanded
+                }) {
                     Icon(
                         imageVector = Icons.Filled.ArrowDropDown,
-                        contentDescription = "展开选项",
+                        contentDescription = "显示匹配选项",
                         tint = if (isDark) NeonCyan else GoldPrimary
                     )
                 }
@@ -1299,6 +1409,7 @@ fun ReferenceDropdownField(
         DropdownMenu(
             expanded = expanded,
             onDismissRequest = { expanded = false },
+            properties = PopupProperties(focusable = false),
             modifier = Modifier
                 .heightIn(max = 320.dp)
                 .background(if (isDark) DarkCardBg else Color.White)
@@ -1314,8 +1425,10 @@ fun ReferenceDropdownField(
                         )
                     },
                     onClick = {
+                        pendingAutoMatch = false
                         onValueChange(value.trim())
                         expanded = false
+                        focusManager.clearFocus()
                     }
                 )
             }
@@ -1331,8 +1444,10 @@ fun ReferenceDropdownField(
                         )
                     },
                     onClick = {
+                        pendingAutoMatch = false
                         onValueChange(option)
                         expanded = false
+                        focusManager.clearFocus()
                     }
                 )
             }
@@ -1531,7 +1646,44 @@ fun executeSaveCard(
 
     // 保存至本地账本（自动管理 lastModifyTime 和触发 pendingSync 状态）
     SyncCoordinator.commitCardChange(context, finalCard)
-    Toast.makeText(context, "卡片已保存", Toast.LENGTH_SHORT).show()
+
+    var renamedBankCount = 0
+    if (shouldPropagateBankRename(originalCard?.bank, finalCard.bank)) {
+        db.getAllCards()
+            .filter {
+                it.id != finalCard.id &&
+                    bankNamesReferToSameBank(it.bank, originalCard?.bank) &&
+                    displayBankName(it.bank) != displayBankName(finalCard.bank)
+            }
+            .forEach { relatedCard ->
+                relatedCard.bank = finalCard.bank
+                SyncCoordinator.commitCardChange(context, relatedCard)
+                renamedBankCount += 1
+            }
+    }
+
+    val message = if (renamedBankCount > 0) {
+        "卡片已保存，已同步更新 ${renamedBankCount} 张同银行银行卡"
+    } else {
+        "卡片已保存"
+    }
+    Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+}
+
+private fun formatExpiryInput(input: String, previousValue: String): String {
+    val digits = input.filter { it.isDigit() }.take(4)
+    val deletingAutoSlash = previousValue.endsWith("/") &&
+        input == previousValue.dropLast(1) &&
+        digits.length == 2
+
+    if (deletingAutoSlash) {
+        return digits.take(1)
+    }
+
+    return when {
+        digits.length < 2 -> digits
+        else -> digits.take(2) + "/" + digits.drop(2)
+    }
 }
 
 private fun filterAmountInput(input: String): String {

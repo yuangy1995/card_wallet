@@ -3,8 +3,10 @@ package com.example.creditcard.utils
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.graphics.Matrix
 import android.net.Uri
 import android.util.Base64
+import androidx.exifinterface.media.ExifInterface
 import com.example.creditcard.data.CardImageAsset
 import java.io.ByteArrayOutputStream
 import java.io.File
@@ -51,7 +53,7 @@ object CardImageCodec {
     fun fromFile(file: File, source: String = "camera_scan"): CardImageAsset? {
         return try {
             val bitmap = BitmapFactory.decodeFile(file.absolutePath) ?: return null
-            fromBitmap(bitmap, source, file.name)
+            fromBitmap(rotateFileBitmapIfNeeded(file, bitmap), source, file.name)
         } catch (e: Exception) {
             null
         }
@@ -74,5 +76,26 @@ object CardImageCodec {
         val width = (bitmap.width * scale).toInt().coerceAtLeast(1)
         val height = (bitmap.height * scale).toInt().coerceAtLeast(1)
         return Bitmap.createScaledBitmap(bitmap, width, height, true)
+    }
+
+    private fun rotateFileBitmapIfNeeded(file: File, bitmap: Bitmap): Bitmap {
+        val orientation = ExifInterface(file.absolutePath).getAttributeInt(
+            ExifInterface.TAG_ORIENTATION,
+            ExifInterface.ORIENTATION_NORMAL
+        )
+        val rotationDegrees = when (orientation) {
+            ExifInterface.ORIENTATION_ROTATE_90 -> 90f
+            ExifInterface.ORIENTATION_ROTATE_180 -> 180f
+            ExifInterface.ORIENTATION_ROTATE_270 -> 270f
+            else -> 0f
+        }
+        if (rotationDegrees == 0f) return bitmap
+
+        val matrix = Matrix().apply { postRotate(rotationDegrees) }
+        val rotated = Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+        if (rotated !== bitmap) {
+            bitmap.recycle()
+        }
+        return rotated
     }
 }
