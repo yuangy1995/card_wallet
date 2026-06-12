@@ -815,6 +815,7 @@ body.dark,
   border: 1px solid rgba(0, 242, 254, 0.25) !important;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 0 10px rgba(0, 242, 254, 0.1) !important;
   backdrop-filter: blur(15px) !important;
+  color: var(--el-text-color-primary) !important;
 
   .el-popper__arrow::before {
     background: rgba(10, 15, 32, 0.95) !important;

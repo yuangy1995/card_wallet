@@ -106,19 +106,19 @@
       :style="{ left: contextMenuX + 'px', top: contextMenuY + 'px' }"
     >
       <el-menu>
-        <el-menu-item v-if="showAnnualFeeOption" @click="handleSetAnnualFeeQualified">
+        <el-menu-item index="annual-fee-qualified" v-if="showAnnualFeeOption" @click="handleSetAnnualFeeQualified">
           <el-icon><Check /></el-icon>
           <span>设置年费已达标</span>
         </el-menu-item>
-        <el-menu-item @click="handleContextMenuAction('edit')">
+        <el-menu-item index="edit" @click="handleContextMenuAction('edit')">
           <el-icon><Edit /></el-icon>
           <span>编辑</span>
         </el-menu-item>
-        <el-menu-item @click="handleContextMenuAction('delete')">
+        <el-menu-item index="delete" @click="handleContextMenuAction('delete')">
           <el-icon><Delete /></el-icon>
           <span>删除</span>
         </el-menu-item>
-        <el-menu-item @click="handleContextMenuAction('details')">
+        <el-menu-item index="details" @click="handleContextMenuAction('details')">
           <el-icon><View /></el-icon>
           <span>查看详情</span>
         </el-menu-item>

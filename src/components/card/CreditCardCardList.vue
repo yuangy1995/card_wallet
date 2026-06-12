@@ -153,23 +153,23 @@
       :style="{ left: contextMenuX + 'px', top: contextMenuY + 'px' }"
     >
       <el-menu>
-        <el-menu-item @click="handleContextMenuAction('flip')">
+        <el-menu-item index="flip" @click="handleContextMenuAction('flip')">
           <el-icon><Refresh /></el-icon>
           <span>3D翻转卡片 (查看背面)</span>
         </el-menu-item>
-        <el-menu-item @click="handleContextMenuAction('edit')">
+        <el-menu-item index="edit" @click="handleContextMenuAction('edit')">
           <el-icon><Edit /></el-icon>
           <span>快捷编辑卡片</span>
         </el-menu-item>
-        <el-menu-item @click="handleContextMenuAction('delete')">
+        <el-menu-item index="delete" @click="handleContextMenuAction('delete')">
           <el-icon><Delete /></el-icon>
           <span>删除此卡片</span>
         </el-menu-item>
-        <el-menu-item @click="handleContextMenuAction('details')">
+        <el-menu-item index="details" @click="handleContextMenuAction('details')">
           <el-icon><View /></el-icon>
           <span>查看完整卡详情</span>
         </el-menu-item>
-        <el-menu-item @click="handleContextMenuAction('qualified')" v-if="contextMenuRow && contextMenuRow.isQualified !== '3'">
+        <el-menu-item index="qualified" @click="handleContextMenuAction('qualified')" v-if="contextMenuRow && contextMenuRow.isQualified !== '3'">
           <el-icon><Check /></el-icon>
           <span>标记为年费已达标</span>
         </el-menu-item>
