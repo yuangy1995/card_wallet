@@ -1,6 +1,6 @@
 import { STORAGE_KEYS } from '@/config/constants'
-import { CardDataStorage, StorageManager } from '@/utils/storage'
-import { activeCards, activeRecord, cardsEqualForSync, deletedRecord, legacyRecords, mergeRecords, syncTimestamp } from '@/utils/syncProtocol'
+import { activeRecord, cardsEqualForSync, deletedRecord, legacyRecords, mergeRecords, syncTimestamp } from '@/utils/syncProtocol'
+import { localDataStore } from '@/utils/indexedDbStorage'
 
 const createCardId = () => globalThis.crypto?.randomUUID?.() ||
   `${Date.now()}-${Math.random().toString(16).slice(2)}`
@@ -12,18 +12,18 @@ const ensureCardIds = (cards = []) => cards.map((card) => {
 
 class CardSyncLedger {
   load() {
-    return StorageManager.get(STORAGE_KEYS.SYNC_RECORDS, [])
+    return localDataStore.get(STORAGE_KEYS.SYNC_RECORDS, [])
   }
 
-  initialize(cards) {
+  async initialize(cards) {
     const saved = this.load()
     const normalizedCards = ensureCardIds(cards)
     const records = saved.length > 0 ? mergeRecords(saved) : mergeRecords(legacyRecords(normalizedCards))
-    this.save(records)
+    await this.save(records)
     return records
   }
 
-  commit(cards, { deletedCardIds = [], replace = false } = {}) {
+  async commit(cards, { deletedCardIds = [], replace = false } = {}) {
     const current = this.load()
     const recordsById = new Map(current.map((record) => [record.cardId, record]))
     const newEvents = []
@@ -47,41 +47,45 @@ class CardSyncLedger {
     deleted.forEach((cardId) => newEvents.push(deletedRecord(cardId, changedAt)))
 
     const records = mergeRecords(current, newEvents)
-    this.save(records)
+    await this.save(records)
     if (newEvents.length > 0) {
-      this.bumpRevision()
-      this.setPending(true)
+      await this.bumpRevision()
+      await this.setPending(true)
     }
     return records
   }
 
-  merge(remoteRecords) {
+  async merge(remoteRecords) {
     const merged = mergeRecords(this.load(), remoteRecords)
-    this.save(merged)
+    await this.save(merged)
     return merged
   }
 
-  save(records) {
+  async save(records) {
     const normalized = mergeRecords(records)
-    StorageManager.set(STORAGE_KEYS.SYNC_RECORDS, normalized)
-    CardDataStorage.saveCardData(activeCards(normalized))
+    try {
+      await localDataStore.set(STORAGE_KEYS.SYNC_RECORDS, normalized)
+    } catch (error) {
+      throw new Error(`本地同步账本保存失败：${error.message}`)
+    }
+    await localDataStore.remove(STORAGE_KEYS.CARD_DATA).catch(() => {})
   }
 
-  setPending(pending) {
-    StorageManager.set(STORAGE_KEYS.SYNC_PENDING, pending)
+  async setPending(pending) {
+    await localDataStore.set(STORAGE_KEYS.SYNC_PENDING, pending)
   }
 
   isPending() {
-    return StorageManager.get(STORAGE_KEYS.SYNC_PENDING, false)
+    return localDataStore.get(STORAGE_KEYS.SYNC_PENDING, false)
   }
 
   revision() {
-    return Number(StorageManager.get(STORAGE_KEYS.SYNC_REVISION, 0)) || 0
+    return Number(localDataStore.get(STORAGE_KEYS.SYNC_REVISION, 0)) || 0
   }
 
-  bumpRevision() {
+  async bumpRevision() {
     const next = this.revision() + 1
-    StorageManager.set(STORAGE_KEYS.SYNC_REVISION, next)
+    await localDataStore.set(STORAGE_KEYS.SYNC_REVISION, next)
     return next
   }
 }

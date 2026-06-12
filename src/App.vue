@@ -446,7 +446,7 @@ import { generateMockData } from '@/utils/mockData'
 import { formatDate, daysBetween } from '@/utils/dateUtils'
 import { getCurrentTimestamp } from '@/utils/dateFormatter'
 import { BACKUP_CONSTANTS, STORAGE_KEYS } from '@/config/constants'
-import { saveCardData, saveTableColumns, getTableColumns, CardDataStorage } from '@/utils/storage'
+import { saveCardData, saveTableColumns, getTableColumns, CardDataStorage, initializeLocalDatabase } from '@/utils/storage'
 import { useDebouncedRef } from '@/composables/useDebounce'
 import { useKeyboardShortcuts } from '@/composables/useKeyboardShortcuts'
 import { useTheme } from '@/composables/useTheme'
@@ -996,8 +996,8 @@ const mergeTableColumnsWithDefaults = (storedColumns = []) => {
   return merged.concat(customColumns)
 }
 
-const persistSyncedMutation = (options = {}) => {
-  webdavSyncService.commitCards(cardData.value, options)
+const persistSyncedMutation = async (options = {}) => {
+  await webdavSyncService.commitCards(cardData.value, options)
 }
 
 const propagateBankRename = (previousCard, updatedCard) => {
@@ -1057,6 +1057,9 @@ onMounted(async () => {
   showLoading('正在初始化应用...')
 
   try {
+    showLoading('正在打开本地数据库...')
+    await initializeLocalDatabase()
+
     // 加载列配置
     const storedColumns = getTableColumns()
     tableCustomColumns.value = mergeTableColumnsWithDefaults(storedColumns)
@@ -1078,7 +1081,7 @@ onMounted(async () => {
 
     // 如果有卡片被添加了 ID，更新本地存储
     if (hasChanges) {
-      saveCardData(cardData.value)
+      await saveCardData(cardData.value)
     }
 
     await webdavSyncService.start(cardData.value, applySyncedCards, handleSyncStatusChanged)
@@ -1106,6 +1109,15 @@ onMounted(async () => {
       await nextTick()
       await showMigrationReport(migrationInfo)
     }
+  } catch (error) {
+    syncStatus.value = {
+      ...syncStatus.value,
+      message: error.message,
+      type: 'error',
+      pending: false,
+      isSyncing: false
+    }
+    ElMessage.error(error.message)
   } finally {
     hideLoading()
   }
@@ -1458,13 +1470,19 @@ const manualCheckAnnualFees = async () => {
 }
 
 const generateRandomData = async () => {
+  const previousData = [...cardData.value]
   const mockData = generateMockData(50)
-  cardData.value = mockData
-  resetSearchForm(false)
-  quickSearchQuery.value = ''
-  clearSelection()
-  ElMessage.success('成功生成 50 条测试数据')
-  await persistSyncedMutation({ replace: true })
+  try {
+    cardData.value = mockData
+    resetSearchForm(false)
+    quickSearchQuery.value = ''
+    clearSelection()
+    await persistSyncedMutation({ replace: true })
+    ElMessage.success('成功生成 50 条测试数据')
+  } catch (error) {
+    cardData.value = previousData
+    ElMessage.error(`生成测试数据失败：${error.message}`)
+  }
 }
 
 // 批量操作相关函数
@@ -2059,7 +2077,7 @@ const handleResetAllData = async () => {
       }
     )
 
-    const success = PasswordManager.clearAllAppData()
+    const success = await PasswordManager.clearAllAppData()
     if (success) {
       ElMessage.success({ message: '数据已清除，请设置新密码', zIndex: 200010 })
       showPasswordSetup.value = true

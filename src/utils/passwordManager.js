@@ -1,5 +1,7 @@
 import CryptoJS from 'crypto-js'
 import { StorageManager } from './storage'
+import { localDataStore } from './indexedDbStorage'
+import { STORAGE_KEYS } from '@/config/constants'
 
 /**
  * 密码管理器 - 负责应用锁定和密码验证
@@ -163,20 +165,30 @@ export class PasswordManager {
     /**
    * 清除所有应用数据（用于忘记密码重置）
    */
-    static clearAllAppData() {
+    static async clearAllAppData() {
       try {
         // 清除所有业务数据
         const keysToRemove = [
-          'cardData',
+          STORAGE_KEYS.CARD_DATA,
           'cardDataBackups', 
-          'webdav_config',
-          'tableCustomColumns',
+          STORAGE_KEYS.WEBDAV_CONFIG,
+          STORAGE_KEYS.TABLE_CUSTOM_COLUMNS,
           'platform_unlock_credential'
         ]
         
         keysToRemove.forEach(key => {
           StorageManager.remove(key)
         })
+
+        if (!localDataStore.initialized) {
+          await localDataStore.initialize()
+        }
+        await Promise.all([
+          STORAGE_KEYS.CARD_DATA,
+          STORAGE_KEYS.SYNC_RECORDS,
+          STORAGE_KEYS.SYNC_PENDING,
+          STORAGE_KEYS.SYNC_REVISION
+        ].map((key) => localDataStore.remove(key)))
         
         // 清除安全相关数据
         this.clearSecurityData()

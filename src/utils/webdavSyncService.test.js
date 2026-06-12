@@ -55,9 +55,11 @@ vi.mock('@/utils/webdav', () => ({
 }))
 
 import { webdavSyncService } from './webdavSyncService'
+import { localDataStore } from './indexedDbStorage'
+import { createIndexedDbMock } from './indexedDbStorage.testUtils'
 
 describe('webdav sync service', () => {
-  beforeEach(() => {
+  beforeEach(async () => {
     const values = new Map()
     vi.stubGlobal('localStorage', {
       getItem: (key) => values.has(key) ? values.get(key) : null,
@@ -65,6 +67,9 @@ describe('webdav sync service', () => {
       removeItem: (key) => values.delete(key),
       clear: () => values.clear()
     })
+    vi.stubGlobal('indexedDB', createIndexedDbMock())
+    await localDataStore.resetForTests()
+    await localDataStore.initialize()
     vi.clearAllMocks()
     mocks.webdavClient.client = {}
     mocks.webdavClient.loadConfig.mockReturnValue({ syncPassword: ' sync-key-with-spaces ' })
@@ -104,7 +109,7 @@ describe('webdav sync service', () => {
       resolveBackupList = resolve
     }))
 
-    const result = webdavSyncService.start([
+    const result = await webdavSyncService.start([
       {
         id: 'local-card',
         country: 'CN',

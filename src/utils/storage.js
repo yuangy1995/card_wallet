@@ -4,6 +4,8 @@
 import { STORAGE_KEYS } from '@/config/constants'
 import { handleStorageError } from '@/utils/errorHandler'
 import { autoMigrateLocalData } from '@/utils/cardDataMigration'
+import { activeCards } from '@/utils/syncProtocol'
+import { localDataStore } from '@/utils/indexedDbStorage'
 
 /**
  * 本地存储管理器
@@ -34,13 +36,15 @@ export class StorageManager {
    * @param {any} value - 存储值
    * @returns {boolean} 是否设置成功
    */
-  static set(key, value) {
+  static set(key, value, options = {}) {
     try {
       const jsonValue = JSON.stringify(value)
       localStorage.setItem(key, jsonValue)
       return true
     } catch (error) {
-      handleStorageError(error, `保存存储数据 ${key}`)
+      if (!options.silent) {
+        handleStorageError(error, `保存存储数据 ${key}`)
+      }
       return false
     }
   }
@@ -101,20 +105,30 @@ export class StorageManager {
  * 信用卡数据存储
  */
 export class CardDataStorage {
+  static async initializeLocalDatabase() {
+    return localDataStore.initialize({ clearLegacyLocalStorage: true })
+  }
+
   /**
    * 获取信用卡数据（自动迁移老数据）
    * @param {boolean} returnMigrationInfo - 是否返回迁移信息
    * @returns {Array|Object} 信用卡数据数组或包含迁移信息的对象
    */
   static getCardData(returnMigrationInfo = false) {
-    const rawData = StorageManager.get(STORAGE_KEYS.CARD_DATA, [])
+    const records = localDataStore.get(STORAGE_KEYS.SYNC_RECORDS, [])
+    const cachedCards = localDataStore.get(STORAGE_KEYS.CARD_DATA, [])
+    const rawData = records.length > 0
+      ? activeCards(records)
+      : (Array.isArray(cachedCards) ? cachedCards : [])
     
     // 自动迁移老数据
     const migrationResult = autoMigrateLocalData(rawData)
     
     if (migrationResult.migrated) {
       // 自动保存迁移后的数据
-      this.saveCardData(migrationResult.data)
+      this.saveCardData(migrationResult.data).catch((error) => {
+        handleStorageError(error, '保存迁移后的卡片缓存')
+      })
       
       if (returnMigrationInfo) {
         return {
@@ -139,8 +153,8 @@ export class CardDataStorage {
    * @param {Array} cardData - 信用卡数据数组
    * @returns {boolean} 是否保存成功
    */
-  static saveCardData(cardData) {
-    return StorageManager.set(STORAGE_KEYS.CARD_DATA, cardData)
+  static async saveCardData(cardData) {
+    return localDataStore.set(STORAGE_KEYS.CARD_DATA, cardData)
   }
 
   /**
@@ -183,5 +197,6 @@ export class CardDataStorage {
  */
 export const getCardData = CardDataStorage.getCardData
 export const saveCardData = CardDataStorage.saveCardData
+export const initializeLocalDatabase = CardDataStorage.initializeLocalDatabase
 export const getTableColumns = CardDataStorage.getTableColumns
 export const saveTableColumns = CardDataStorage.saveTableColumns

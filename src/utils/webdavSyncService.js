@@ -71,10 +71,10 @@ class WebDAVSyncService {
     this.updateStatus(this.status.message, this.status.type, this.status.pending)
   }
 
-  start(cards, onCardsChanged, onStatusChanged) {
+  async start(cards, onCardsChanged, onStatusChanged) {
     this.onCardsChanged = onCardsChanged
     this.onStatusChanged = onStatusChanged
-    const records = cardSyncLedger.initialize(cards)
+    const records = await cardSyncLedger.initialize(cards)
     this.onCardsChanged(activeCards(records))
 
     const config = webdavClient.loadConfig()
@@ -89,11 +89,11 @@ class WebDAVSyncService {
     })
   }
 
-  commitCards(cards, options = {}) {
-    cardSyncLedger.commit(cards, options)
+  async commitCards(cards, options = {}) {
+    await cardSyncLedger.commit(cards, options)
     this.onCardsChanged?.(activeCards(cardSyncLedger.load()))
     this.synchronize(true).catch((error) => {
-      cardSyncLedger.setPending(true)
+      cardSyncLedger.setPending(true).catch(() => {})
       this.updateStatus(`同步失败，本机改动已保留，稍后可重试：${error.message}`, 'warning', true)
     })
   }
@@ -219,7 +219,7 @@ class WebDAVSyncService {
       const remoteRecords = snapshots.filter(Boolean).flatMap(snapshot => snapshot.records)
       const merged = mergeRecords(localRecords, remoteRecords)
       const changedByRemote = JSON.stringify(merged) !== JSON.stringify(localRecords)
-      cardSyncLedger.save(merged)
+      await cardSyncLedger.save(merged)
       this.onCardsChanged?.(activeCards(merged))
       const snapshotRevision = cardSyncLedger.revision()
 
@@ -227,9 +227,9 @@ class WebDAVSyncService {
           (automaticFiles.length === 0 && merged.length > 0)) {
         await webdavClient.uploadSyncSnapshot(createSnapshot(merged), syncPassword)
         if (cardSyncLedger.revision() === snapshotRevision) {
-          cardSyncLedger.setPending(false)
+          await cardSyncLedger.setPending(false)
         } else {
-          cardSyncLedger.setPending(true)
+          await cardSyncLedger.setPending(true)
           this.queuedPublishLocalChanges = true
         }
         const updatedList = await webdavClient.getBackupList()
@@ -252,7 +252,7 @@ class WebDAVSyncService {
         { lastDurationMs: durationMs }
       )
     } catch (error) {
-      cardSyncLedger.setPending(true)
+      await cardSyncLedger.setPending(true)
       this.lastFailedSyncAt = Date.now()
       const durationMs = this.finishTiming()
       this.updateStatus(`同步失败，本机改动已保留，稍后可重试：${error.message}`, 'warning', true, { lastDurationMs: durationMs })
