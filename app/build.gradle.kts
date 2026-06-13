@@ -28,7 +28,8 @@ android {
 
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             signingConfig = signingConfigs.getByName("release")
         }
@@ -44,10 +45,24 @@ android {
       shaders = false
     }
 
+    androidResources {
+      localeFilters += listOf("en", "zh")
+    }
+
     packaging {
       resources {
-        excludes += "/META-INF/{AL2.0,LGPL2.1}"
+        excludes += setOf(
+          "/META-INF/{AL2.0,LGPL2.1}",
+          "META-INF/LICENSE*",
+          "META-INF/NOTICE*",
+          "META-INF/*.kotlin_module"
+        )
       }
+    }
+
+    dependenciesInfo {
+      includeInApk = false
+      includeInBundle = false
     }
 }
 

@@ -107,6 +107,9 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
 import java.util.UUID
+import java.util.concurrent.atomic.AtomicBoolean
+import java.util.concurrent.atomic.AtomicLong
+import java.util.concurrent.atomic.AtomicReference
 
 /**
  * 录入银行卡三阶段状态机
@@ -2047,6 +2050,18 @@ fun CameraScanLayout(
     secondaryActionUseNfcIcon: Boolean = false
 ) {
     Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
+        val analysisInFlight = remember { AtomicBoolean(false) }
+        val lastAnalysisAtMillis = remember { AtomicLong(0L) }
+        val cameraProviderRef = remember { AtomicReference<ProcessCameraProvider?>(null) }
+        val streamTextRecognizer = remember { TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS) }
+
+        DisposableEffect(Unit) {
+            onDispose {
+                streamTextRecognizer.close()
+                cameraProviderRef.getAndSet(null)?.unbindAll()
+            }
+        }
+
         // 动态相机权限检查与索要 Launcher
         var hasCameraPermission by remember {
             mutableStateOf(
@@ -2121,8 +2136,8 @@ fun CameraScanLayout(
                             return
                         }
 
-                        val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
-                        recognizer.process(inputImage)
+                        val photoTextRecognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+                        photoTextRecognizer.process(inputImage)
                             .addOnSuccessListener { visionText ->
                                 val text = visionText.text
                                 val parsed = parseCardInfoFromText(text)
@@ -2162,6 +2177,9 @@ fun CameraScanLayout(
                                     }
                                 }.start()
                             }
+                            .addOnCompleteListener {
+                                photoTextRecognizer.close()
+                            }
                     }
 
                     override fun onError(exception: ImageCaptureException) {
@@ -2182,6 +2200,7 @@ fun CameraScanLayout(
                     cameraProviderFuture.addListener({
                         try {
                             val cameraProvider = cameraProviderFuture.get()
+                            cameraProviderRef.set(cameraProvider)
                             val preview = Preview.Builder().build().apply {
                                 setSurfaceProvider(previewView.surfaceProvider)
                             }
@@ -2191,21 +2210,24 @@ fun CameraScanLayout(
                                 .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
                                 .build()
 
-                            val recognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
-
                             imageAnalysis.setAnalyzer(ContextCompat.getMainExecutor(ctx)) { imageProxy ->
-                                if (isScannedTriggered || isCapturing) {
+                                val now = android.os.SystemClock.elapsedRealtime()
+                                if (
+                                    isScannedTriggered ||
+                                    isCapturing ||
+                                    analysisInFlight.get() ||
+                                    now - lastAnalysisAtMillis.get() < 650L
+                                ) {
                                     imageProxy.close()
                                     return@setAnalyzer
                                 }
 
                                 val mediaImage = imageProxy.image
-                                if (mediaImage != mediaImage) {
-                                    // 无效判断，保证语法完整性
-                                }
                                 if (mediaImage != null) {
+                                    analysisInFlight.set(true)
+                                    lastAnalysisAtMillis.set(now)
                                     val inputImage = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
-                                    recognizer.process(inputImage)
+                                    streamTextRecognizer.process(inputImage)
                                         .addOnSuccessListener { visionText ->
                                             val text = visionText.text
                                             val parsed = parseCardInfoFromText(text)
@@ -2227,6 +2249,7 @@ fun CameraScanLayout(
                                             }
                                         }
                                         .addOnCompleteListener {
+                                            analysisInFlight.set(false)
                                             imageProxy.close()
                                         }
                                 } else {

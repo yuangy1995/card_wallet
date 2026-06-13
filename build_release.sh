@@ -20,7 +20,11 @@ echo -e "${YELLOW}====================================================${NC}"
 # 1. 自动检测并修复 Java 环境 (JAVA_HOME)
 echo -e "\n🔍 正在检查本地 Java (JDK) 运行环境..."
 if [ -x "/usr/libexec/java_home" ]; then
-    export JAVA_HOME=$(/usr/libexec/java_home)
+    if /usr/libexec/java_home -v 17 >/dev/null 2>&1; then
+        export JAVA_HOME=$(/usr/libexec/java_home -v 17)
+    else
+        export JAVA_HOME=$(/usr/libexec/java_home)
+    fi
     echo -e "${GREEN}✅ 已自动匹配到系统 JDK 路径: $JAVA_HOME${NC}"
 else
     if [ -z "$JAVA_HOME" ]; then
