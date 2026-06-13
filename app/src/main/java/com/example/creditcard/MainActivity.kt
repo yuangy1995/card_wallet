@@ -17,6 +17,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.zIndex
 import androidx.fragment.app.FragmentActivity
+import androidx.lifecycle.lifecycleScope
 import com.example.creditcard.theme.CreditCardTheme
 import com.example.creditcard.ui.security.SecurityLockScreen
 import com.example.creditcard.utils.SecurityLockManager
@@ -25,14 +26,17 @@ import com.example.creditcard.utils.ThemeManager
 
 import com.example.creditcard.utils.EmvCardReader
 import com.example.creditcard.utils.NfcScannerManager
+import kotlinx.coroutines.launch
 
 /**
- * 主页面 Activity，集成 NFC 前台事件捕捉与分发
+ * 主页面 Activity，按页面需求启停 NFC 前台事件捕捉与分发
  */
 class MainActivity : FragmentActivity() {
 
     private var nfcAdapter: NfcAdapter? = null
     private var pendingIntent: PendingIntent? = null
+    private var isActivityResumed = false
+    private var isNfcDispatchEnabled = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -52,6 +56,17 @@ class MainActivity : FragmentActivity() {
             this, 0, intent,
             PendingIntent.FLAG_MUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
+
+        lifecycleScope.launch {
+            NfcScannerManager.readerEnabled.collect {
+                updateNfcForegroundDispatch()
+            }
+        }
+        lifecycleScope.launch {
+            SecurityLockManager.state.collect {
+                updateNfcForegroundDispatch()
+            }
+        }
 
         enableEdgeToEdge()
         setContent {
@@ -77,23 +92,50 @@ class MainActivity : FragmentActivity() {
 
     override fun onResume() {
         super.onResume()
+        isActivityResumed = true
         SecurityLockManager.refreshLockState(this)
-        // 激活前台 NFC 调度，使 Activity 优先拦截感应到的卡片
+        updateNfcForegroundDispatch()
+    }
+
+    override fun onPause() {
+        super.onPause()
+        isActivityResumed = false
+        SecurityLockManager.markInactive(this)
+        disableNfcForegroundDispatch()
+    }
+
+    private fun updateNfcForegroundDispatch() {
+        val shouldEnable = isActivityResumed &&
+            NfcScannerManager.isReaderEnabled &&
+            !SecurityLockManager.state.value.locked
+
+        if (shouldEnable) {
+            enableNfcForegroundDispatch()
+        } else {
+            disableNfcForegroundDispatch()
+        }
+    }
+
+    private fun enableNfcForegroundDispatch() {
+        if (isNfcDispatchEnabled) return
+        val adapter = nfcAdapter ?: return
+        val intent = pendingIntent ?: return
         try {
-            nfcAdapter?.enableForegroundDispatch(this, pendingIntent, null, null)
+            adapter.enableForegroundDispatch(this, intent, null, null)
+            isNfcDispatchEnabled = true
         } catch (e: Exception) {
             e.printStackTrace()
         }
     }
 
-    override fun onPause() {
-        super.onPause()
-        SecurityLockManager.markInactive(this)
-        // 挂起时暂停拦截
+    private fun disableNfcForegroundDispatch() {
+        if (!isNfcDispatchEnabled) return
         try {
             nfcAdapter?.disableForegroundDispatch(this)
         } catch (e: Exception) {
             e.printStackTrace()
+        } finally {
+            isNfcDispatchEnabled = false
         }
     }
 
@@ -102,6 +144,9 @@ class MainActivity : FragmentActivity() {
      */
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
+        if (!NfcScannerManager.isReaderEnabled) {
+            return
+        }
         if (SecurityLockManager.state.value.locked) {
             Toast.makeText(this, "请先解锁应用", Toast.LENGTH_SHORT).show()
             return

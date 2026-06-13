@@ -1362,6 +1362,17 @@ fun QuickVerifyPanel(
     val nfcSupported = remember { android.nfc.NfcAdapter.getDefaultAdapter(context) != null }
     val existingNumbers = remember(cards) { cards.map { cleanCardNumber(it.cardNumber) }.filter { it.isNotBlank() }.toSet() }
 
+    DisposableEffect(nfcSupported) {
+        if (nfcSupported) {
+            NfcScannerManager.beginReaderSession("quick-verify")
+        }
+        onDispose {
+            if (nfcSupported) {
+                NfcScannerManager.endReaderSession("quick-verify")
+            }
+        }
+    }
+
     var verifiedRecords by remember { mutableStateOf<List<VerifiedCardRecord>>(emptyList()) }
     var addedDuringVerification by remember { mutableStateOf(setOf<String>()) }
     var currentMessage by remember { mutableStateOf("等待 NFC 贴卡") }

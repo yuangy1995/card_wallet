@@ -1,12 +1,33 @@
 package com.example.creditcard.utils
 
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 
 /**
  * NFC 银行卡感应与读卡数据全局事件分发器
  */
 object NfcScannerManager {
+    private val activeReaderSessions = mutableSetOf<String>()
+    private val _readerEnabled = MutableStateFlow(false)
+    val readerEnabled: StateFlow<Boolean> = _readerEnabled.asStateFlow()
+    val isReaderEnabled: Boolean
+        get() = _readerEnabled.value
+
+    @Synchronized
+    fun beginReaderSession(owner: String) {
+        activeReaderSessions.add(owner)
+        _readerEnabled.value = activeReaderSessions.isNotEmpty()
+    }
+
+    @Synchronized
+    fun endReaderSession(owner: String) {
+        activeReaderSessions.remove(owner)
+        _readerEnabled.value = activeReaderSessions.isNotEmpty()
+    }
+
     // 使用缓存容量为 1 的 SharedFlow，确保 Compose UI 刚加载时也能顺畅响应
     private val _nfcCardData = MutableSharedFlow<Pair<String, String>>(extraBufferCapacity = 1)
     val nfcCardData: SharedFlow<Pair<String, String>> = _nfcCardData

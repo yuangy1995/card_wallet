@@ -1746,6 +1746,13 @@ fun NfcScanLayout(
     var scannedNumber by remember { mutableStateOf("") }
     var scannedValid by remember { mutableStateOf("") }
 
+    DisposableEffect(Unit) {
+        NfcScannerManager.beginReaderSession("card-form-nfc")
+        onDispose {
+            NfcScannerManager.endReaderSession("card-form-nfc")
+        }
+    }
+
     LaunchedEffect(Unit) {
         launch {
             NfcScannerManager.nfcReadingState.collect { state ->
