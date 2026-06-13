@@ -41,9 +41,6 @@
   },
   "description": "一个基于 Vue.js 的现代化银行卡管理系统，帮助用户高效管理信用卡和储蓄卡信息。",
   "main": "vite.config.mjs",
-  "directories": {
-    "doc": "docs"
-  },
   "repository": {
     "type": "git",
     "url": "http://192.168.8.175:10125/yuangy/credit_card.git"
