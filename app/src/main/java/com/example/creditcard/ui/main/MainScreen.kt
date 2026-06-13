@@ -2701,6 +2701,7 @@ fun SettingsStoragePanel(
     var snapshot by remember { mutableStateOf<AppStorageSnapshot?>(null) }
     var showResetDialog by remember { mutableStateOf(false) }
     var isResetting by remember { mutableStateOf(false) }
+    var isCleaning by remember { mutableStateOf(false) }
 
     LaunchedEffect(refreshSeed) {
         snapshot = withContext(Dispatchers.IO) {
@@ -2819,6 +2820,14 @@ fun SettingsStoragePanel(
                                 isDark = isDark
                             )
                             StorageUsageRow(
+                                icon = Icons.Filled.CleaningServices,
+                                title = "可安全清理",
+                                description = "缓存、代码缓存、外部缓存和未绑定卡片的旧扫描残留",
+                                bytes = current.cleanableBytes,
+                                totalBytes = current.totalBytes,
+                                isDark = isDark
+                            )
+                            StorageUsageRow(
                                 icon = Icons.Filled.Folder,
                                 title = "其他私有文件",
                                 description = "应用沙盒中除旧版扫描图片以外的私有文件",
@@ -2838,6 +2847,76 @@ fun SettingsStoragePanel(
                                 text = "总占用按应用私有沙盒实际大小统计。卡片图片数据已包含在数据库文件中，仅用于说明图片本身的占用规模。",
                                 fontSize = 10.sp,
                                 lineHeight = 15.sp,
+                                color = if (isDark) TextGray else TextMuted
+                            )
+                        }
+                    }
+                }
+            }
+
+            snapshot?.let { current ->
+                item {
+                    DetailSection(title = "缓存清理") {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(10.dp))
+                                .background(if (isDark) DarkCardBg else LightCardBg)
+                                .padding(14.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Text(
+                                text = "只清理无关数据：临时缓存、代码缓存、外部缓存和无对应卡片的旧扫描残留。卡片资料、卡片图片、同步账本、WebDAV 配置、安全锁和主题设置都会保留。",
+                                fontSize = 11.sp,
+                                lineHeight = 17.sp,
+                                color = if (isDark) TextGray else TextMuted
+                            )
+                            Button(
+                                onClick = {
+                                    coroutineScope.launch {
+                                        isCleaning = true
+                                        try {
+                                            val result = AppStorageManager.cleanupNonEssentialData(context)
+                                            refreshSeed += 1
+                                            val message = if (result.cleanedBytes > 0L || result.deletedFiles > 0) {
+                                                "已清理 ${formatStorageBytes(result.cleanedBytes)} 无关数据"
+                                            } else {
+                                                "没有可清理的无关数据"
+                                            }
+                                            Toast.makeText(context, message, Toast.LENGTH_LONG).show()
+                                        } catch (e: Exception) {
+                                            Toast.makeText(context, "清理失败：${e.message ?: "未知错误"}", Toast.LENGTH_LONG).show()
+                                        } finally {
+                                            isCleaning = false
+                                        }
+                                    }
+                                },
+                                enabled = !isCleaning && !isResetting,
+                                modifier = Modifier.fillMaxWidth(),
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = (if (isDark) NeonGreen else ForestGreen).copy(alpha = 0.14f),
+                                    contentColor = if (isDark) NeonGreen else ForestGreen,
+                                    disabledContainerColor = (if (isDark) TextGray else TextMuted).copy(alpha = 0.12f),
+                                    disabledContentColor = if (isDark) TextGray else TextMuted
+                                ),
+                                border = BorderStroke(1.dp, (if (isDark) NeonGreen else ForestGreen).copy(alpha = 0.36f)),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Filled.CleaningServices,
+                                    contentDescription = "清理无关数据",
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = if (isCleaning) "正在清理..." else "一键清理无关数据和缓存",
+                                    fontSize = 12.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                            Text(
+                                text = "当前可安全清理：${formatStorageBytes(current.cleanableBytes)}",
+                                fontSize = 10.sp,
                                 color = if (isDark) TextGray else TextMuted
                             )
                         }

@@ -135,7 +135,13 @@ fun CardFormScreen(
     val context = LocalContext.current
     val activity = context as? ComponentActivity
     val isDark by ThemeManager.isDarkTheme.collectAsState()
-    val db = remember { DatabaseHelper(context) }
+    val appContext = context.applicationContext
+    val db = remember(appContext) { DatabaseHelper(appContext) }
+    DisposableEffect(db) {
+        onDispose {
+            db.close()
+        }
+    }
 
     // 判断是编辑还是新建
     val isEditMode = !cardId.isNullOrEmpty()

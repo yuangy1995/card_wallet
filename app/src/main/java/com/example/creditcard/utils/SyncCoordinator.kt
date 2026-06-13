@@ -106,8 +106,10 @@ object SyncCoordinator {
      * 加载本地缓存好的卡包数据，作为应用启动的主入口数据源
      */
     fun initLocalData(context: Context) {
-        val db = DatabaseHelper(context)
-        _cardsFlow.value = db.getAllCards()
+        val appContext = context.applicationContext
+        _cardsFlow.value = DatabaseHelper(appContext).use { db ->
+            db.getAllCards()
+        }
         _syncHistory.value = loadSyncHistory(context)
         
         val config = loadConfig(context)
@@ -520,35 +522,36 @@ object SyncCoordinator {
     fun commitCardChange(context: Context, card: SharedCard) {
         val appContext = context.applicationContext
         val latestCards = synchronized(dbWriteLock) {
-            val db = DatabaseHelper(appContext)
-            val beforeCard = if (card.id.isBlank()) null else db.getCardById(card.id)
+            DatabaseHelper(appContext).use { db ->
+                val beforeCard = if (card.id.isBlank()) null else db.getCardById(card.id)
 
-            val nowMillis = SyncTime.nowMillis()
-            val isoNow = SyncTime.isoFromMillis(nowMillis)
-            if (card.id.isBlank()) {
-                card.id = UUID.randomUUID().toString()
+                val nowMillis = SyncTime.nowMillis()
+                val isoNow = SyncTime.isoFromMillis(nowMillis)
+                if (card.id.isBlank()) {
+                    card.id = UUID.randomUUID().toString()
+                }
+                card.cardCategory = if (card.cardCategory == "debit") "debit" else "credit"
+                // Web/Mac 端会把 active record 的 lastModifyTime 规范为 changedAt 对应毫秒值。
+                card.lastModifyTime = nowMillis
+
+                // 1. 生成并保存本地 active 账本记录
+                val record = CardSyncRecord(
+                    cardId = card.id,
+                    changedAt = isoNow,
+                    state = "active",
+                    card = card
+                )
+
+                db.saveCard(card)
+                db.saveSyncRecord(record)
+                recordPendingMutation(
+                    appContext,
+                    buildCardChange(if (beforeCard == null) "added" else "modified", beforeCard, card)
+                )
+                bumpMutationRevision(appContext)
+                markPending(appContext, true)
+                db.getAllCards()
             }
-            card.cardCategory = if (card.cardCategory == "debit") "debit" else "credit"
-            // Web/Mac 端会把 active record 的 lastModifyTime 规范为 changedAt 对应毫秒值。
-            card.lastModifyTime = nowMillis
-
-            // 1. 生成并保存本地 active 账本记录
-            val record = CardSyncRecord(
-                cardId = card.id,
-                changedAt = isoNow,
-                state = "active",
-                card = card
-            )
-
-            db.saveCard(card)
-            db.saveSyncRecord(record)
-            recordPendingMutation(
-                appContext,
-                buildCardChange(if (beforeCard == null) "added" else "modified", beforeCard, card)
-            )
-            bumpMutationRevision(appContext)
-            markPending(appContext, true)
-            db.getAllCards()
         }
 
         // 刷新主页卡片流
@@ -562,24 +565,25 @@ object SyncCoordinator {
     fun commitCardDelete(context: Context, cardId: String) {
         val appContext = context.applicationContext
         val latestCards = synchronized(dbWriteLock) {
-            val db = DatabaseHelper(appContext)
-            val beforeCard = db.getCardById(cardId)
+            DatabaseHelper(appContext).use { db ->
+                val beforeCard = db.getCardById(cardId)
 
-            // 1. 生成并保存本地 deleted 账本记录
-            val isoNow = SyncTime.nowIso()
-            val record = CardSyncRecord(
-                cardId = cardId,
-                changedAt = isoNow,
-                state = "deleted",
-                card = null
-            )
+                // 1. 生成并保存本地 deleted 账本记录
+                val isoNow = SyncTime.nowIso()
+                val record = CardSyncRecord(
+                    cardId = cardId,
+                    changedAt = isoNow,
+                    state = "deleted",
+                    card = null
+                )
 
-            db.deleteCardById(cardId)
-            db.saveSyncRecord(record)
-            recordPendingMutation(appContext, buildCardChange("deleted", beforeCard, null))
-            bumpMutationRevision(appContext)
-            markPending(appContext, true)
-            db.getAllCards()
+                db.deleteCardById(cardId)
+                db.saveSyncRecord(record)
+                recordPendingMutation(appContext, buildCardChange("deleted", beforeCard, null))
+                bumpMutationRevision(appContext)
+                markPending(appContext, true)
+                db.getAllCards()
+            }
         }
 
         // 刷新主页卡片流
@@ -626,8 +630,8 @@ object SyncCoordinator {
                 updateProgress("准备同步", 1, 6, "正在整理本机修改")
             }
 
+            val db = DatabaseHelper(appContext)
             try {
-                val db = DatabaseHelper(appContext)
                 synchronized(dbWriteLock) {
                     loadMergedLocalRecords(db)
                 }
@@ -810,7 +814,7 @@ object SyncCoordinator {
 
                 // 8. 刷新主页卡片列表流
                 val currentCards = synchronized(dbWriteLock) {
-                    DatabaseHelper(appContext).getAllCards()
+                    db.getAllCards()
                 }
                 withContext(Dispatchers.Main) {
                     val durationMs = stopSyncElapsedTicker(syncDurationSince(startedAtMillis))
@@ -894,6 +898,8 @@ object SyncCoordinator {
                     updateStatus("同步失败，本机改动已妥善保留，稍后可重试: ${e.message}", "warning", isPending(appContext), lastDurationMs = durationMs)
                     updateProgress("同步失败", 0, 0, "耗时 ${formatDurationText(durationMs)}；${e.message ?: "未知错误"}")
                 }
+            } finally {
+                db.close()
             }
         }
     }
@@ -962,8 +968,9 @@ object SyncCoordinator {
         withContext(Dispatchers.IO) {
             val appContext = context.applicationContext
             synchronized(dbWriteLock) {
-                val db = DatabaseHelper(appContext)
-                db.clearAllSyncRecords()
+                DatabaseHelper(appContext).use { db ->
+                    db.clearAllSyncRecords()
+                }
                 clearPendingMutations(appContext)
                 markPending(appContext, false)
                 bumpMutationRevision(appContext)
@@ -981,8 +988,9 @@ object SyncCoordinator {
         withContext(Dispatchers.IO) {
             val appContext = context.applicationContext
             synchronized(dbWriteLock) {
-                val db = DatabaseHelper(appContext)
-                db.resetDatabase()
+                DatabaseHelper(appContext).use { db ->
+                    db.resetDatabase()
+                }
                 clearPendingMutations(appContext)
                 markPending(appContext, false)
                 bumpMutationRevision(appContext)

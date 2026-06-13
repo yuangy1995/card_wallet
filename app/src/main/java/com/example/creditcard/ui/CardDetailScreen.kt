@@ -92,8 +92,14 @@ fun CardDetailScreen(
     val isDark by ThemeManager.isDarkTheme.collectAsState()
     
     // 加载卡片信息
-    val db = DatabaseHelper(context)
-    val card = remember(cardId) { db.getCardById(cardId) }
+    val appContext = context.applicationContext
+    val db = remember(appContext) { DatabaseHelper(appContext) }
+    DisposableEffect(db) {
+        onDispose {
+            db.close()
+        }
+    }
+    val card = remember(cardId, db) { db.getCardById(cardId) }
     
     if (card == null) {
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
