@@ -99,8 +99,10 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.graphics.Matrix
 import android.net.Uri
+import com.google.android.gms.tasks.Tasks
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
+import com.google.mlkit.vision.text.TextRecognizer
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import java.io.File
 import java.text.SimpleDateFormat
@@ -2133,59 +2135,34 @@ fun CameraScanLayout(
                 ContextCompat.getMainExecutor(ctx),
                 object : ImageCapture.OnImageSavedCallback {
                     override fun onImageSaved(outputFileResults: ImageCapture.OutputFileResults) {
-                        // 1. 使用高分辨率静态大图加载进行 ML Kit OCR 识别，确保极佳的解析准确度
-                        val inputImage = try {
-                            InputImage.fromFilePath(ctx, Uri.fromFile(rawFile))
-                        } catch (e: Exception) {
-                            isCapturing = false
-                            Toast.makeText(ctx, "加载原始大图失败", Toast.LENGTH_SHORT).show()
-                            return
-                        }
-
-                        val photoTextRecognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
-                        photoTextRecognizer.process(inputImage)
-                            .addOnSuccessListener { visionText ->
-                                val text = visionText.text
-                                val parsed = parseCardInfoFromText(text)
-
-                                // 2. 在异步子线程中对拍摄好的照片进行旋转复原和 1.586 中间精确裁剪
-                                Thread {
-                                    val croppedPath = cropCardImage(ctx, rawFile, tempCardId)
-                                    // 剪裁完成后静默清除体积巨大的拍照原始大图
-                                    try { rawFile.delete() } catch (e: Exception) {}
-
-                                    (ctx as? android.app.Activity)?.runOnUiThread {
-                                        isCapturing = false
-                                        if (parsed != null) {
-                                            val (cardNo, expiry) = parsed
-                                            try { vibrator?.vibrate(100) } catch (e: Exception) {}
-                                            Toast.makeText(ctx, "📸 智能识别并自动代入卡号！", Toast.LENGTH_SHORT).show()
-                                            onCardScanned(cardNo, expiry, croppedPath)
-                                        } else {
-                                            // 优雅降级：OCR 失败但依然成功获取了裁剪后的精美卡片预览
-                                            try { vibrator?.vibrate(100) } catch (e: Exception) {}
-                                            Toast.makeText(ctx, "未能自动识别卡号，已为您裁剪保留卡片照片", Toast.LENGTH_LONG).show()
-                                            onCardScanned("", "", croppedPath)
-                                        }
-                                    }
-                                }.start()
-                            }
-                            .addOnFailureListener {
-                                // 即使 OCR 分析由于反光等失败，也自动裁剪并保存照片，优雅降级代入
-                                Thread {
-                                    val croppedPath = cropCardImage(ctx, rawFile, tempCardId)
-                                    try { rawFile.delete() } catch (e: Exception) {}
-                                    (ctx as? android.app.Activity)?.runOnUiThread {
-                                        isCapturing = false
-                                        try { vibrator?.vibrate(100) } catch (e: Exception) {}
-                                        Toast.makeText(ctx, "识别失败，已为您保存卡片剪裁原件", Toast.LENGTH_LONG).show()
-                                        onCardScanned("", "", croppedPath)
-                                    }
-                                }.start()
-                            }
-                            .addOnCompleteListener {
+                        Thread {
+                            val photoTextRecognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS)
+                            val parsed = try {
+                                recognizeCardPhoto(rawFile, photoTextRecognizer)
+                            } catch (e: Exception) {
+                                e.printStackTrace()
+                                null
+                            } finally {
                                 photoTextRecognizer.close()
                             }
+
+                            val croppedPath = cropCardImage(ctx, rawFile, tempCardId)
+                            try { rawFile.delete() } catch (e: Exception) {}
+
+                            (ctx as? android.app.Activity)?.runOnUiThread {
+                                isCapturing = false
+                                try { vibrator?.vibrate(100) } catch (e: Exception) {}
+                                if (parsed != null) {
+                                    val (cardNo, expiry) = parsed
+                                    Toast.makeText(ctx, "📸 智能识别并自动代入卡号！", Toast.LENGTH_SHORT).show()
+                                    onCardScanned(cardNo, expiry, croppedPath)
+                                } else {
+                                    // 优雅降级：OCR 失败但依然成功获取了裁剪后的精美卡片预览
+                                    Toast.makeText(ctx, "未能自动识别卡号，已为您裁剪保留卡片照片", Toast.LENGTH_LONG).show()
+                                    onCardScanned("", "", croppedPath)
+                                }
+                            }
+                        }.start()
                     }
 
                     override fun onError(exception: ImageCaptureException) {
@@ -2506,55 +2483,182 @@ fun CameraScanLayout(
 }
 
 /**
+ * 高清拍照后做多区域 OCR。复杂花纹卡面直接识别整图容易被背景和装饰文字干扰，
+ * 因此按「卡片框区域 -> 卡号常见区域 -> 对比度增强区域 -> 全图兜底」逐级尝试。
+ */
+fun recognizeCardPhoto(rawFile: File, recognizer: TextRecognizer): Pair<String, String>? {
+    val ownedBitmaps = mutableListOf<Bitmap>()
+    val candidates = mutableListOf<Bitmap>()
+
+    fun own(bitmap: Bitmap?): Bitmap? {
+        if (bitmap != null) {
+            ownedBitmaps.add(bitmap)
+        }
+        return bitmap
+    }
+
+    fun addCandidate(bitmap: Bitmap?) {
+        if (bitmap != null) {
+            candidates.add(bitmap)
+        }
+    }
+
+    return try {
+        val fullBitmap = own(decodeOrientedBitmap(rawFile, maxDimension = 2400)) ?: return null
+        val cardBitmap = own(cropCenteredCardBitmap(fullBitmap, widthRatio = 0.90f, centerYRatio = 0.52f))
+        val numberBand = own(cardBitmap?.let { cropRelativeBitmap(it, 0.04f, 0.34f, 0.96f, 0.72f) })
+        val lowerBand = own(cardBitmap?.let { cropRelativeBitmap(it, 0.04f, 0.48f, 0.96f, 0.88f) })
+        val enhancedCard = own(cardBitmap?.let { createHighContrastBitmap(it) })
+        val enhancedNumberBand = own(numberBand?.let { createHighContrastBitmap(it) })
+        val enlargedNumberBand = own(numberBand?.let { createScaledBitmapForOcr(it, maxWidth = 1800) })
+
+        addCandidate(cardBitmap)
+        addCandidate(numberBand)
+        addCandidate(enlargedNumberBand)
+        addCandidate(enhancedNumberBand)
+        addCandidate(lowerBand)
+        addCandidate(enhancedCard)
+        addCandidate(fullBitmap)
+
+        val allText = StringBuilder()
+        for (candidate in candidates) {
+            val text = try {
+                Tasks.await(recognizer.process(InputImage.fromBitmap(candidate, 0))).text
+            } catch (e: Exception) {
+                ""
+            }
+            if (text.isNotBlank()) {
+                allText.appendLine(text)
+                parseCardInfoFromText(text)?.let { return it }
+            }
+        }
+        parseCardInfoFromText(allText.toString())
+    } finally {
+        ownedBitmaps.forEach { bitmap ->
+            if (!bitmap.isRecycled) {
+                bitmap.recycle()
+            }
+        }
+    }
+}
+
+private fun decodeOrientedBitmap(rawFile: File, maxDimension: Int = 2400): Bitmap? {
+    val exifInterface = ExifInterface(rawFile.absolutePath)
+    val orientation = exifInterface.getAttributeInt(
+        ExifInterface.TAG_ORIENTATION,
+        ExifInterface.ORIENTATION_NORMAL
+    )
+    val rotationDegrees = when (orientation) {
+        ExifInterface.ORIENTATION_ROTATE_90 -> 90
+        ExifInterface.ORIENTATION_ROTATE_180 -> 180
+        ExifInterface.ORIENTATION_ROTATE_270 -> 270
+        else -> 0
+    }
+
+    val bounds = BitmapFactory.Options().apply {
+        inJustDecodeBounds = true
+    }
+    BitmapFactory.decodeFile(rawFile.absolutePath, bounds)
+    val sampleSize = calculateBitmapSampleSize(bounds.outWidth, bounds.outHeight, maxDimension)
+    val options = BitmapFactory.Options().apply {
+        inSampleSize = sampleSize
+    }
+
+    var bitmap = BitmapFactory.decodeFile(rawFile.absolutePath, options) ?: return null
+    if (rotationDegrees != 0) {
+        val matrix = Matrix()
+        matrix.postRotate(rotationDegrees.toFloat())
+        val rotated = Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+        if (rotated != bitmap) {
+            bitmap.recycle()
+            bitmap = rotated
+        }
+    }
+    return bitmap
+}
+
+private fun calculateBitmapSampleSize(width: Int, height: Int, maxDimension: Int): Int {
+    if (width <= 0 || height <= 0 || maxDimension <= 0) return 1
+    var sampleSize = 1
+    var scaledWidth = width
+    var scaledHeight = height
+    while (scaledWidth / 2 >= maxDimension || scaledHeight / 2 >= maxDimension) {
+        sampleSize *= 2
+        scaledWidth /= 2
+        scaledHeight /= 2
+    }
+    return sampleSize
+}
+
+private fun cropCenteredCardBitmap(
+    bitmap: Bitmap,
+    widthRatio: Float,
+    centerYRatio: Float
+): Bitmap? {
+    val w = bitmap.width
+    val h = bitmap.height
+    if (w <= 0 || h <= 0) return null
+
+    val cropW = (w * widthRatio).toInt().coerceIn(1, w)
+    val cropH = (cropW / 1.586f).toInt().coerceIn(1, h)
+    val startX = ((w - cropW) / 2).coerceIn(0, w - cropW)
+    val desiredCenterY = (h * centerYRatio).toInt()
+    val startY = (desiredCenterY - cropH / 2).coerceIn(0, h - cropH)
+    return Bitmap.createBitmap(bitmap, startX, startY, cropW, cropH)
+}
+
+private fun cropRelativeBitmap(
+    bitmap: Bitmap,
+    leftRatio: Float,
+    topRatio: Float,
+    rightRatio: Float,
+    bottomRatio: Float
+): Bitmap? {
+    val left = (bitmap.width * leftRatio).toInt().coerceIn(0, bitmap.width - 1)
+    val top = (bitmap.height * topRatio).toInt().coerceIn(0, bitmap.height - 1)
+    val right = (bitmap.width * rightRatio).toInt().coerceIn(left + 1, bitmap.width)
+    val bottom = (bitmap.height * bottomRatio).toInt().coerceIn(top + 1, bitmap.height)
+    return Bitmap.createBitmap(bitmap, left, top, right - left, bottom - top)
+}
+
+private fun createScaledBitmapForOcr(bitmap: Bitmap, maxWidth: Int): Bitmap? {
+    if (bitmap.width <= 0 || bitmap.height <= 0 || bitmap.width >= maxWidth) return null
+    val scale = (maxWidth.toFloat() / bitmap.width).coerceAtMost(2.2f)
+    if (scale <= 1.05f) return null
+    val targetW = (bitmap.width * scale).toInt().coerceAtLeast(bitmap.width)
+    val targetH = (bitmap.height * scale).toInt().coerceAtLeast(bitmap.height)
+    return Bitmap.createScaledBitmap(bitmap, targetW, targetH, true)
+}
+
+private fun createHighContrastBitmap(bitmap: Bitmap): Bitmap {
+    val output = Bitmap.createBitmap(bitmap.width, bitmap.height, Bitmap.Config.ARGB_8888)
+    val width = bitmap.width
+    val height = bitmap.height
+    val pixels = IntArray(width * height)
+    bitmap.getPixels(pixels, 0, width, 0, 0, width, height)
+    for (index in pixels.indices) {
+        val color = pixels[index]
+        val r = (color shr 16) and 0xFF
+        val g = (color shr 8) and 0xFF
+        val b = color and 0xFF
+        val gray = (r * 0.299f + g * 0.587f + b * 0.114f).toInt()
+        val contrasted = ((gray - 128) * 1.65f + 128).toInt().coerceIn(0, 255)
+        pixels[index] = (0xFF shl 24) or (contrasted shl 16) or (contrasted shl 8) or contrasted
+    }
+    output.setPixels(pixels, 0, width, 0, 0, width, height)
+    return output
+}
+
+/**
  * Exif 物理方向旋转还原并 1.586 银行卡中间比例居中裁剪
  */
 fun cropCardImage(context: android.content.Context, rawFile: File, cardId: String): String? {
     try {
-        // 1. 读取原始大图 Exif 角度，防偏防转
-        val exifInterface = ExifInterface(rawFile.absolutePath)
-        val orientation = exifInterface.getAttributeInt(
-            ExifInterface.TAG_ORIENTATION,
-            ExifInterface.ORIENTATION_NORMAL
-        )
-        val rotationDegrees = when (orientation) {
-            ExifInterface.ORIENTATION_ROTATE_90 -> 90
-            ExifInterface.ORIENTATION_ROTATE_180 -> 180
-            ExifInterface.ORIENTATION_ROTATE_270 -> 270
-            else -> 0
+        val bitmap = decodeOrientedBitmap(rawFile) ?: return null
+        val cropped = cropCenteredCardBitmap(bitmap, widthRatio = 0.85f, centerYRatio = 0.52f) ?: run {
+            bitmap.recycle()
+            return null
         }
-
-        // 2. 解码大图原件
-        val options = BitmapFactory.Options()
-        var bitmap = BitmapFactory.decodeFile(rawFile.absolutePath, options) ?: return null
-
-        // 3. 按真实物理朝向旋转矫正
-        if (rotationDegrees != 0) {
-            val matrix = Matrix()
-            matrix.postRotate(rotationDegrees.toFloat())
-            val rotated = Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
-            if (rotated != bitmap) {
-                bitmap.recycle()
-                bitmap = rotated
-            }
-        }
-
-        // 4. 按 85% 宽度及 1.586 国际黄金比例进行正中间切割
-        val w = bitmap.width
-        val h = bitmap.height
-
-        val cropW = (w * 0.85f).toInt()
-        val cropH = (cropW / 1.586f).toInt()
-
-        val startX = (w - cropW) / 2
-        val startY = (h - cropH) / 2
-
-        // 越界安全防护
-        val safeStartX = Math.max(0, startX)
-        val safeStartY = Math.max(0, startY)
-        val safeCropW = Math.min(cropW, w - safeStartX)
-        val safeCropH = Math.min(cropH, h - safeStartY)
-
-        val cropped = Bitmap.createBitmap(bitmap, safeStartX, safeStartY, safeCropW, safeCropH)
 
         // 5. 保存剪裁卡片至沙盒 scanned_cards 目录
         val outputDir = File(context.filesDir, "scanned_cards")
@@ -2581,20 +2685,88 @@ fun cropCardImage(context: android.content.Context, rawFile: File, cardId: Strin
  * 从识别出的文本中智能过滤匹配卡号及有效期
  */
 fun parseCardInfoFromText(text: String): Pair<String, String>? {
-    val lines = text.split("\n")
-    for (line in lines) {
-        // 去除空格和中划线连字符干扰
-        val clean = line.replace("\\s".toRegex(), "").replace("-", "")
-        // 银行卡号通常是 15 到 19 位的纯数字
-        if (clean.length in 13..19 && clean.all { it.isDigit() }) {
-            // 对识别到的潜在卡号执行极高强度的 Luhn 算法校验过滤，防噪点和错码
-            if (luhnCheck(clean)) {
-                val expiry = findExpiryFromText(text)
-                return Pair(clean, expiry)
-            }
+    val normalizedTexts = listOf(text, normalizeOcrDigitLikeText(text)).distinct()
+    val candidates = linkedSetOf<String>()
+
+    normalizedTexts.forEach { candidateText ->
+        candidateText.lineSequence().forEach { line ->
+            collectCardNumberCandidatesFromLine(line, candidates)
+        }
+        collectCardNumberCandidatesFromDenseText(candidateText, candidates)
+    }
+
+    for (candidate in candidates) {
+        // 对识别到的潜在卡号执行 Luhn 校验过滤，防噪点和错码。
+        if (candidate.length in 13..19 && luhnCheck(candidate)) {
+            val expiry = findExpiryFromText(text).ifEmpty { findExpiryFromText(normalizeOcrDigitLikeText(text)) }
+            return Pair(candidate, expiry)
         }
     }
     return null
+}
+
+private fun collectCardNumberCandidatesFromLine(line: String, output: MutableSet<String>) {
+    val digitGroups = Regex("\\d+").findAll(line).map { it.value }.toList()
+    for (start in digitGroups.indices) {
+        val builder = StringBuilder()
+        for (index in start until digitGroups.size) {
+            builder.append(digitGroups[index])
+            val value = builder.toString()
+            when {
+                value.length in 13..19 -> output.add(value)
+                value.length > 19 -> break
+            }
+        }
+    }
+
+    val compact = line.replace("\\s".toRegex(), "").replace("-", "")
+    if (compact.length in 13..19 && compact.all { it.isDigit() }) {
+        output.add(compact)
+    }
+}
+
+private fun collectCardNumberCandidatesFromDenseText(text: String, output: MutableSet<String>) {
+    val pattern = Regex("(?:\\d[\\s\\-·•]*){13,23}")
+    pattern.findAll(text).forEach { match ->
+        val digits = match.value.filter { it.isDigit() }
+        if (digits.length in 13..19) {
+            output.add(digits)
+        } else if (digits.length > 19) {
+            for (start in 0..(digits.length - 13)) {
+                for (length in 13..19) {
+                    if (start + length <= digits.length) {
+                        output.add(digits.substring(start, start + length))
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun normalizeOcrDigitLikeText(text: String): String {
+    return buildString(text.length) {
+        text.forEach { char ->
+            append(
+                when (char) {
+                    '０' -> '0'
+                    '１' -> '1'
+                    '２' -> '2'
+                    '３' -> '3'
+                    '４' -> '4'
+                    '５' -> '5'
+                    '６' -> '6'
+                    '７' -> '7'
+                    '８' -> '8'
+                    '９' -> '9'
+                    'O', 'o', 'D' -> '0'
+                    'I', 'l', '|', '!' -> '1'
+                    'S', 's' -> '5'
+                    'B' -> '8'
+                    else -> char
+                }
+            )
+        }
+    }
 }
 
 /**
@@ -2621,9 +2793,22 @@ fun luhnCheck(number: String): Boolean {
  * 从文本中正则扫描符合 MM/YY 格式的有效期字段
  */
 fun findExpiryFromText(text: String): String {
-    val pattern = "\\b(0[1-9]|1[0-2])/([0-9]{2})\\b".toRegex()
-    val match = pattern.find(text)
-    return match?.value ?: ""
+    val keywordPattern = Regex("(?i)(EXP|VALID|THRU|VALID\\s+THRU|有效期)\\D{0,12}(0[1-9]|1[0-2])\\D{0,4}(\\d{2}|\\d{4})")
+    keywordPattern.find(text)?.let { match ->
+        return formatExpiryValue(match.groupValues[2], match.groupValues[3])
+    }
+
+    val separatedPattern = Regex("(?<!\\d)(0[1-9]|1[0-2])\\s*[/\\.\\-]\\s*(\\d{2}|\\d{4})(?!\\d)")
+    separatedPattern.find(text)?.let { match ->
+        return formatExpiryValue(match.groupValues[1], match.groupValues[2])
+    }
+
+    return ""
+}
+
+private fun formatExpiryValue(month: String, year: String): String {
+    val finalYear = if (year.length == 4) year.takeLast(2) else year
+    return "${month.padStart(2, '0')}/$finalYear"
 }
 
 /**
