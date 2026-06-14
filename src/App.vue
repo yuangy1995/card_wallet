@@ -92,6 +92,15 @@
             >
               立即同步
             </el-button>
+            <el-button
+              class="sync-history-button"
+              type="primary"
+              plain
+              size="small"
+              @click="showSyncHistoryDialog = true"
+            >
+              同步记录
+            </el-button>
           </div>
 
           <!-- 右侧区：常用操作按钮组、主题与安全锁胶囊 -->
@@ -242,6 +251,13 @@
       </el-dialog>
       <HelpPage ref="helpPage" />
       <WebDAVConfigDialog ref="webDAVConfig" @saved="handleWebDAVConfigSaved" />
+      <SyncHistoryDialog
+        v-model:visible="showSyncHistoryDialog"
+        :history="syncHistory"
+        :sync-status="syncStatus"
+        :sync-countdown-now="syncCountdownNow"
+        @retry="handleImmediateSync"
+      />
 
       <!-- 批量年费更新弹窗 -->
       <el-dialog
@@ -432,6 +448,7 @@ const CardDetailsDialog = defineAsyncComponent(() => import('@/components/dialog
 const Statistics = defineAsyncComponent(() => import('@/components/Statistics.vue'))
 const HelpPage = defineAsyncComponent(() => import('@/components/help/HelpPage.vue'))
 const WebDAVConfigDialog = defineAsyncComponent(() => import('@/components/dialog/WebDAVConfigDialog.vue'))
+const SyncHistoryDialog = defineAsyncComponent(() => import('@/components/dialog/SyncHistoryDialog.vue'))
 
 // 安全功能组件导入
 import PasswordSetup from '@/components/security/PasswordSetup.vue'
@@ -474,6 +491,7 @@ const syncStatus = ref({
   lastDurationMs: null,
   intervalMs: 5 * 60 * 1000
 })
+const syncHistory = ref([])
 const syncCountdownNow = ref(Date.now())
 let syncCountdownTimer = null
 const selectedRows = ref([])
@@ -752,6 +770,7 @@ const isDev = import.meta.env.DEV || import.meta.env.MODE === 'development'
 // 组件引用
 const helpPage = ref(null)
 const webDAVConfig = ref(null)
+const showSyncHistoryDialog = ref(false)
 
 // 计算属性 - 优化缓存
 const visibleColumns = computed(() => {
@@ -1048,6 +1067,10 @@ const handleSyncStatusChanged = (newStatus) => {
   syncStatus.value = newStatus
 }
 
+const handleSyncHistoryChanged = (newHistory) => {
+  syncHistory.value = Array.isArray(newHistory) ? newHistory : []
+}
+
 // 初始化数据
 onMounted(async () => {
   syncCountdownTimer = window.setInterval(() => {
@@ -1084,7 +1107,7 @@ onMounted(async () => {
       await saveCardData(cardData.value)
     }
 
-    await webdavSyncService.start(cardData.value, applySyncedCards, handleSyncStatusChanged)
+    await webdavSyncService.start(cardData.value, applySyncedCards, handleSyncStatusChanged, handleSyncHistoryChanged)
 
     // 判断应用是否处于锁定状态，锁定时跳过弹窗类检测
     const appIsLocked = PasswordManager.hasPassword() &&
@@ -1288,11 +1311,14 @@ const confirmAdd = async (data) => {
     // 如果是共享额度，同步更新所有同银行共享额度的卡片
     if (isCreditCard(data) && data.isSharedLimit && data.bank && data.country) {
       const currentBank = data.bank || ''
+      const currentType = String(data.type || '').trim().toUpperCase()
       cardData.value.forEach((card, idx) => {
+        const cardType = String(card.type || '').trim().toUpperCase()
         if (card.id !== data.id &&
             card.isSharedLimit === true &&
             isCreditCard(card) &&
             card.country === data.country &&
+            cardType === currentType &&
             bankNamesReferToSameBank(card.bank, currentBank)) {
           cardData.value[idx].limit = data.limit
           cardData.value[idx].type = data.type
@@ -1790,7 +1816,7 @@ const showWebDAVConfig = () => {
 
 const handleWebDAVConfigSaved = async () => {
   try {
-    await webdavSyncService.start(cardData.value, applySyncedCards, handleSyncStatusChanged)
+    await webdavSyncService.start(cardData.value, applySyncedCards, handleSyncStatusChanged, handleSyncHistoryChanged)
   } catch (error) {
     syncStatus.value = {
       ...syncStatus.value,

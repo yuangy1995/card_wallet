@@ -7,6 +7,14 @@ import Components from 'unplugin-vue-components/vite'
 import { ElementPlusResolver } from 'unplugin-vue-components/resolvers'
 import vue from '@vitejs/plugin-vue'
 
+const isVueUsePureAnnotationWarning = (warning) => {
+  const id = String(warning?.id || '')
+  const message = String(warning?.message || '')
+  return warning?.code === 'INVALID_ANNOTATION' &&
+    /@vueuse[+/]core/.test(id) &&
+    message.includes('#__PURE__')
+}
+
 // https://vitejs.dev/config/
 export default defineConfig(({ command, mode }) => {
   // 加载环境变量
@@ -64,6 +72,12 @@ export default defineConfig(({ command, mode }) => {
         }
       },
       rollupOptions: {
+        onwarn(warning, warn) {
+          if (isVueUsePureAnnotationWarning(warning)) {
+            return
+          }
+          warn(warning)
+        },
         output: {
           manualChunks(id) {
             // 创建一个 vendor 包含所有第三方模块

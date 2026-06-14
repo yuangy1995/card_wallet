@@ -1,7 +1,8 @@
 <template>
   <div class="statistics-container" v-loading="loading" element-loading-text="正在分析数据...">
-    <!-- 统计筛选器 -->
-    <div class="statistics-filter-wrapper">
+    <template v-if="isReady">
+      <!-- 统计筛选器 -->
+      <div class="statistics-filter-wrapper">
       <el-radio-group v-model="selectedCategory" size="default" class="tech-radio-group">
         <el-radio-button value="all">📊 全部卡片 ({{ props.cardData.length }})</el-radio-button>
         <el-radio-button value="credit">💳 仅信用卡 ({{ creditCountAll }})</el-radio-button>
@@ -399,6 +400,7 @@
         </el-table>
       </div>
     </el-card>
+    </template>
   </div>
 </template>
 
@@ -419,7 +421,8 @@ const props = defineProps({
 })
 
 // 响应式数据
-const loading = ref(false)
+const isReady = ref(false)
+const loading = ref(true)
 const bankChart = ref(null)
 const countryChart = ref(null)
 
@@ -879,7 +882,12 @@ const exportData = () => {
 let resizeHandler = null
 
 onMounted(() => {
-  initCharts()
+  setTimeout(async () => {
+    isReady.value = true
+    await nextTick()
+    await initCharts()
+  }, 100)
+  
   resizeHandler = () => {
     if (bankChart.value) {
       const bankInstance = echarts.getInstanceByDom(bankChart.value)
@@ -910,6 +918,7 @@ watch([() => props.cardData, selectedCategory], () => {
   display: flex;
   flex-direction: column;
   gap: 20px;
+  min-height: 400px;
 }
 
 .overview-cards {

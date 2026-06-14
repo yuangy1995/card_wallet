@@ -79,6 +79,14 @@ class CardSyncLedger {
     return localDataStore.get(STORAGE_KEYS.SYNC_PENDING, false)
   }
 
+  lastWebDAVSnapshotFilename() {
+    return localDataStore.get(STORAGE_KEYS.SYNC_LAST_SNAPSHOT, '')
+  }
+
+  async setLastWebDAVSnapshotFilename(filename) {
+    await localDataStore.set(STORAGE_KEYS.SYNC_LAST_SNAPSHOT, filename || '')
+  }
+
   revision() {
     return Number(localDataStore.get(STORAGE_KEYS.SYNC_REVISION, 0)) || 0
   }

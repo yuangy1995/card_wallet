@@ -682,13 +682,16 @@ export default {
 
       const currentCountry = formData.value.country
       const currentBank = formData.value.bank
+      const currentType = String(formData.value.type || '').trim().toUpperCase()
 
       // 查找同国家同银行的已有卡片（排除当前编辑的卡片）
       const existingCard = props.existingCards.find(card => {
         const cardBank = card.bank || ''
+        const cardType = String(card.type || '').trim().toUpperCase()
         return card.country === currentCountry &&
                bankNamesReferToSameBank(cardBank, currentBank) &&
                card.cardCategory !== 'debit' &&
+               cardType === currentType &&
                card.isSharedLimit === true &&
                card.id !== formData.value.id
       })
@@ -705,8 +708,8 @@ export default {
       }
     }
 
-    // 监听国家和银行变化，当选择共享额度时自动检查
-    watch([() => formData.value.country, () => formData.value.bank], () => {
+    // 监听国家、银行和币种变化，当选择共享额度时自动检查
+    watch([() => formData.value.country, () => formData.value.bank, () => formData.value.type], () => {
       if (isCreditCard.value && formData.value.isSharedLimit) {
         checkExistingSharedLimit()
       }

@@ -57,6 +57,7 @@ vi.mock('@/utils/webdav', () => ({
 import { webdavSyncService } from './webdavSyncService'
 import { localDataStore } from './indexedDbStorage'
 import { createIndexedDbMock } from './indexedDbStorage.testUtils'
+import { STORAGE_KEYS } from '@/config/constants'
 
 describe('webdav sync service', () => {
   beforeEach(async () => {
@@ -130,5 +131,16 @@ describe('webdav sync service', () => {
 
     resolveBackupList({ success: true, data: [] })
     await Promise.resolve()
+  })
+
+  it('does not download or upload when a manual sync sees the same latest cloud snapshot', async () => {
+    await localDataStore.set(STORAGE_KEYS.SYNC_LAST_SNAPSHOT, '2026-06-01---(1)[SyncV4][Web][自].json')
+    await localDataStore.set(STORAGE_KEYS.SYNC_PENDING, false)
+
+    await webdavSyncService.synchronize(true)
+
+    expect(mocks.webdavClient.restoreBackup).not.toHaveBeenCalled()
+    expect(mocks.decryptSyncEnvelopeV4).not.toHaveBeenCalled()
+    expect(mocks.webdavClient.uploadSyncSnapshot).not.toHaveBeenCalled()
   })
 })
