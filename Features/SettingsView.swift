@@ -73,7 +73,7 @@ struct SettingsView: View {
                     refreshStoredConfigState()
                 }
             }
-            .sheet(isPresented: $showSetPasswordSheet, onDismiss: {
+            .fullScreenCover(isPresented: $showSetPasswordSheet, onDismiss: {
                 if lockPassword.isEmpty {
                     appLockEnabled = false
                 }
@@ -126,7 +126,6 @@ struct SettingsView: View {
                         }
                     }
                 }
-                .presentationDetents([.height(460)])
             }
         }
     }

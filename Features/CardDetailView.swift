@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 struct CardDetailView: View {
     let card: SharedCard
@@ -13,6 +14,8 @@ struct CardDetailView: View {
     @State private var countdownTimer: Timer?
     @State private var scrollOffset: CGFloat = 0
     @State private var selectedPreviewImage: CardImageAsset?
+    @State private var showCopiedToast = false
+    @State private var copiedToastToken = UUID()
 
     private var brand: CardBrand {
         CardBrand.detect(from: card.cardNumber, level: card.level)
@@ -74,6 +77,12 @@ struct CardDetailView: View {
                 .padding(.horizontal, 16)
                 .padding(.top, 8)
             }
+
+            if showCopiedToast {
+                copiedToast
+                    .transition(.move(edge: .top).combined(with: .opacity))
+                    .zIndex(2)
+            }
         }
         .navigationTitle(card.bank)
         .navigationBarTitleDisplayMode(.inline)
@@ -101,7 +110,7 @@ struct CardDetailView: View {
 
     // MARK: - 大卡片
     private var cardHeroSection: some View {
-        CreditCardView(card: card)
+        CreditCardView(card: card, onCopyCardNumber: copyCardNumber)
     }
 
     // MARK: - 敏感信息
@@ -111,9 +120,15 @@ struct CardDetailView: View {
             VStack(spacing: 0) {
                 infoRow(label: "完整卡号") {
                     HStack(spacing: 8) {
-                        Text(isShowingNumber ? formattedFullNumber : "•••• •••• •••• \(String(card.cardNumber.filter { $0.isNumber }.suffix(4)))")
-                            .font(.system(.body, design: .monospaced))
-                            .foregroundColor(.primary)
+                        Button {
+                            copyCardNumber()
+                        } label: {
+                            Text(isShowingNumber ? formattedFullNumber : maskedCardNumber)
+                                .font(.system(.body, design: .monospaced))
+                                .foregroundColor(.primary)
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("复制完整卡号")
                         Button { toggleNumber() } label: {
                             Image(systemName: isShowingNumber ? "eye.slash.fill" : "eye.fill")
                                 .font(.system(size: 13))
@@ -333,15 +348,59 @@ struct CardDetailView: View {
         .padding(.bottom, 6)
     }
 
+    private var copiedToast: some View {
+        VStack {
+            Label("卡号已复制", systemImage: "checkmark.circle.fill")
+                .font(.system(.subheadline, weight: .semibold))
+                .foregroundColor(.white)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 10)
+                .background(Color.black.opacity(0.72), in: Capsule())
+                .shadow(color: Color.black.opacity(0.18), radius: 12, x: 0, y: 6)
+            Spacer()
+        }
+        .padding(.top, 12)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .allowsHitTesting(false)
+    }
+
     // MARK: - Helpers
+    private var cleanCardNumber: String {
+        card.cardNumber.filter { $0.isNumber }
+    }
+
+    private var maskedCardNumber: String {
+        "•••• •••• •••• \(String(cleanCardNumber.suffix(4)))"
+    }
+
     private var formattedFullNumber: String {
-        let clean = card.cardNumber.replacingOccurrences(of: " ", with: "").filter { $0.isNumber }
         var result = ""
-        for (index, char) in clean.enumerated() {
+        for (index, char) in cleanCardNumber.enumerated() {
             if index > 0 && index % 4 == 0 { result += " " }
             result.append(char)
         }
         return result
+    }
+
+    private func copyCardNumber() {
+        guard !cleanCardNumber.isEmpty else { return }
+
+        UIPasteboard.general.string = cleanCardNumber
+        UINotificationFeedbackGenerator().notificationOccurred(.success)
+
+        let token = UUID()
+        copiedToastToken = token
+        withAnimation(.spring(duration: 0.25, bounce: 0.2)) {
+            showCopiedToast = true
+        }
+
+        Task { @MainActor in
+            try? await Task.sleep(for: .seconds(1.4))
+            guard copiedToastToken == token else { return }
+            withAnimation(.easeOut(duration: 0.2)) {
+                showCopiedToast = false
+            }
+        }
     }
 
     private func formatCurrency(_ amount: Double, currency: String) -> String {

@@ -4,6 +4,7 @@ import SwiftUI
 struct CreditCardView: View {
     let card: SharedCard
     var onTap: (() -> Void)?
+    var onCopyCardNumber: (() -> Void)?
 
     @State private var isShowingNumber = false
     @State private var isShowingCVV = false
@@ -136,12 +137,17 @@ struct CreditCardView: View {
 
                 // 中部：卡号
                 HStack(alignment: .center, spacing: 10) {
-                    Text(formattedCardNumber())
-                        .font(.system(.title3, design: .monospaced, weight: .bold))
-                        .foregroundColor(.white)
-                        .tracking(2)
-                        .lineLimit(1)
-                        .minimumScaleFactor(0.6)
+                    if let onCopyCardNumber {
+                        Button {
+                            onCopyCardNumber()
+                        } label: {
+                            cardNumberLabel
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityLabel("复制卡号")
+                    } else {
+                        cardNumberLabel
+                    }
 
                     Button {
                         toggleNumberVisibility()
@@ -243,6 +249,15 @@ struct CreditCardView: View {
     }
 
     // MARK: - 子视图
+
+    private var cardNumberLabel: some View {
+        Text(formattedCardNumber())
+            .font(.system(.title3, design: .monospaced, weight: .bold))
+            .foregroundColor(.white)
+            .tracking(2)
+            .lineLimit(1)
+            .minimumScaleFactor(0.6)
+    }
 
     private var chipDecoration: some View {
         ZStack {
