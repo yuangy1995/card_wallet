@@ -13,6 +13,7 @@ struct CloudSyncView: View {
     @State private var hasSavedWebDAVPassword = false
     @State private var hasSavedSyncPassword = false
     @State private var showSyncHistory = false
+    @State private var isEditingConfig = false
 
     @AppStorage("enable_webdav_sync") private var enableWebDAVSync = false
     @AppStorage("auto_sync_interval") private var autoSyncInterval = 300.0
@@ -42,31 +43,99 @@ struct CloudSyncView: View {
     // MARK: - WebDAV 配置
     private var webdavSection: some View {
         Section {
-            if savedConfigReady {
-                // 已连接状态
-                HStack(spacing: 14) {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 14)
-                            .fill(Color.green.opacity(0.14))
-                            .frame(width: 50, height: 50)
-                        Image(systemName: "checkmark.icloud.fill")
-                            .font(.system(size: 24))
-                            .foregroundColor(.green)
-                    }
-                    VStack(alignment: .leading, spacing: 3) {
-                        Text("加密云同步已就绪")
-                            .font(.system(.subheadline, weight: .semibold))
-                        Text(webdavUrl)
-                            .font(.system(size: 11))
-                            .foregroundColor(.secondary)
-                            .lineLimit(1)
-                    }
-                    Spacer()
+            if savedConfigReady && !isEditingConfig {
+                connectedConfigSummary
+            } else {
+                if savedConfigReady {
+                    editingConfigHeader
                 }
-                .padding(.vertical, 4)
+                configForm
+                configActionButtons
             }
 
-            // 配置表单
+            if savedConfigReady {
+                Toggle("启用自动同步", isOn: $enableWebDAVSync)
+                    .font(.system(.subheadline))
+            }
+        } header: {
+            Label("WebDAV 同步配置", systemImage: "icloud.and.arrow.up.fill")
+        }
+    }
+
+    private var connectedConfigSummary: some View {
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 14) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 14)
+                        .fill(Color.green.opacity(0.14))
+                        .frame(width: 50, height: 50)
+                    Image(systemName: "checkmark.icloud.fill")
+                        .font(.system(size: 24, weight: .semibold))
+                        .foregroundColor(.green)
+                }
+                VStack(alignment: .leading, spacing: 5) {
+                    HStack(spacing: 6) {
+                        Text("加密云同步已就绪")
+                            .font(.system(.subheadline, weight: .semibold))
+                        Text("已连接")
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundColor(.green)
+                            .padding(.horizontal, 7)
+                            .padding(.vertical, 3)
+                            .background(Color.green.opacity(0.12), in: Capsule())
+                    }
+                    Text(cleanWebDAVURL)
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                }
+                Spacer()
+            }
+
+            HStack {
+                Label(cleanUsername, systemImage: "person.fill")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                Spacer()
+                Button {
+                    connectionMessage = ""
+                    isEditingConfig = true
+                } label: {
+                    Label("修改配置", systemImage: "pencil")
+                        .font(.system(size: 13, weight: .semibold))
+                }
+                .buttonStyle(.bordered)
+            }
+        }
+        .padding(.vertical, 4)
+    }
+
+    private var editingConfigHeader: some View {
+        HStack(spacing: 12) {
+            Image(systemName: "pencil.circle.fill")
+                .font(.system(size: 22))
+                .foregroundStyle(.cyan)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("正在修改同步配置")
+                    .font(.system(.subheadline, weight: .semibold))
+                Text("留空密码会保留已保存的 WebDAV 密码。")
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+            }
+            Spacer()
+            Button("取消") {
+                loadConfig()
+                isEditingConfig = false
+                connectionMessage = ""
+            }
+            .font(.system(size: 13, weight: .semibold))
+        }
+        .padding(.vertical, 4)
+    }
+
+    private var configForm: some View {
+        Group {
             HStack {
                 Label("服务器地址", systemImage: "server.rack")
                 Spacer()
@@ -99,42 +168,35 @@ struct CloudSyncView: View {
                     .frame(maxWidth: 220)
             }
 
-            // 连接状态提示
             if !connectionMessage.isEmpty {
                 Label(connectionMessage, systemImage: connectionSuccess ? "checkmark.circle.fill" : "xmark.circle.fill")
                     .font(.system(size: 13))
                     .foregroundColor(connectionSuccess ? .green : .red)
             }
-
-            // 操作按钮
-            HStack(spacing: 12) {
-                Button {
-                    testConnection()
-                } label: {
-                    if isTestingConnection {
-                        ProgressView().frame(maxWidth: .infinity)
-                    } else {
-                        Text("测试连接").frame(maxWidth: .infinity)
-                    }
-                }
-                .buttonStyle(.bordered)
-                .disabled(!canTestConnection)
-
-                Button("保存配置") {
-                    saveConfig()
-                }
-                .buttonStyle(.borderedProminent)
-                .disabled(!canSaveConfig)
-            }
-            .padding(.vertical, 4)
-
-            if savedConfigReady {
-                Toggle("启用自动同步", isOn: $enableWebDAVSync)
-                    .font(.system(.subheadline))
-            }
-        } header: {
-            Label("WebDAV 同步配置", systemImage: "icloud.and.arrow.up.fill")
         }
+    }
+
+    private var configActionButtons: some View {
+        HStack(spacing: 12) {
+            Button {
+                testConnection()
+            } label: {
+                if isTestingConnection {
+                    ProgressView().frame(maxWidth: .infinity)
+                } else {
+                    Text("测试连接").frame(maxWidth: .infinity)
+                }
+            }
+            .buttonStyle(.bordered)
+            .disabled(!canTestConnection)
+
+            Button("保存配置") {
+                saveConfig()
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(!canSaveConfig)
+        }
+        .padding(.vertical, 4)
     }
 
     // MARK: - 手动同步
@@ -259,6 +321,7 @@ struct CloudSyncView: View {
         webdavSyncPassword = savedSyncPassword
         hasSavedSyncPassword = !savedSyncPassword.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         connectionSuccess = savedConfigReady
+        isEditingConfig = !savedConfigReady
     }
 
     private func saveConfig() {
@@ -293,6 +356,7 @@ struct CloudSyncView: View {
         hasSavedSyncPassword = true
         connectionSuccess = true
         connectionMessage = "配置已保存"
+        isEditingConfig = false
         if enableWebDAVSync {
             Task { await syncCoordinator.synchronize(forceUpload: false) }
         }

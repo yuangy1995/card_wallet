@@ -5,14 +5,13 @@ struct SettingsView: View {
     @EnvironmentObject private var syncCoordinator: SyncCoordinator
     @State private var isLockEnabled = false
     @State private var lockPassword = ""
-    @State private var confirmPassword = ""
-    @State private var newPasswordInput = ""
-    @State private var isEditingPassword = false
+    @State private var passwordInput = ""
+    @State private var passwordStep: PasswordStep = .enter
     @State private var passwordStatusMessage = ""
     @State private var biometricAvailable = false
     @State private var biometricType: LABiometryType = .none
-    @State private var isSecurityPulseAnimating = false
     @State private var showResetAlert = false
+    @State private var showSetPasswordSheet = false
     @State private var showCloudSync = false
     @State private var hasStoredWebDAVUsername = false
     @State private var hasStoredWebDAVPassword = false
@@ -26,9 +25,6 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             List {
-                // 安全防护状态
-                securityStatusSection
-
                 // 云端同步
                 cloudSyncSection
 
@@ -49,11 +45,69 @@ struct SettingsView: View {
             .onAppear {
                 checkBiometric()
                 refreshStoredConfigState()
+                if appLockEnabled && lockPassword.isEmpty {
+                    appLockEnabled = false
+                }
             }
             .onChange(of: showCloudSync) { _, isShowing in
                 if !isShowing {
                     refreshStoredConfigState()
                 }
+            }
+            .sheet(isPresented: $showSetPasswordSheet, onDismiss: {
+                if lockPassword.isEmpty {
+                    appLockEnabled = false
+                }
+            }) {
+                NavigationStack {
+                    VStack(spacing: 20) {
+                        Spacer()
+                        
+                        Text(passwordStepInstruction)
+                            .font(.system(.subheadline, weight: .semibold))
+                            .foregroundColor(.secondary)
+                        
+                        // 点阵显示
+                        HStack(spacing: 12) {
+                            ForEach(0..<6, id: \.self) { index in
+                                Circle()
+                                    .fill(index < passwordInput.count ? Color.cyan : Color.primary.opacity(0.15))
+                                    .frame(width: 12, height: 12)
+                                    .scaleEffect(index < passwordInput.count ? 1.2 : 1.0)
+                                    .animation(.spring(duration: 0.2), value: passwordInput.count)
+                            }
+                        }
+                        .padding(.vertical, 8)
+                        
+                        if !passwordStatusMessage.isEmpty {
+                            Text(passwordStatusMessage)
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundColor(.red)
+                                .multilineTextAlignment(.center)
+                        }
+                        
+                        Spacer()
+                        
+                        customKeyboard
+                            .padding(.bottom, 20)
+                    }
+                    .navigationTitle(lockPassword.isEmpty ? "设置锁屏密码" : "修改锁屏密码")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("取消") {
+                                showSetPasswordSheet = false
+                            }
+                        }
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button(passwordStepLabel) {
+                                handlePasswordNext()
+                            }
+                            .disabled(passwordInput.count < 4)
+                        }
+                    }
+                }
+                .presentationDetents([.height(460)])
             }
         }
     }
@@ -126,55 +180,6 @@ struct SettingsView: View {
         }
     }
 
-    // MARK: - 安全状态
-    private var securityStatusSection: some View {
-        Section {
-            HStack(spacing: 16) {
-                // 呼吸光环安全盾
-                ZStack {
-                    Circle()
-                        .stroke(Color.green.opacity(0.15), lineWidth: 2)
-                        .frame(width: 60, height: 60)
-                        .scaleEffect(isSecurityPulseAnimating ? 1.25 : 0.95)
-                        .opacity(isSecurityPulseAnimating ? 0.0 : 0.8)
-                    Circle()
-                        .fill(Color.green.opacity(0.1))
-                        .frame(width: 50, height: 50)
-                        .scaleEffect(isSecurityPulseAnimating ? 1.15 : 0.98)
-                    Circle()
-                        .fill(LinearGradient(colors: [Color.green.opacity(0.85), Color.cyan.opacity(0.85)],
-                                            startPoint: .topLeading, endPoint: .bottomTrailing))
-                        .frame(width: 40, height: 40)
-                        .shadow(color: Color.green.opacity(0.3), radius: 6, x: 0, y: 3)
-                    Image(systemName: "checkmark.shield.fill")
-                        .font(.system(size: 20, weight: .bold))
-                        .foregroundColor(.white)
-                }
-                .frame(width: 65, height: 65)
-                .onAppear {
-                    withAnimation(.easeInOut(duration: 2.0).repeatForever(autoreverses: true)) {
-                        isSecurityPulseAnimating = true
-                    }
-                }
-
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("本地隐私安全防护已就绪")
-                        .font(.system(.subheadline, weight: .semibold))
-                    Text("防护级别：\(appLockEnabled ? (enableFaceID ? "生物识别保护" : "密码保护") : "本机加密保存")")
-                        .font(.system(size: 11, weight: .semibold))
-                        .foregroundColor(appLockEnabled ? .green : .orange)
-                    Text("您的卡号、CVV 和同步密码均加密保存在本机。")
-                        .font(.system(size: 10))
-                        .foregroundColor(.secondary)
-                        .lineLimit(2)
-                }
-            }
-            .padding(.vertical, 6)
-        } header: {
-            Label("安全防护状态", systemImage: "lock.shield.fill")
-        }
-    }
-
     // MARK: - 锁屏设置
     private var lockSection: some View {
         Section {
@@ -182,7 +187,14 @@ struct SettingsView: View {
                 Label("启用锁屏保护", systemImage: appLockEnabled ? "lock.fill" : "lock.open.fill")
             }
             .onChange(of: appLockEnabled) { _, enabled in
-                if !enabled {
+                if enabled {
+                    if lockPassword.isEmpty {
+                        passwordInput = ""
+                        passwordStep = .enter
+                        passwordStatusMessage = ""
+                        showSetPasswordSheet = true
+                    }
+                } else {
                     UserDefaults.standard.set(false, forKey: "app_lock_enabled")
                 }
             }
@@ -195,35 +207,15 @@ struct SettingsView: View {
                     }
                 }
 
-                // 密码管理
-                if isEditingPassword {
-                    HStack {
-                        Label("新密码", systemImage: "key.fill")
-                        SecureField("请输入新密码", text: $newPasswordInput)
-                            .multilineTextAlignment(.trailing)
-                    }
-                    Button {
-                        savePassword()
-                    } label: {
-                        Text("保存密码")
-                            .frame(maxWidth: .infinity)
-                    }
-                    .buttonStyle(.borderedProminent)
-                    if !passwordStatusMessage.isEmpty {
-                        Text(passwordStatusMessage)
-                            .font(.system(size: 12))
-                            .foregroundColor(.secondary)
-                    }
-                } else {
-                    Button {
-                        isEditingPassword = true
-                        newPasswordInput = ""
-                        passwordStatusMessage = ""
-                    } label: {
-                        Label(lockPassword.isEmpty ? "设置锁屏密码" : "修改锁屏密码",
-                              systemImage: "key.badge.shield.fill")
-                    }
+                Button {
+                    passwordInput = ""
+                    passwordStep = .enter
+                    passwordStatusMessage = ""
+                    showSetPasswordSheet = true
+                } label: {
+                    Label("修改锁屏密码", systemImage: "key.badge.shield.fill")
                 }
+                .buttonStyle(.plain)
             }
         } header: {
             Label("锁屏与隐私", systemImage: "lock.rectangle.stack.fill")
@@ -338,15 +330,113 @@ struct SettingsView: View {
             .isEmpty
     }
 
-    private func savePassword() {
-        guard newPasswordInput.count >= 4 else {
-            passwordStatusMessage = "密码不能少于 4 位"
-            return
-        }
-        KeychainManager.save(key: "app_lock_password", value: newPasswordInput)
-        lockPassword = newPasswordInput
-        newPasswordInput = ""
-        isEditingPassword = false
-        passwordStatusMessage = "密码已保存"
+    private func saveNewPassword(_ password: String) {
+        KeychainManager.save(key: "app_lock_password", value: password)
+        lockPassword = password
+        passwordInput = ""
+        passwordStep = .enter
+        passwordStatusMessage = ""
+        showSetPasswordSheet = false
     }
+
+    private func handlePasswordNext() {
+        switch passwordStep {
+        case .enter:
+            if passwordInput.count >= 4 {
+                passwordStep = .confirm(passwordInput)
+                passwordInput = ""
+                passwordStatusMessage = ""
+            } else {
+                passwordStatusMessage = "密码不能少于 4 位"
+            }
+        case .confirm(let firstPassword):
+            if passwordInput == firstPassword {
+                saveNewPassword(passwordInput)
+            } else {
+                passwordStatusMessage = "两次输入的密码不一致，请重新输入"
+                passwordStep = .enter
+                passwordInput = ""
+            }
+        }
+    }
+
+    private var passwordStepLabel: String {
+        switch passwordStep {
+        case .enter:
+            return "下一步"
+        case .confirm:
+            return "确认"
+        }
+    }
+
+    private var passwordStepInstruction: String {
+        switch passwordStep {
+        case .enter:
+            return "请输入 4-6 位数字密码"
+        case .confirm:
+            return "请再次输入密码以确认"
+        }
+    }
+
+    private var customKeyboard: some View {
+        VStack(spacing: 12) {
+            ForEach([[1,2,3],[4,5,6],[7,8,9]], id: \.self) { row in
+                HStack(spacing: 20) {
+                    ForEach(row, id: \.self) { num in
+                        keyboardButton(String(num))
+                    }
+                }
+            }
+            HStack(spacing: 20) {
+                Button {
+                    withAnimation { passwordInput = "" }
+                } label: {
+                    ZStack {
+                        Circle().fill(Color.primary.opacity(0.06)).frame(width: 64, height: 64)
+                        Text("清空")
+                            .font(.system(size: 14, weight: .medium))
+                            .foregroundColor(.primary)
+                    }
+                }
+
+                keyboardButton("0")
+
+                Button {
+                    if !passwordInput.isEmpty {
+                        _ = withAnimation { passwordInput.removeLast() }
+                    }
+                } label: {
+                    ZStack {
+                        Circle().fill(Color.primary.opacity(0.06)).frame(width: 64, height: 64)
+                        Image(systemName: "delete.left.fill")
+                            .font(.system(size: 18))
+                            .foregroundColor(.primary)
+                    }
+                }
+            }
+        }
+    }
+
+    private func keyboardButton(_ label: String) -> some View {
+        Button {
+            guard passwordInput.count < 6 else { return }
+            withAnimation(.spring(duration: 0.1)) { passwordInput += label }
+        } label: {
+            ZStack {
+                Circle()
+                    .fill(Color.primary.opacity(0.04))
+                    .frame(width: 64, height: 64)
+                    .overlay(Circle().stroke(Color.primary.opacity(0.1), lineWidth: 1))
+                Text(label)
+                    .font(.system(.title2, design: .rounded, weight: .medium))
+                    .foregroundColor(.primary)
+            }
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+enum PasswordStep {
+    case enter
+    case confirm(String)
 }

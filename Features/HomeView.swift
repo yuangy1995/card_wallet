@@ -96,7 +96,7 @@ struct HomeView: View {
                 syncFeedbackBanner
             }
             .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: "搜索银行、卡号、别名…")
-            .sheet(isPresented: $isAddingNewCard) {
+            .navigationDestination(isPresented: $isAddingNewCard) {
                 CardEditView(
                     mode: "add",
                     initialCardCategory: newCardCategory,
@@ -105,7 +105,7 @@ struct HomeView: View {
                     commitSubmittedCard(newCard, previousCard: nil)
                 }
             }
-            .sheet(item: $cardToEdit) { card in
+            .navigationDestination(item: $cardToEdit) { card in
                 CardEditView(
                     mode: "edit",
                     cardToEdit: card,

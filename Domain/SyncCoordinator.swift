@@ -768,9 +768,10 @@ public final class SyncCoordinator: ObservableObject {
 
     private func recordProcessedSnapshots(_ snapshots: [WebDAVSyncSnapshotV4], newestFilename: String?, snapshotRevision: Int) {
         ledger.processedWebDAVSnapshotIDs.formUnion(snapshots.map(\.snapshotId))
-        if let newestFilename {
-            ledger.lastWebDAVSnapshotFilename = newestFilename
-        }
+        // 不在此处更新 lastWebDAVSnapshotFilename：
+        // 该字段只应在本机上传成功后（uploadConsolidatedSnapshot）设置为本机文件名。
+        // 若在"无需上传"分支中将其更新为其他设备的文件名，会导致下次同步
+        // canSkipSnapshotDownload 误判命中，iOS 本机修改永久无法触发上传。
         if localRevision == snapshotRevision {
             ledger.pendingWebDAVUpload = false
         } else {
@@ -827,7 +828,9 @@ public final class SyncCoordinator: ObservableObject {
     private nonisolated static func syncSnapshotFilename(recordCount: Int) -> String {
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.dateFormat = "yyyy-MM-dd-HH-mm-ss-SSS"
+        // 统一使用 UTC，与 Web/Android 端文件名格式一致，避免多端排序歧义
+        formatter.timeZone = TimeZone(secondsFromGMT: 0)
+        formatter.dateFormat = "yyyy-MM-dd'T'HH-mm-ss-SSS'Z'"
         return "\(formatter.string(from: Date()))---(\(recordCount))[SyncV4][iOS][自].json"
     }
 

@@ -334,6 +334,10 @@ public final class WebDAVClient: Sendable {
     }
 
     public static func parseHTTPDate(_ value: String) -> Date? {
+        let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        if let syncDate = SyncTimestamp.date(from: trimmed) {
+            return syncDate
+        }
         let formats = [
             "EEE, dd MMM yyyy HH:mm:ss zzz",
             "EEE, dd-MMM-yy HH:mm:ss zzz",
@@ -344,7 +348,7 @@ public final class WebDAVClient: Sendable {
             formatter.locale = Locale(identifier: "en_US_POSIX")
             formatter.timeZone = TimeZone(secondsFromGMT: 0)
             formatter.dateFormat = format
-            if let date = formatter.date(from: value.trimmingCharacters(in: .whitespacesAndNewlines)) {
+            if let date = formatter.date(from: trimmed) {
                 return date
             }
         }

@@ -121,8 +121,7 @@ struct CardEditView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            Form {
+        Form {
                 // 卡类型切换
                 cardCategorySection
 
@@ -188,7 +187,6 @@ struct CardEditView: View {
             } message: {
                 Text(feedbackMessage)
             }
-        }
     }
 
     // MARK: - 卡类型

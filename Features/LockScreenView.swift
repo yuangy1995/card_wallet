@@ -13,6 +13,11 @@ struct LockScreenView: View {
     @State private var ringOpacity: Double = 0.5
     @State private var attemptBiometric = false
 
+    private var passwordLength: Int {
+        let saved = KeychainManager.load(key: "app_lock_password") ?? ""
+        return saved.isEmpty ? 6 : saved.count
+    }
+
     var body: some View {
         ZStack {
             // 1. 极深暗色毛玻璃背景
@@ -88,6 +93,12 @@ struct LockScreenView: View {
             .padding(.horizontal, 32)
         }
         .onAppear {
+            let savedPassword = KeychainManager.load(key: "app_lock_password") ?? ""
+            if savedPassword.isEmpty {
+                UserDefaults.standard.set(false, forKey: "app_lock_enabled")
+                lockManager.unlock()
+                return
+            }
             startAnimations()
             if biometricAvailable() {
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
@@ -143,7 +154,7 @@ struct LockScreenView: View {
         VStack(spacing: 16) {
             // 点阵显示
             HStack(spacing: 12) {
-                ForEach(0..<6, id: \.self) { index in
+                ForEach(0..<passwordLength, id: \.self) { index in
                     Circle()
                         .fill(index < passwordInput.count ? Color.cyan : Color.white.opacity(0.3))
                         .frame(width: 12, height: 12)
@@ -193,9 +204,10 @@ struct LockScreenView: View {
 
     private func pinButton(_ label: String) -> some View {
         Button {
-            guard passwordInput.count < 6 else { return }
+            let length = passwordLength
+            guard passwordInput.count < length else { return }
             withAnimation(.spring(duration: 0.1)) { passwordInput += label }
-            if passwordInput.count == 6 { verifyPassword() }
+            if passwordInput.count == length { verifyPassword() }
         } label: {
             ZStack {
                 Circle()

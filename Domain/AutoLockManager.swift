@@ -16,7 +16,12 @@ public final class AutoLockManager: ObservableObject {
     private func checkInitialLock() {
         let isEnabled = UserDefaults.standard.bool(forKey: "app_lock_enabled")
         if isEnabled {
-            isLocked = true
+            let savedPassword = KeychainManager.load(key: "app_lock_password") ?? ""
+            if savedPassword.isEmpty {
+                UserDefaults.standard.set(false, forKey: "app_lock_enabled")
+            } else {
+                isLocked = true
+            }
         }
     }
 
@@ -39,6 +44,11 @@ public final class AutoLockManager: ObservableObject {
     public func appWillResignActive() {
         let isEnabled = UserDefaults.standard.bool(forKey: "app_lock_enabled")
         guard isEnabled else { return }
+        let savedPassword = KeychainManager.load(key: "app_lock_password") ?? ""
+        if savedPassword.isEmpty {
+            UserDefaults.standard.set(false, forKey: "app_lock_enabled")
+            return
+        }
         lock()
     }
 
@@ -50,6 +60,11 @@ public final class AutoLockManager: ObservableObject {
     private func resetTimer() {
         let isEnabled = UserDefaults.standard.bool(forKey: "app_lock_enabled")
         guard isEnabled else { return }
+        let savedPassword = KeychainManager.load(key: "app_lock_password") ?? ""
+        if savedPassword.isEmpty {
+            UserDefaults.standard.set(false, forKey: "app_lock_enabled")
+            return
+        }
         lockTimer?.invalidate()
         lockTimer = Timer.scheduledTimer(withTimeInterval: timeoutInterval, repeats: false) { [weak self] _ in
             Task { @MainActor in
