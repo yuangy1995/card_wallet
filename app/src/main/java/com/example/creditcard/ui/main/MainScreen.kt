@@ -312,6 +312,10 @@ fun MainScreen(
                                         coroutineScope.launch {
                                             SyncCoordinator.synchronize(context, publishLocalChanges = true)
                                         }
+                                    },
+                                    onSyncingClick = {
+                                        selectedTab = 1
+                                        toolsMode = ToolsMode.SYNC_LOG
                                     }
                                 )
                                 
@@ -528,7 +532,8 @@ fun DynamicSyncBadge(
     isSyncing: Boolean,
     statusType: String,
     isDark: Boolean,
-    onSyncClick: () -> Unit
+    onSyncClick: () -> Unit,
+    onSyncingClick: () -> Unit
 ) {
     // 1. 无限顺时针360度旋转动画 spec 声明
     val infiniteTransition = rememberInfiniteTransition(label = "syncRotation")
@@ -558,7 +563,13 @@ fun DynamicSyncBadge(
             .clip(RoundedCornerShape(8.dp))
             .background(badgeBgColor)
             .border(1.dp, iconColor.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
-            .clickable(enabled = !isSyncing) { onSyncClick() },
+            .clickable {
+                if (isSyncing) {
+                    onSyncingClick()
+                } else {
+                    onSyncClick()
+                }
+            },
         contentAlignment = Alignment.Center
     ) {
         if (isSyncing) {
@@ -2703,9 +2714,44 @@ fun SettingsStoragePanel(
     var isResetting by remember { mutableStateOf(false) }
     var isCleaning by remember { mutableStateOf(false) }
 
+    var isFetchingCloud by remember { mutableStateOf(false) }
+    var cloudError by remember { mutableStateOf<String?>(null) }
+    var cloudSizes by remember { mutableStateOf<Map<String, Long>>(emptyMap()) }
+
     LaunchedEffect(refreshSeed) {
         snapshot = withContext(Dispatchers.IO) {
             AppStorageManager.inspect(context)
+        }
+
+        val config = SyncCoordinator.loadConfig(context)
+        if (config.url.isEmpty() || config.user.isEmpty() || config.pass.isEmpty()) {
+            cloudError = "未配置云端同步"
+            cloudSizes = emptyMap()
+        } else {
+            isFetchingCloud = true
+            cloudError = null
+            try {
+                val files = withContext(Dispatchers.IO) {
+                    WebDAVClient.getBackupList(config.url, config.user, config.pass)
+                }
+                val sizes = mutableMapOf("iOS" to 0L, "Mac" to 0L, "Web" to 0L, "Android" to 0L, "Other" to 0L)
+                for (file in files) {
+                    val name = file.filename.lowercase(java.util.Locale.ROOT)
+                    when {
+                        name.contains("[ios]") -> sizes["iOS"] = (sizes["iOS"] ?: 0L) + file.size
+                        name.contains("[mac]") -> sizes["Mac"] = (sizes["Mac"] ?: 0L) + file.size
+                        name.contains("[web]") -> sizes["Web"] = (sizes["Web"] ?: 0L) + file.size
+                        name.contains("[android]") -> sizes["Android"] = (sizes["Android"] ?: 0L) + file.size
+                        else -> sizes["Other"] = (sizes["Other"] ?: 0L) + file.size
+                    }
+                }
+                cloudSizes = sizes
+            } catch (e: Exception) {
+                cloudError = e.message ?: "未知网络错误"
+                cloudSizes = emptyMap()
+            } finally {
+                isFetchingCloud = false
+            }
         }
     }
 
@@ -2849,6 +2895,197 @@ fun SettingsStoragePanel(
                                 lineHeight = 15.sp,
                                 color = if (isDark) TextGray else TextMuted
                             )
+                        }
+                    }
+                }
+            }
+
+            item {
+                DetailSection(title = "云端资源占用") {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(if (isDark) DarkCardBg else LightCardBg)
+                            .padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        if (isFetchingCloud) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+                                horizontalArrangement = Arrangement.Center,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(16.dp),
+                                    color = if (isDark) NeonCyan else GoldPrimary,
+                                    strokeWidth = 2.dp
+                                )
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text(
+                                    text = "正在获取云端空间占用...",
+                                    fontSize = 12.sp,
+                                    color = if (isDark) TextGray else TextMuted
+                                )
+                            }
+                        } else if (cloudError != null) {
+                            val error = cloudError!!
+                            if (error == "未配置云端同步") {
+                                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            imageVector = Icons.Filled.CloudOff,
+                                            contentDescription = "云端同步未配置",
+                                            tint = if (isDark) TextGray else TextMuted,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            text = "云端同步未配置",
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (isDark) TextWhite else TextDark
+                                        )
+                                    }
+                                    Text(
+                                        text = "您可以在设置中配置 WebDAV 云端同步，配置后即可查看云端空间占用。",
+                                        fontSize = 11.sp,
+                                        lineHeight = 15.sp,
+                                        color = if (isDark) TextGray else TextMuted
+                                    )
+                                }
+                            } else {
+                                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Row(verticalAlignment = Alignment.CenterVertically) {
+                                            Icon(
+                                                imageVector = Icons.Filled.SyncProblem,
+                                                contentDescription = "云端获取失败",
+                                                tint = if (isDark) Color(0xFFFF9100) else WarmOrange,
+                                                modifier = Modifier.size(18.dp)
+                                            )
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text(
+                                                text = "云端获取失败",
+                                                fontSize = 12.sp,
+                                                fontWeight = FontWeight.Bold,
+                                                color = if (isDark) TextWhite else TextDark
+                                            )
+                                        }
+                                        Text(
+                                            text = "重试",
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (isDark) NeonCyan else GoldPrimary,
+                                            modifier = Modifier.clickable { refreshSeed++ }
+                                        )
+                                    }
+                                    Text(
+                                        text = error,
+                                        fontSize = 11.sp,
+                                        lineHeight = 15.sp,
+                                        color = if (isDark) TextGray else TextMuted
+                                    )
+                                }
+                            }
+                        } else {
+                            val totalCloudBytes = cloudSizes.values.sum()
+                            if (totalCloudBytes == 0L) {
+                                Box(
+                                    modifier = Modifier.fillMaxWidth().padding(vertical = 12.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = "暂无云端备份文件",
+                                        fontSize = 12.sp,
+                                        color = if (isDark) TextGray else TextMuted
+                                    )
+                                }
+                            } else {
+                                val iosSize = cloudSizes["iOS"] ?: 0L
+                                val macSize = cloudSizes["Mac"] ?: 0L
+                                val webSize = cloudSizes["Web"] ?: 0L
+                                val androidSize = cloudSizes["Android"] ?: 0L
+                                val otherSize = cloudSizes["Other"] ?: 0L
+
+                                if (iosSize > 0L) {
+                                    CloudUsageRow(
+                                        icon = Icons.Filled.PhoneIphone,
+                                        title = "iOS 端占用",
+                                        bytes = iosSize,
+                                        isDark = isDark
+                                    )
+                                }
+                                if (macSize > 0L) {
+                                    CloudUsageRow(
+                                        icon = Icons.Filled.Laptop,
+                                        title = "Mac 端占用",
+                                        bytes = macSize,
+                                        isDark = isDark
+                                    )
+                                }
+                                if (webSize > 0L) {
+                                    CloudUsageRow(
+                                        icon = Icons.Filled.Language,
+                                        title = "Web 端占用",
+                                        bytes = webSize,
+                                        isDark = isDark
+                                    )
+                                }
+                                if (androidSize > 0L) {
+                                    CloudUsageRow(
+                                        icon = Icons.Filled.PhoneAndroid,
+                                        title = "Android 端占用",
+                                        bytes = androidSize,
+                                        isDark = isDark
+                                    )
+                                }
+                                if (otherSize > 0L) {
+                                    CloudUsageRow(
+                                        icon = Icons.Filled.MoreHoriz,
+                                        title = "其他备份占用",
+                                        bytes = otherSize,
+                                        isDark = isDark
+                                    )
+                                }
+
+                                HorizontalDivider(
+                                    color = (if (isDark) TextWhite else TextDark).copy(alpha = 0.08f),
+                                    thickness = 1.dp
+                                )
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Icon(
+                                            imageVector = Icons.Filled.Cloud,
+                                            contentDescription = "云端总占用",
+                                            tint = if (isDark) NeonCyan else GoldPrimary,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(8.dp))
+                                        Text(
+                                            text = "云端总占用",
+                                            fontSize = 13.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = if (isDark) TextWhite else TextDark
+                                        )
+                                    }
+                                    Text(
+                                        text = formatStorageBytes(totalCloudBytes),
+                                        fontSize = 13.sp,
+                                        fontWeight = FontWeight.Bold,
+                                        color = if (isDark) NeonCyan else GoldPrimary
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -3159,6 +3396,43 @@ fun StorageUsageRow(
                 .clip(RoundedCornerShape(4.dp)),
             color = accent,
             trackColor = accent.copy(alpha = 0.14f)
+        )
+    }
+}
+
+@Composable
+fun CloudUsageRow(
+    icon: ImageVector,
+    title: String,
+    bytes: Long,
+    isDark: Boolean
+) {
+    val accent = if (isDark) NeonCyan else GoldPrimary
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                imageVector = icon,
+                contentDescription = title,
+                tint = accent,
+                modifier = Modifier.size(18.dp)
+            )
+            Spacer(modifier = Modifier.width(10.dp))
+            Text(
+                text = title,
+                fontSize = 12.sp,
+                fontWeight = FontWeight.Bold,
+                color = if (isDark) TextWhite else TextDark
+            )
+        }
+        Text(
+            text = formatStorageBytes(bytes),
+            fontSize = 11.sp,
+            fontWeight = FontWeight.SemiBold,
+            color = accent
         )
     }
 }
