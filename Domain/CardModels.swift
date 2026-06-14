@@ -174,7 +174,7 @@ public struct SharedCard: Codable, Identifiable, Hashable {
         cardNumber: String,
         alias: String? = nil,
         level: String? = nil,
-        type: String? = "CNY",
+        type: String? = "",
         limit: Double? = 0,
         cvv: String? = nil,
         valid: String? = nil,
@@ -226,7 +226,7 @@ public struct SharedCard: Codable, Identifiable, Hashable {
         self.cardNumber = Self.decodeString(container, forKey: .cardNumber) ?? ""
         self.alias = Self.decodeString(container, forKey: .alias)
         self.level = Self.decodeString(container, forKey: .level)
-        self.type = Self.decodeString(container, forKey: .type) ?? "CNY"
+        self.type = Self.decodeString(container, forKey: .type) ?? ""
         self.limit = Self.decodeDouble(container, forKey: .limit)
         self.cvv = Self.decodeString(container, forKey: .cvv)
         self.valid = Self.decodeString(container, forKey: .valid)

@@ -239,7 +239,7 @@ public class DataMigrationManager {
         let cardNumber = (dict["cardNumber"] as? String) ?? ""
         let alias = dict["alias"] as? String
         let level = dict["level"] as? String
-        let type = (dict["type"] as? String) ?? "CNY"
+        let type = (dict["type"] as? String) ?? ""
         let cvv = dict["cvv"] as? String
         let equity = dict["equity"] as? String
         let remark = dict["remark"] as? String

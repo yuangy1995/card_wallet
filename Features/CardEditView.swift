@@ -131,6 +131,9 @@ public struct CardEditView: View {
                                 text: $country,
                                 options: countries
                             )
+                            .onChange(of: country) { _, _ in
+                                checkExistingSharedLimit()
+                            }
                             
                             EditableOptionField(
                                 title: "发卡银行 *",
@@ -181,6 +184,9 @@ public struct CardEditView: View {
                                     text: $type,
                                     options: currencies
                                 )
+                                .onChange(of: type) { _, _ in
+                                    checkExistingSharedLimit()
+                                }
                             }
                         }
                         
@@ -406,9 +412,6 @@ public struct CardEditView: View {
     private func loadInitialData() {
         guard let card = cardToEdit else {
             cardCategory = initialCardCategory
-            if type.isEmpty {
-                type = "CNY"
-            }
             checkExistingSharedLimit()
             return
         }
@@ -456,10 +459,13 @@ public struct CardEditView: View {
             return
         }
         
+        let cleanType = type.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
         let match = existingCards.first { item in
+            let itemType = (item.type ?? "").trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
             return item.country == country &&
                    item.cardCategory != "debit" &&
                    BankNameNormalizer.namesReferToSameBank(item.bank, bank) &&
+                   itemType == cleanType &&
                    item.isSharedLimit &&
                    item.id != cardToEdit?.id
         }

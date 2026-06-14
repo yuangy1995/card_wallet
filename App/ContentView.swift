@@ -143,10 +143,13 @@ struct ContentView: View {
                     
                     // 💡 联动同步：如果信用卡启用了共享额度，自动同步批量更新其他同银行的共享额度卡片
                     if finalCard.cardCategory != "debit", finalCard.isSharedLimit {
+                        let finalType = (finalCard.type ?? "").trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
                         for i in 0..<cards.count {
+                            let cardType = (cards[i].type ?? "").trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
                             if cards[i].id != finalCard.id &&
                                 cards[i].cardCategory != "debit" &&
                                 cards[i].country == finalCard.country &&
+                               cardType == finalType &&
                                BankNameNormalizer.namesReferToSameBank(cards[i].bank, finalCard.bank) &&
                                cards[i].isSharedLimit {
                                 cards[i].limit = finalCard.limit
