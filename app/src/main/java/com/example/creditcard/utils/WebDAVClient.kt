@@ -29,10 +29,11 @@ data class BackupFile(
 object WebDAVClient {
 
     private val client = OkHttpClient.Builder()
-        .connectTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
-        .readTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
-        .writeTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
-        .callTimeout(45, java.util.concurrent.TimeUnit.SECONDS)
+        .connectTimeout(20, java.util.concurrent.TimeUnit.SECONDS)
+        .readTimeout(90, java.util.concurrent.TimeUnit.SECONDS)
+        .writeTimeout(90, java.util.concurrent.TimeUnit.SECONDS)
+        .callTimeout(120, java.util.concurrent.TimeUnit.SECONDS)
+        .retryOnConnectionFailure(true)
         .build()
 
     // 默认的备份目录
@@ -174,6 +175,15 @@ object WebDAVClient {
      * 从云端下载备份文件内容
      */
     fun restoreBackup(url: String, user: String, pass: String, filename: String): String? {
+        return try {
+            restoreBackupOrThrow(url, user, pass, filename)
+        } catch (e: Exception) {
+            e.printStackTrace()
+            null
+        }
+    }
+
+    fun restoreBackupOrThrow(url: String, user: String, pass: String, filename: String): String {
         val cleanUrl = sanitizeUrl(url)
         val credential = Credentials.basic(user, pass)
 
@@ -184,13 +194,17 @@ object WebDAVClient {
             .header("Authorization", credential)
             .build()
 
-        return try {
+        try {
             client.newCall(request).execute().use { response ->
-                if (response.isSuccessful) response.body?.string() else null
+                if (!response.isSuccessful) {
+                    throw IOException("同步文件下载失败，HTTP ${response.code}: $filename")
+                }
+                return response.body?.string()
+                    ?: throw IOException("同步文件下载失败，响应为空: $filename")
             }
         } catch (e: Exception) {
             e.printStackTrace()
-            null
+            throw IOException("同步文件下载失败: ${e.message ?: "未知网络错误"}", e)
         }
     }
 

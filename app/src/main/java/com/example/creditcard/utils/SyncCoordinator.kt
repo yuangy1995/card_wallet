@@ -60,6 +60,15 @@ data class SyncProgress(
     val detail: String = ""
 )
 
+private data class SnapshotReadResult(
+    val filename: String,
+    val snapshot: SyncSnapshot? = null,
+    val failureStage: String? = null,
+    val failureMessage: String? = null
+) {
+    val failed: Boolean get() = snapshot == null
+}
+
 /**
  * 云端同步协调器
  * 负责本地 SQLite 与云端 WebDAV 的 CRDT 合流同步核心业务调度
@@ -76,6 +85,7 @@ object SyncCoordinator {
     private const val KEY_SYNC_HISTORY = "sync_history"
     private const val KEY_PENDING_MUTATIONS = "pending_mutation_details"
     private const val KEY_MUTATION_REVISION = "local_mutation_revision"
+    private const val KEY_LAST_WEBDAV_SNAPSHOT = "last_webdav_snapshot_filename"
 
     // 用 MutableStateFlow 进行全局同步状态发布，Compose 侧可极其优雅地消费它
     private val _syncStatus = MutableStateFlow(SyncStatus())
@@ -198,6 +208,18 @@ object SyncCoordinator {
     private fun mutationRevision(context: Context): Long {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
         return prefs.getLong(KEY_MUTATION_REVISION, 0L)
+    }
+
+    private fun lastWebDAVSnapshotFilename(context: Context): String {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getString(KEY_LAST_WEBDAV_SNAPSHOT, "") ?: ""
+    }
+
+    private fun saveLastWebDAVSnapshotFilename(context: Context, filename: String) {
+        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+            .edit()
+            .putString(KEY_LAST_WEBDAV_SNAPSHOT, filename)
+            .apply()
     }
 
     private fun bumpMutationRevision(context: Context): Long {
@@ -649,6 +671,10 @@ object SyncCoordinator {
                 }.sortedWith(compareByDescending<BackupFile> { it.lastModified }.thenByDescending { it.filename })
                 val filesToRead = automaticFiles.take(5)
                 downloadedFilenames = filesToRead.map { it.filename }
+                val newestFilename = automaticFiles.firstOrNull()?.filename.orEmpty()
+                val canSkipSnapshotDownload = !isPending(appContext) &&
+                    newestFilename.isNotBlank() &&
+                    newestFilename == lastWebDAVSnapshotFilename(appContext)
 
                 val totalFilesText = if (automaticFiles.size > filesToRead.size) {
                     "，云端共有 ${automaticFiles.size} 份，仅读取最近 ${filesToRead.size} 份"
@@ -678,41 +704,110 @@ object SyncCoordinator {
                     return@withLock
                 }
 
+                if (canSkipSnapshotDownload) {
+                    appendSyncHistory(
+                        appContext,
+                        SyncHistoryEntry(
+                            id = UUID.randomUUID().toString(),
+                            startedAt = startedAt,
+                            finishedAt = SyncTime.nowIso(),
+                            status = "success",
+                            message = "云端文件未变化，已跳过下载解析",
+                            durationMs = syncDurationSince(startedAtMillis),
+                            downloadedFiles = emptyList(),
+                            localChanges = emptyList(),
+                            remoteChanges = emptyList()
+                        )
+                    )
+                    withContext(Dispatchers.Main) {
+                        val durationMs = stopSyncElapsedTicker(syncDurationSince(startedAtMillis))
+                        updateStatus("云端文件未变化，已跳过下载解析", "success", false, lastDurationMs = durationMs)
+                        updateProgress("同步完成", 6, 6, "耗时 ${formatDurationText(durationMs)}；云端最新文件未变化")
+                    }
+                    return@withLock
+                }
+
                 withContext(Dispatchers.Main) {
                     updateProgress("读取文件", 3, 6, "正在下载并读取 ${filesToRead.size} 份云同步文件$totalFilesText")
                 }
 
                 // 3. 下载并解密最近自动同步文件。Android 之前串行处理 5 份快照，
                 // 每份都要 310k PBKDF2 派生；并发后与 Web/Mac 的行为一致。
-                val snapshots = coroutineScope {
+                val readResults = coroutineScope {
                     filesToRead.mapIndexed { index, file ->
                         async(Dispatchers.IO) {
                             ensureSyncNotCancelled()
                             withContext(Dispatchers.Main) {
                                 updateProgress("读取文件", 3, 6, "正在读取 ${index + 1}/${filesToRead.size}：${file.filename}")
                             }
-                            val fileContent = WebDAVClient.restoreBackup(config.url, config.user, config.pass, file.filename)
+                            val fileContent = try {
+                                WebDAVClient.restoreBackupOrThrow(config.url, config.user, config.pass, file.filename)
+                            } catch (e: IOException) {
+                                if (cancelRequested) throw CancellationException("同步已被手动终止")
+                                e.printStackTrace()
+                                return@async SnapshotReadResult(
+                                    filename = file.filename,
+                                    failureStage = "download",
+                                    failureMessage = "同步文件下载失败：${e.message ?: "网络超时或连接中断"}"
+                                )
+                            }
                             ensureSyncNotCancelled()
-                            if (fileContent.isNullOrEmpty()) {
-                                null
+                            if (fileContent.isEmpty()) {
+                                return@async SnapshotReadResult(
+                                    filename = file.filename,
+                                    failureStage = "download",
+                                    failureMessage = "同步文件下载失败：响应为空"
+                                )
+                            }
+                            val decryptedJson = try {
+                                CryptoManager.decryptSyncEnvelopeV4(fileContent, config.syncPassword)
+                            } catch (e: Exception) {
+                                e.printStackTrace()
+                                return@async SnapshotReadResult(
+                                    filename = file.filename,
+                                    failureStage = "decrypt",
+                                    failureMessage = "同步文件无法解密，请检查同步密钥：${file.filename}"
+                                )
+                            }
+                            val snapshot = try {
+                                AppJson.json.decodeFromString<SyncSnapshot>(decryptedJson)
+                            } catch (e: Exception) {
+                                e.printStackTrace()
+                                return@async SnapshotReadResult(
+                                    filename = file.filename,
+                                    failureStage = "parse",
+                                    failureMessage = "同步文件已解密但快照格式无法解析：${file.filename}"
+                                )
+                            }
+                            if (snapshot.schemaVersion == "4.0.0") {
+                                SnapshotReadResult(filename = file.filename, snapshot = snapshot)
                             } else {
-                                try {
-                                    val decryptedJson = CryptoManager.decryptSyncEnvelopeV4(fileContent, config.syncPassword)
-                                    val snapshot = AppJson.json.decodeFromString<SyncSnapshot>(decryptedJson)
-                                    if (snapshot.schemaVersion == "4.0.0") snapshot else null
-                                } catch (e: Exception) {
-                                    e.printStackTrace()
-                                    null
-                                }
+                                SnapshotReadResult(
+                                    filename = file.filename,
+                                    failureStage = "parse",
+                                    failureMessage = "同步文件版本不支持：${file.filename}"
+                                )
                             }
                         }
                     }.awaitAll()
                 }
-                val remoteRecords = snapshots.filterNotNull().flatMap { it.records }
-                val validSnapshotCount = snapshots.count { it != null }
-                if (filesToRead.isNotEmpty() && validSnapshotCount == 0) {
-                    throw IllegalArgumentException("无法解密云端同步文件，请检查同步密钥")
+                val snapshots = readResults.mapNotNull { it.snapshot }
+                val firstResult = readResults.firstOrNull()
+                if (filesToRead.isNotEmpty() && firstResult?.failed == true) {
+                    throw IllegalArgumentException(firstResult.failureMessage ?: "最新云同步文件读取失败，请稍后重试")
                 }
+                if (filesToRead.isNotEmpty() && snapshots.isEmpty()) {
+                    val failures = readResults.filter { it.failed }
+                    val downloadFailures = failures.count { it.failureStage == "download" }
+                    val decryptFailures = failures.count { it.failureStage == "decrypt" }
+                    val message = when {
+                        downloadFailures > 0 -> "云同步文件下载失败，请检查网络或稍后重试"
+                        decryptFailures > 0 -> "无法解密云端同步文件，请检查同步密钥"
+                        else -> failures.firstOrNull()?.failureMessage ?: "云同步文件格式无法解析"
+                    }
+                    throw IllegalArgumentException(message)
+                }
+                val remoteRecords = snapshots.flatMap { it.records }
 
                 withContext(Dispatchers.Main) {
                     updateProgress("合并数据", 4, 6, "正在合并本机和云端修改")
@@ -745,7 +840,7 @@ object SyncCoordinator {
                 // 6. 是否需要把最新合流数据发布回云端？
                 // 如果本地有 pending、或者有远程合流变动、或者云端没有任何自动快照但本地有卡包
                 val hasPending = isPending(appContext)
-                if (publishLocalChanges || changedByRemote || hasPending || (automaticFiles.isEmpty() && mergedRecords.isNotEmpty())) {
+                if (changedByRemote || hasPending || (automaticFiles.isEmpty() && mergedRecords.isNotEmpty())) {
                     val isoNow = SyncTime.nowIso()
                     val snapshot = SyncSnapshot(
                         generatedAt = isoNow,
@@ -764,6 +859,7 @@ object SyncCoordinator {
                     ensureSyncNotCancelled()
                     if (uploadSuccess) {
                         uploadedFilename = filename
+                        saveLastWebDAVSnapshotFilename(appContext, filename)
                         if (mutationRevision(appContext) == snapshotRevision) {
                             markPending(appContext, false)
                             clearPendingMutations(appContext)
@@ -794,6 +890,8 @@ object SyncCoordinator {
                     }
                 } else if (mutationRevision(appContext) != snapshotRevision) {
                     needsFollowUpSync = true
+                } else if (newestFilename.isNotBlank()) {
+                    saveLastWebDAVSnapshotFilename(appContext, newestFilename)
                 }
 
                 appendSyncHistory(
