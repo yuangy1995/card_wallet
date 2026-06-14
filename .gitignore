@@ -1,9 +1,30 @@
 # Xcode
-DerivedData/
 build/
-*.xcworkspace
+DerivedData/
+*.pbxuser
+*.mode1v3
+*.mode2v3
+*.perspectivev3
 xcuserdata/
+*.xcworkspace
+*.xcuserstate
+*.xcbuilddata
+
+# Swift Package Manager
+.build/
+.swiftpm/xcode/package.resolved
+.swiftpm/xcode/xcshareddata/
+.swiftpm/xcode/xcuserdata/
+
+# CocoaPods
+Pods/
 
 # macOS
 .DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
 
+# Log files
+*.log

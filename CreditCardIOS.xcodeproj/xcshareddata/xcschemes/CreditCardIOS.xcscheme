@@ -39,17 +39,6 @@
          </BuildableReference>
       </MacroExpansion>
       <Testables>
-         <TestableReference
-            skipped = "NO"
-            parallelizable = "NO">
-            <BuildableReference
-               BuildableIdentifier = "primary"
-               BlueprintIdentifier = "0F2CD5272C9101A86A0CF38A"
-               BuildableName = "CreditCardIOSTests.xctest"
-               BlueprintName = "CreditCardIOSTests"
-               ReferencedContainer = "container:CreditCardIOS.xcodeproj">
-            </BuildableReference>
-         </TestableReference>
       </Testables>
       <CommandLineArguments>
       </CommandLineArguments>
@@ -93,8 +82,6 @@
             ReferencedContainer = "container:CreditCardIOS.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
-      <CommandLineArguments>
-      </CommandLineArguments>
    </ProfileAction>
    <AnalyzeAction
       buildConfiguration = "Debug">
