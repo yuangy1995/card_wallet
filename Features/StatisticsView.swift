@@ -66,46 +66,44 @@ struct StatisticsView: View {
     }
 
     var body: some View {
-        NavigationStack {
-            ScrollView {
-                LazyVStack(spacing: 16) {
-                    // 总览统计卡片
-                    overviewSection
+        ScrollView {
+            LazyVStack(spacing: 16) {
+                // 总览统计卡片
+                overviewSection
+                    .padding(.horizontal, 16)
+                    .padding(.top, 8)
+
+                // 年费预警
+                if !annualFeeAlertCards.isEmpty {
+                    annualFeeAlertSection
                         .padding(.horizontal, 16)
-                        .padding(.top, 8)
-
-                    // 年费预警
-                    if !annualFeeAlertCards.isEmpty {
-                        annualFeeAlertSection
-                            .padding(.horizontal, 16)
-                    }
-
-                    // 总额度展示
-                    totalLimitSection
-                        .padding(.horizontal, 16)
-
-                    // 银行额度分布
-                    if !bankLimits.isEmpty {
-                        bankLimitChartSection
-                            .padding(.horizontal, 16)
-                    }
-
-                    // 卡组织分布
-                    if !brandDistribution.isEmpty {
-                        brandDistributionSection
-                            .padding(.horizontal, 16)
-                    }
-
-                    // 最优用卡建议
-                    bestUsageSection
-                        .padding(.horizontal, 16)
-                        .padding(.bottom, 20)
                 }
+
+                // 总额度展示
+                totalLimitSection
+                    .padding(.horizontal, 16)
+
+                // 银行额度分布
+                if !bankLimits.isEmpty {
+                    bankLimitChartSection
+                        .padding(.horizontal, 16)
+                }
+
+                // 卡组织分布
+                if !brandDistribution.isEmpty {
+                    brandDistributionSection
+                        .padding(.horizontal, 16)
+                }
+
+                // 最优用卡建议
+                bestUsageSection
+                    .padding(.horizontal, 16)
+                    .padding(.bottom, 20)
             }
-            .background(Color(.systemGroupedBackground).ignoresSafeArea())
-            .navigationTitle("统计分析")
-            .navigationBarTitleDisplayMode(.large)
         }
+        .background(Color(.systemGroupedBackground).ignoresSafeArea())
+        .navigationTitle("统计分析")
+        .navigationBarTitleDisplayMode(.large)
     }
 
     // MARK: - 总览

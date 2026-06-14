@@ -34,11 +34,11 @@ struct RootView: View {
                 }
                 .tag(AppTab.cards)
 
-            StatisticsView()
+            ToolsView()
                 .tabItem {
-                    Label("统计", systemImage: selectedTab == .statistics ? "chart.bar.fill" : "chart.bar")
+                    Label("工具", systemImage: selectedTab == .tools ? "wrench.and.screwdriver.fill" : "wrench.and.screwdriver")
                 }
-                .tag(AppTab.statistics)
+                .tag(AppTab.tools)
 
             SettingsView()
                 .tabItem {
@@ -52,6 +52,6 @@ struct RootView: View {
 
 private enum AppTab: Hashable {
     case cards
-    case statistics
+    case tools
     case settings
 }

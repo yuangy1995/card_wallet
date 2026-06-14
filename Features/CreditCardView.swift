@@ -333,23 +333,24 @@ struct CreditCardView: View {
 
     private func formatLimit(_ limit: Double) -> String {
         let currency = (card.type ?? "").trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
-        guard !currency.isEmpty else {
-            return limit >= 10000 ? "\(Int(limit / 10000))万" : "\(Int(limit))"
-        }
         let symbol: String
-        switch currency {
-        case "CNY", "CNH": symbol = "¥"
-        case "USD": symbol = "$"
-        case "HKD": symbol = "HK$"
-        case "EUR": symbol = "€"
-        case "JPY": symbol = "JP¥"
-        case "GBP": symbol = "£"
-        default: symbol = currency + " "
+        if !currency.isEmpty {
+            switch currency {
+            case "CNY", "CNH": symbol = "¥"
+            case "USD": symbol = "$"
+            case "HKD": symbol = "HK$"
+            case "EUR": symbol = "€"
+            case "JPY": symbol = "JP¥"
+            case "GBP": symbol = "£"
+            default: symbol = currency + " "
+            }
+        } else {
+            symbol = ""
         }
-        if limit >= 10000 {
-            return "\(symbol)\(Int(limit / 10000))万"
-        }
-        return "\(symbol)\(Int(limit))"
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        let amountString = formatter.string(from: NSNumber(value: limit)) ?? "\(Int(limit))"
+        return "\(symbol)\(amountString)"
     }
 
     private func toggleNumberVisibility() {
@@ -466,8 +467,10 @@ struct CreditCardMiniView: View {
 
     private func formatLimit(_ limit: Double) -> String {
         let symbol = currencySymbol(for: card.type ?? "")
-        if limit >= 10000 { return "\(symbol)\(Int(limit / 10000))万" }
-        return "\(symbol)\(Int(limit))"
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .decimal
+        let amountString = formatter.string(from: NSNumber(value: limit)) ?? "\(Int(limit))"
+        return "\(symbol)\(amountString)"
     }
 
     private func currencySymbol(for currency: String) -> String {

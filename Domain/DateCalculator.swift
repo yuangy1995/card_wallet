@@ -208,4 +208,65 @@ public class DateCalculator {
         }
         return CardExpiryStats(expiredCards: expired, soonExpiring: soonExpiring, normalCards: normalCards)
     }
+
+    public static func calculateInterestFreeDays(card: SharedCard, today: Date = Date()) -> Int {
+        guard card.cardCategory != "debit",
+              let billDayStr = card.accountBillDate,
+              let billDay = Int(billDayStr),
+              let dueDayStr = card.dueDate,
+              let dueDay = Int(dueDayStr) else {
+            return -1
+        }
+        
+        if !(1...31).contains(billDay) || !(1...31).contains(dueDay) {
+            return -1
+        }
+        
+        let calendar = Calendar.current
+        let spendDay = calendar.component(.day, from: today)
+        
+        // 1. 确定消费会计入哪个月的账单日
+        let isNextBill = card.billingDaySpendingToNextBill ? (spendDay >= billDay) : (spendDay > billDay)
+        
+        guard let targetBillMonth = calendar.date(byAdding: .month, value: isNextBill ? 1 : 0, to: today) else {
+            return -1
+        }
+        
+        guard let rangeOfBillMonth = calendar.range(of: .day, in: .month, for: targetBillMonth) else {
+            return -1
+        }
+        let lengthOfBillMonth = rangeOfBillMonth.count
+        
+        // 目标账单日对齐该月最大天数
+        var billComponents = calendar.dateComponents([.year, .month], from: targetBillMonth)
+        billComponents.day = min(billDay, lengthOfBillMonth)
+        guard let targetBillDate = calendar.date(from: billComponents) else {
+            return -1
+        }
+        
+        // 2. 计算对应的还款日
+        let isNextMonthDue = dueDay <= billDay
+        guard let targetDueMonth = calendar.date(byAdding: .month, value: isNextMonthDue ? 1 : 0, to: targetBillDate) else {
+            return -1
+        }
+        
+        guard let rangeOfDueMonth = calendar.range(of: .day, in: .month, for: targetDueMonth) else {
+            return -1
+        }
+        let lengthOfDueMonth = rangeOfDueMonth.count
+        
+        var dueComponents = calendar.dateComponents([.year, .month], from: targetDueMonth)
+        dueComponents.day = min(dueDay, lengthOfDueMonth)
+        guard let targetDueDate = calendar.date(from: dueComponents) else {
+            return -1
+        }
+        
+        // 3. 计算免息天数
+        let startOfToday = calendar.startOfDay(for: today)
+        let startOfDueDate = calendar.startOfDay(for: targetDueDate)
+        let componentsDiff = calendar.dateComponents([.day], from: startOfToday, to: startOfDueDate)
+        let days = componentsDiff.day ?? 0
+        return days >= 0 ? days : 0
+    }
 }
+

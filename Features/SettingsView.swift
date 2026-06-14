@@ -16,7 +16,8 @@ struct SettingsView: View {
     @State private var hasStoredWebDAVUsername = false
     @State private var hasStoredWebDAVPassword = false
     @State private var hasStoredSyncPassword = false
-    @State private var showSyncHistory = false
+
+    @State private var showStorageManagement = false
     @AppStorage("enable_face_id") private var enableFaceID = false
     @AppStorage("app_lock_enabled") private var appLockEnabled = false
     @AppStorage("enable_webdav_sync") private var enableWebDAVSync = false
@@ -31,6 +32,9 @@ struct SettingsView: View {
                 // 锁屏设置
                 lockSection
 
+                // 存储管理
+                storageSection
+
                 // 关于
                 aboutSection
             }
@@ -39,8 +43,9 @@ struct SettingsView: View {
             .navigationDestination(isPresented: $showCloudSync) {
                 CloudSyncView()
             }
-            .navigationDestination(isPresented: $showSyncHistory) {
-                SyncHistoryView()
+
+            .navigationDestination(isPresented: $showStorageManagement) {
+                StorageManagementView()
             }
             .onAppear {
                 checkBiometric()
@@ -159,19 +164,7 @@ struct SettingsView: View {
                 }
                 .disabled(syncCoordinator.isSynchronizing)
 
-                Button {
-                    showSyncHistory = true
-                } label: {
-                    HStack {
-                        Label("同步记录", systemImage: "clock.arrow.circlepath")
-                            .foregroundStyle(.primary)
-                        Spacer()
-                        Image(systemName: "chevron.right")
-                            .font(.footnote.weight(.semibold))
-                            .foregroundStyle(.tertiary)
-                    }
-                }
-                .buttonStyle(.plain)
+
             }
         } header: {
             Label("云端同步", systemImage: "icloud.and.arrow.up.fill")
@@ -219,6 +212,27 @@ struct SettingsView: View {
             }
         } header: {
             Label("锁屏与隐私", systemImage: "lock.rectangle.stack.fill")
+        }
+    }
+
+    // MARK: - 存储管理
+    private var storageSection: some View {
+        Section {
+            Button {
+                showStorageManagement = true
+            } label: {
+                HStack {
+                    Label("存储管理", systemImage: "internaldrive.fill")
+                        .foregroundStyle(.primary)
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            .buttonStyle(.plain)
+        } header: {
+            Label("存储与空间", systemImage: "folder.badge.gearshape.fill")
         }
     }
 
