@@ -28,11 +28,11 @@ public enum CardBrand: String, Codable, CaseIterable, Sendable {
         if cleanNumber.hasPrefix("34") || cleanNumber.hasPrefix("37") { return .amex }
         let dinersPattern = "^(30[0-5]|3095|36|38|39)"
         if cleanNumber.range(of: dinersPattern, options: .regularExpression) != nil { return .dinersClub }
+        if cleanNumber.hasPrefix("62") { return .unionpay }
         let discoverPattern = "^(6011|622(12[6-9]|1[3-9]\\d|[2-8]\\d{2}|9[0-1]\\d|92[0-5])|64[4-9]|65)"
         if cleanNumber.range(of: discoverPattern, options: .regularExpression) != nil { return .discover }
         let jcbPattern = "^35(2[8-9]|[3-8]\\d)"
         if cleanNumber.range(of: jcbPattern, options: .regularExpression) != nil { return .jcb }
-        if cleanNumber.hasPrefix("62") { return .unionpay }
         return .unknown
     }
 

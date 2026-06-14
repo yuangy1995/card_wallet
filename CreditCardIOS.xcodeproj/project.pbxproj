@@ -21,6 +21,7 @@
 		438F72B363F30148C15FB8FA /* CryptoSwift in Frameworks */ = {isa = PBXBuildFile; productRef = 475FCC319185C2EEF676016E /* CryptoSwift */; };
 		4D103626125B366EA6C33A26 /* CardDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28931C6003862119AF27EC9B /* CardDetailView.swift */; };
 		572B37D44F3CA5DA36604A9C /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBE0640D82A3645BC5B5C2EF /* HomeView.swift */; };
+		615BC58BBE22D1C424DB56A8 /* NFCCardReader.swift in Sources */ = {isa = PBXBuildFile; fileRef = 87AD84ECB3A6E44D1DD05715 /* NFCCardReader.swift */; };
 		787E24A42ED3020188F6D5FF /* CardBrandIcon.swift in Sources */ = {isa = PBXBuildFile; fileRef = 787A33BC82604278589D5205 /* CardBrandIcon.swift */; };
 		9BF4888967E9ED6722815813 /* SyncModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9D2C20EA19F78C50E0F475D /* SyncModels.swift */; };
 		A030EE302B6C508FC99F7F19 /* CreditCardIOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 543A6481C530F53709472E22 /* CreditCardIOSApp.swift */; };
@@ -55,6 +56,7 @@
 		74E0333D109FF39A3288E30F /* WebDAVClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebDAVClient.swift; sourceTree = "<group>"; };
 		787A33BC82604278589D5205 /* CardBrandIcon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardBrandIcon.swift; sourceTree = "<group>"; };
 		7AADEB492941A9A06492F786 /* BankNameNormalizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BankNameNormalizer.swift; sourceTree = "<group>"; };
+		87AD84ECB3A6E44D1DD05715 /* NFCCardReader.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NFCCardReader.swift; sourceTree = "<group>"; };
 		8AFF3A94B9E779A1F13F88F7 /* LockScreenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LockScreenView.swift; sourceTree = "<group>"; };
 		8CD18A2990D61727EBF4D5E7 /* AppRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRootView.swift; sourceTree = "<group>"; };
 		A9D2C20EA19F78C50E0F475D /* SyncModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncModels.swift; sourceTree = "<group>"; };
@@ -111,6 +113,7 @@
 				4D2A388DAFD05E68F3B7F5AB /* DateCalculator.swift */,
 				31AE7BB12D1C481C44C96D08 /* KeychainManager.swift */,
 				476719549CC29080AC87BDBD /* LocalStorageManager.swift */,
+				87AD84ECB3A6E44D1DD05715 /* NFCCardReader.swift */,
 				BC5DE3BF7E9EEEF80BD290D9 /* SyncCoordinator.swift */,
 				079808CBB0C02B0CA485288A /* SyncLedgerStore.swift */,
 				A9D2C20EA19F78C50E0F475D /* SyncModels.swift */,
@@ -249,6 +252,7 @@
 				0C96F4675F0939C92A30869A /* KeychainManager.swift in Sources */,
 				02FE2B670B7A75884A899CD4 /* LocalStorageManager.swift in Sources */,
 				AD99F216F570C82EF17DC82F /* LockScreenView.swift in Sources */,
+				615BC58BBE22D1C424DB56A8 /* NFCCardReader.swift in Sources */,
 				B63ACBA233613B1CE43BA2D8 /* SettingsView.swift in Sources */,
 				C51E97C1B2785EAD04738C09 /* StatDetailListView.swift in Sources */,
 				B5164DD81DDB075520130D24 /* StatisticsView.swift in Sources */,

@@ -80,17 +80,6 @@ struct CreditCardView: View {
                     )
                 )
 
-            // 3. 芯片装饰图案
-            VStack {
-                HStack {
-                    Spacer()
-                    chipDecoration
-                        .padding(.top, 18)
-                        .padding(.trailing, 18)
-                }
-                Spacer()
-            }
-
             // 4. 底部装饰流光横条
             VStack {
                 Spacer()
@@ -132,12 +121,18 @@ struct CreditCardView: View {
                             )
                     }
                     Spacer()
-                    CardBrandIcon(brand: brand, size: 32)
+                    CardBrandIcon(brand: brand, size: 32, isForCardFace: true)
                 }
                 .padding(.top, 18)
                 .padding(.horizontal, 20)
 
+                // 芯片移至左侧，避开右侧的 CardBrandIcon
+                chipDecoration
+                    .padding(.leading, 20)
+                    .padding(.top, 10)
+
                 Spacer()
+
 
                 // 中部：卡号
                 HStack(alignment: .center, spacing: 10) {
@@ -381,24 +376,9 @@ struct CreditCardMiniView: View {
 
     var body: some View {
         HStack(spacing: 14) {
-            // 左侧小卡面色块
-            RoundedRectangle(cornerRadius: 8)
-                .fill(
-                    LinearGradient(
-                        colors: brandGradient,
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
+            // 仅显示卡组织品牌 logo，去除了外部渐变卡片框容器
+            CardBrandIcon(brand: brand, size: 26)
                 .frame(width: 52, height: 34)
-                .overlay(
-                    CardBrandIcon(brand: brand, size: 20)
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8)
-                        .stroke(Color.white.opacity(0.2), lineWidth: 0.8)
-                )
-                .shadow(color: glowColor.opacity(0.3), radius: 6, x: 0, y: 3)
 
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {

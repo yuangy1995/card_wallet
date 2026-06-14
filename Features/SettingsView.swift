@@ -26,6 +26,20 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             List {
+                // 自定义顶部标题行
+                HStack(spacing: 8) {
+                    Image(systemName: "gearshape.fill")
+                        .font(.system(size: 22, weight: .bold))
+                        .foregroundStyle(LinearGradient(colors: [.cyan, .blue], startPoint: .topLeading, endPoint: .bottomTrailing))
+                    Text("设置")
+                        .font(.system(size: 22, weight: .bold))
+                        .foregroundColor(.primary)
+                    Spacer()
+                }
+                .listRowBackground(Color.clear)
+                .listRowSeparator(.hidden)
+                .listRowInsets(EdgeInsets(top: 12, leading: 16, bottom: 8, trailing: 16))
+
                 // 云端同步
                 cloudSyncSection
 
@@ -38,8 +52,8 @@ struct SettingsView: View {
                 // 关于
                 aboutSection
             }
-            .navigationTitle("设置")
-            .navigationBarTitleDisplayMode(.large)
+            .toolbar(.hidden, for: .navigationBar)
+            .contentMargins(.top, 0, for: .scrollContent)
             .navigationDestination(isPresented: $showCloudSync) {
                 CloudSyncView()
             }

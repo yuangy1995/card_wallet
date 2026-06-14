@@ -48,6 +48,18 @@ struct CardEditView: View {
     @State private var feedbackTitle = ""
     @State private var feedbackMessage = ""
     @State private var showFeedbackAlert = false
+    @State private var nfcReader: Any? = nil
+
+    enum EditStep {
+        case scanNFC
+        case scanCamera
+        case form
+    }
+    @State private var currentStep: EditStep = .form
+    @State private var nfcWaveScale1: CGFloat = 1.0
+    @State private var nfcWaveOpacity1: Double = 1.0
+    @State private var nfcWaveScale2: CGFloat = 1.0
+    @State private var nfcWaveOpacity2: Double = 1.0
 
     @State private var showNextFeeDatePicker = false
     @State private var showLastTimePicker = false
@@ -120,73 +132,97 @@ struct CardEditView: View {
         self.onSubmit = onSubmit
     }
 
+    private var navigationTitleText: String {
+        switch currentStep {
+        case .scanNFC:
+            return "NFC 刷卡录入"
+        case .scanCamera:
+            return "相机拍照录入"
+        case .form:
+            return mode == "add" ? "新增\(cardCategory == "debit" ? "储蓄卡" : "信用卡")" : "编辑卡片"
+        }
+    }
+
     var body: some View {
-        Form {
-                // 卡类型切换
-                cardCategorySection
-
-                quickInputSection
-
-                // 基础信息
-                basicInfoSection
-
-                // 财务信息（仅信用卡）
-                if cardCategory != "debit" {
-                    financialInfoSection
-                }
-
-                // 账单信息
-                billingSection
-
-                // 年费信息（仅信用卡）
-                if cardCategory != "debit" {
-                    annualFeeSection
-                }
-
-                // 权益备注
-                equityRemarkSection
-
-                cardMediaSection
+        Group {
+            switch currentStep {
+            case .scanNFC:
+                nfcScanLayoutView
+            case .scanCamera:
+                cameraScanLayoutView
+            case .form:
+                mainFormView
             }
-            .formStyle(.grouped)
-            .scrollContentBackground(.hidden)
-            .background(Color(.systemGroupedBackground))
-            .tint(.cyan)
-            .scrollDismissesKeyboard(.interactively)
-            .navigationTitle(mode == "add" ? "新增\(cardCategory == "debit" ? "储蓄卡" : "信用卡")" : "编辑卡片")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarLeading) {
-                    Button("取消") { dismiss() }
-                }
+        }
+        .navigationTitle(navigationTitleText)
+        .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            ToolbarItem(placement: .navigationBarLeading) {
+                Button("取消") { dismiss() }
+            }
+            if currentStep == .form {
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button("保存") { saveCard() }
                         .fontWeight(.semibold)
                 }
             }
-            .onAppear { setupInitialValues() }
-            .onChange(of: selectedPhotoItems) { _, newItems in
-                Task { await importSelectedPhotos(newItems) }
+        }
+        .onAppear { setupInitialValues() }
+        .onChange(of: selectedPhotoItems) { _, newItems in
+            Task { await importSelectedPhotos(newItems) }
+        }
+        .onChange(of: scanPhotoItem) { _, newItem in
+            Task { await scanSelectedPhoto(newItem) }
+        }
+        .sheet(isPresented: $showCameraScanner) {
+            CameraImagePicker { image in
+                handleScannedImage(image, source: "ios_camera_scan")
             }
-            .onChange(of: scanPhotoItem) { _, newItem in
-                Task { await scanSelectedPhoto(newItem) }
+            .ignoresSafeArea()
+        }
+        .alert("无法保存", isPresented: $showValidationAlert) {
+            Button("知道了", role: .cancel) {}
+        } message: {
+            Text(validationMessage)
+        }
+        .alert(feedbackTitle, isPresented: $showFeedbackAlert) {
+            Button("知道了", role: .cancel) {}
+        } message: {
+            Text(feedbackMessage)
+        }
+    }
+
+    private var mainFormView: some View {
+        Form {
+            // 卡类型切换
+            cardCategorySection
+
+            // 基础信息
+            basicInfoSection
+
+            // 财务信息（仅信用卡）
+            if cardCategory != "debit" {
+                financialInfoSection
             }
-            .sheet(isPresented: $showCameraScanner) {
-                CameraImagePicker { image in
-                    handleScannedImage(image, source: "ios_camera_scan")
-                }
-                .ignoresSafeArea()
+
+            // 账单信息
+            billingSection
+
+            // 年费信息（仅信用卡）
+            if cardCategory != "debit" {
+                annualFeeSection
             }
-            .alert("无法保存", isPresented: $showValidationAlert) {
-                Button("知道了", role: .cancel) {}
-            } message: {
-                Text(validationMessage)
-            }
-            .alert(feedbackTitle, isPresented: $showFeedbackAlert) {
-                Button("知道了", role: .cancel) {}
-            } message: {
-                Text(feedbackMessage)
-            }
+
+            // 权益备注
+            equityRemarkSection
+
+            cardMediaSection
+        }
+        .formStyle(.grouped)
+        .scrollContentBackground(.hidden)
+        .background(Color(.systemGroupedBackground))
+        .tint(.cyan)
+        .scrollDismissesKeyboard(.interactively)
     }
 
     // MARK: - 卡类型
@@ -203,11 +239,150 @@ struct CardEditView: View {
         }
     }
 
-    // MARK: - 快速录入
-    private var quickInputSection: some View {
-        Section {
-            VStack(alignment: .leading, spacing: 12) {
-                HStack(spacing: 10) {
+    // MARK: - NFC 扫描页面
+    private var nfcScanLayoutView: some View {
+        VStack(spacing: 24) {
+            Spacer()
+            
+            // 顶层动画指示
+            VStack(spacing: 12) {
+                Text("NFC 刷卡录入")
+                    .font(.system(.title2, weight: .bold))
+                    .foregroundColor(.primary)
+                Text("请将您的卡片贴在手机背面 NFC 感应区")
+                    .font(.system(size: 14))
+                    .foregroundColor(.secondary)
+            }
+            
+            Spacer()
+            
+            // NFC 动画与雷达波纹效果
+            ZStack {
+                // 波纹 1
+                Circle()
+                    .stroke(Color.cyan.opacity(0.15), lineWidth: 2)
+                    .frame(width: 200, height: 200)
+                    .scaleEffect(nfcWaveScale1)
+                    .opacity(nfcWaveOpacity1)
+                
+                // 波纹 2
+                Circle()
+                    .stroke(Color.cyan.opacity(0.25), lineWidth: 2)
+                    .frame(width: 140, height: 140)
+                    .scaleEffect(nfcWaveScale2)
+                    .opacity(nfcWaveOpacity2)
+                
+                // 中心图标
+                ZStack {
+                    Circle()
+                        .fill(Color.cyan.opacity(0.1))
+                        .frame(width: 90, height: 90)
+                    Image(systemName: "wave.3.right.circle.fill")
+                        .font(.system(size: 48, weight: .bold))
+                        .foregroundColor(.cyan)
+                }
+            }
+            .onAppear {
+                animateNfcWaves()
+            }
+            
+            Spacer()
+            
+            // 操作提示和开始读取按钮
+            VStack(spacing: 16) {
+                if nfcAvailable {
+                    Button {
+                        startNFCSession()
+                    } label: {
+                        Text("点击开始读取 NFC")
+                            .font(.system(.body, weight: .semibold))
+                            .foregroundColor(.white)
+                            .padding(.horizontal, 32)
+                            .padding(.vertical, 14)
+                            .background(Color.cyan, in: RoundedRectangle(cornerRadius: 24))
+                    }
+                    .buttonStyle(.plain)
+                } else {
+                    Text("当前设备不支持 NFC（模拟器不可用）")
+                        .font(.system(size: 13, weight: .medium))
+                        .foregroundColor(.orange)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 8)
+                        .background(Color.orange.opacity(0.1), in: RoundedRectangle(cornerRadius: 12))
+                }
+            }
+            
+            Spacer()
+            
+            // 底部自由切换行
+            HStack(spacing: 28) {
+                if cameraAvailable {
+                    Button {
+                        withAnimation { currentStep = .scanCamera }
+                    } label: {
+                        Label("📷 相机扫描", systemImage: "camera.viewfinder")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(.cyan)
+                    }
+                    .buttonStyle(.plain)
+                }
+                
+                Button {
+                    withAnimation { currentStep = .form }
+                } label: {
+                    Label("✍️ 手动录入", systemImage: "square.and.pencil")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.cyan)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.bottom, 32)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(.systemGroupedBackground))
+    }
+
+    // MARK: - 相机扫描页面
+    private var cameraScanLayoutView: some View {
+        VStack(spacing: 24) {
+            Spacer()
+            
+            VStack(spacing: 12) {
+                Text("相机拍照录入")
+                    .font(.system(.title2, weight: .bold))
+                    .foregroundColor(.primary)
+                Text("支持识别银行卡卡号及有效期")
+                    .font(.system(size: 14))
+                    .foregroundColor(.secondary)
+            }
+            
+            Spacer()
+            
+            // 扫描框效果
+            ZStack {
+                RoundedRectangle(cornerRadius: 16)
+                    .strokeBorder(
+                        StyleGradient,
+                        style: StrokeStyle(lineWidth: 3, lineCap: .round, dash: [40, 15])
+                    )
+                    .frame(width: 280, height: 180)
+                    .background(Color.cyan.opacity(0.03), in: RoundedRectangle(cornerRadius: 16))
+                
+                VStack(spacing: 12) {
+                    Image(systemName: "camera.viewfinder")
+                        .font(.system(size: 40))
+                        .foregroundColor(.cyan)
+                    Text("请对齐银行卡正面进行扫描")
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondary)
+                }
+            }
+            
+            Spacer()
+            
+            // 拍照识别与相册识别操作区
+            VStack(spacing: 16) {
+                HStack(spacing: 20) {
                     Button {
                         if UIImagePickerController.isSourceTypeAvailable(.camera) {
                             showCameraScanner = true
@@ -215,55 +390,94 @@ struct CardEditView: View {
                             showFeedback(title: "无法打开相机", message: "当前环境没有可用相机。真机安装后可以直接拍照识别卡号和有效期。")
                         }
                     } label: {
-                        ScanActionLabel(title: "拍照识别", systemImage: "camera.viewfinder")
-                    }
-                    .buttonStyle(.plain)
-
-                    PhotosPicker(selection: $scanPhotoItem, matching: .images) {
-                        ScanActionLabel(title: "相册识别", systemImage: "photo.on.rectangle")
-                    }
-                    .buttonStyle(.plain)
-                }
-
-                Button {
-                    showNFCInfo()
-                } label: {
-                    HStack(spacing: 10) {
-                        Image(systemName: "wave.3.right.circle.fill")
-                            .font(.system(size: 18, weight: .semibold))
-                            .foregroundStyle(nfcAvailable ? Color.cyan : Color.secondary)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("NFC 读取")
-                                .font(.system(.subheadline, weight: .semibold))
-                                .foregroundStyle(.primary)
-                            Text(nfcAvailable ? "仅在点击后读取，不会后台常驻" : "模拟器不可用，真机需 NFC 权限")
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
+                        HStack(spacing: 8) {
+                            Image(systemName: "camera.fill")
+                            Text("拍照识别")
                         }
-                        Spacer()
-                        Image(systemName: "chevron.right")
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.tertiary)
+                        .font(.system(.body, weight: .bold))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 24)
+                        .padding(.vertical, 12)
+                        .background(Color.cyan, in: RoundedRectangle(cornerRadius: 20))
                     }
-                    .padding(12)
-                    .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14))
+                    .buttonStyle(.plain)
+                    
+                    PhotosPicker(selection: $scanPhotoItem, matching: .images) {
+                        HStack(spacing: 8) {
+                            Image(systemName: "photo.on.rectangle.fill")
+                            Text("相册识别")
+                        }
+                        .font(.system(.body, weight: .bold))
+                        .foregroundColor(.white)
+                        .padding(.horizontal, 24)
+                        .padding(.vertical, 12)
+                        .background(Color.cyan, in: RoundedRectangle(cornerRadius: 20))
+                    }
+                    .buttonStyle(.plain)
                 }
-                .buttonStyle(.plain)
-
+                
                 if isScanningImage {
                     HStack(spacing: 8) {
                         ProgressView()
                         Text("正在识别卡面文字…")
                             .font(.footnote)
-                            .foregroundStyle(.secondary)
+                            .foregroundColor(.secondary)
                     }
                 }
             }
-            .padding(.vertical, 2)
-        } header: {
-            Label("快速录入", systemImage: "sparkles")
-        } footer: {
-            Text("相机和相册识别会优先提取卡号、有效期，并尝试匹配已有银行。NFC 不会在非读取页面常驻。")
+            
+            Spacer()
+            
+            // 底部自由切换行
+            HStack(spacing: 28) {
+                if nfcAvailable {
+                    Button {
+                        withAnimation { currentStep = .scanNFC }
+                    } label: {
+                        Label("📶 NFC 扫描", systemImage: "wave.3.right.circle")
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(.cyan)
+                    }
+                    .buttonStyle(.plain)
+                }
+                
+                Button {
+                    withAnimation { currentStep = .form }
+                } label: {
+                    Label("✍️ 手动录入", systemImage: "square.and.pencil")
+                        .font(.system(size: 14, weight: .semibold))
+                        .foregroundColor(.cyan)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(.bottom, 32)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color(.systemGroupedBackground))
+    }
+    
+    private var StyleGradient: LinearGradient {
+        LinearGradient(
+            colors: [.cyan, .cyan.opacity(0.5), .cyan],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+    }
+
+    private func animateNfcWaves() {
+        nfcWaveScale1 = 0.8
+        nfcWaveOpacity1 = 1.0
+        nfcWaveScale2 = 0.8
+        nfcWaveOpacity2 = 1.0
+        
+        withAnimation(.easeOut(duration: 2.0).repeatForever(autoreverses: false)) {
+            nfcWaveScale1 = 1.6
+            nfcWaveOpacity1 = 0.0
+        }
+        
+        withAnimation(.easeOut(duration: 2.0).delay(0.8).repeatForever(autoreverses: false)) {
+            nfcWaveScale2 = 1.6
+            nfcWaveOpacity2 = 0.0
         }
     }
 
@@ -303,6 +517,33 @@ struct CardEditView: View {
                     .onChange(of: cardNumber) { _, newValue in
                         cardNumber = newValue.filter { $0.isNumber }
                     }
+                
+                if mode == "add" && (cameraAvailable || nfcAvailable) {
+                    HStack(spacing: 12) {
+                        if cameraAvailable {
+                            Button {
+                                withAnimation { currentStep = .scanCamera }
+                            } label: {
+                                Image(systemName: "camera.viewfinder")
+                                    .foregroundColor(.cyan)
+                                    .font(.system(size: 16, weight: .semibold))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                        
+                        if nfcAvailable {
+                            Button {
+                                withAnimation { currentStep = .scanNFC }
+                            } label: {
+                                Image(systemName: "wave.3.right")
+                                    .foregroundColor(.cyan)
+                                    .font(.system(size: 16, weight: .semibold))
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.leading, 8)
+                }
             }
 
             // 别名
@@ -824,6 +1065,9 @@ struct CardEditView: View {
             message = "已填入：\(changedFields.joined(separator: "、"))。请在保存前核对卡号、有效期和银行名称。"
         }
         showFeedback(title: "识别完成", message: message)
+        withAnimation {
+            currentStep = .form
+        }
     }
 
     private var nfcAvailable: Bool {
@@ -836,18 +1080,43 @@ struct CardEditView: View {
         #endif
     }
 
-    private func showNFCInfo() {
-        if nfcAvailable {
-            showFeedback(
-                title: "NFC 读取说明",
-                message: "iOS 可以在真机上通过 CoreNFC 做一次性读取，但需要 NFC Tag Reading 权限和 EMV APDU 解析。这里不会像旧 Android 那样全局常驻读取；后续接入时也只会在你点击读取后启动会话。"
-            )
-        } else {
-            showFeedback(
-                title: "NFC 当前不可用",
-                message: "模拟器无法使用 NFC。真机读取银行卡还需要开启 NFC Tag Reading entitlement，并受 iOS 对银行卡 NFC 的系统限制；目前建议优先使用拍照或相册识别录入。"
-            )
+    private var cameraAvailable: Bool {
+        UIImagePickerController.isSourceTypeAvailable(.camera)
+    }
+
+    private func startNFCSession() {
+        #if canImport(CoreNFC)
+        let reader = NFCCardReader()
+        self.nfcReader = reader
+        reader.startReading { result in
+            DispatchQueue.main.async {
+                switch result {
+                case .success(let (pan, exp)):
+                    self.cardNumber = pan
+                    if let exp = exp {
+                        if exp.count == 4 {
+                            let yy = exp.prefix(2)
+                            let mm = exp.suffix(2)
+                            self.valid = "\(mm)/\(yy)"
+                        }
+                    }
+                    showFeedback(title: "读取成功", message: "已成功读取卡片数据。请核对后保存。")
+                    withAnimation {
+                        currentStep = .form
+                    }
+                case .failure(let error):
+                    if let nfcError = error as? NFCReaderError {
+                        if nfcError.code != .readerSessionInvalidationErrorUserCanceled {
+                            showFeedback(title: "读取未完成", message: error.localizedDescription)
+                        }
+                    } else {
+                        showFeedback(title: "读取失败", message: error.localizedDescription)
+                    }
+                }
+                self.nfcReader = nil
+            }
         }
+        #endif
     }
 
     private func showFeedback(title: String, message: String) {
@@ -871,6 +1140,16 @@ struct CardEditView: View {
 
     // MARK: - Setup
     private func setupInitialValues() {
+        if mode == "add" && currentStep == .form {
+            if nfcAvailable {
+                currentStep = .scanNFC
+            } else if cameraAvailable {
+                currentStep = .scanCamera
+            } else {
+                currentStep = .form
+            }
+        }
+        
         if let card = cardToEdit {
             cardCategory = card.cardCategory
             country = card.country

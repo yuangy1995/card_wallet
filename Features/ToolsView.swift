@@ -8,6 +8,19 @@ struct ToolsView: View {
         NavigationStack(path: $navigationPath) {
             ScrollView {
                 VStack(spacing: 16) {
+                    // 自定义顶部标题行
+                    HStack(spacing: 8) {
+                        Image(systemName: "wrench.and.screwdriver.fill")
+                            .font(.system(size: 22, weight: .bold))
+                            .foregroundStyle(LinearGradient(colors: [.cyan, .blue], startPoint: .topLeading, endPoint: .bottomTrailing))
+                        Text("工具")
+                            .font(.system(size: 22, weight: .bold))
+                            .foregroundColor(.primary)
+                        Spacer()
+                    }
+                    .padding(.horizontal, 4)
+                    .padding(.bottom, 4)
+
                     // 同步记录
                     NavigationLink(value: ToolType.syncHistory) {
                         ToolCardView(
@@ -47,8 +60,7 @@ struct ToolsView: View {
                 .padding(16)
             }
             .background(Color(.systemGroupedBackground).ignoresSafeArea())
-            .navigationTitle("工具")
-            .navigationBarTitleDisplayMode(.large)
+            .navigationBarTitleDisplayMode(.inline)
             .navigationDestination(for: ToolType.self) { type in
                 switch type {
                 case .syncHistory:

@@ -307,7 +307,7 @@ private struct BestUsageCardTile: View {
                 Spacer()
 
                 VStack(alignment: .trailing, spacing: 6) {
-                    CardBrandIcon(brand: brand, size: 24)
+                    CardBrandIcon(brand: brand, size: 24, isForCardFace: true)
                     Spacer()
                     EMVChip()
                 }
