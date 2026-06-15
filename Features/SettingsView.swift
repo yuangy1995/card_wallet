@@ -1,5 +1,6 @@
 import SwiftUI
 import LocalAuthentication
+import ObjectiveC
 
 struct SettingsView: View {
     @EnvironmentObject private var syncCoordinator: SyncCoordinator
@@ -716,9 +717,7 @@ struct AppIconSelectionView: View {
     private func changeAppIcon(to option: AppIconOption) {
         guard UIApplication.shared.supportsAlternateIcons else { return }
         
-        UIViewController.enablePresentSwizzling()
-        
-        UIApplication.shared.setAlternateIconName(option.assetName) { error in
+        UIApplication.shared.setAlternateIconNameWithoutSystemAlert(option.assetName) { error in
             DispatchQueue.main.async {
                 if let error = error {
                     print("更换应用图标失败: \(error.localizedDescription)")
@@ -737,6 +736,30 @@ struct AppIconSelectionView: View {
                 }
             }
         }
+    }
+}
+
+extension UIApplication {
+    private typealias SetAlternateIconNameFunction = @convention(c) (
+        AnyObject,
+        Selector,
+        NSString?,
+        @escaping (NSError?) -> Void
+    ) -> Void
+
+    func setAlternateIconNameWithoutSystemAlert(_ iconName: String?, completion: @escaping (Error?) -> Void) {
+        let selector = NSSelectorFromString("_setAlternateIconName:completionHandler:")
+        if responds(to: selector), let method = class_getInstanceMethod(UIApplication.self, selector) {
+            let implementation = method_getImplementation(method)
+            let function = unsafeBitCast(implementation, to: SetAlternateIconNameFunction.self)
+            function(self, selector, iconName as NSString?) { error in
+                completion(error)
+            }
+            return
+        }
+
+        UIViewController.enablePresentSwizzling()
+        setAlternateIconName(iconName, completionHandler: completion)
     }
 }
 

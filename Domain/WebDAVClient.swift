@@ -114,8 +114,18 @@ public final class WebDAVClient: Sendable {
     public static let shared = WebDAVClient()
     private static let backupDirectoryName = "credit-card-backup"
     private static let requestTimeout: TimeInterval = 45
+    private static let transferTimeout: TimeInterval = 300
+    private static let transferResourceTimeout: TimeInterval = 3600
 
     private init() {}
+
+    private static func transferSessionConfiguration() -> URLSessionConfiguration {
+        let configuration = URLSessionConfiguration.default
+        configuration.timeoutIntervalForRequest = transferTimeout
+        configuration.timeoutIntervalForResource = transferResourceTimeout
+        configuration.waitsForConnectivity = true
+        return configuration
+    }
 
     public func loadConfig() -> WebDAVConfig? {
         guard let url = UserDefaults.standard.string(forKey: "webdav_url"),
@@ -298,12 +308,12 @@ public final class WebDAVClient: Sendable {
         }
         var request = URLRequest(url: url)
         request.httpMethod = "PUT"
-        request.timeoutInterval = Self.requestTimeout
+        request.timeoutInterval = Self.transferTimeout
         request.setValue(authHeader(username: username, password: password), forHTTPHeaderField: "Authorization")
 
         if let onProgress {
             let delegate = UploadProgressDelegate(onProgress: onProgress)
-            let session = URLSession(configuration: .default, delegate: delegate, delegateQueue: nil)
+            let session = URLSession(configuration: Self.transferSessionConfiguration(), delegate: delegate, delegateQueue: nil)
             let task = session.uploadTask(with: request, from: data) { _, response, error in
                 session.finishTasksAndInvalidate()
                 if let error {
@@ -320,7 +330,9 @@ public final class WebDAVClient: Sendable {
             task.resume()
         } else {
             request.httpBody = data
-            URLSession.shared.dataTask(with: request) { _, response, error in
+            let session = URLSession(configuration: Self.transferSessionConfiguration())
+            session.dataTask(with: request) { _, response, error in
+                session.finishTasksAndInvalidate()
                 if let error {
                     completion(.failure(WebDAVError.networkError(error)))
                     return
@@ -347,7 +359,7 @@ public final class WebDAVClient: Sendable {
             return
         }
         var request = URLRequest(url: url)
-        request.timeoutInterval = Self.requestTimeout
+        request.timeoutInterval = Self.transferTimeout
         request.setValue(authHeader(username: username, password: password), forHTTPHeaderField: "Authorization")
 
         if let onProgress {
@@ -375,11 +387,13 @@ public final class WebDAVClient: Sendable {
                     }
                 }
             )
-            let session = URLSession(configuration: .default, delegate: delegate, delegateQueue: nil)
+            let session = URLSession(configuration: Self.transferSessionConfiguration(), delegate: delegate, delegateQueue: nil)
             let task = session.downloadTask(with: request)
             task.resume()
         } else {
-            URLSession.shared.dataTask(with: request) { data, response, error in
+            let session = URLSession(configuration: Self.transferSessionConfiguration())
+            session.dataTask(with: request) { data, response, error in
+                session.finishTasksAndInvalidate()
                 if let error {
                     completion(.failure(WebDAVError.networkError(error)))
                     return
