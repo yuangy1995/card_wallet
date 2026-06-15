@@ -6,6 +6,7 @@ import { STORAGE_KEYS } from '@/config/constants'
 import { localDataStore } from '@/utils/indexedDbStorage'
 
 const SYNC_HISTORY_LIMIT = 40
+const PROGRESS_UI_INTERVAL_MS = 250
 
 const normalizeDisplayValue = (value) => {
   const normalized = value === undefined || value === null ? '' : String(value).trim()
@@ -158,7 +159,15 @@ class WebDAVSyncService {
       syncStartedAt: null,
       elapsedMs: 0,
       lastDurationMs: null,
-      intervalMs: this.syncIntervalMs
+      intervalMs: this.syncIntervalMs,
+      syncProgress: {
+        phase: '空闲',
+        step: 0,
+        total: 0,
+        detail: '',
+        totalBytes: 0,
+        transferredBytes: 0
+      }
     }
   }
 
@@ -193,6 +202,25 @@ class WebDAVSyncService {
       lastDurationMs: this.lastDurationMs,
       intervalMs: this.syncIntervalMs,
       ...extra
+    }
+    this.onStatusChanged?.({ ...this.status })
+  }
+
+  updateProgress(phase, step, total, detail = '', totalBytes = 0, transferredBytes = 0) {
+    const elapsedMs = this.isSyncing && this.syncStartedAt
+      ? Math.max(0, Date.now() - this.syncStartedAt)
+      : 0
+    this.status = {
+      ...this.status,
+      elapsedMs,
+      syncProgress: {
+        phase,
+        step,
+        total,
+        detail,
+        totalBytes: Math.max(0, Number(totalBytes || 0)),
+        transferredBytes: Math.max(0, Number(transferredBytes || 0))
+      }
     }
     this.onStatusChanged?.({ ...this.status })
   }
@@ -345,6 +373,7 @@ class WebDAVSyncService {
     this.isSyncing = true
     this.startTiming()
     this.updateStatus('正在同步云端数据...', 'info', cardSyncLedger.isPending(), { nextSyncAt: null })
+    this.updateProgress('准备同步', 1, 6, '正在整理本地修改')
     const historyStartedAt = new Date().toISOString()
     let downloadedFiles = []
     let uploadedFile = ''
@@ -354,6 +383,7 @@ class WebDAVSyncService {
       if (!webdavClient.client) {
         await webdavClient.initialize(config)
       }
+      this.updateProgress('读取云端', 2, 6, '正在查找云同步文件')
       const listResult = await webdavClient.getBackupList()
       if (!listResult.success) throw new Error(listResult.message)
       const automaticFiles = listResult.data.filter((file) =>
@@ -394,8 +424,47 @@ class WebDAVSyncService {
       const localRecordsBeforeMerge = cardSyncLedger.load()
       const activeCardsBeforeMerge = activeCards(localRecordsBeforeMerge)
       localChanges = recentLocalChanges(localRecordsBeforeMerge, snapshotDateFromFilename(lastSnapshotFilename))
+      const totalDownloadBytes = filesToRead.reduce((sum, file) => sum + Math.max(0, Number(file.size || 0)), 0)
+      let downloadedBytes = 0
+      let lastDownloadProgressReportAt = 0
+      const reportDownloadDelta = (delta, force = false) => {
+        if (delta <= 0 || totalDownloadBytes <= 0) return
+        downloadedBytes = Math.min(totalDownloadBytes, downloadedBytes + delta)
+        const now = Date.now()
+        if (!force && downloadedBytes < totalDownloadBytes && now - lastDownloadProgressReportAt < PROGRESS_UI_INTERVAL_MS) {
+          return
+        }
+        lastDownloadProgressReportAt = now
+        this.updateProgress(
+          '读取同步文件',
+          3,
+          6,
+          `正在并发下载最近 ${filesToRead.length} 个快照`,
+          totalDownloadBytes,
+          downloadedBytes
+        )
+      }
+      this.updateProgress(
+        '读取同步文件',
+        3,
+        6,
+        `正在并发下载最近 ${filesToRead.length} 个快照`,
+        totalDownloadBytes,
+        0
+      )
       const snapshots = await Promise.all(filesToRead.map(async (file) => {
-        const restored = await webdavClient.restoreBackup(file.filename)
+        let fileDownloadedBytes = 0
+        const restored = await webdavClient.restoreBackup(file.filename, (loaded) => {
+          const delta = Number(loaded || 0) - fileDownloadedBytes
+          if (delta > 0) {
+            fileDownloadedBytes = Number(loaded || 0)
+            reportDownloadDelta(delta)
+          }
+        })
+        const remainingBytes = Math.max(0, Number(file.size || 0) - fileDownloadedBytes)
+        if (remainingBytes > 0) {
+          reportDownloadDelta(remainingBytes, true)
+        }
         if (!restored.success || restored.data == null) return null
         try {
           const snapshot = await decryptSyncEnvelopeV4(restored.data, syncPassword)
@@ -408,6 +477,7 @@ class WebDAVSyncService {
         throw new Error('无法解密云端同步文件，请检查同步密钥')
       }
       const remoteRecords = snapshots.filter(Boolean).flatMap(snapshot => snapshot.records)
+      this.updateProgress('合并数据', 4, 6, '正在合并本地与云端修改')
       const merged = mergeRecords(localRecordsBeforeMerge, remoteRecords)
       const changedByRemote = JSON.stringify(merged) !== JSON.stringify(localRecordsBeforeMerge)
       await cardSyncLedger.save(merged)
@@ -418,7 +488,28 @@ class WebDAVSyncService {
 
       if (changedByRemote || cardSyncLedger.isPending() ||
           (automaticFiles.length === 0 && merged.length > 0)) {
+        let lastUploadProgressReportAt = 0
+        webdavClient.setProgressCallback((type, loaded, total) => {
+          if (type !== 'upload') return
+          const uploadedBytes = Number(loaded || 0)
+          const totalBytes = Number(total || 0)
+          const now = Date.now()
+          if (uploadedBytes < totalBytes && now - lastUploadProgressReportAt < PROGRESS_UI_INTERVAL_MS) {
+            return
+          }
+          lastUploadProgressReportAt = now
+          this.updateProgress(
+            '上传合并快照',
+            5,
+            6,
+            '正在写入 WebDAV 加密快照',
+            totalBytes,
+            uploadedBytes
+          )
+        })
+        this.updateProgress('上传合并快照', 5, 6, '正在写入 WebDAV 加密快照')
         uploadedFile = await webdavClient.uploadSyncSnapshot(createSnapshot(merged), syncPassword)
+        webdavClient.setProgressCallback(null)
         if (cardSyncLedger.revision() === snapshotRevision) {
           await cardSyncLedger.setPending(false)
         } else {
@@ -441,6 +532,7 @@ class WebDAVSyncService {
       }
       this.lastSuccessfulSyncAt = Date.now()
       const durationMs = this.finishTiming()
+      this.updateProgress('同步完成', 6, 6, '本机与云端已更新')
       await this.appendSyncHistory({
         startedAt: historyStartedAt,
         status: 'success',
@@ -458,6 +550,7 @@ class WebDAVSyncService {
         { lastDurationMs: durationMs }
       )
     } catch (error) {
+      webdavClient.setProgressCallback(null)
       await cardSyncLedger.setPending(true)
       this.lastFailedSyncAt = Date.now()
       const durationMs = this.finishTiming()

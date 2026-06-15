@@ -164,10 +164,21 @@ export class WebDAVClient {
     const activeCount = snapshot.records.filter(record => record.state === 'active').length;
     const filename = `${timestamp}---(${activeCount})[SyncV4][Web][自].json`;
     const encryptedSnapshot = await encryptSyncEnvelopeV4(snapshot, normalizedSyncPassword);
-    await this.client.putFileContents(`/credit-card-backup/${filename}`, encryptedSnapshot, {
-      overwrite: true,
-      contentLength: true
-    });
+    if (typeof XMLHttpRequest !== 'undefined') {
+      await this.putTextWithProgress(
+        `/credit-card-backup/${filename}`,
+        encryptedSnapshot,
+        this.progressCallback
+          ? (loaded, total) => this.progressCallback('upload', loaded, total)
+          : null
+      );
+    } else {
+      await this.client.putFileContents(`/credit-card-backup/${filename}`, encryptedSnapshot, {
+        overwrite: true,
+        contentLength: true
+      });
+      this.progressCallback?.('upload', encryptedSnapshot.length, encryptedSnapshot.length);
+    }
     return filename;
   }
 
@@ -214,7 +225,7 @@ export class WebDAVClient {
   }
 
   // 恢复备份
-  async restoreBackup(filename) {
+  async restoreBackup(filename, onProgress = null) {
     if (!this.client) {
       throw new Error('云同步服务还没有准备好');
     }
@@ -222,20 +233,14 @@ export class WebDAVClient {
     try {
       const filepath = `/credit-card-backup/${filename}`;
       
-      // 报告开始下载
-      if (this.progressCallback) {
-        this.progressCallback('download', 0);
-      }
-
-      // 下载备份文件
-      const content = await this.client.getFileContents(filepath, {
-        format: 'text'
-      });
-
-      // 报告下载完成
-      if (this.progressCallback) {
-        this.progressCallback('download', 100);
-      }
+      const progressHandler = onProgress || (
+        this.progressCallback
+          ? (loaded, total) => this.progressCallback('download', loaded, total)
+          : null
+      );
+      const content = typeof XMLHttpRequest !== 'undefined'
+        ? await this.getTextWithProgress(filepath, progressHandler)
+        : await this.client.getFileContents(filepath, { format: 'text' });
 
       // 尝试解析 JSON
       try {
@@ -272,6 +277,64 @@ export class WebDAVClient {
     } catch (error) {
       return { success: false, message: error.message };
     }
+  }
+
+  buildAuthHeader() {
+    if (!this.config) return '';
+    return 'Basic ' + btoa(`${this.config.username}:${this.config.password}`);
+  }
+
+  backupFileUrl(filepath) {
+    const baseUrl = String(this.config?.url || '').replace(/\/+$/, '');
+    const normalizedPath = String(filepath || '').startsWith('/') ? filepath : `/${filepath}`;
+    return `${baseUrl}${normalizedPath.split('/').map((segment) => encodeURIComponent(segment)).join('/')}`;
+  }
+
+  getTextWithProgress(filepath, onProgress = null) {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('GET', this.backupFileUrl(filepath), true);
+      xhr.setRequestHeader('Authorization', this.buildAuthHeader());
+      xhr.responseType = 'text';
+      onProgress?.(0, 0);
+      xhr.onprogress = (event) => {
+        onProgress?.(event.loaded || 0, event.lengthComputable ? event.total : 0);
+      };
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          onProgress?.(xhr.responseText?.length || 0, xhr.responseText?.length || 0);
+          resolve(xhr.responseText || '');
+        } else {
+          reject(new Error(`下载失败：HTTP ${xhr.status}`));
+        }
+      };
+      xhr.onerror = () => reject(new Error('下载失败：网络连接中断'));
+      xhr.send();
+    });
+  }
+
+  putTextWithProgress(filepath, content, onProgress = null) {
+    return new Promise((resolve, reject) => {
+      const xhr = new XMLHttpRequest();
+      xhr.open('PUT', this.backupFileUrl(filepath), true);
+      xhr.setRequestHeader('Authorization', this.buildAuthHeader());
+      xhr.setRequestHeader('Content-Type', 'text/plain; charset=utf-8');
+      const totalBytes = new TextEncoder().encode(content).length;
+      onProgress?.(0, totalBytes);
+      xhr.upload.onprogress = (event) => {
+        onProgress?.(event.loaded || 0, event.lengthComputable ? event.total : totalBytes);
+      };
+      xhr.onload = () => {
+        if (xhr.status >= 200 && xhr.status < 300) {
+          onProgress?.(totalBytes, totalBytes);
+          resolve();
+        } else {
+          reject(new Error(`上传失败：HTTP ${xhr.status}`));
+        }
+      };
+      xhr.onerror = () => reject(new Error('上传失败：网络连接中断'));
+      xhr.send(content);
+    });
   }
 
 }

@@ -11,6 +11,21 @@
         <div>
           <div class="sync-current-title">{{ syncStatus.isSyncing ? '正在同步' : syncStateText }}</div>
           <div class="sync-current-desc">{{ syncStatus.message || 'WebDAV 云端同步' }}</div>
+          <div v-if="syncStatus.isSyncing && currentProgress.total > 0" class="sync-progress-stack">
+            <el-progress
+              :percentage="currentStepPercentage"
+              :stroke-width="5"
+              :show-text="false"
+            />
+            <el-progress
+              v-if="currentProgress.totalBytes > 0"
+              :percentage="currentBytePercentage"
+              :stroke-width="4"
+              :show-text="false"
+              color="#409eff"
+            />
+            <div v-if="currentByteText" class="sync-byte-text">{{ currentByteText }}</div>
+          </div>
         </div>
         <div class="sync-current-actions">
           <el-tag v-if="syncStatus.isSyncing" type="info">已用时 {{ formatDuration(syncElapsedMs) }}</el-tag>
@@ -98,6 +113,43 @@ const syncStateText = computed(() => {
   if (['warning', 'danger', 'error'].includes(props.syncStatus?.type)) return '需要处理'
   if (props.syncStatus?.pending) return '等待同步'
   return '同步空闲'
+})
+
+const currentProgress = computed(() => props.syncStatus?.syncProgress || {})
+
+const currentStepPercentage = computed(() => {
+  const step = Number(currentProgress.value.step || 0)
+  const total = Number(currentProgress.value.total || 0)
+  if (total <= 0) return 0
+  return Math.round(Math.min(1, Math.max(0, step / total)) * 100)
+})
+
+const currentBytePercentage = computed(() => {
+  const transferred = Number(currentProgress.value.transferredBytes || 0)
+  const total = Number(currentProgress.value.totalBytes || 0)
+  if (total <= 0) return 0
+  return Math.round(Math.min(1, Math.max(0, transferred / total)) * 100)
+})
+
+const formatBytes = (bytes) => {
+  const normalized = Math.max(0, Number(bytes || 0))
+  if (normalized < 1024) return `${normalized} B`
+  const units = ['KB', 'MB', 'GB']
+  let value = normalized / 1024
+  let unitIndex = 0
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024
+    unitIndex += 1
+  }
+  return `${value.toFixed(1)} ${units[unitIndex]}`
+}
+
+const currentByteText = computed(() => {
+  const total = Number(currentProgress.value.totalBytes || 0)
+  const transferred = Number(currentProgress.value.transferredBytes || 0)
+  if (total <= 0) return ''
+  const prefix = String(currentProgress.value.phase || '').includes('上传') ? '已上传' : '已下载'
+  return `${prefix} ${formatBytes(transferred)} / ${formatBytes(total)}`
 })
 
 const formatDuration = (milliseconds) => {
@@ -191,6 +243,19 @@ export default {
   font-size: 12px;
   color: var(--el-text-color-secondary);
   word-break: break-all;
+}
+
+.sync-progress-stack {
+  display: grid;
+  gap: 6px;
+  max-width: 420px;
+  margin-top: 10px;
+}
+
+.sync-byte-text {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--el-text-color-secondary);
 }
 
 .sync-current-actions {

@@ -71,6 +71,7 @@
                   </div>
                   <div v-if="syncLastTimeText" style="margin-bottom: 2px; color: rgba(255, 255, 255, 0.95) !important;">{{ syncLastTimeText }}</div>
                   <div v-if="syncDurationText" style="margin-bottom: 2px; color: rgba(255, 255, 255, 0.95) !important;">{{ syncDurationText }}</div>
+                  <div v-if="syncByteProgressText" style="margin-bottom: 2px; color: rgba(255, 255, 255, 0.95) !important;">{{ syncByteProgressText }}</div>
                   <div v-if="syncCountdownText" style="margin-bottom: 2px; color: rgba(255, 255, 255, 0.95) !important;">{{ syncCountdownText }}</div>
                   <div v-if="syncStatus.message" style="margin-top: 6px; border-top: 1px solid rgba(255,255,255,0.15); padding-top: 4px; color: rgba(255, 255, 255, 0.75) !important; max-width: 280px; word-break: break-all;">
                     {{ syncStatus.message }}
@@ -489,7 +490,15 @@ const syncStatus = ref({
   syncStartedAt: null,
   elapsedMs: 0,
   lastDurationMs: null,
-  intervalMs: 5 * 60 * 1000
+  intervalMs: 5 * 60 * 1000,
+  syncProgress: {
+    phase: '空闲',
+    step: 0,
+    total: 0,
+    detail: '',
+    totalBytes: 0,
+    transferredBytes: 0
+  }
 })
 const syncHistory = ref([])
 const syncCountdownNow = ref(Date.now())
@@ -539,6 +548,19 @@ const formatDuration = (milliseconds) => {
   return `${seconds}秒`
 }
 
+const formatBytes = (bytes) => {
+  const normalized = Math.max(0, Number(bytes || 0))
+  if (normalized < 1024) return `${normalized} B`
+  const units = ['KB', 'MB', 'GB']
+  let value = normalized / 1024
+  let unitIndex = 0
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024
+    unitIndex += 1
+  }
+  return `${value.toFixed(1)} ${units[unitIndex]}`
+}
+
 const syncElapsedMs = computed(() => {
   if (syncStatus.value.isSyncing) {
     if (syncStatus.value.syncStartedAt) {
@@ -584,6 +606,15 @@ const syncDurationText = computed(() => {
     return `上次耗时：${formatDuration(syncStatus.value.lastDurationMs)}`
   }
   return ''
+})
+
+const syncByteProgressText = computed(() => {
+  const progress = syncStatus.value.syncProgress || {}
+  const total = Number(progress.totalBytes || 0)
+  const transferred = Number(progress.transferredBytes || 0)
+  if (!syncStatus.value.isSyncing || total <= 0) return ''
+  const prefix = String(progress.phase || '').includes('上传') ? '已上传' : '已下载'
+  return `${prefix} ${formatBytes(transferred)} / ${formatBytes(total)}`
 })
 
 const showTableCustomDialog = ref(false)
@@ -1064,7 +1095,14 @@ const applySyncedCards = (syncedCards) => {
 }
 
 const handleSyncStatusChanged = (newStatus) => {
-  syncStatus.value = newStatus
+  syncStatus.value = {
+    ...syncStatus.value,
+    ...newStatus,
+    syncProgress: {
+      ...(syncStatus.value.syncProgress || {}),
+      ...(newStatus?.syncProgress || {})
+    }
+  }
 }
 
 const handleSyncHistoryChanged = (newHistory) => {
