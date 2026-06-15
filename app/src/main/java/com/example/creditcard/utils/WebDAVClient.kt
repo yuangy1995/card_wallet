@@ -4,13 +4,18 @@ import okhttp3.Credentials
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
+import okhttp3.RequestBody
 import okhttp3.RequestBody.Companion.toRequestBody
+import okio.BufferedSink
+import java.io.ByteArrayOutputStream
 import java.io.IOException
 import java.net.URLEncoder
+import java.net.SocketTimeoutException
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
 import java.util.TimeZone
+import java.util.concurrent.TimeUnit
 import java.util.regex.Pattern
 
 /**
@@ -28,11 +33,22 @@ data class BackupFile(
  */
 object WebDAVClient {
 
+    private const val MAX_TRANSFER_RETRIES = 4
+    private const val TRANSFER_RETRY_DELAY_MS = 1_500L
+
     private val client = OkHttpClient.Builder()
-        .connectTimeout(20, java.util.concurrent.TimeUnit.SECONDS)
-        .readTimeout(90, java.util.concurrent.TimeUnit.SECONDS)
-        .writeTimeout(90, java.util.concurrent.TimeUnit.SECONDS)
-        .callTimeout(120, java.util.concurrent.TimeUnit.SECONDS)
+        .connectTimeout(20, TimeUnit.SECONDS)
+        .readTimeout(90, TimeUnit.SECONDS)
+        .writeTimeout(90, TimeUnit.SECONDS)
+        .callTimeout(120, TimeUnit.SECONDS)
+        .retryOnConnectionFailure(true)
+        .build()
+
+    private val transferClient = client.newBuilder()
+        .connectTimeout(30, TimeUnit.SECONDS)
+        .readTimeout(5, TimeUnit.MINUTES)
+        .writeTimeout(5, TimeUnit.MINUTES)
+        .callTimeout(0, TimeUnit.MILLISECONDS)
         .retryOnConnectionFailure(true)
         .build()
 
@@ -40,6 +56,28 @@ object WebDAVClient {
     private const val BACKUP_DIR = "credit-card-backup"
     private val ensureBackupDirLock = Any()
     @Volatile private var ensuredBackupDirKey: String? = null
+
+    private class ProgressRequestBody(
+        private val bytes: ByteArray,
+        private val mediaType: okhttp3.MediaType,
+        private val onProgress: ((Long) -> Unit)?
+    ) : RequestBody() {
+        override fun contentType() = mediaType
+
+        override fun contentLength(): Long = bytes.size.toLong()
+
+        override fun writeTo(sink: BufferedSink) {
+            val chunkSize = 16 * 1024
+            var offset = 0
+            onProgress?.invoke(0L)
+            while (offset < bytes.size) {
+                val count = minOf(chunkSize, bytes.size - offset)
+                sink.write(bytes, offset, count)
+                offset += count
+                onProgress?.invoke(offset.toLong())
+            }
+        }
+    }
 
     /**
      * 测试 WebDAV 连接是否畅通
@@ -143,31 +181,41 @@ object WebDAVClient {
 
     fun cancelAll() {
         client.dispatcher.cancelAll()
+        transferClient.dispatcher.cancelAll()
     }
 
     /**
      * 上传备份同步快照到云端
      */
-    fun uploadSyncSnapshot(url: String, user: String, pass: String, filename: String, encryptedJson: String): Boolean {
+    fun uploadSyncSnapshot(
+        url: String,
+        user: String,
+        pass: String,
+        filename: String,
+        encryptedJson: String,
+        onProgress: ((Long) -> Unit)? = null
+    ): Boolean {
         val cleanUrl = sanitizeUrl(url)
         val credential = Credentials.basic(user, pass)
         ensureBackupDirExists(cleanUrl, credential)
 
         val fileUrl = backupFileUrl(cleanUrl, filename)
-        val requestBody = encryptedJson.toRequestBody("text/plain; charset=utf-8".toMediaType())
+        val mediaType = "text/plain; charset=utf-8".toMediaType()
+        val requestBody = ProgressRequestBody(
+            bytes = encryptedJson.toByteArray(Charsets.UTF_8),
+            mediaType = mediaType,
+            onProgress = onProgress
+        )
         val request = Request.Builder()
             .url(fileUrl)
             .put(requestBody)
             .header("Authorization", credential)
             .build()
 
-        return try {
-            client.newCall(request).execute().use { response ->
+        return executeTransferWithRetry {
+            transferClient.newCall(request).execute().use { response ->
                 response.isSuccessful || response.code == 201 || response.code == 204
             }
-        } catch (e: Exception) {
-            e.printStackTrace()
-            false
         }
     }
 
@@ -183,29 +231,75 @@ object WebDAVClient {
         }
     }
 
-    fun restoreBackupOrThrow(url: String, user: String, pass: String, filename: String): String {
+    fun restoreBackupOrThrow(
+        url: String,
+        user: String,
+        pass: String,
+        filename: String,
+        onProgress: ((Long) -> Unit)? = null
+    ): String {
         val cleanUrl = sanitizeUrl(url)
         val credential = Credentials.basic(user, pass)
 
         val fileUrl = backupFileUrl(cleanUrl, filename)
-        val request = Request.Builder()
-            .url(fileUrl)
-            .get()
-            .header("Authorization", credential)
-            .build()
+        val output = ByteArrayOutputStream()
+        var totalRead = 0L
+        var attempt = 0
+        var lastError: IOException? = null
+        onProgress?.invoke(0L)
 
-        try {
-            client.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) {
-                    throw IOException("同步文件下载失败，HTTP ${response.code}: $filename")
-                }
-                return response.body?.string()
-                    ?: throw IOException("同步文件下载失败，响应为空: $filename")
+        while (attempt < MAX_TRANSFER_RETRIES) {
+            val startAt = totalRead
+            val requestBuilder = Request.Builder()
+                .url(fileUrl)
+                .get()
+                .header("Authorization", credential)
+            if (startAt > 0L) {
+                requestBuilder.header("Range", "bytes=$startAt-")
             }
-        } catch (e: Exception) {
-            e.printStackTrace()
-            throw IOException("同步文件下载失败: ${e.message ?: "未知网络错误"}", e)
+
+            try {
+                transferClient.newCall(requestBuilder.build()).execute().use { response ->
+                    if (startAt > 0L && response.code == 200) {
+                        output.reset()
+                        totalRead = 0L
+                        onProgress?.invoke(0L)
+                    }
+                    if (!response.isSuccessful) {
+                        throw IOException("同步文件下载失败，HTTP ${response.code}: $filename")
+                    }
+                    val body = response.body
+                        ?: throw IOException("同步文件下载失败，响应为空: $filename")
+                    val buffer = ByteArray(DEFAULT_BUFFER_SIZE)
+                    body.byteStream().use { input ->
+                        while (true) {
+                            val read = input.read(buffer)
+                            if (read == -1) break
+                            output.write(buffer, 0, read)
+                            totalRead += read
+                            onProgress?.invoke(totalRead)
+                        }
+                    }
+                    return output.toString(Charsets.UTF_8.name())
+                }
+            } catch (e: IOException) {
+                lastError = e
+                attempt += 1
+                if (attempt >= MAX_TRANSFER_RETRIES || !isRetriableTransferError(e)) {
+                    e.printStackTrace()
+                    throw IOException("同步文件下载失败（网络过慢或连接中断，已重试 ${attempt} 次）: ${e.message ?: "未知网络错误"}", e)
+                }
+                try {
+                    Thread.sleep(TRANSFER_RETRY_DELAY_MS * attempt)
+                } catch (interrupted: InterruptedException) {
+                    Thread.currentThread().interrupt()
+                    throw IOException("同步文件下载被中断", interrupted)
+                }
+            }
         }
+
+        val error = lastError ?: IOException("未知网络错误")
+        throw IOException("同步文件下载失败（网络过慢或连接中断，已重试 $MAX_TRANSFER_RETRIES 次）: ${error.message}", error)
     }
 
     /**
@@ -260,6 +354,46 @@ object WebDAVClient {
             .replace("+", "%20")
             .replace("%28", "(")
             .replace("%29", ")")
+    }
+
+    private fun executeTransferWithRetry(block: () -> Boolean): Boolean {
+        var attempt = 0
+        while (attempt < MAX_TRANSFER_RETRIES) {
+            try {
+                return block()
+            } catch (e: IOException) {
+                attempt += 1
+                if (attempt >= MAX_TRANSFER_RETRIES || !isRetriableTransferError(e)) {
+                    e.printStackTrace()
+                    return false
+                }
+                try {
+                    Thread.sleep(TRANSFER_RETRY_DELAY_MS * attempt)
+                } catch (interrupted: InterruptedException) {
+                    Thread.currentThread().interrupt()
+                    return false
+                }
+            } catch (e: Exception) {
+                e.printStackTrace()
+                return false
+            }
+        }
+        return false
+    }
+
+    private fun isRetriableTransferError(error: IOException): Boolean {
+        if (error is SocketTimeoutException) return true
+        val message = error.message?.lowercase(Locale.ROOT).orEmpty()
+        return listOf(
+            "timeout",
+            "timed out",
+            "connection",
+            "socket",
+            "abort",
+            "reset",
+            "unexpected end",
+            "stream was reset"
+        ).any { it in message }
     }
 
     /**

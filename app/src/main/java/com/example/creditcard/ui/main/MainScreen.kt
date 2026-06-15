@@ -1197,6 +1197,8 @@ fun ToolsSyncHistoryPanel(
                 step = syncProgress.step,
                 total = syncProgress.total,
                 detail = syncProgress.detail,
+                totalBytes = syncProgress.totalBytes,
+                transferredBytes = syncProgress.transferredBytes,
                 isDark = isDark,
                 onCancel = {
                     SyncCoordinator.cancelCurrentSync(context)
@@ -3803,6 +3805,8 @@ fun SyncProgressBlock(
     step: Int,
     total: Int,
     detail: String,
+    totalBytes: Long,
+    transferredBytes: Long,
     isDark: Boolean,
     onCancel: (() -> Unit)? = null,
     onRetry: (() -> Unit)? = null
@@ -3813,6 +3817,13 @@ fun SyncProgressBlock(
         lastDurationMs > 0L -> "上次耗时 ${formatSyncDuration(lastDurationMs)}"
         else -> ""
     }
+    val hasByteProgress = isSyncing && totalBytes > 0L
+    val byteProgress = if (hasByteProgress) {
+        (transferredBytes.toFloat() / totalBytes.toFloat()).coerceIn(0f, 1f)
+    } else {
+        0f
+    }
+    val byteProgressPrefix = if (phase.contains("保存") || phase.contains("上传")) "已上传" else "已下载"
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -3850,6 +3861,20 @@ fun SyncProgressBlock(
                 modifier = Modifier.fillMaxWidth().height(5.dp).clip(RoundedCornerShape(4.dp)),
                 color = accent,
                 trackColor = accent.copy(alpha = 0.18f)
+            )
+        }
+        if (hasByteProgress) {
+            LinearProgressIndicator(
+                progress = { byteProgress },
+                modifier = Modifier.fillMaxWidth().height(4.dp).clip(RoundedCornerShape(4.dp)),
+                color = accent.copy(alpha = 0.82f),
+                trackColor = accent.copy(alpha = 0.14f)
+            )
+            Text(
+                text = "$byteProgressPrefix ${formatStorageBytes(transferredBytes)} / ${formatStorageBytes(totalBytes)}",
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = if (isDark) TextGray else TextMuted
             )
         }
         Text(

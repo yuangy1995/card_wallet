@@ -57,7 +57,9 @@ data class SyncProgress(
     val phase: String = "空闲",
     val step: Int = 0,
     val total: Int = 0,
-    val detail: String = ""
+    val detail: String = "",
+    val totalBytes: Long = 0L,
+    val transferredBytes: Long = 0L
 )
 
 private data class SnapshotReadResult(
@@ -86,6 +88,7 @@ object SyncCoordinator {
     private const val KEY_PENDING_MUTATIONS = "pending_mutation_details"
     private const val KEY_MUTATION_REVISION = "local_mutation_revision"
     private const val KEY_LAST_WEBDAV_SNAPSHOT = "last_webdav_snapshot_filename"
+    private const val PROGRESS_UI_INTERVAL_MS = 250L
 
     // 用 MutableStateFlow 进行全局同步状态发布，Compose 侧可极其优雅地消费它
     private val _syncStatus = MutableStateFlow(SyncStatus())
@@ -246,8 +249,22 @@ object SyncCoordinator {
         _syncStatus.value = SyncStatus(msg, type, isSyncing, pending, elapsedMs.coerceAtLeast(0L), lastDurationMs.coerceAtLeast(0L))
     }
 
-    private fun updateProgress(phase: String, step: Int, total: Int, detail: String = "") {
-        _syncProgress.value = SyncProgress(phase, step, total, detail)
+    private fun updateProgress(
+        phase: String,
+        step: Int,
+        total: Int,
+        detail: String = "",
+        totalBytes: Long = 0L,
+        transferredBytes: Long = 0L
+    ) {
+        _syncProgress.value = SyncProgress(
+            phase = phase,
+            step = step,
+            total = total,
+            detail = detail,
+            totalBytes = totalBytes.coerceAtLeast(0L),
+            transferredBytes = transferredBytes.coerceAtLeast(0L)
+        )
     }
 
     private fun startSyncElapsedTicker(startedAtMillis: Long) {
@@ -727,21 +744,76 @@ object SyncCoordinator {
                     return@withLock
                 }
 
-                withContext(Dispatchers.Main) {
-                    updateProgress("读取文件", 3, 6, "正在下载并读取 ${filesToRead.size} 份云同步文件$totalFilesText")
+                val totalDownloadBytes = filesToRead.sumOf { it.size.coerceAtLeast(0L) }
+                val downloadProgressLock = Any()
+                var downloadedBytes = 0L
+                var lastDownloadProgressReportAt = 0L
+                fun reportDownloadDelta(delta: Long, force: Boolean = false) {
+                    if (delta <= 0L || totalDownloadBytes <= 0L) return
+                    val now = SyncTime.nowMillis()
+                    val (currentBytes, shouldReport) = synchronized(downloadProgressLock) {
+                        downloadedBytes = (downloadedBytes + delta).coerceAtMost(totalDownloadBytes)
+                        val canReport = force ||
+                            downloadedBytes >= totalDownloadBytes ||
+                            now - lastDownloadProgressReportAt >= PROGRESS_UI_INTERVAL_MS
+                        if (canReport) {
+                            lastDownloadProgressReportAt = now
+                        }
+                        downloadedBytes to canReport
+                    }
+                    if (!shouldReport) return
+                    updateProgress(
+                        "读取文件",
+                        3,
+                        6,
+                        "正在并发下载 ${filesToRead.size} 份云同步文件$totalFilesText，网络慢时会自动续传",
+                        totalBytes = totalDownloadBytes,
+                        transferredBytes = currentBytes
+                    )
                 }
 
-                // 3. 下载并解密最近自动同步文件。Android 之前串行处理 5 份快照，
-                // 每份都要 310k PBKDF2 派生；并发后与 Web/Mac 的行为一致。
+                withContext(Dispatchers.Main) {
+                    updateProgress(
+                        "读取文件",
+                        3,
+                        6,
+                        "正在并发下载 ${filesToRead.size} 份云同步文件$totalFilesText，网络慢时会自动续传",
+                        totalBytes = totalDownloadBytes,
+                        transferredBytes = 0L
+                    )
+                }
+
+                // 3. 并发下载并解密最近自动同步文件。每个文件的下载请求都支持慢网重试
+                // 和 Range 续传，避免大文件还在传输时被总时长限制误判失败。
                 val readResults = coroutineScope {
                     filesToRead.mapIndexed { index, file ->
                         async(Dispatchers.IO) {
                             ensureSyncNotCancelled()
                             withContext(Dispatchers.Main) {
-                                updateProgress("读取文件", 3, 6, "正在读取 ${index + 1}/${filesToRead.size}：${file.filename}")
+                                updateProgress(
+                                    "读取文件",
+                                    3,
+                                    6,
+                                    "正在并发读取 ${index + 1}/${filesToRead.size}：${file.filename}",
+                                    totalBytes = totalDownloadBytes,
+                                    transferredBytes = downloadedBytes
+                                )
                             }
+                            var fileDownloadedBytes = 0L
                             val fileContent = try {
-                                WebDAVClient.restoreBackupOrThrow(config.url, config.user, config.pass, file.filename)
+                                WebDAVClient.restoreBackupOrThrow(
+                                    config.url,
+                                    config.user,
+                                    config.pass,
+                                    file.filename,
+                                    onProgress = { bytesRead ->
+                                        val delta = bytesRead - fileDownloadedBytes
+                                        if (delta > 0L) {
+                                            fileDownloadedBytes = bytesRead
+                                            reportDownloadDelta(delta)
+                                        }
+                                    }
+                                )
                             } catch (e: IOException) {
                                 if (cancelRequested) throw CancellationException("同步已被手动终止")
                                 e.printStackTrace()
@@ -758,6 +830,10 @@ object SyncCoordinator {
                                     failureStage = "download",
                                     failureMessage = "同步文件下载失败：响应为空"
                                 )
+                            }
+                            val remainingBytes = file.size - fileDownloadedBytes
+                            if (remainingBytes > 0L) {
+                                reportDownloadDelta(remainingBytes, force = true)
                             }
                             val decryptedJson = try {
                                 CryptoManager.decryptSyncEnvelopeV4(fileContent, config.syncPassword)
@@ -853,9 +929,41 @@ object SyncCoordinator {
                     val timeFilename = isoNow.replace(":", "-").replace(".", "-")
                     val activeCount = activeCards.size
                     val filename = "${timeFilename}---($activeCount)[SyncV4][Android][自].json"
+                    val uploadBytes = encryptedSnapshot.toByteArray(Charsets.UTF_8).size.toLong()
 
                     ensureSyncNotCancelled()
-                    val uploadSuccess = WebDAVClient.uploadSyncSnapshot(config.url, config.user, config.pass, filename, encryptedSnapshot)
+                    updateProgress(
+                        "保存云端",
+                        5,
+                        6,
+                        "正在写入 WebDAV 加密快照",
+                        totalBytes = uploadBytes,
+                        transferredBytes = 0L
+                    )
+                    var lastUploadProgressReportAt = 0L
+                    val uploadSuccess = WebDAVClient.uploadSyncSnapshot(
+                        config.url,
+                        config.user,
+                        config.pass,
+                        filename,
+                        encryptedSnapshot,
+                        onProgress = { bytesSent ->
+                            val currentBytes = bytesSent.coerceIn(0L, uploadBytes)
+                            val now = SyncTime.nowMillis()
+                            if (currentBytes < uploadBytes && now - lastUploadProgressReportAt < PROGRESS_UI_INTERVAL_MS) {
+                                return@uploadSyncSnapshot
+                            }
+                            lastUploadProgressReportAt = now
+                            updateProgress(
+                                "保存云端",
+                                5,
+                                6,
+                                "正在写入 WebDAV 加密快照",
+                                totalBytes = uploadBytes,
+                                transferredBytes = currentBytes
+                            )
+                        }
+                    )
                     ensureSyncNotCancelled()
                     if (uploadSuccess) {
                         uploadedFilename = filename
