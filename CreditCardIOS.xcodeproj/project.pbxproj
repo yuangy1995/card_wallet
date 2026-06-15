@@ -271,6 +271,11 @@
 		448D465A4D9F4344DFBD4A51 /* Release */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES = (
+					"AppIcon-Minimal",
+					"AppIcon-Cool",
+					"AppIcon-Retro",
+				);
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				GENERATE_INFOPLIST_FILE = NO;
@@ -409,6 +414,11 @@
 		C5B9699293C967721E183A42 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
+				ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES = (
+					"AppIcon-Minimal",
+					"AppIcon-Cool",
+					"AppIcon-Retro",
+				);
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				GENERATE_INFOPLIST_FILE = NO;

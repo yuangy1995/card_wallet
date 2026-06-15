@@ -18,6 +18,8 @@ struct SettingsView: View {
     @State private var hasStoredSyncPassword = false
 
     @State private var showStorageManagement = false
+    @State private var showIconSelection = false
+    @State private var currentIconName: String? = nil
     @State private var showAppearanceDialog = false
     @AppStorage("app_appearance") private var appAppearance = "light"
     @AppStorage("enable_face_id") private var enableFaceID = false
@@ -66,6 +68,9 @@ struct SettingsView: View {
             .navigationDestination(isPresented: $showStorageManagement) {
                 StorageManagementView()
             }
+            .navigationDestination(isPresented: $showIconSelection) {
+                AppIconSelectionView(currentIconName: $currentIconName)
+            }
             .confirmationDialog("选择外观模式", isPresented: $showAppearanceDialog, titleVisibility: .visible) {
                 Button("浅色") { appAppearance = "light" }
                 Button("深色") { appAppearance = "dark" }
@@ -75,6 +80,7 @@ struct SettingsView: View {
             .onAppear {
                 checkBiometric()
                 refreshStoredConfigState()
+                currentIconName = UIApplication.shared.alternateIconName
                 if appLockEnabled && lockPassword.isEmpty {
                     appLockEnabled = false
                 }
@@ -90,36 +96,69 @@ struct SettingsView: View {
                 }
             }) {
                 NavigationStack {
-                    VStack(spacing: 20) {
-                        Spacer()
-                        
-                        Text(passwordStepInstruction)
-                            .font(.system(.subheadline, weight: .semibold))
-                            .foregroundColor(.secondary)
-                        
-                        // 点阵显示
-                        HStack(spacing: 12) {
-                            ForEach(0..<6, id: \.self) { index in
+                    VStack(spacing: 0) {
+                        // 顶部安全区精致卡片
+                        VStack(spacing: 24) {
+                            ZStack {
                                 Circle()
-                                    .fill(index < passwordInput.count ? Color.blue : Color.primary.opacity(0.15))
-                                    .frame(width: 12, height: 12)
-                                    .scaleEffect(index < passwordInput.count ? 1.2 : 1.0)
-                                    .animation(.spring(duration: 0.2), value: passwordInput.count)
+                                    .fill(Color.blue.opacity(0.1))
+                                    .frame(width: 76, height: 76)
+                                Image(systemName: "lock.shield.fill")
+                                    .font(.system(size: 36, weight: .semibold))
+                                    .foregroundStyle(LinearGradient(colors: [.blue.opacity(0.85), .blue], startPoint: .topLeading, endPoint: .bottomTrailing))
                             }
+                            .padding(.top, 10)
+                            
+                            VStack(spacing: 8) {
+                                Text(lockPassword.isEmpty ? "设置密码保护" : "修改锁屏密码")
+                                    .font(.system(size: 19, weight: .bold))
+                                    .foregroundColor(.primary)
+                                
+                                Text(passwordStepInstruction)
+                                    .font(.system(size: 13, weight: .medium))
+                                    .foregroundColor(.secondary)
+                                    .multilineTextAlignment(.center)
+                            }
+                            
+                            // 点阵显示
+                            HStack(spacing: 16) {
+                                ForEach(0..<6, id: \.self) { index in
+                                    Circle()
+                                        .fill(index < passwordInput.count ? Color.blue : Color.primary.opacity(0.15))
+                                        .frame(width: 13, height: 13)
+                                        .scaleEffect(index < passwordInput.count ? 1.25 : 1.0)
+                                        .animation(.spring(duration: 0.2), value: passwordInput.count)
+                                }
+                            }
+                            .padding(.vertical, 8)
                         }
-                        .padding(.vertical, 8)
+                        .padding(.vertical, 26)
+                        .padding(.horizontal, 24)
+                        .frame(maxWidth: .infinity)
+                        .background(
+                            RoundedRectangle(cornerRadius: 24, style: .continuous)
+                                .fill(Color.primary.opacity(0.02))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 24, style: .continuous)
+                                        .stroke(Color.primary.opacity(0.06), lineWidth: 1)
+                                )
+                        )
+                        .padding(.horizontal, 24)
+                        .padding(.top, 40)
                         
                         if !passwordStatusMessage.isEmpty {
                             Text(passwordStatusMessage)
-                                .font(.system(size: 13, weight: .medium))
+                                .font(.system(size: 13, weight: .semibold))
                                 .foregroundColor(.red)
                                 .multilineTextAlignment(.center)
+                                .padding(.top, 18)
+                                .transition(.opacity)
                         }
                         
-                        Spacer()
+                        Spacer(minLength: 20)
                         
                         customKeyboard
-                            .padding(.bottom, 20)
+                            .padding(.bottom, 35)
                     }
                     .navigationTitle(lockPassword.isEmpty ? "设置锁屏密码" : "修改锁屏密码")
                     .navigationBarTitleDisplayMode(.inline)
@@ -258,8 +297,35 @@ struct SettingsView: View {
                 }
             }
             .buttonStyle(.plain)
+
+            Button {
+                showIconSelection = true
+            } label: {
+                HStack {
+                    Label("应用图标", systemImage: "app.badge.fill")
+                        .foregroundStyle(.primary)
+                    Spacer()
+                    Text(currentIconText)
+                        .font(.system(.body))
+                        .foregroundColor(.secondary)
+                    Image(systemName: "chevron.right")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            .buttonStyle(.plain)
         } header: {
             Label("个性化", systemImage: "paintpalette.fill")
+        }
+    }
+
+    private var currentIconText: String {
+        guard let name = currentIconName else { return "经典" }
+        switch name {
+        case "AppIcon-Minimal": return "极简"
+        case "AppIcon-Cool": return "炫酷"
+        case "AppIcon-Retro": return "复古"
+        default: return "经典"
         }
     }
 
@@ -457,25 +523,23 @@ struct SettingsView: View {
     }
 
     private var customKeyboard: some View {
-        VStack(spacing: 12) {
+        VStack(spacing: 18) {
             ForEach([[1,2,3],[4,5,6],[7,8,9]], id: \.self) { row in
-                HStack(spacing: 20) {
+                HStack(spacing: 32) {
                     ForEach(row, id: \.self) { num in
                         keyboardButton(String(num))
                     }
                 }
             }
-            HStack(spacing: 20) {
+            HStack(spacing: 32) {
                 Button {
                     withAnimation { passwordInput = "" }
                 } label: {
-                    ZStack {
-                        Circle().fill(Color.primary.opacity(0.06)).frame(width: 64, height: 64)
-                        Text("清空")
-                            .font(.system(size: 14, weight: .medium))
-                            .foregroundColor(.primary)
-                    }
+                    Text("清空")
+                        .font(.system(size: 15, weight: .semibold))
+                        .foregroundColor(.primary)
                 }
+                .buttonStyle(KeyboardButtonStyle(isFeatureButton: true))
 
                 keyboardButton("0")
 
@@ -484,13 +548,11 @@ struct SettingsView: View {
                         _ = withAnimation { passwordInput.removeLast() }
                     }
                 } label: {
-                    ZStack {
-                        Circle().fill(Color.primary.opacity(0.06)).frame(width: 64, height: 64)
-                        Image(systemName: "delete.left.fill")
-                            .font(.system(size: 18))
-                            .foregroundColor(.primary)
-                    }
+                    Image(systemName: "delete.left.fill")
+                        .font(.system(size: 20))
+                        .foregroundColor(.primary)
                 }
+                .buttonStyle(KeyboardButtonStyle(isFeatureButton: true))
             }
         }
     }
@@ -500,21 +562,256 @@ struct SettingsView: View {
             guard passwordInput.count < 6 else { return }
             withAnimation(.spring(duration: 0.1)) { passwordInput += label }
         } label: {
-            ZStack {
-                Circle()
-                    .fill(Color.primary.opacity(0.04))
-                    .frame(width: 64, height: 64)
-                    .overlay(Circle().stroke(Color.primary.opacity(0.1), lineWidth: 1))
-                Text(label)
-                    .font(.system(.title2, design: .rounded, weight: .medium))
-                    .foregroundColor(.primary)
-            }
+            Text(label)
+                .font(.system(size: 26, weight: .regular, design: .rounded))
+                .foregroundColor(.primary)
         }
-        .buttonStyle(.plain)
+        .buttonStyle(KeyboardButtonStyle(isFeatureButton: false))
     }
 }
 
 enum PasswordStep {
     case enter
     case confirm(String)
+}
+
+enum AppIconOption: String, CaseIterable, Identifiable {
+    case classic
+    case minimal
+    case cool
+    case retro
+    
+    var id: String { self.rawValue }
+    
+    var displayName: String {
+        switch self {
+        case .classic: return "经典"
+        case .minimal: return "极简"
+        case .cool: return "炫酷"
+        case .retro: return "复古"
+        }
+    }
+    
+    var assetName: String? {
+        switch self {
+        case .classic: return nil
+        case .minimal: return "AppIcon-Minimal"
+        case .cool: return "AppIcon-Cool"
+        case .retro: return "AppIcon-Retro"
+        }
+    }
+    
+    var previewImageName: String {
+        switch self {
+        case .classic: return "preview_icon_classic"
+        case .minimal: return "preview_icon_minimal"
+        case .cool: return "preview_icon_cool"
+        case .retro: return "preview_icon_retro"
+        }
+    }
+}
+
+struct AppIconSelectionView: View {
+    @Binding var currentIconName: String?
+    @State private var showToast = false
+    @State private var toastMessage = ""
+    
+    private let columns = [
+        GridItem(.flexible(), spacing: 16),
+        GridItem(.flexible(), spacing: 16)
+    ]
+    
+    var body: some View {
+        ZStack {
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    Text("选择您喜爱的应用图标，它将显示在您的设备桌面上。")
+                        .font(.system(size: 14))
+                        .foregroundColor(.secondary)
+                        .padding(.horizontal, 4)
+                        .padding(.top, 8)
+                    
+                    LazyVGrid(columns: columns, spacing: 20) {
+                        ForEach(AppIconOption.allCases) { option in
+                            Button {
+                                changeAppIcon(to: option)
+                            } label: {
+                                VStack(spacing: 12) {
+                                    ZStack {
+                                        Image(option.previewImageName)
+                                            .resizable()
+                                            .scaledToFit()
+                                            .frame(width: 88, height: 88)
+                                            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                                            .shadow(color: .black.opacity(0.12), radius: 6, y: 3)
+                                            .overlay(
+                                                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                                                    .stroke(currentIconName == option.assetName ? Color.blue : Color.clear, lineWidth: 3.5)
+                                            )
+                                        
+                                        if currentIconName == option.assetName {
+                                            Image(systemName: "checkmark.circle.fill")
+                                                .font(.system(size: 22))
+                                                .foregroundColor(.blue)
+                                                .background(Circle().fill(.white))
+                                                .offset(x: 32, y: -32)
+                                        }
+                                    }
+                                    
+                                    Text(option.displayName)
+                                        .font(.system(size: 14, weight: .semibold))
+                                        .foregroundColor(currentIconName == option.assetName ? .blue : .primary)
+                                }
+                                .padding(.vertical, 16)
+                                .frame(maxWidth: .infinity)
+                                .background(
+                                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                        .fill(Color(uiColor: .secondarySystemGroupedBackground))
+                                        .shadow(color: .black.opacity(0.015), radius: 4, y: 2)
+                                )
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                                        .stroke(currentIconName == option.assetName ? Color.blue.opacity(0.15) : Color.clear, lineWidth: 1)
+                                )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+                .padding(20)
+            }
+            .background(Color(uiColor: .systemGroupedBackground))
+            .navigationTitle("更换应用图标")
+            .navigationBarTitleDisplayMode(.inline)
+            
+            // 自定义毛玻璃 Toast 提示层，设计极其精美
+            if showToast {
+                VStack {
+                    HStack(spacing: 12) {
+                        Image(systemName: "checkmark.circle.fill")
+                            .foregroundColor(.blue)
+                            .font(.system(size: 20, weight: .semibold))
+                        Text(toastMessage)
+                            .font(.system(size: 14, weight: .semibold))
+                            .foregroundColor(.primary)
+                    }
+                    .padding(.horizontal, 22)
+                    .padding(.vertical, 14)
+                    .background(
+                        RoundedRectangle(cornerRadius: 18, style: .continuous)
+                            .fill(Color(uiColor: .secondarySystemGroupedBackground).opacity(0.8))
+                            .shadow(color: Color.black.opacity(0.12), radius: 12, x: 0, y: 8)
+                    )
+                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                    .transition(.move(edge: .top).combined(with: .opacity).combined(with: .scale(scale: 0.92)))
+                    
+                    Spacer()
+                }
+                .padding(.top, 40)
+                .zIndex(999)
+            }
+        }
+    }
+    
+    private func changeAppIcon(to option: AppIconOption) {
+        guard UIApplication.shared.supportsAlternateIcons else { return }
+        
+        UIViewController.enablePresentSwizzling()
+        
+        UIApplication.shared.setAlternateIconName(option.assetName) { error in
+            DispatchQueue.main.async {
+                if let error = error {
+                    print("更换应用图标失败: \(error.localizedDescription)")
+                } else {
+                    currentIconName = option.assetName
+                    toastMessage = "已成功将应用图标更换为“\(option.displayName)”"
+                    withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+                        showToast = true
+                    }
+                    
+                    DispatchQueue.main.asyncAfter(deadline: .now() + 2.5) {
+                        withAnimation(.easeOut(duration: 0.25)) {
+                            showToast = false
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+extension UIViewController {
+    private static let swizzlePresent: Void = {
+        let originalSelector = Selector(("presentViewController:animated:completion:"))
+        let swizzledSelector = Selector(("swizzled_presentViewController:animated:completion:"))
+        
+        guard let originalMethod = class_getInstanceMethod(UIViewController.self, originalSelector),
+              let swizzledMethod = class_getInstanceMethod(UIViewController.self, swizzledSelector) else {
+            return
+        }
+        
+        method_exchangeImplementations(originalMethod, swizzledMethod)
+    }()
+    
+    static func enablePresentSwizzling() {
+        _ = swizzlePresent
+    }
+    
+    @objc(swizzled_presentViewController:animated:completion:)
+    func swizzled_presentViewController(_ viewControllerToPresent: UIViewController, animated flag: Bool, completion: (() -> Void)? = nil) {
+        if let alert = viewControllerToPresent as? UIAlertController {
+            let title = alert.title ?? ""
+            let message = alert.message ?? ""
+            if message.contains("图标") || message.contains("Icon") || title.contains("图标") || title.contains("Icon") {
+                completion?()
+                return
+            }
+        }
+        self.swizzled_presentViewController(viewControllerToPresent, animated: flag, completion: completion)
+    }
+}
+
+struct KeyboardButtonStyle: ButtonStyle {
+    let isFeatureButton: Bool
+    var forcePressed: Bool = false
+    
+    func makeBody(configuration: Configuration) -> some View {
+        let isPressed = configuration.isPressed || forcePressed
+        configuration.label
+            .frame(width: 78, height: 78)
+            .background(
+                ZStack {
+                    // 1. 基础圆圈背景（按下时变为优雅且明显的淡蓝色）
+                    Circle()
+                        .fill(
+                            isPressed
+                            ? Color.blue.opacity(0.18)
+                            : (isFeatureButton ? Color.primary.opacity(0.08) : Color.primary.opacity(0.06))
+                        )
+                    
+                    // 2. 边框线（数字按键，未按下时显示）
+                    if !isFeatureButton && !isPressed {
+                        Circle()
+                            .stroke(Color.primary.opacity(0.12), lineWidth: 1)
+                    }
+                    
+                    // 3. 点击时的蓝色径向水波纹微光反馈特效（提升亮度和对比度）
+                    Circle()
+                        .fill(
+                            RadialGradient(
+                                colors: [Color.blue.opacity(0.55), Color.blue.opacity(0.0)],
+                                center: .center,
+                                startRadius: 0,
+                                endRadius: 39
+                            )
+                        )
+                        .opacity(isPressed ? 1.0 : 0.0)
+                        .scaleEffect(isPressed ? 1.0 : 0.5)
+                }
+            )
+            // 强化了按下缩放的深度，从 0.90 提升到 0.84，点击手感极佳
+            .scaleEffect(isPressed ? 0.84 : 1.0)
+            // 弹簧动画略微收紧，增加“弹润”的回弹张力
+            .animation(.spring(response: 0.16, dampingFraction: 0.52), value: isPressed)
+    }
 }
