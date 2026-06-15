@@ -16,6 +16,13 @@ run_xcodebuild_archive() {
     set +e
     "$@" 2>&1 | tee "$BUILD_LOG"
     local archive_status=${PIPESTATUS[0]}
+
+    if [ "$archive_status" -ne 0 ] && grep -q "Build operation failed without specifying any errors" "$BUILD_LOG"; then
+        echo -e "${YELLOW}Xcode Archive 返回了无具体错误的失败，自动重试一次...${NC}" | tee -a "$BUILD_LOG"
+        "$@" 2>&1 | tee -a "$BUILD_LOG"
+        archive_status=${PIPESTATUS[0]}
+    fi
+
     set -e
 
     if [ "$archive_status" -ne 0 ]; then
@@ -64,6 +71,7 @@ if [ "${CLOUDKIT_SIGNED_BUILD:-0}" = "1" ]; then
     run_xcodebuild_archive xcodebuild archive \
         -project CreditCardMac.xcodeproj \
         -scheme CreditCardMac \
+        -destination "generic/platform=macOS" \
         -archivePath ./build/CreditCardMac.xcarchive \
         DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" \
         CODE_SIGN_STYLE=Automatic
@@ -72,6 +80,7 @@ else
     run_xcodebuild_archive xcodebuild archive \
         -project CreditCardMac.xcodeproj \
         -scheme CreditCardMac \
+        -destination "generic/platform=macOS" \
         -archivePath ./build/CreditCardMac.xcarchive \
         CODE_SIGNING_ALLOWED=NO \
         CODE_SIGNING_REQUIRED=NO \

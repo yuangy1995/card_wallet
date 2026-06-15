@@ -1,17 +1,36 @@
 import Foundation
 import SwiftUI
 
+private final class ProgressBox: @unchecked Sendable {
+    var value: Int64 = 0
+}
+
+private final class ProgressTimeBox: @unchecked Sendable {
+    var value: TimeInterval = 0
+}
+
 public struct SyncFileProgress: Codable, Hashable {
     public var phase: String
     public var step: Int
     public var total: Int
     public var detail: String
+    public var totalBytes: Int64?
+    public var transferredBytes: Int64?
 
-    public init(phase: String = "空闲", step: Int = 0, total: Int = 0, detail: String = "") {
+    public init(
+        phase: String = "空闲",
+        step: Int = 0,
+        total: Int = 0,
+        detail: String = "",
+        totalBytes: Int64? = nil,
+        transferredBytes: Int64? = nil
+    ) {
         self.phase = phase
         self.step = step
         self.total = total
         self.detail = detail
+        self.totalBytes = totalBytes
+        self.transferredBytes = transferredBytes
     }
 }
 
@@ -62,6 +81,7 @@ public final class WebDAVBridgeService: ObservableObject {
     private var queuedForceUpload = false
     private let syncPasswordKey = "webdav_sync_password_v4"
     private static let syncHistoryKey = "webdav_bridge_sync_history_v1"
+    private static let progressUIUpdateInterval: TimeInterval = 0.25
 
     public var isEnabled: Bool {
         UserDefaults.standard.object(forKey: "enable_webdav_bridge") as? Bool ?? true
@@ -209,13 +229,60 @@ public final class WebDAVBridgeService: ObservableObject {
             return
         }
 
-        updateProgress("读取文件", step: 2, total: 5, detail: "正在下载并解密最近 \(filesToRead.count) 个同步快照")
+        let totalBytes = filesToRead.reduce(Int64(0)) { $0 + max(0, $1.size) }
+        let progressBox = ProgressBox()
+        let progressTimeBox = ProgressTimeBox()
+        let progressLock = NSLock()
+        let reportDownloadProgress: (Int64, Bool) -> Void = { [weak self] delta, force in
+            guard delta > 0 else { return }
+            let now = Date().timeIntervalSinceReferenceDate
+            progressLock.lock()
+            progressBox.value = min(totalBytes, progressBox.value + delta)
+            let currentBytes = progressBox.value
+            let shouldReport = force ||
+                currentBytes >= totalBytes ||
+                now - progressTimeBox.value >= Self.progressUIUpdateInterval
+            if shouldReport {
+                progressTimeBox.value = now
+            }
+            progressLock.unlock()
+            guard shouldReport else { return }
+            DispatchQueue.main.async {
+                self?.updateProgress(
+                    "读取文件",
+                    step: 2,
+                    total: 5,
+                    detail: "正在下载并解密最近 \(filesToRead.count) 个同步快照",
+                    totalBytes: totalBytes,
+                    transferredBytes: currentBytes
+                )
+            }
+        }
+
+        updateProgress(
+            "读取文件",
+            step: 2,
+            total: 5,
+            detail: "正在下载并解密最近 \(filesToRead.count) 个同步快照",
+            totalBytes: totalBytes,
+            transferredBytes: 0
+        )
         let group = DispatchGroup()
         let lock = NSLock()
         var snapshots: [WebDAVSyncSnapshotV4] = []
         for file in filesToRead {
             group.enter()
-            WebDAVClient.shared.downloadBackup(filename: file.filename) { result in
+            let fileProgressBox = ProgressBox()
+            let fileProgressLock = NSLock()
+            WebDAVClient.shared.downloadBackup(
+                filename: file.filename,
+                onProgress: { delta in
+                    fileProgressLock.lock()
+                    fileProgressBox.value += delta
+                    fileProgressLock.unlock()
+                    reportDownloadProgress(delta, false)
+                }
+            ) { result in
                 defer { group.leave() }
                 guard case .success(let cipherText) = result,
                       let json = try? CryptoManager.decryptSyncEnvelopeV4(envelopeText: cipherText, password: syncPassword),
@@ -223,6 +290,12 @@ public final class WebDAVBridgeService: ObservableObject {
                       let snapshot = try? JSONDecoder().decode(WebDAVSyncSnapshotV4.self, from: data),
                       snapshot.schemaVersion == WebDAVSyncSnapshotV4.schemaVersion else {
                     return
+                }
+                fileProgressLock.lock()
+                let remaining = file.size - fileProgressBox.value
+                fileProgressLock.unlock()
+                if remaining > 0 {
+                    reportDownloadProgress(remaining, true)
                 }
                 lock.lock()
                 snapshots.append(snapshot)
@@ -306,7 +379,38 @@ public final class WebDAVBridgeService: ObservableObject {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd-HH-mm-ss-SSS"
         let filename = "\(formatter.string(from: Date()))---(\(CardSyncMergeEngine.activeCards(from: records).count))[SyncV4][Mac][自].json"
-        WebDAVClient.shared.uploadBackup(filename: filename, cipherText: cipherText) { [weak self] result in
+        let uploadSize = Int64(cipherText.data(using: .utf8)?.count ?? 0)
+        updateProgress(
+            "保存云端",
+            step: 4,
+            total: 5,
+            detail: "正在上传合并后的加密快照",
+            totalBytes: uploadSize,
+            transferredBytes: 0
+        )
+        let uploadProgressTimeBox = ProgressTimeBox()
+        WebDAVClient.shared.uploadBackup(
+            filename: filename,
+            cipherText: cipherText,
+            onProgress: { [weak self] bytesSent in
+                let currentBytes = min(uploadSize, max(0, bytesSent))
+                let now = Date().timeIntervalSinceReferenceDate
+                guard currentBytes >= uploadSize || now - uploadProgressTimeBox.value >= Self.progressUIUpdateInterval else {
+                    return
+                }
+                uploadProgressTimeBox.value = now
+                DispatchQueue.main.async {
+                    self?.updateProgress(
+                        "保存云端",
+                        step: 4,
+                        total: 5,
+                        detail: "正在上传合并后的加密快照",
+                        totalBytes: uploadSize,
+                        transferredBytes: currentBytes
+                    )
+                }
+            }
+        ) { [weak self] result in
             DispatchQueue.main.async {
                 guard let self else { return }
                 switch result {
@@ -324,7 +428,14 @@ public final class WebDAVBridgeService: ObservableObject {
                     self.lastConvergenceAt = Date()
                     let duration = self.finishSyncTiming()
                     self.statusDescription = ledger.pendingWebDAVUpload ? "本机有新修改，正在继续同步" : "云端与本机已同步"
-                    self.updateProgress("同步完成", step: 5, total: 5, detail: self.statusDescription)
+                    self.updateProgress(
+                        "同步完成",
+                        step: 5,
+                        total: 5,
+                        detail: self.statusDescription,
+                        totalBytes: uploadSize,
+                        transferredBytes: uploadSize
+                    )
                     self.isSyncing = false
                     self.appendSyncHistory(
                         status: "success",
@@ -380,8 +491,22 @@ public final class WebDAVBridgeService: ObservableObject {
         )
     }
 
-    private func updateProgress(_ phase: String, step: Int, total: Int, detail: String = "") {
-        syncProgress = SyncFileProgress(phase: phase, step: step, total: total, detail: detail)
+    private func updateProgress(
+        _ phase: String,
+        step: Int,
+        total: Int,
+        detail: String = "",
+        totalBytes: Int64? = nil,
+        transferredBytes: Int64? = nil
+    ) {
+        syncProgress = SyncFileProgress(
+            phase: phase,
+            step: step,
+            total: total,
+            detail: detail,
+            totalBytes: totalBytes,
+            transferredBytes: transferredBytes
+        )
     }
 
     private static func loadSyncHistory() -> [SyncHistoryEntry] {

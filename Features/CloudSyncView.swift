@@ -241,6 +241,12 @@ public struct CloudSyncView: View {
                         Text("已用时：\(formatSyncDuration(bridgeService.syncElapsedSeconds))")
                             .font(.caption)
                             .foregroundColor(.cyan)
+
+                        if let byteText = syncByteProgressText(bridgeService.syncProgress) {
+                            Text(byteText)
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                        }
                     } else if let duration = bridgeService.lastSyncDurationSeconds {
                         Text("上次耗时：\(formatSyncDuration(duration))")
                             .font(.caption)
@@ -337,6 +343,23 @@ public struct CloudSyncView: View {
         }
         return "\(seconds)秒"
     }
+
+    private func syncByteProgressText(_ progress: SyncFileProgress) -> String? {
+        guard let transferred = progress.transferredBytes,
+              let total = progress.totalBytes,
+              total > 0 else {
+            return nil
+        }
+        let prefix = progress.phase.contains("上传") || progress.phase.contains("保存") ? "已上传" : "已下载"
+        return "\(prefix) \(formatBytes(transferred)) / \(formatBytes(total))"
+    }
+
+    private func formatBytes(_ bytes: Int64) -> String {
+        let formatter = ByteCountFormatter()
+        formatter.allowedUnits = [.useKB, .useMB, .useGB]
+        formatter.countStyle = .file
+        return formatter.string(fromByteCount: bytes)
+    }
 }
 
 private struct MacSyncHistorySheet: View {
@@ -413,6 +436,12 @@ private struct MacSyncHistorySheet: View {
                         total: Double(bridgeService.syncProgress.total)
                     )
                     .frame(maxWidth: 360)
+
+                    if let byteText = syncByteProgressText(bridgeService.syncProgress) {
+                        Text(byteText)
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
                 }
             }
 
@@ -610,5 +639,22 @@ private struct MacSyncHistorySheet: View {
             return "\(minutes)分\(seconds)秒"
         }
         return "\(seconds)秒"
+    }
+
+    private func syncByteProgressText(_ progress: SyncFileProgress) -> String? {
+        guard let transferred = progress.transferredBytes,
+              let total = progress.totalBytes,
+              total > 0 else {
+            return nil
+        }
+        let prefix = progress.phase.contains("上传") || progress.phase.contains("保存") ? "已上传" : "已下载"
+        return "\(prefix) \(formatBytes(transferred)) / \(formatBytes(total))"
+    }
+
+    private func formatBytes(_ bytes: Int64) -> String {
+        let formatter = ByteCountFormatter()
+        formatter.allowedUnits = [.useKB, .useMB, .useGB]
+        formatter.countStyle = .file
+        return formatter.string(fromByteCount: bytes)
     }
 }

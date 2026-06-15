@@ -1,5 +1,76 @@
 import Foundation
 
+private final class ProgressBox: @unchecked Sendable {
+    var value: Int64 = 0
+    init(value: Int64 = 0) {
+        self.value = value
+    }
+}
+
+private final class UploadProgressDelegate: NSObject, URLSessionTaskDelegate, @unchecked Sendable {
+    private let onProgress: (Int64) -> Void
+
+    init(onProgress: @escaping (Int64) -> Void) {
+        self.onProgress = onProgress
+    }
+
+    func urlSession(
+        _ session: URLSession,
+        task: URLSessionTask,
+        didSendBodyData bytesSent: Int64,
+        totalBytesSent: Int64,
+        totalBytesExpectedToSend: Int64
+    ) {
+        onProgress(totalBytesSent)
+    }
+}
+
+private final class DownloadProgressDelegate: NSObject, URLSessionDownloadDelegate, @unchecked Sendable {
+    private let onProgress: (Int64) -> Void
+    private let onFinish: (URL?, URLResponse?, Error?, URLSession) -> Void
+    private let lastBytesWritten = ProgressBox()
+
+    init(
+        onProgress: @escaping (Int64) -> Void,
+        onFinish: @escaping (URL?, URLResponse?, Error?, URLSession) -> Void
+    ) {
+        self.onProgress = onProgress
+        self.onFinish = onFinish
+    }
+
+    func urlSession(
+        _ session: URLSession,
+        downloadTask: URLSessionDownloadTask,
+        didWriteData bytesWritten: Int64,
+        totalBytesWritten: Int64,
+        totalBytesExpectedToWrite: Int64
+    ) {
+        let delta = totalBytesWritten - lastBytesWritten.value
+        lastBytesWritten.value = totalBytesWritten
+        if delta > 0 {
+            onProgress(delta)
+        }
+    }
+
+    func urlSession(
+        _ session: URLSession,
+        downloadTask: URLSessionDownloadTask,
+        didFinishDownloadingTo location: URL
+    ) {
+        onFinish(location, downloadTask.response, nil, session)
+    }
+
+    func urlSession(
+        _ session: URLSession,
+        task: URLSessionTask,
+        didCompleteWithError error: Error?
+    ) {
+        if let error {
+            onFinish(nil, task.response, error, session)
+        }
+    }
+}
+
 public struct WebDAVBackupFile: Identifiable, Hashable {
     public var id: String { filename }
     public var filename: String
@@ -39,8 +110,18 @@ public enum WebDAVError: Error, LocalizedError {
 
 public class WebDAVClient {
     public static let shared = WebDAVClient()
+    private static let transferTimeout: TimeInterval = 300
+    private static let transferResourceTimeout: TimeInterval = 3600
     
     private init() {}
+
+    private static func transferSessionConfiguration() -> URLSessionConfiguration {
+        let configuration = URLSessionConfiguration.default
+        configuration.timeoutIntervalForRequest = transferTimeout
+        configuration.timeoutIntervalForResource = transferResourceTimeout
+        configuration.waitsForConnectivity = true
+        return configuration
+    }
     
     /// 从钥匙串和 UserDefaults 加载当前的 WebDAV 配置
     public func loadConfig() -> WebDAVConfig? {
@@ -130,7 +211,16 @@ public class WebDAVClient {
     }
     
     /// 上传加密备份文件
-    public func uploadBackup(filename: String, cipherText: String, completion: @escaping (Result<Void, Error>) -> Void) {
+    public func uploadBackup(
+        filename: String,
+        cipherText: String,
+        onProgress: ((Int64) -> Void)? = nil,
+        completion: @escaping (Result<Void, Error>) -> Void
+    ) {
+        guard let data = cipherText.data(using: .utf8) else {
+            completion(.failure(WebDAVError.xmlParsingFailed))
+            return
+        }
         guard let urlStr = UserDefaults.standard.string(forKey: "webdav_url"),
               let username = KeychainManager.load(key: "webdav_username"),
               let password = KeychainManager.load(key: "webdav_password") else {
@@ -145,15 +235,14 @@ public class WebDAVClient {
         
         var request = URLRequest(url: url)
         request.httpMethod = "PUT"
+        request.timeoutInterval = Self.transferTimeout
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         
         let authString = "\(username):\(password)"
         let base64Auth = authString.data(using: .utf8)!.base64EncodedString()
         request.setValue("Basic \(base64Auth)", forHTTPHeaderField: "Authorization")
-        
-        request.httpBody = cipherText.data(using: .utf8)
-        
-        let task = URLSession.shared.dataTask(with: request) { _, response, error in
+
+        let completionHandler: (Data?, URLResponse?, Error?) -> Void = { _, response, error in
             if let error = error {
                 completion(.failure(WebDAVError.networkError(error)))
                 return
@@ -172,7 +261,24 @@ public class WebDAVClient {
                 completion(.failure(WebDAVError.httpError(statusCode: httpResponse.statusCode, message: "上传失败")))
             }
         }
-        task.resume()
+
+        if let onProgress {
+            let delegate = UploadProgressDelegate(onProgress: onProgress)
+            let session = URLSession(configuration: Self.transferSessionConfiguration(), delegate: delegate, delegateQueue: nil)
+            let task = session.uploadTask(with: request, from: data) { data, response, error in
+                session.finishTasksAndInvalidate()
+                completionHandler(data, response, error)
+            }
+            task.resume()
+        } else {
+            request.httpBody = data
+            let session = URLSession(configuration: Self.transferSessionConfiguration())
+            let task = session.dataTask(with: request) { data, response, error in
+                session.finishTasksAndInvalidate()
+                completionHandler(data, response, error)
+            }
+            task.resume()
+        }
     }
     
     /// 列出远端备份目录下的所有 JSON 文件
@@ -238,7 +344,11 @@ public class WebDAVClient {
     }
     
     /// 下载加密备份内容
-    public func downloadBackup(filename: String, completion: @escaping (Result<String, Error>) -> Void) {
+    public func downloadBackup(
+        filename: String,
+        onProgress: ((Int64) -> Void)? = nil,
+        completion: @escaping (Result<String, Error>) -> Void
+    ) {
         guard let urlStr = UserDefaults.standard.string(forKey: "webdav_url"),
               let username = KeychainManager.load(key: "webdav_username"),
               let password = KeychainManager.load(key: "webdav_password") else {
@@ -253,12 +363,13 @@ public class WebDAVClient {
         
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
+        request.timeoutInterval = Self.transferTimeout
         
         let authString = "\(username):\(password)"
         let base64Auth = authString.data(using: .utf8)!.base64EncodedString()
         request.setValue("Basic \(base64Auth)", forHTTPHeaderField: "Authorization")
-        
-        let task = URLSession.shared.dataTask(with: request) { data, response, error in
+
+        let handleResponse: (Data?, URLResponse?, Error?) -> Void = { data, response, error in
             if let error = error {
                 completion(.failure(WebDAVError.networkError(error)))
                 return
@@ -281,7 +392,39 @@ public class WebDAVClient {
                 completion(.failure(WebDAVError.httpError(statusCode: httpResponse.statusCode, message: "下载失败")))
             }
         }
-        task.resume()
+
+        if let onProgress {
+            let delegate = DownloadProgressDelegate(
+                onProgress: onProgress,
+                onFinish: { location, response, error, session in
+                    session.finishTasksAndInvalidate()
+                    if let error {
+                        handleResponse(nil, response, error)
+                        return
+                    }
+                    guard let location else {
+                        handleResponse(nil, response, WebDAVError.xmlParsingFailed)
+                        return
+                    }
+                    do {
+                        let data = try Data(contentsOf: location)
+                        handleResponse(data, response, nil)
+                    } catch {
+                        handleResponse(nil, response, error)
+                    }
+                }
+            )
+            let session = URLSession(configuration: Self.transferSessionConfiguration(), delegate: delegate, delegateQueue: nil)
+            let task = session.downloadTask(with: request)
+            task.resume()
+        } else {
+            let session = URLSession(configuration: Self.transferSessionConfiguration())
+            let task = session.dataTask(with: request) { data, response, error in
+                session.finishTasksAndInvalidate()
+                handleResponse(data, response, error)
+            }
+            task.resume()
+        }
     }
     
     /// 删除云端备份文件
