@@ -48,7 +48,7 @@ struct CreditCardView: View {
         case .discover:   return Color(hex: "#FF8800")
         case .dinersClub: return Color.white
         case .jcb:        return Color(hex: "#4488FF")
-        case .unknown:    return Color.cyan
+        case .unknown:    return Color.blue
         }
     }
 
@@ -114,11 +114,11 @@ struct CreditCardView: View {
                         // 卡类型徽章
                         Text(isDebitCard ? "储蓄卡" : "信用卡")
                             .font(.system(size: 9, weight: .semibold))
-                            .foregroundColor(isDebitCard ? Color(hex: "#FFD700") : Color.cyan)
+                            .foregroundColor(isDebitCard ? Color(hex: "#FFD700") : Color.blue)
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
                             .background(
-                                Capsule().fill(isDebitCard ? Color(hex: "#FFD700").opacity(0.2) : Color.cyan.opacity(0.2))
+                                Capsule().fill(isDebitCard ? Color(hex: "#FFD700").opacity(0.2) : Color.blue.opacity(0.2))
                             )
                     }
                     Spacer()
@@ -288,7 +288,7 @@ struct CreditCardView: View {
                 .frame(width: 16, height: 16)
             Circle()
                 .trim(from: 0, to: CGFloat(remainingShowSeconds / 5.0))
-                .stroke(Color.cyan, style: StrokeStyle(lineWidth: 1.5, lineCap: .round))
+                .stroke(Color.blue, style: StrokeStyle(lineWidth: 1.5, lineCap: .round))
                 .frame(width: 16, height: 16)
                 .rotationEffect(.degrees(-90))
         }
@@ -456,7 +456,7 @@ struct CreditCardMiniView: View {
         case .discover:   return Color(hex: "#FF8800")
         case .dinersClub: return Color.white
         case .jcb:        return Color(hex: "#4488FF")
-        case .unknown:    return Color.cyan
+        case .unknown:    return Color.blue
         }
     }
 

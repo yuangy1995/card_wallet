@@ -136,7 +136,7 @@ struct HomeView: View {
             // 彩色光晕背景点缀
             GeometryReader { geo in
                 Circle()
-                    .fill(Color.cyan.opacity(0.08))
+                    .fill(Color.blue.opacity(0.08))
                     .frame(width: geo.size.width * 0.7)
                     .blur(radius: 80)
                     .offset(x: -geo.size.width * 0.2, y: -geo.size.height * 0.1)
@@ -251,12 +251,12 @@ struct HomeView: View {
         VStack(spacing: 24) {
             ZStack {
                 Circle()
-                    .fill(Color.cyan.opacity(0.1))
+                    .fill(Color.blue.opacity(0.1))
                     .frame(width: 100, height: 100)
                 Image(systemName: "creditcard.fill")
                     .font(.system(size: 44))
                     .foregroundStyle(
-                        LinearGradient(colors: [.cyan, .blue], startPoint: .topLeading, endPoint: .bottomTrailing)
+                        LinearGradient(colors: [.blue.opacity(0.7), .blue], startPoint: .topLeading, endPoint: .bottomTrailing)
                     )
             }
             VStack(spacing: 8) {
@@ -277,7 +277,7 @@ struct HomeView: View {
                     .padding(.horizontal, 24)
                     .padding(.vertical, 12)
                     .background(
-                        LinearGradient(colors: [.cyan, .blue], startPoint: .leading, endPoint: .trailing),
+                        LinearGradient(colors: [.blue.opacity(0.7), .blue], startPoint: .leading, endPoint: .trailing),
                         in: Capsule()
                     )
             }
@@ -294,10 +294,10 @@ struct HomeView: View {
             ZStack {
                 Circle()
                     .fill(
-                        LinearGradient(colors: [Color.cyan, Color.blue], startPoint: .topLeading, endPoint: .bottomTrailing)
+                        LinearGradient(colors: [Color.blue.opacity(0.7), Color.blue], startPoint: .topLeading, endPoint: .bottomTrailing)
                     )
                     .frame(width: 56, height: 56)
-                    .shadow(color: Color.cyan.opacity(0.5), radius: 12, x: 0, y: 6)
+                    .shadow(color: Color.blue.opacity(0.5), radius: 12, x: 0, y: 6)
                 Image(systemName: "plus")
                     .font(.system(size: 22, weight: .bold))
                     .foregroundColor(.white)
@@ -313,7 +313,7 @@ struct HomeView: View {
         ToolbarItem(placement: .navigationBarLeading) {
             HStack(spacing: 6) {
                 Image(systemName: "wallet.bifold.fill")
-                    .foregroundStyle(LinearGradient(colors: [.cyan, .blue], startPoint: .topLeading, endPoint: .bottomTrailing))
+                    .foregroundStyle(LinearGradient(colors: [.blue.opacity(0.7), .blue], startPoint: .topLeading, endPoint: .bottomTrailing))
                 Text("卡包")
                     .font(.system(.headline, weight: .bold))
             }
@@ -333,7 +333,7 @@ struct HomeView: View {
                         if syncCoordinator.isSynchronizing {
                             ProgressView()
                                 .controlSize(.small)
-                                .tint(.cyan)
+                                .tint(.blue)
                         } else {
                             Image(systemName: syncCoordinator.syncStatus.iconName)
                                 .font(.system(size: 16))
@@ -356,7 +356,7 @@ struct HomeView: View {
     private var syncStatusColor: Color {
         switch syncCoordinator.syncStatus {
         case .idle:    return .secondary
-        case .syncing: return .cyan
+        case .syncing: return .blue
         case .success: return .green
         case .warning: return .orange
         case .failure: return .red
@@ -375,8 +375,8 @@ struct HomeView: View {
                 .foregroundStyle(.white)
                 .padding(.horizontal, 14)
                 .padding(.vertical, 9)
-                .background(.cyan.gradient, in: Capsule())
-                .shadow(color: Color.cyan.opacity(0.25), radius: 10, x: 0, y: 5)
+                .background(.blue.gradient, in: Capsule())
+                .shadow(color: Color.blue.opacity(0.25), radius: 10, x: 0, y: 5)
                 .padding(.top, 8)
                 .transition(.move(edge: .top).combined(with: .opacity))
             }

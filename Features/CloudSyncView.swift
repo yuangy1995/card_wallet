@@ -115,7 +115,7 @@ struct CloudSyncView: View {
         HStack(spacing: 12) {
             Image(systemName: "pencil.circle.fill")
                 .font(.system(size: 22))
-                .foregroundStyle(.cyan)
+                .foregroundStyle(.blue)
             VStack(alignment: .leading, spacing: 2) {
                 Text("正在修改同步配置")
                     .font(.system(.subheadline, weight: .semibold))
@@ -274,7 +274,7 @@ struct CloudSyncView: View {
     private var syncStatusColor: Color {
         switch syncCoordinator.syncStatus {
         case .idle:    return .secondary
-        case .syncing: return .cyan
+        case .syncing: return .blue
         case .success: return .green
         case .warning: return .orange
         case .failure: return .red
@@ -438,6 +438,13 @@ struct SyncHistoryView: View {
         }
     }
 
+    private func formatBytes(_ bytes: Int64) -> String {
+        let formatter = ByteCountFormatter()
+        formatter.allowedUnits = [.useAll]
+        formatter.countStyle = .file
+        return formatter.string(fromByteCount: bytes)
+    }
+
     private var currentProgressCard: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 12) {
@@ -470,14 +477,23 @@ struct SyncHistoryView: View {
             if syncCoordinator.isSynchronizing {
                 if syncCoordinator.syncProgress.total > 0 {
                     ProgressView(value: syncCoordinator.syncProgress.fraction)
-                        .tint(.cyan)
+                        .tint(.blue)
                 } else {
                     ProgressView()
-                        .tint(.cyan)
+                        .tint(.blue)
                 }
-                Text("已耗时 \(formatDuration(syncCoordinator.syncElapsedSeconds))")
-                    .font(.system(size: 12, weight: .medium))
-                    .foregroundStyle(.secondary)
+                HStack {
+                    Text("已耗时 \(formatDuration(syncCoordinator.syncElapsedSeconds))")
+                    Spacer()
+                    if let downloaded = syncCoordinator.syncProgress.downloadedBytes,
+                       let total = syncCoordinator.syncProgress.totalBytes,
+                       total > 0 {
+                        let prefix = syncCoordinator.syncProgress.step == 5 ? "已上传" : "已下载"
+                        Text("\(prefix) \(formatBytes(downloaded)) / \(formatBytes(total))")
+                    }
+                }
+                .font(.system(size: 12, weight: .medium))
+                .foregroundStyle(.secondary)
             } else if let duration = syncCoordinator.lastSyncDurationSeconds {
                 Text("上次耗时 \(formatDuration(duration))")
                     .font(.system(size: 12, weight: .medium))
@@ -529,7 +545,7 @@ struct SyncHistoryView: View {
     private var statusColor: Color {
         switch syncCoordinator.syncStatus {
         case .idle: return .secondary
-        case .syncing: return .cyan
+        case .syncing: return .blue
         case .success: return .green
         case .warning: return .orange
         case .failure: return .red
@@ -578,7 +594,7 @@ private struct SyncHistoryEntryCard: View {
                         .foregroundStyle(.secondary)
                         .lineLimit(2)
                     HStack(spacing: 8) {
-                        SyncCountBadge(title: "本机", count: entry.localChanges.count, color: .cyan)
+                        SyncCountBadge(title: "本机", count: entry.localChanges.count, color: .blue)
                         SyncCountBadge(title: "云端", count: entry.remoteChanges.count, color: .green)
                         if entry.uploadedFile != nil {
                             SyncCountBadge(title: "上传", count: 1, color: .blue)
@@ -698,7 +714,7 @@ private struct SyncHistoryEntryCard: View {
     private func changeColor(for kind: String) -> Color {
         if kind.contains("新增") || kind.contains("Add") { return .green }
         if kind.contains("删除") || kind.contains("Delete") { return .red }
-        return .cyan
+        return .blue
     }
 
     private var statusColor: Color {
@@ -720,6 +736,7 @@ private struct SyncHistoryEntryCard: View {
         }
         return "\(seconds)秒"
     }
+
 }
 
 private struct SyncCountBadge: View {

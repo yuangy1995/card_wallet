@@ -12,7 +12,7 @@ struct ToolsView: View {
                     HStack(spacing: 8) {
                         Image(systemName: "wrench.and.screwdriver.fill")
                             .font(.system(size: 22, weight: .bold))
-                            .foregroundStyle(LinearGradient(colors: [.cyan, .blue], startPoint: .topLeading, endPoint: .bottomTrailing))
+                            .foregroundStyle(LinearGradient(colors: [.blue.opacity(0.7), .blue], startPoint: .topLeading, endPoint: .bottomTrailing))
                         Text("工具")
                             .font(.system(size: 22, weight: .bold))
                             .foregroundColor(.primary)
@@ -51,8 +51,8 @@ struct ToolsView: View {
                             title: "统计分析",
                             subtitle: "查看信用额度、储蓄卡币种、共享额度和年费预警",
                             iconName: "chart.bar.fill",
-                            iconColor: .cyan,
-                            iconBgColor: .cyan.opacity(0.12)
+                            iconColor: .blue,
+                            iconBgColor: .blue.opacity(0.12)
                         )
                     }
                     .buttonStyle(.plain)

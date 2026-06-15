@@ -1,6 +1,13 @@
 import Foundation
 import Combine
 
+private final class ProgressBox: @unchecked Sendable {
+    var value: Int64 = 0
+    init(value: Int64 = 0) {
+        self.value = value
+    }
+}
+
 private struct PreparedWebDAVUpload: Sendable {
     var snapshot: WebDAVSyncSnapshotV4
     var cipherText: String
@@ -18,19 +25,25 @@ public struct SyncProgress: Codable, Hashable, Sendable {
     public var total: Int
     public var detail: String
     public var updatedAt: Date
+    public var totalBytes: Int64?
+    public var downloadedBytes: Int64?
 
     public init(
         phase: String = "空闲",
         step: Int = 0,
         total: Int = 0,
         detail: String = "",
-        updatedAt: Date = Date()
+        updatedAt: Date = Date(),
+        totalBytes: Int64? = nil,
+        downloadedBytes: Int64? = nil
     ) {
         self.phase = phase
         self.step = step
         self.total = total
         self.detail = detail
         self.updatedAt = updatedAt
+        self.totalBytes = totalBytes
+        self.downloadedBytes = downloadedBytes
     }
 
     public var fraction: Double {
@@ -334,8 +347,30 @@ public final class SyncCoordinator: ObservableObject {
                 return
             }
 
-            updateProgress("读取同步文件", step: 3, total: 6, detail: "正在并发下载最近 \(filesToRead.count) 个快照")
-            let snapshots = await Self.downloadSnapshots(files: filesToRead, syncPassword: syncPassword)
+            let totalBytes = filesToRead.reduce(0) { $0 + $1.size }
+            let progressBox = ProgressBox()
+            updateProgress(
+                "读取同步文件",
+                step: 3,
+                total: 6,
+                detail: "正在并发下载最近 \(filesToRead.count) 个快照",
+                totalBytes: totalBytes,
+                downloadedBytes: progressBox.value
+            )
+            let snapshots = await Self.downloadSnapshots(files: filesToRead, syncPassword: syncPassword) { [weak self] delta in
+                guard let self else { return }
+                DispatchQueue.main.async {
+                    progressBox.value += delta
+                    self.updateProgress(
+                        "读取同步文件",
+                        step: 3,
+                        total: 6,
+                        detail: "正在并发下载最近 \(filesToRead.count) 个快照",
+                        totalBytes: totalBytes,
+                        downloadedBytes: progressBox.value
+                    )
+                }
+            }
             try ensureSyncNotCancelled()
             if !filesToRead.isEmpty && snapshots.isEmpty {
                 throw WebDAVError.httpError(statusCode: 0, message: "无法解密云端同步文件，请检查同步密钥")
@@ -505,8 +540,22 @@ public final class SyncCoordinator: ObservableObject {
         }
     }
 
-    private func updateProgress(_ phase: String, step: Int, total: Int, detail: String) {
-        syncProgress = SyncProgress(phase: phase, step: step, total: total, detail: detail)
+    private func updateProgress(
+        _ phase: String,
+        step: Int,
+        total: Int,
+        detail: String,
+        totalBytes: Int64? = nil,
+        downloadedBytes: Int64? = nil
+    ) {
+        syncProgress = SyncProgress(
+            phase: phase,
+            step: step,
+            total: total,
+            detail: detail,
+            totalBytes: totalBytes,
+            downloadedBytes: downloadedBytes
+        )
     }
 
     private func appendSyncHistory(
@@ -709,11 +758,27 @@ public final class SyncCoordinator: ObservableObject {
         return newestFilename == lastFilename
     }
 
-    private nonisolated static func downloadSnapshots(files: [WebDAVBackupFile], syncPassword: String) async -> [WebDAVSyncSnapshotV4] {
+    private nonisolated static func downloadSnapshots(
+        files: [WebDAVBackupFile],
+        syncPassword: String,
+        onProgress: @escaping @Sendable (Int64) -> Void
+    ) async -> [WebDAVSyncSnapshotV4] {
         await withTaskGroup(of: WebDAVSyncSnapshotV4?.self, returning: [WebDAVSyncSnapshotV4].self) { group in
             for file in files {
                 group.addTask(priority: .utility) {
-                    await downloadSnapshot(file: file, syncPassword: syncPassword)
+                    let downloadedForThisFile = ProgressBox(value: 0)
+                    let fileProgress: @Sendable (Int64) -> Void = { delta in
+                        downloadedForThisFile.value += delta
+                        onProgress(delta)
+                    }
+                    let snapshot = await downloadSnapshot(file: file, syncPassword: syncPassword, onProgress: fileProgress)
+                    if snapshot != nil {
+                        let remaining = file.size - downloadedForThisFile.value
+                        if remaining > 0 {
+                            onProgress(remaining)
+                        }
+                    }
+                    return snapshot
                 }
             }
 
@@ -727,10 +792,14 @@ public final class SyncCoordinator: ObservableObject {
         }
     }
 
-    private nonisolated static func downloadSnapshot(file: WebDAVBackupFile, syncPassword: String) async -> WebDAVSyncSnapshotV4? {
+    private nonisolated static func downloadSnapshot(
+        file: WebDAVBackupFile,
+        syncPassword: String,
+        onProgress: (@Sendable (Int64) -> Void)? = nil
+    ) async -> WebDAVSyncSnapshotV4? {
         do {
             let cipherText = try await withCheckedThrowingContinuation { continuation in
-                WebDAVClient.shared.downloadBackup(filename: file.filename) { result in
+                WebDAVClient.shared.downloadBackup(filename: file.filename, onProgress: onProgress) { result in
                     continuation.resume(with: result)
                 }
             }
@@ -748,12 +817,49 @@ public final class SyncCoordinator: ObservableObject {
         snapshotRevision: Int
     ) async throws -> String {
         let prepared = try await Self.prepareUploadSnapshot(records: records, syncPassword: syncPassword)
+        let uploadSize = Int64(prepared.cipherText.data(using: .utf8)?.count ?? 0)
+
+        let progressBox = ProgressBox()
+        updateProgress(
+            "上传合并快照",
+            step: 5,
+            total: 6,
+            detail: "正在写入 WebDAV 加密快照",
+            totalBytes: uploadSize,
+            downloadedBytes: progressBox.value
+        )
 
         try await withCheckedThrowingContinuation { continuation in
-            WebDAVClient.shared.uploadBackup(filename: prepared.filename, cipherText: prepared.cipherText) { result in
+            WebDAVClient.shared.uploadBackup(
+                filename: prepared.filename,
+                cipherText: prepared.cipherText,
+                onProgress: { [weak self] bytesSent in
+                    guard let self else { return }
+                    DispatchQueue.main.async {
+                        progressBox.value = bytesSent
+                        self.updateProgress(
+                            "上传合并快照",
+                            step: 5,
+                            total: 6,
+                            detail: "正在写入 WebDAV 加密快照",
+                            totalBytes: uploadSize,
+                            downloadedBytes: progressBox.value
+                        )
+                    }
+                }
+            ) { result in
                 continuation.resume(with: result)
             }
         }
+
+        updateProgress(
+            "上传合并快照",
+            step: 5,
+            total: 6,
+            detail: "正在写入 WebDAV 加密快照",
+            totalBytes: uploadSize,
+            downloadedBytes: uploadSize
+        )
 
         ledger.records = CardSyncMergeEngine.merge([ledger.records, records])
         ledger.processedWebDAVSnapshotIDs.formUnion(downloadedSnapshots.map(\.snapshotId))

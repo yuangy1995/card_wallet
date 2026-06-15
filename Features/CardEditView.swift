@@ -221,7 +221,7 @@ struct CardEditView: View {
         .formStyle(.grouped)
         .scrollContentBackground(.hidden)
         .background(Color(.systemGroupedBackground))
-        .tint(.cyan)
+        .tint(.blue)
         .scrollDismissesKeyboard(.interactively)
     }
 
@@ -260,14 +260,14 @@ struct CardEditView: View {
             ZStack {
                 // 波纹 1
                 Circle()
-                    .stroke(Color.cyan.opacity(0.15), lineWidth: 2)
+                    .stroke(Color.blue.opacity(0.15), lineWidth: 2)
                     .frame(width: 200, height: 200)
                     .scaleEffect(nfcWaveScale1)
                     .opacity(nfcWaveOpacity1)
                 
                 // 波纹 2
                 Circle()
-                    .stroke(Color.cyan.opacity(0.25), lineWidth: 2)
+                    .stroke(Color.blue.opacity(0.25), lineWidth: 2)
                     .frame(width: 140, height: 140)
                     .scaleEffect(nfcWaveScale2)
                     .opacity(nfcWaveOpacity2)
@@ -275,11 +275,11 @@ struct CardEditView: View {
                 // 中心图标
                 ZStack {
                     Circle()
-                        .fill(Color.cyan.opacity(0.1))
+                        .fill(Color.blue.opacity(0.1))
                         .frame(width: 90, height: 90)
                     Image(systemName: "wave.3.right.circle.fill")
                         .font(.system(size: 48, weight: .bold))
-                        .foregroundColor(.cyan)
+                        .foregroundColor(.blue)
                 }
             }
             .onAppear {
@@ -299,7 +299,7 @@ struct CardEditView: View {
                             .foregroundColor(.white)
                             .padding(.horizontal, 32)
                             .padding(.vertical, 14)
-                            .background(Color.cyan, in: RoundedRectangle(cornerRadius: 24))
+                            .background(Color.blue, in: RoundedRectangle(cornerRadius: 24))
                     }
                     .buttonStyle(.plain)
                 } else {
@@ -322,7 +322,7 @@ struct CardEditView: View {
                     } label: {
                         Label("📷 相机扫描", systemImage: "camera.viewfinder")
                             .font(.system(size: 14, weight: .semibold))
-                            .foregroundColor(.cyan)
+                            .foregroundColor(.blue)
                     }
                     .buttonStyle(.plain)
                 }
@@ -332,7 +332,7 @@ struct CardEditView: View {
                 } label: {
                     Label("✍️ 手动录入", systemImage: "square.and.pencil")
                         .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(.cyan)
+                        .foregroundColor(.blue)
                 }
                 .buttonStyle(.plain)
             }
@@ -366,12 +366,12 @@ struct CardEditView: View {
                         style: StrokeStyle(lineWidth: 3, lineCap: .round, dash: [40, 15])
                     )
                     .frame(width: 280, height: 180)
-                    .background(Color.cyan.opacity(0.03), in: RoundedRectangle(cornerRadius: 16))
+                    .background(Color.blue.opacity(0.03), in: RoundedRectangle(cornerRadius: 16))
                 
                 VStack(spacing: 12) {
                     Image(systemName: "camera.viewfinder")
                         .font(.system(size: 40))
-                        .foregroundColor(.cyan)
+                        .foregroundColor(.blue)
                     Text("请对齐银行卡正面进行扫描")
                         .font(.system(size: 12))
                         .foregroundColor(.secondary)
@@ -398,7 +398,7 @@ struct CardEditView: View {
                         .foregroundColor(.white)
                         .padding(.horizontal, 24)
                         .padding(.vertical, 12)
-                        .background(Color.cyan, in: RoundedRectangle(cornerRadius: 20))
+                        .background(Color.blue, in: RoundedRectangle(cornerRadius: 20))
                     }
                     .buttonStyle(.plain)
                     
@@ -411,7 +411,7 @@ struct CardEditView: View {
                         .foregroundColor(.white)
                         .padding(.horizontal, 24)
                         .padding(.vertical, 12)
-                        .background(Color.cyan, in: RoundedRectangle(cornerRadius: 20))
+                        .background(Color.blue, in: RoundedRectangle(cornerRadius: 20))
                     }
                     .buttonStyle(.plain)
                 }
@@ -436,7 +436,7 @@ struct CardEditView: View {
                     } label: {
                         Label("📶 NFC 扫描", systemImage: "wave.3.right.circle")
                             .font(.system(size: 14, weight: .semibold))
-                            .foregroundColor(.cyan)
+                            .foregroundColor(.blue)
                     }
                     .buttonStyle(.plain)
                 }
@@ -446,7 +446,7 @@ struct CardEditView: View {
                 } label: {
                     Label("✍️ 手动录入", systemImage: "square.and.pencil")
                         .font(.system(size: 14, weight: .semibold))
-                        .foregroundColor(.cyan)
+                        .foregroundColor(.blue)
                 }
                 .buttonStyle(.plain)
             }
@@ -458,7 +458,7 @@ struct CardEditView: View {
     
     private var StyleGradient: LinearGradient {
         LinearGradient(
-            colors: [.cyan, .cyan.opacity(0.5), .cyan],
+            colors: [.blue, .blue.opacity(0.5), .blue],
             startPoint: .topLeading,
             endPoint: .bottomTrailing
         )
@@ -525,7 +525,7 @@ struct CardEditView: View {
                                 withAnimation { currentStep = .scanCamera }
                             } label: {
                                 Image(systemName: "camera.viewfinder")
-                                    .foregroundColor(.cyan)
+                                    .foregroundColor(.blue)
                                     .font(.system(size: 16, weight: .semibold))
                             }
                             .buttonStyle(.plain)
@@ -536,7 +536,7 @@ struct CardEditView: View {
                                 withAnimation { currentStep = .scanNFC }
                             } label: {
                                 Image(systemName: "wave.3.right")
-                                    .foregroundColor(.cyan)
+                                    .foregroundColor(.blue)
                                     .font(.system(size: 16, weight: .semibold))
                             }
                             .buttonStyle(.plain)
@@ -639,7 +639,7 @@ struct CardEditView: View {
                     Label("最长免息期", systemImage: "clock.fill")
                     Spacer()
                     Text("\(days) 天")
-                        .foregroundColor(.cyan)
+                        .foregroundColor(.blue)
                         .fontWeight(.semibold)
                 }
             }
@@ -1232,10 +1232,10 @@ private struct ScanActionLabel: View {
                 .lineLimit(1)
                 .minimumScaleFactor(0.85)
         }
-        .foregroundStyle(Color.cyan)
+        .foregroundStyle(Color.blue)
         .frame(maxWidth: .infinity)
         .padding(.vertical, 12)
-        .background(Color.cyan.opacity(0.11), in: RoundedRectangle(cornerRadius: 14))
+        .background(Color.blue.opacity(0.11), in: RoundedRectangle(cornerRadius: 14))
     }
 }
 
@@ -1457,11 +1457,11 @@ private struct EditableOptionField: View {
                             } label: {
                                 Text(option)
                                     .font(.caption.weight(.semibold))
-                                    .foregroundStyle(Color.cyan)
+                                    .foregroundStyle(Color.blue)
                                     .lineLimit(1)
                                     .padding(.horizontal, 10)
                                     .padding(.vertical, 6)
-                                    .background(Color.cyan.opacity(0.12), in: Capsule())
+                                    .background(Color.blue.opacity(0.12), in: Capsule())
                             }
                             .buttonStyle(.plain)
                         }

@@ -18,6 +18,8 @@ struct SettingsView: View {
     @State private var hasStoredSyncPassword = false
 
     @State private var showStorageManagement = false
+    @State private var showAppearanceDialog = false
+    @AppStorage("app_appearance") private var appAppearance = "light"
     @AppStorage("enable_face_id") private var enableFaceID = false
     @AppStorage("app_lock_enabled") private var appLockEnabled = false
     @AppStorage("enable_webdav_sync") private var enableWebDAVSync = false
@@ -30,7 +32,7 @@ struct SettingsView: View {
                 HStack(spacing: 8) {
                     Image(systemName: "gearshape.fill")
                         .font(.system(size: 22, weight: .bold))
-                        .foregroundStyle(LinearGradient(colors: [.cyan, .blue], startPoint: .topLeading, endPoint: .bottomTrailing))
+                        .foregroundStyle(LinearGradient(colors: [.blue.opacity(0.7), .blue], startPoint: .topLeading, endPoint: .bottomTrailing))
                     Text("设置")
                         .font(.system(size: 22, weight: .bold))
                         .foregroundColor(.primary)
@@ -46,6 +48,9 @@ struct SettingsView: View {
                 // 锁屏设置
                 lockSection
 
+                // 外观设置
+                appearanceSection
+
                 // 存储管理
                 storageSection
 
@@ -60,6 +65,12 @@ struct SettingsView: View {
 
             .navigationDestination(isPresented: $showStorageManagement) {
                 StorageManagementView()
+            }
+            .confirmationDialog("选择外观模式", isPresented: $showAppearanceDialog, titleVisibility: .visible) {
+                Button("浅色") { appAppearance = "light" }
+                Button("深色") { appAppearance = "dark" }
+                Button("跟随系统") { appAppearance = "system" }
+                Button("取消", role: .cancel) {}
             }
             .onAppear {
                 checkBiometric()
@@ -90,7 +101,7 @@ struct SettingsView: View {
                         HStack(spacing: 12) {
                             ForEach(0..<6, id: \.self) { index in
                                 Circle()
-                                    .fill(index < passwordInput.count ? Color.cyan : Color.primary.opacity(0.15))
+                                    .fill(index < passwordInput.count ? Color.blue : Color.primary.opacity(0.15))
                                     .frame(width: 12, height: 12)
                                     .scaleEffect(index < passwordInput.count ? 1.2 : 1.0)
                                     .animation(.spring(duration: 0.2), value: passwordInput.count)
@@ -228,6 +239,46 @@ struct SettingsView: View {
         }
     }
 
+    // MARK: - 外观设置
+    private var appearanceSection: some View {
+        Section {
+            Button {
+                showAppearanceDialog = true
+            } label: {
+                HStack {
+                    Label("外观模式", systemImage: appearanceIcon)
+                        .foregroundStyle(.primary)
+                    Spacer()
+                    Text(appearanceText)
+                        .font(.system(.body))
+                        .foregroundColor(.secondary)
+                    Image(systemName: "chevron.right")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            .buttonStyle(.plain)
+        } header: {
+            Label("个性化", systemImage: "paintpalette.fill")
+        }
+    }
+
+    private var appearanceText: String {
+        switch appAppearance {
+        case "light": return "浅色"
+        case "dark": return "深色"
+        default: return "跟随系统"
+        }
+    }
+
+    private var appearanceIcon: String {
+        switch appAppearance {
+        case "light": return "sun.max.fill"
+        case "dark": return "moon.fill"
+        default: return "square.grid.2x2.fill"
+        }
+    }
+
     // MARK: - 存储管理
     private var storageSection: some View {
         Section {
@@ -303,7 +354,7 @@ struct SettingsView: View {
         }
         switch syncCoordinator.syncStatus {
         case .idle:    return enableWebDAVSync ? .secondary : .orange
-        case .syncing: return .cyan
+        case .syncing: return .blue
         case .success: return .green
         case .warning: return .orange
         case .failure(let message):

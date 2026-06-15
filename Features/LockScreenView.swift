@@ -31,7 +31,7 @@ struct LockScreenView: View {
             // 2. 背景霓虹光晕
             ZStack {
                 Circle()
-                    .fill(Color.cyan.opacity(0.15))
+                    .fill(Color.blue.opacity(0.15))
                     .frame(width: 300, height: 300)
                     .blur(radius: 70)
                     .offset(x: -130, y: -130)
@@ -115,7 +115,7 @@ struct LockScreenView: View {
             Circle()
                 .stroke(
                     AngularGradient(
-                        colors: [.cyan, .purple, .blue, .cyan],
+                        colors: [.blue, .purple, .blue, .blue],
                         center: .center
                     ),
                     lineWidth: 2
@@ -133,13 +133,13 @@ struct LockScreenView: View {
             Circle()
                 .fill(.ultraThinMaterial)
                 .frame(width: 64, height: 64)
-                .shadow(color: Color.cyan.opacity(0.3), radius: 12, x: 0, y: 0)
+                .shadow(color: Color.blue.opacity(0.3), radius: 12, x: 0, y: 0)
 
             Image(systemName: "lock.shield.fill")
                 .font(.system(size: 32, weight: .semibold))
                 .foregroundStyle(
                     LinearGradient(
-                        colors: [.cyan, .white.opacity(0.9)],
+                        colors: [.blue, .white.opacity(0.9)],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     )
@@ -156,7 +156,7 @@ struct LockScreenView: View {
             HStack(spacing: 12) {
                 ForEach(0..<passwordLength, id: \.self) { index in
                     Circle()
-                        .fill(index < passwordInput.count ? Color.cyan : Color.white.opacity(0.3))
+                        .fill(index < passwordInput.count ? Color.blue : Color.white.opacity(0.3))
                         .frame(width: 12, height: 12)
                         .scaleEffect(index < passwordInput.count ? 1.2 : 1.0)
                         .animation(.spring(duration: 0.2), value: passwordInput.count)

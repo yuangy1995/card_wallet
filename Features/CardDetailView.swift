@@ -116,7 +116,7 @@ struct CardDetailView: View {
     // MARK: - 敏感信息
     private var sensitiveInfoSection: some View {
         VStack(alignment: .leading, spacing: 0) {
-            sectionHeader(title: "卡片信息", icon: "creditcard.fill", color: .cyan)
+            sectionHeader(title: "卡片信息", icon: "creditcard.fill", color: .blue)
             VStack(spacing: 0) {
                 infoRow(label: "完整卡号") {
                     HStack(spacing: 8) {
@@ -140,7 +140,7 @@ struct CardDetailView: View {
                                 Circle().stroke(Color.secondary.opacity(0.3), lineWidth: 1.5).frame(width: 16, height: 16)
                                 Circle()
                                     .trim(from: 0, to: CGFloat(remainingShowSeconds / 5.0))
-                                    .stroke(Color.cyan, style: StrokeStyle(lineWidth: 1.5, lineCap: .round))
+                                    .stroke(Color.blue, style: StrokeStyle(lineWidth: 1.5, lineCap: .round))
                                     .frame(width: 16, height: 16)
                                     .rotationEffect(.degrees(-90))
                             }
@@ -208,7 +208,7 @@ struct CardDetailView: View {
                         HStack(spacing: 4) {
                             Text("\(interestFreeDays) 天")
                                 .font(.system(.body, design: .rounded, weight: .semibold))
-                                .foregroundColor(.cyan)
+                                .foregroundColor(.blue)
                             if remainingRepayDays > 0 {
                                 Capsule()
                                     .fill(Color.green.opacity(0.15))
@@ -237,7 +237,7 @@ struct CardDetailView: View {
         let qualifiedColor: Color
         switch card.isQualified {
         case "1": qualifiedText = "已达标"; qualifiedColor = .green
-        case "3": qualifiedText = "终免年费"; qualifiedColor = .cyan
+        case "3": qualifiedText = "终免年费"; qualifiedColor = .blue
         default:  qualifiedText = "未达标"; qualifiedColor = .orange
         }
 
@@ -255,22 +255,7 @@ struct CardDetailView: View {
                 }
                 if let nextFeeTime = card.nextAnnualFeeCollectionTime {
                     Divider().padding(.leading, 16)
-                    let info = DateCalculator.getDaysFromNow(nextFeeTime)
-                    infoRow(label: "下次收费") {
-                        HStack(spacing: 6) {
-                            Text(DateCalculator.formatTimestampDate(nextFeeTime))
-                            Capsule()
-                                .fill((info.days <= 60 ? Color.orange : Color.secondary).opacity(0.15))
-                                .frame(height: 22)
-                                .overlay(
-                                    Text("\(info.text)\(info.days)天")
-                                        .font(.system(size: 10, weight: .semibold))
-                                        .foregroundColor(info.days <= 60 ? .orange : .secondary)
-                                        .padding(.horizontal, 8)
-                                )
-                                .fixedSize()
-                        }
-                    }
+                    infoRow(label: "下次收费", value: DateCalculator.formatTimestampDate(nextFeeTime))
                 }
                 if let lastTime = card.lastTime {
                     Divider().padding(.leading, 16)

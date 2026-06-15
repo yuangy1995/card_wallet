@@ -46,7 +46,7 @@ struct RootView: View {
                 }
                 .tag(AppTab.settings)
         }
-        .tint(.cyan)
+        .tint(.blue)
     }
 }
 
