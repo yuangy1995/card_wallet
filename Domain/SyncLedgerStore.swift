@@ -18,16 +18,20 @@ public final class SyncLedgerStore: Sendable {
     public func load(seeding localCards: [SharedCard]) -> SyncLedger {
         let url = fileURL()
         guard FileManager.default.fileExists(atPath: url.path),
-              let data = try? Data(contentsOf: url),
+              let encryptedData = try? Data(contentsOf: url),
+              let data = try? CryptoManager.decryptLocalData(encryptedData),
               let ledger = try? JSONDecoder().decode(SyncLedger.self, from: data) else {
-            return SyncLedger(records: localCards.map(CardSyncRecord.legacyActive))
+            return SyncLedger(records: localCards.map(CardSyncRecord.activeUsingCardTimestamp))
         }
         return ledger
     }
 
     public func save(_ ledger: SyncLedger) {
-        guard let data = try? JSONEncoder().encode(ledger) else { return }
-        try? data.write(to: fileURL(), options: .atomic)
+        guard let data = try? JSONEncoder().encode(ledger),
+              let encryptedData = try? CryptoManager.encryptLocalData(data) else { return }
+        let url = fileURL()
+        try? encryptedData.write(to: url, options: .atomic)
+        try? FileManager.default.setAttributes([.protectionKey: FileProtectionType.complete], ofItemAtPath: url.path)
     }
 
     public func saveInBackground(_ ledger: SyncLedger) {

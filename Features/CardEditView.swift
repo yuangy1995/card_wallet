@@ -2,7 +2,7 @@ import SwiftUI
 import PhotosUI
 import UIKit
 import Vision
-#if canImport(CoreNFC)
+#if ENABLE_NFC_CARD_READER && canImport(CoreNFC)
 import CoreNFC
 #endif
 
@@ -48,18 +48,24 @@ struct CardEditView: View {
     @State private var feedbackTitle = ""
     @State private var feedbackMessage = ""
     @State private var showFeedbackAlert = false
+    #if ENABLE_NFC_CARD_READER
     @State private var nfcReader: Any? = nil
+    #endif
 
     enum EditStep {
+        #if ENABLE_NFC_CARD_READER
         case scanNFC
+        #endif
         case scanCamera
         case form
     }
     @State private var currentStep: EditStep = .form
+    #if ENABLE_NFC_CARD_READER
     @State private var nfcWaveScale1: CGFloat = 1.0
     @State private var nfcWaveOpacity1: Double = 1.0
     @State private var nfcWaveScale2: CGFloat = 1.0
     @State private var nfcWaveOpacity2: Double = 1.0
+    #endif
 
     @State private var showNextFeeDatePicker = false
     @State private var showLastTimePicker = false
@@ -134,8 +140,10 @@ struct CardEditView: View {
 
     private var navigationTitleText: String {
         switch currentStep {
+        #if ENABLE_NFC_CARD_READER
         case .scanNFC:
             return "NFC 刷卡录入"
+        #endif
         case .scanCamera:
             return "相机拍照录入"
         case .form:
@@ -146,8 +154,10 @@ struct CardEditView: View {
     var body: some View {
         Group {
             switch currentStep {
+            #if ENABLE_NFC_CARD_READER
             case .scanNFC:
                 nfcScanLayoutView
+            #endif
             case .scanCamera:
                 cameraScanLayoutView
             case .form:
@@ -239,6 +249,7 @@ struct CardEditView: View {
         }
     }
 
+    #if ENABLE_NFC_CARD_READER
     // MARK: - NFC 扫描页面
     private var nfcScanLayoutView: some View {
         VStack(spacing: 24) {
@@ -341,6 +352,7 @@ struct CardEditView: View {
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(Color(.systemGroupedBackground))
     }
+    #endif
 
     // MARK: - 相机扫描页面
     private var cameraScanLayoutView: some View {
@@ -430,6 +442,7 @@ struct CardEditView: View {
             
             // 底部自由切换行
             HStack(spacing: 28) {
+                #if ENABLE_NFC_CARD_READER
                 if nfcAvailable {
                     Button {
                         withAnimation { currentStep = .scanNFC }
@@ -440,6 +453,7 @@ struct CardEditView: View {
                     }
                     .buttonStyle(.plain)
                 }
+                #endif
                 
                 Button {
                     withAnimation { currentStep = .form }
@@ -464,6 +478,7 @@ struct CardEditView: View {
         )
     }
 
+    #if ENABLE_NFC_CARD_READER
     private func animateNfcWaves() {
         nfcWaveScale1 = 0.8
         nfcWaveOpacity1 = 1.0
@@ -480,6 +495,7 @@ struct CardEditView: View {
             nfcWaveOpacity2 = 0.0
         }
     }
+    #endif
 
     // MARK: - 基础信息
     private var basicInfoSection: some View {
@@ -518,7 +534,7 @@ struct CardEditView: View {
                         cardNumber = newValue.filter { $0.isNumber }
                     }
                 
-                if mode == "add" && (cameraAvailable || nfcAvailable) {
+                if mode == "add" && scanEntryAvailable {
                     HStack(spacing: 12) {
                         if cameraAvailable {
                             Button {
@@ -531,6 +547,7 @@ struct CardEditView: View {
                             .buttonStyle(.plain)
                         }
                         
+                        #if ENABLE_NFC_CARD_READER
                         if nfcAvailable {
                             Button {
                                 withAnimation { currentStep = .scanNFC }
@@ -541,6 +558,7 @@ struct CardEditView: View {
                             }
                             .buttonStyle(.plain)
                         }
+                        #endif
                     }
                     .padding(.leading, 8)
                 }
@@ -1070,6 +1088,15 @@ struct CardEditView: View {
         }
     }
 
+    private var scanEntryAvailable: Bool {
+        #if ENABLE_NFC_CARD_READER
+        return cameraAvailable || nfcAvailable
+        #else
+        return cameraAvailable
+        #endif
+    }
+
+    #if ENABLE_NFC_CARD_READER
     private var nfcAvailable: Bool {
         #if targetEnvironment(simulator)
         return false
@@ -1079,11 +1106,13 @@ struct CardEditView: View {
         return false
         #endif
     }
+    #endif
 
     private var cameraAvailable: Bool {
         UIImagePickerController.isSourceTypeAvailable(.camera)
     }
 
+    #if ENABLE_NFC_CARD_READER
     private func startNFCSession() {
         #if canImport(CoreNFC)
         let reader = NFCCardReader()
@@ -1118,6 +1147,7 @@ struct CardEditView: View {
         }
         #endif
     }
+    #endif
 
     private func showFeedback(title: String, message: String) {
         feedbackTitle = title
@@ -1141,6 +1171,7 @@ struct CardEditView: View {
     // MARK: - Setup
     private func setupInitialValues() {
         if mode == "add" && currentStep == .form {
+            #if ENABLE_NFC_CARD_READER
             if nfcAvailable {
                 currentStep = .scanNFC
             } else if cameraAvailable {
@@ -1148,6 +1179,13 @@ struct CardEditView: View {
             } else {
                 currentStep = .form
             }
+            #else
+            if cameraAvailable {
+                currentStep = .scanCamera
+            } else {
+                currentStep = .form
+            }
+            #endif
         }
         
         if let card = cardToEdit {

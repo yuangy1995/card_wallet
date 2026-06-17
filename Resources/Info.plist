@@ -26,8 +26,6 @@
     <string>用于扫描银行卡</string>
     <key>NSFaceIDUsageDescription</key>
     <string>使用 Face ID 解锁应用</string>
-    <key>NFCReaderUsageDescription</key>
-    <string>用于在读取页面识别银行卡 NFC 信息</string>
     <key>NSPhotoLibraryUsageDescription</key>
     <string>用于从相册选择银行卡图片并识别卡面信息</string>
     <key>UIApplicationSceneManifest</key>

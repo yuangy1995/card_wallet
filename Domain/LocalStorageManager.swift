@@ -15,15 +15,15 @@ public class LocalStorageManager {
     }
 
     @discardableResult
-    public static func write(cards: [SharedCard], password: String? = nil) -> Bool {
+    public static func write(cards: [SharedCard]) -> Bool {
         do {
             let encoder = JSONEncoder()
             encoder.outputFormatting = .prettyPrinted
             let jsonData = try encoder.encode(cards)
-            guard let jsonString = String(data: jsonData, encoding: .utf8) else { return false }
-            let cipherText = try CryptoManager.encrypt(plainText: jsonString, password: password)
+            let encryptedData = try CryptoManager.encryptLocalData(jsonData)
             let fileURL = getDocumentDirectory().appendingPathComponent(cardFileName)
-            try cipherText.write(to: fileURL, atomically: true, encoding: .utf8)
+            try encryptedData.write(to: fileURL, options: .atomic)
+            try? FileManager.default.setAttributes([.protectionKey: FileProtectionType.complete], ofItemAtPath: fileURL.path)
             return true
         } catch {
             print("写入本地加密卡片数据失败: \(error.localizedDescription)")
@@ -31,27 +31,19 @@ public class LocalStorageManager {
         }
     }
 
-    public static func writeInBackground(cards: [SharedCard], password: String? = nil) {
+    public static func writeInBackground(cards: [SharedCard]) {
         writeQueue.async {
-            _ = write(cards: cards, password: password)
+            _ = write(cards: cards)
         }
     }
 
-    public static func read(password: String? = nil) -> Result<[SharedCard], Error> {
+    public static func read() -> Result<[SharedCard], Error> {
         let fileURL = getDocumentDirectory().appendingPathComponent(cardFileName)
         guard FileManager.default.fileExists(atPath: fileURL.path) else { return .success([]) }
         do {
-            let cipherText = try String(contentsOf: fileURL, encoding: .utf8)
-            let jsonString = try CryptoManager.decrypt(cipherText: cipherText, password: password)
-            guard let jsonData = jsonString.data(using: .utf8) else { return .failure(CryptoError.utf8DecodingFailed) }
-            guard let rawObjects = try? JSONSerialization.jsonObject(with: jsonData, options: []) as? [[String: Any]] else {
-                if let rawDict = try? JSONSerialization.jsonObject(with: jsonData, options: []) as? [String: Any],
-                   let cardsArray = rawDict["cards"] as? [[String: Any]] {
-                    return .success(DataMigrationManager.migrateCardsBatch(cardsArray))
-                }
-                return .failure(CryptoError.utf8DecodingFailed)
-            }
-            return .success(DataMigrationManager.migrateCardsBatch(rawObjects))
+            let encryptedData = try Data(contentsOf: fileURL)
+            let jsonData = try CryptoManager.decryptLocalData(encryptedData)
+            return .success(try JSONDecoder().decode([SharedCard].self, from: jsonData))
         } catch {
             return .failure(error)
         }

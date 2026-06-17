@@ -89,7 +89,7 @@ public struct CardSyncRecord: Codable, Identifiable, Hashable, Sendable {
         CardSyncRecord(cardId: cardId, changedAt: changedAt, state: .deleted, card: nil)
     }
 
-    public static func legacyActive(_ card: SharedCard) -> CardSyncRecord {
+    public static func activeUsingCardTimestamp(_ card: SharedCard) -> CardSyncRecord {
         let time = card.lastModifyTime > 0 ? SyncTimestamp.string(from: card.lastModifyTime) : SyncTimestamp.now()
         return active(card, changedAt: time)
     }
@@ -116,8 +116,6 @@ public struct WebDAVSyncSnapshotV4: Codable, Hashable, Sendable {
         self.records = CardSyncMergeEngine.merge([records])
     }
 }
-
-public typealias WebDAVSyncSnapshotV3 = WebDAVSyncSnapshotV4
 
 public struct SyncEncryptionMetadata: Codable, Hashable, Sendable {
     public var version: Int

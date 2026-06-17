@@ -128,9 +128,23 @@ public final class WebDAVClient: Sendable {
     }
 
     public func loadConfig() -> WebDAVConfig? {
-        guard let url = UserDefaults.standard.string(forKey: "webdav_url"),
-              let username = KeychainManager.load(key: "webdav_username") else { return nil }
+        guard let rawURL = UserDefaults.standard.string(forKey: "webdav_url"),
+              let rawUsername = KeychainManager.load(key: "webdav_username") else { return nil }
+        let url = rawURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        let username = rawUsername.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !url.isEmpty, !username.isEmpty else { return nil }
         return WebDAVConfig(url: url, username: username)
+    }
+
+    public func hasConnectionConfig() -> Bool {
+        guard loadConfig() != nil else { return false }
+        let password = KeychainManager.load(key: "webdav_password")?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return !password.isEmpty
+    }
+
+    public func hasCompleteSyncConfig() -> Bool {
+        let syncPassword = KeychainManager.load(key: "webdav_sync_password_v4")?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        return hasConnectionConfig() && !syncPassword.isEmpty
     }
 
     public func saveConfig(url: String, username: String, password: String) -> Result<Void, Error> {

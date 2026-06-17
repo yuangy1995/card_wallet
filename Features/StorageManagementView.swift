@@ -343,9 +343,7 @@ struct StorageManagementView: View {
     }
     
     private func fetchCloudSizes() {
-        guard UserDefaults.standard.string(forKey: "webdav_url") != nil,
-              KeychainManager.load(key: "webdav_username") != nil,
-              KeychainManager.load(key: "webdav_password") != nil else {
+        guard WebDAVClient.shared.hasConnectionConfig() else {
             self.cloudError = "未配置云端同步"
             return
         }

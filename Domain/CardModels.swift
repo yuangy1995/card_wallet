@@ -225,26 +225,6 @@ public struct SharedCard: Codable, Identifiable, Hashable, Sendable {
     }
 }
 
-/// 跨端共享备份包结构
-public struct SharedBackupPayload: Codable, Sendable {
-    public let schemaVersion: String
-    public let exportedAt: String
-    public let source: String
-    public let cards: [SharedCard]
-    public let deletedCardIds: [String]
-
-    public init(cards: [SharedCard]) {
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.dateFormat = "yyyy-MM-dd HH:mm:ss"
-        self.schemaVersion = "2.0.0"
-        self.exportedAt = formatter.string(from: Date())
-        self.source = "ios"
-        self.cards = cards
-        self.deletedCardIds = []
-    }
-}
-
 /// 分组方式
 public enum GroupOption: String, CaseIterable, Identifiable, Sendable {
     case none = "无分组"

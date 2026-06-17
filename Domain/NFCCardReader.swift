@@ -1,5 +1,5 @@
 import Foundation
-#if canImport(CoreNFC)
+#if ENABLE_NFC_CARD_READER && canImport(CoreNFC)
 import CoreNFC
 
 @available(iOS 13.0, *)

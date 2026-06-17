@@ -13,6 +13,7 @@ struct HomeView: View {
     @State private var selectedCard: SharedCard?
     @State private var showFilterSheet = false
     @State private var showSyncHistory = false
+    @State private var showCloudSync = false
     @State private var syncFeedbackText: String?
     @State private var currentCardIndex = 0
     @State private var showReminderSheet = false
@@ -165,6 +166,17 @@ struct HomeView: View {
             }
             .navigationDestination(isPresented: $showSyncHistory) {
                 SyncHistoryView()
+            }
+            .navigationDestination(isPresented: $showCloudSync) {
+                CloudSyncView()
+            }
+            .onAppear {
+                syncCoordinator.refreshWebDAVConfigurationState()
+            }
+            .onChange(of: showCloudSync) { _, isShowing in
+                if !isShowing {
+                    syncCoordinator.refreshWebDAVConfigurationState()
+                }
             }
         }
     }
@@ -410,6 +422,8 @@ struct HomeView: View {
                 Button {
                     if syncCoordinator.isSynchronizing {
                         showSyncHistory = true
+                    } else if !syncCoordinator.refreshWebDAVConfigurationState() {
+                        showCloudSync = true
                     } else {
                         showSyncFeedback("已开始同步")
                         Task { await syncCoordinator.synchronize(forceUpload: true) }
@@ -421,15 +435,15 @@ struct HomeView: View {
                                 .controlSize(.small)
                                 .tint(.blue)
                         } else {
-                            Image(systemName: syncCoordinator.syncStatus.iconName)
+                            Image(systemName: syncIconName)
                                 .font(.system(size: 16))
                                 .foregroundStyle(syncStatusColor)
-                                .symbolEffect(.pulse, isActive: syncCoordinator.syncStatus == .syncing)
+                                .symbolEffect(.pulse, isActive: syncCoordinator.webDAVConfigReady && syncCoordinator.syncStatus == .syncing)
                         }
                     }
                     .frame(width: 22, height: 22)
                 }
-                .accessibilityLabel(syncCoordinator.isSynchronizing ? "查看同步记录" : "立即同步")
+                .accessibilityLabel(syncAccessibilityLabel)
                 // 筛选排序
                 Button { showFilterSheet = true } label: {
                     Image(systemName: "line.3.horizontal.decrease.circle")
@@ -439,7 +453,19 @@ struct HomeView: View {
         }
     }
 
+    private var syncIconName: String {
+        syncCoordinator.webDAVConfigReady ? syncCoordinator.syncStatus.iconName : "icloud.slash"
+    }
+
+    private var syncAccessibilityLabel: String {
+        if syncCoordinator.isSynchronizing { return "查看同步记录" }
+        return syncCoordinator.webDAVConfigReady ? "立即同步" : "配置云端同步"
+    }
+
     private var syncStatusColor: Color {
+        if !syncCoordinator.webDAVConfigReady {
+            return .secondary
+        }
         switch syncCoordinator.syncStatus {
         case .idle:    return .secondary
         case .syncing: return .blue

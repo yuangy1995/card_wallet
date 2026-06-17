@@ -36,6 +36,11 @@ struct CloudSyncView: View {
         }
         .onAppear { loadConfig() }
         .onChange(of: enableWebDAVSync) { _, enabled in
+            if enabled && !savedConfigReady {
+                enableWebDAVSync = false
+                syncCoordinator.setWebDAVEnabled(false)
+                return
+            }
             syncCoordinator.setWebDAVEnabled(enabled)
         }
     }
@@ -322,6 +327,11 @@ struct CloudSyncView: View {
         hasSavedSyncPassword = !savedSyncPassword.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         connectionSuccess = savedConfigReady
         isEditingConfig = !savedConfigReady
+        syncCoordinator.refreshWebDAVConfigurationState()
+        if !savedConfigReady && enableWebDAVSync {
+            enableWebDAVSync = false
+            syncCoordinator.setWebDAVEnabled(false)
+        }
     }
 
     private func saveConfig() {
@@ -354,6 +364,7 @@ struct CloudSyncView: View {
         webdavSyncPassword = cleanSyncPassword
         hasSavedWebDAVPassword = true
         hasSavedSyncPassword = true
+        syncCoordinator.refreshWebDAVConfigurationState()
         connectionSuccess = true
         connectionMessage = "配置已保存"
         isEditingConfig = false
@@ -436,6 +447,9 @@ struct SyncHistoryView: View {
                 }
             }
         }
+        .onAppear {
+            syncCoordinator.refreshWebDAVConfigurationState()
+        }
     }
 
     private func formatBytes(_ bytes: Int64) -> String {
@@ -452,16 +466,16 @@ struct SyncHistoryView: View {
                     RoundedRectangle(cornerRadius: 16)
                         .fill(statusColor.opacity(0.14))
                         .frame(width: 52, height: 52)
-                    Image(systemName: syncCoordinator.syncStatus.iconName)
+                    Image(systemName: syncHistoryIconName)
                         .font(.system(size: 23, weight: .semibold))
                         .foregroundStyle(statusColor)
-                        .symbolEffect(.pulse, isActive: syncCoordinator.isSynchronizing)
+                        .symbolEffect(.pulse, isActive: syncCoordinator.webDAVConfigReady && syncCoordinator.isSynchronizing)
                 }
 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(syncCoordinator.isSynchronizing ? syncCoordinator.syncProgress.phase : syncCoordinator.syncStatus.displayText)
+                    Text(syncHistoryTitle)
                         .font(.system(.headline, weight: .semibold))
-                    Text(syncCoordinator.syncProgress.detail.isEmpty ? "WebDAV 云端同步" : syncCoordinator.syncProgress.detail)
+                    Text(syncHistoryDetail)
                         .font(.system(size: 12))
                         .foregroundStyle(.secondary)
                         .lineLimit(2)
@@ -514,11 +528,11 @@ struct SyncHistoryView: View {
                 Button {
                     Task { await syncCoordinator.synchronize(forceUpload: true) }
                 } label: {
-                    Label(syncCoordinator.isSynchronizing ? "同步进行中" : "重新执行同步", systemImage: "arrow.triangle.2.circlepath.icloud")
+                    Label(syncHistoryActionTitle, systemImage: syncHistoryActionIcon)
                         .frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.borderedProminent)
-                .disabled(syncCoordinator.isSynchronizing)
+                .disabled(syncCoordinator.isSynchronizing || !syncCoordinator.webDAVConfigReady)
             }
         }
         .padding(16)
@@ -543,6 +557,9 @@ struct SyncHistoryView: View {
     }
 
     private var statusColor: Color {
+        if !syncCoordinator.webDAVConfigReady {
+            return .secondary
+        }
         switch syncCoordinator.syncStatus {
         case .idle: return .secondary
         case .syncing: return .blue
@@ -550,6 +567,35 @@ struct SyncHistoryView: View {
         case .warning: return .orange
         case .failure: return .red
         }
+    }
+
+    private var syncHistoryIconName: String {
+        syncCoordinator.webDAVConfigReady ? syncCoordinator.syncStatus.iconName : "icloud.slash"
+    }
+
+    private var syncHistoryTitle: String {
+        if !syncCoordinator.webDAVConfigReady {
+            return "未配置云端同步"
+        }
+        return syncCoordinator.isSynchronizing ? syncCoordinator.syncProgress.phase : syncCoordinator.syncStatus.displayText
+    }
+
+    private var syncHistoryDetail: String {
+        if !syncCoordinator.webDAVConfigReady {
+            return "请先在设置中完成 WebDAV 地址、账号、密码和同步密钥配置。"
+        }
+        return syncCoordinator.syncProgress.detail.isEmpty ? "WebDAV 云端同步" : syncCoordinator.syncProgress.detail
+    }
+
+    private var syncHistoryActionTitle: String {
+        if !syncCoordinator.webDAVConfigReady {
+            return "未配置云端同步"
+        }
+        return syncCoordinator.isSynchronizing ? "同步进行中" : "重新执行同步"
+    }
+
+    private var syncHistoryActionIcon: String {
+        syncCoordinator.webDAVConfigReady ? "arrow.triangle.2.circlepath.icloud" : "icloud.slash"
     }
 
     private func formatDuration(_ duration: TimeInterval) -> String {

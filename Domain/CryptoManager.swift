@@ -1,25 +1,20 @@
 import Foundation
-import CryptoSwift
 import CryptoKit
 import CommonCrypto
 
 public enum CryptoError: Error, LocalizedError, Sendable {
-    case invalidBase64
     case badMagicNumber
     case utf8DecodingFailed
     case encryptionFailed
-    case decryptionFailed
     case emptyPassword
     case invalidSyncEnvelope
     case keyDerivationFailed
 
     public var errorDescription: String? {
         switch self {
-        case .invalidBase64: return "无效的 Base64 编码数据"
         case .badMagicNumber: return "密文损坏：魔数验证失败"
         case .utf8DecodingFailed: return "UTF-8 字符解码失败，请确认解密密码是否正确"
         case .encryptionFailed: return "AES 加密失败"
-        case .decryptionFailed: return "AES 解密失败，可能密码错误或数据损坏"
         case .emptyPassword: return "请输入自定义解密密码"
         case .invalidSyncEnvelope: return "不是有效的云同步加密文件"
         case .keyDerivationFailed: return "同步密钥派生失败"
@@ -28,78 +23,68 @@ public enum CryptoError: Error, LocalizedError, Sendable {
 }
 
 public class CryptoManager {
-    private static let defaultPassword = "defAult.@.Password."
     private static let syncV4SchemaVersion = "4.0.0"
     private static let syncV4Iterations = 310000
     private static let syncV4SaltBytes = 16
     private static let syncV4IVBytes = 12
-
-    private static func deriveKeyAndIV(password: String, salt: [UInt8]) -> (key: [UInt8], iv: [UInt8]) {
-        var keyAndIV = [UInt8]()
-        var lastDigest = [UInt8]()
-        let passwordBytes = Array(password.utf8)
-        while keyAndIV.count < 48 {
-            let dataToHash = lastDigest + passwordBytes + salt
-            lastDigest = dataToHash.md5()
-            keyAndIV += lastDigest
-        }
-        return (Array(keyAndIV[0..<32]), Array(keyAndIV[32..<48]))
-    }
-
-    public static func decrypt(cipherText: String, password: String? = nil) throws -> String {
-        var cleanCipher = cipherText.trimmingCharacters(in: .whitespacesAndNewlines)
-        if cleanCipher.hasPrefix("\"") && cleanCipher.hasSuffix("\"") {
-            cleanCipher = String(cleanCipher.dropFirst().dropLast())
-        }
-        let isDefault = cleanCipher.hasPrefix("default:")
-        let isEncrypted = cleanCipher.hasPrefix("encrypted:")
-        guard isDefault || isEncrypted else { throw CryptoError.badMagicNumber }
-        let prefixLength = isDefault ? 8 : 10
-        let cleanText = String(cleanCipher.dropFirst(prefixLength)).trimmingCharacters(in: .whitespacesAndNewlines)
-        if isEncrypted && (password == nil || password?.isEmpty == true) { throw CryptoError.emptyPassword }
-        guard let data = Data(base64Encoded: cleanText) else { throw CryptoError.invalidBase64 }
-        let bytes = Array(data)
-        let magicNumber = Array("Salted__".utf8)
-        guard bytes.count > 16 && Array(bytes[0..<8]) == magicNumber else { throw CryptoError.badMagicNumber }
-        let salt = Array(bytes[8..<16])
-        let encryptedBytes = Array(bytes[16...])
-        let activePassword = isDefault ? defaultPassword : (password ?? "")
-        let (key, iv) = deriveKeyAndIV(password: activePassword, salt: salt)
-        do {
-            let aes = try AES(key: key, blockMode: CBC(iv: iv), padding: .pkcs7)
-            let decryptedBytes = try aes.decrypt(encryptedBytes)
-            guard let decryptedString = String(bytes: decryptedBytes, encoding: .utf8) else { throw CryptoError.utf8DecodingFailed }
-            return decryptedString
-        } catch {
-            throw CryptoError.decryptionFailed
-        }
-    }
-
-    public static func encrypt(plainText: String, password: String? = nil) throws -> String {
-        let isDefault = password == nil || password?.isEmpty == true
-        let activePassword = isDefault ? defaultPassword : password!
-        var salt = [UInt8](repeating: 0, count: 8)
-        let status = SecRandomCopyBytes(kSecRandomDefault, salt.count, &salt)
-        guard status == errSecSuccess else { throw CryptoError.encryptionFailed }
-        let (key, iv) = deriveKeyAndIV(password: activePassword, salt: salt)
-        do {
-            let aes = try AES(key: key, blockMode: CBC(iv: iv), padding: .pkcs7)
-            let plainBytes = Array(plainText.utf8)
-            let encryptedBytes = try aes.encrypt(plainBytes)
-            let magicNumber = Array("Salted__".utf8)
-            let outputBytes = magicNumber + salt + encryptedBytes
-            let base64Cipher = Data(outputBytes).base64EncodedString()
-            return "\(isDefault ? "default:" : "encrypted:")\(base64Cipher)"
-        } catch {
-            throw CryptoError.encryptionFailed
-        }
-    }
+    private static let localEnvelopePrefix = "local-v1:"
+    private static let localEncryptionKeychainKey = "local_data_encryption_key_v1"
+    private static let localEncryptionKeyBytes = 32
+    private static let localEncryptionNonceBytes = 12
 
     private static func randomBytes(count: Int) throws -> [UInt8] {
         var bytes = [UInt8](repeating: 0, count: count)
         let status = SecRandomCopyBytes(kSecRandomDefault, count, &bytes)
         guard status == errSecSuccess else { throw CryptoError.encryptionFailed }
         return bytes
+    }
+
+    private static func localDataKey() throws -> SymmetricKey {
+        if let data = KeychainManager.loadData(key: localEncryptionKeychainKey), data.count == localEncryptionKeyBytes {
+            return SymmetricKey(data: data)
+        }
+
+        let keyBytes = try randomBytes(count: localEncryptionKeyBytes)
+        let keyData = Data(keyBytes)
+        switch KeychainManager.saveData(key: localEncryptionKeychainKey, data: keyData) {
+        case .success:
+            return SymmetricKey(data: keyData)
+        case .failure:
+            throw CryptoError.keyDerivationFailed
+        }
+    }
+
+    public static func encryptLocalData(_ data: Data) throws -> Data {
+        let key = try localDataKey()
+        let nonceBytes = try randomBytes(count: localEncryptionNonceBytes)
+        let nonce = try CryptoKit.AES.GCM.Nonce(data: Data(nonceBytes))
+        let sealedBox = try CryptoKit.AES.GCM.seal(data, using: key, nonce: nonce)
+        var payload = Data(nonceBytes)
+        payload.append(sealedBox.ciphertext)
+        payload.append(sealedBox.tag)
+        guard let envelope = "\(localEnvelopePrefix)\(payload.base64EncodedString())".data(using: .utf8) else {
+            throw CryptoError.encryptionFailed
+        }
+        return envelope
+    }
+
+    public static func decryptLocalData(_ data: Data) throws -> Data {
+        guard let envelope = String(data: data, encoding: .utf8),
+              envelope.hasPrefix(localEnvelopePrefix),
+              let payload = Data(base64Encoded: String(envelope.dropFirst(localEnvelopePrefix.count))),
+              payload.count > localEncryptionNonceBytes + 16 else {
+            throw CryptoError.badMagicNumber
+        }
+        let nonceData = payload.prefix(localEncryptionNonceBytes)
+        let tagStart = payload.index(payload.endIndex, offsetBy: -16)
+        let ciphertext = payload[payload.index(payload.startIndex, offsetBy: localEncryptionNonceBytes)..<tagStart]
+        let tag = payload[tagStart...]
+        let sealedBox = try CryptoKit.AES.GCM.SealedBox(
+            nonce: try CryptoKit.AES.GCM.Nonce(data: nonceData),
+            ciphertext: Data(ciphertext),
+            tag: Data(tag)
+        )
+        return try CryptoKit.AES.GCM.open(sealedBox, using: try localDataKey())
     }
 
     private static func deriveSyncV4Key(password: String, salt: [UInt8], iterations: Int) throws -> [UInt8] {

@@ -1,6 +1,5 @@
 import SwiftUI
 import LocalAuthentication
-import ObjectiveC
 
 struct SettingsView: View {
     @EnvironmentObject private var syncCoordinator: SyncCoordinator
@@ -81,6 +80,7 @@ struct SettingsView: View {
             .onAppear {
                 checkBiometric()
                 refreshStoredConfigState()
+                syncCoordinator.refreshWebDAVConfigurationState()
                 currentIconName = UIApplication.shared.alternateIconName
                 if appLockEnabled && lockPassword.isEmpty {
                     appLockEnabled = false
@@ -89,6 +89,7 @@ struct SettingsView: View {
             .onChange(of: showCloudSync) { _, isShowing in
                 if !isShowing {
                     refreshStoredConfigState()
+                    syncCoordinator.refreshWebDAVConfigurationState()
                 }
             }
             .fullScreenCover(isPresented: $showSetPasswordSheet, onDismiss: {
@@ -192,10 +193,10 @@ struct SettingsView: View {
                         RoundedRectangle(cornerRadius: 12)
                             .fill(syncStatusColor.opacity(0.14))
                             .frame(width: 42, height: 42)
-                        Image(systemName: syncCoordinator.syncStatus.iconName)
+                        Image(systemName: syncIconName)
                             .font(.system(size: 19, weight: .semibold))
                             .foregroundStyle(syncStatusColor)
-                            .symbolEffect(.pulse, isActive: syncCoordinator.syncStatus == .syncing)
+                            .symbolEffect(.pulse, isActive: hasCompleteWebDAVConfig && syncCoordinator.syncStatus == .syncing)
                     }
 
                     VStack(alignment: .leading, spacing: 3) {
@@ -417,7 +418,7 @@ struct SettingsView: View {
 
     private var syncStatusColor: Color {
         if !hasCompleteWebDAVConfig {
-            return .orange
+            return .secondary
         }
         switch syncCoordinator.syncStatus {
         case .idle:    return enableWebDAVSync ? .secondary : .orange
@@ -441,6 +442,10 @@ struct SettingsView: View {
             return "arrow.triangle.2.circlepath.icloud"
         }
         return hasCompleteWebDAVConfig ? "arrow.triangle.2.circlepath.icloud" : "key.icloud"
+    }
+
+    private var syncIconName: String {
+        hasCompleteWebDAVConfig ? syncCoordinator.syncStatus.iconName : "icloud.slash"
     }
 
     private var hasCompleteWebDAVConfig: Bool {
@@ -717,7 +722,7 @@ struct AppIconSelectionView: View {
     private func changeAppIcon(to option: AppIconOption) {
         guard UIApplication.shared.supportsAlternateIcons else { return }
         
-        UIApplication.shared.setAlternateIconNameWithoutSystemAlert(option.assetName) { error in
+        UIApplication.shared.setAlternateIconName(option.assetName) { error in
             DispatchQueue.main.async {
                 if let error = error {
                     print("更换应用图标失败: \(error.localizedDescription)")
@@ -736,61 +741,6 @@ struct AppIconSelectionView: View {
                 }
             }
         }
-    }
-}
-
-extension UIApplication {
-    private typealias SetAlternateIconNameFunction = @convention(c) (
-        AnyObject,
-        Selector,
-        NSString?,
-        @escaping (NSError?) -> Void
-    ) -> Void
-
-    func setAlternateIconNameWithoutSystemAlert(_ iconName: String?, completion: @escaping (Error?) -> Void) {
-        let selector = NSSelectorFromString("_setAlternateIconName:completionHandler:")
-        if responds(to: selector), let method = class_getInstanceMethod(UIApplication.self, selector) {
-            let implementation = method_getImplementation(method)
-            let function = unsafeBitCast(implementation, to: SetAlternateIconNameFunction.self)
-            function(self, selector, iconName as NSString?) { error in
-                completion(error)
-            }
-            return
-        }
-
-        UIViewController.enablePresentSwizzling()
-        setAlternateIconName(iconName, completionHandler: completion)
-    }
-}
-
-extension UIViewController {
-    private static let swizzlePresent: Void = {
-        let originalSelector = Selector(("presentViewController:animated:completion:"))
-        let swizzledSelector = Selector(("swizzled_presentViewController:animated:completion:"))
-        
-        guard let originalMethod = class_getInstanceMethod(UIViewController.self, originalSelector),
-              let swizzledMethod = class_getInstanceMethod(UIViewController.self, swizzledSelector) else {
-            return
-        }
-        
-        method_exchangeImplementations(originalMethod, swizzledMethod)
-    }()
-    
-    static func enablePresentSwizzling() {
-        _ = swizzlePresent
-    }
-    
-    @objc(swizzled_presentViewController:animated:completion:)
-    func swizzled_presentViewController(_ viewControllerToPresent: UIViewController, animated flag: Bool, completion: (() -> Void)? = nil) {
-        if let alert = viewControllerToPresent as? UIAlertController {
-            let title = alert.title ?? ""
-            let message = alert.message ?? ""
-            if message.contains("图标") || message.contains("Icon") || title.contains("图标") || title.contains("Icon") {
-                completion?()
-                return
-            }
-        }
-        self.swizzled_presentViewController(viewControllerToPresent, animated: flag, completion: completion)
     }
 }
 

@@ -129,6 +129,7 @@ public final class SyncCoordinator: ObservableObject {
     @Published public private(set) var isSynchronizing = false
     @Published public private(set) var syncProgress = SyncProgress()
     @Published public private(set) var syncHistory: [SyncHistoryEntry] = []
+    @Published public private(set) var webDAVConfigReady = false
 
     private var ledger = SyncLedger()
     private var hasBootstrapped = false
@@ -175,6 +176,7 @@ public final class SyncCoordinator: ObservableObject {
     public func bootstrap() {
         guard !hasBootstrapped else { return }
         hasBootstrapped = true
+        refreshWebDAVConfigurationState(disableAutoSyncWhenInvalid: true)
         restoreLastSyncMetadata()
         syncHistory = loadSyncHistory()
         let localResult = LocalStorageManager.read()
@@ -182,7 +184,7 @@ public final class SyncCoordinator: ObservableObject {
         case .success(let localCards):
             ledger = SyncLedgerStore.shared.load(seeding: localCards)
             if ledger.records.isEmpty && !localCards.isEmpty {
-                ledger.records = localCards.map(CardSyncRecord.legacyActive)
+                ledger.records = localCards.map(CardSyncRecord.activeUsingCardTimestamp)
                 SyncLedgerStore.shared.save(ledger)
             }
             cards = CardSyncMergeEngine.activeCards(from: ledger.records)
@@ -192,7 +194,7 @@ public final class SyncCoordinator: ObservableObject {
         }
         repairPendingUploadStateIfNeeded()
 
-        if UserDefaults.standard.bool(forKey: "enable_webdav_sync") {
+        if UserDefaults.standard.bool(forKey: "enable_webdav_sync"), webDAVConfigReady {
             startAutoSync()
         }
     }
@@ -226,8 +228,8 @@ public final class SyncCoordinator: ObservableObject {
     public func setWebDAVEnabled(_ enabled: Bool) {
         UserDefaults.standard.set(enabled, forKey: "enable_webdav_sync")
         if enabled {
+            guard refreshWebDAVConfigurationState(disableAutoSyncWhenInvalid: true) else { return }
             startAutoSync()
-            Task { await synchronize(forceUpload: ledger.pendingWebDAVUpload) }
         } else {
             stopAutoSync()
             syncStatus = .idle
@@ -237,6 +239,7 @@ public final class SyncCoordinator: ObservableObject {
     public func startAutoSync() {
         stopAutoSync()
         guard UserDefaults.standard.bool(forKey: "enable_webdav_sync") else { return }
+        guard refreshWebDAVConfigurationState(disableAutoSyncWhenInvalid: true) else { return }
         let configuredInterval = UserDefaults.standard.double(forKey: "auto_sync_interval")
         let interval = configuredInterval > 0 ? configuredInterval : 300
         syncTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
@@ -245,6 +248,20 @@ public final class SyncCoordinator: ObservableObject {
             }
         }
         Task { await synchronize(forceUpload: false) }
+    }
+
+    @discardableResult
+    public func refreshWebDAVConfigurationState(disableAutoSyncWhenInvalid: Bool = false) -> Bool {
+        let ready = WebDAVClient.shared.hasCompleteSyncConfig()
+        webDAVConfigReady = ready
+        if !ready, disableAutoSyncWhenInvalid {
+            UserDefaults.standard.set(false, forKey: "enable_webdav_sync")
+            stopAutoSync()
+            if !isSynchronizing {
+                syncStatus = .idle
+            }
+        }
+        return ready
     }
 
     public func stopAutoSync() {
@@ -269,6 +286,7 @@ public final class SyncCoordinator: ObservableObject {
 
     public func synchronize(forceUpload: Bool = false) async {
         guard UserDefaults.standard.bool(forKey: "enable_webdav_sync") || forceUpload else { return }
+        guard refreshWebDAVConfigurationState(disableAutoSyncWhenInvalid: true) else { return }
         if isSynchronizing {
             if forceUpload {
                 queuedForceUpload = true

@@ -13,10 +13,6 @@ schemes:
       config: Debug
     archive:
       config: Release
-packages:
-  CryptoSwift:
-    url: https://github.com/krzyzanowskim/CryptoSwift.git
-    from: 1.8.0
 targets:
   CreditCardIOS:
     type: application
@@ -25,18 +21,20 @@ targets:
     sources:
       - path: App
       - path: Domain
+        excludes:
+          - NFCCardReader.swift
       - path: Features
       - path: Resources
-    dependencies:
-      - package: CryptoSwift
-        product: CryptoSwift
     settings:
       base:
         IPHONEOS_DEPLOYMENT_TARGET: "17.0"
         GENERATE_INFOPLIST_FILE: NO
         INFOPLIST_FILE: Resources/Info.plist
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_ALTERNATE_APPICON_NAMES:
+          - AppIcon-Minimal
+          - AppIcon-Cool
+          - AppIcon-Retro
         SWIFT_VERSION: "6.0"
         TARGETED_DEVICE_FAMILY: "1,2"
         INFOPLIST_KEY_NSCameraUsageDescription: "扫描银行卡"
-        INFOPLIST_KEY_NFCReaderUsageDescription: "读取银行卡 NFC 信息"
