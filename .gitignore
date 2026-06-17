@@ -23,9 +23,12 @@ Icon
 # ==========================================
 build/
 DerivedData/
-*.xcodeproj
-*.xcworkspace
+*.xcodeproj/project.xcworkspace/
+*.xcodeproj/xcuserdata/
+*.xcworkspace/xcuserdata/
 *.xcarchive
+*.xcresult
+*.dSYM
 *.xccheckout
 *.xcscmblueprint
 *.xctest
@@ -43,3 +46,34 @@ Package.resolved
 # Build Artifacts & Distribution
 # ==========================================
 dist/
+*.app
+*.pkg
+*.dmg
+*.zip
+
+# ==========================================
+# Local Config, Signing & Editors
+# ==========================================
+.env
+.env.*
+!.env.example
+*.p12
+*.cer
+*.pem
+*.key
+*.mobileprovision
+*.provisionprofile
+Local.xcconfig
+Secrets.xcconfig
+.idea/
+.vscode/
+.codex-derived/
+.kiro/
+
+# ==========================================
+# Logs & Temporary Files
+# ==========================================
+*.log
+*.tmp
+*.bak
+*.backup
