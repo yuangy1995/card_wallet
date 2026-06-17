@@ -1,4 +1,5 @@
 import SwiftUI
+import UserNotifications
 
 private struct CardEditRequest: Identifiable {
     let id = UUID()
@@ -84,9 +85,11 @@ struct ContentView: View {
                         case .allCards:
                             allCardsView
                         case .annualFeeAlert:
-                            annualFeeAlertView
+                            cardReminderView
                         case .statistics:
                             StatisticsView(cards: cards)
+                        case .tools:
+                            toolsView
                         case .cloudSync:
                             CloudSyncView()
                         case .settings:
@@ -110,6 +113,7 @@ struct ContentView: View {
         .onAppear {
             syncCoordinator.onCardsChanged = { updatedCards in
                 self.cards = updatedCards
+                refreshSystemNotifications(for: updatedCards)
             }
             loadCards()
             runInitialAnnualFeeCheckIfNeeded()
@@ -117,6 +121,7 @@ struct ContentView: View {
         .onChange(of: lockManager.isLocked) { _, isLocked in
             if !isLocked {
                 runInitialAnnualFeeCheckIfNeeded()
+                refreshSystemNotifications(for: cards)
             }
         }
         // 请求存在后才创建完整表单，避免首次呈现产生空内容窗口
@@ -384,8 +389,8 @@ struct ContentView: View {
         }
     }
     
-    // 临近年费提醒视图
-    private var annualFeeAlertView: some View {
+    // 卡片提醒视图
+    private var cardReminderView: some View {
         VStack(spacing: 0) {
             // 顶部工具栏
             HStack {
@@ -393,7 +398,7 @@ struct ContentView: View {
                     Image(systemName: "exclamationmark.triangle.fill")
                         .font(.title2)
                         .foregroundColor(.orange)
-                    Text("年费提醒卡片")
+                    Text("卡片提醒")
                         .font(.title2)
                         .bold()
                         .foregroundColor(.orange)
@@ -408,7 +413,9 @@ struct ContentView: View {
                 .background(Color.white.opacity(0.1))
             
             let alertCards = cards.filter { card in
-                card.cardCategory != "debit" && DateCalculator.annualFeeDetection(for: card) != nil
+                !DateCalculator.billingCycleReminders(for: card).isEmpty ||
+                    DateCalculator.annualFeeDetection(for: card) != nil ||
+                    cardExpiryReminderStatus(for: card) != nil
             }
             
             if alertCards.isEmpty {
@@ -416,7 +423,7 @@ struct ContentView: View {
                     Image(systemName: "checkmark.shield.fill")
                         .font(.system(size: 48))
                         .foregroundColor(.green.opacity(0.6))
-                    Text("目前没有任何需要处理的年费提醒。")
+                    Text("目前没有任何需要处理的卡片提醒。")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                 }
@@ -443,12 +450,99 @@ struct ContentView: View {
             }
         }
     }
+
+    private var toolsView: some View {
+        let issues = DateCalculator.analyzeDataQuality(cards: cards)
+
+        return ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                HStack(spacing: 10) {
+                    Image(systemName: "wrench.and.screwdriver.fill")
+                        .font(.title2)
+                        .foregroundColor(.cyan)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("工具")
+                            .font(.title2)
+                            .bold()
+                        Text("数据异常检测")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                    }
+                    Spacer()
+                }
+
+                VStack(alignment: .leading, spacing: 10) {
+                    HStack {
+                        Label("数据异常检测", systemImage: "exclamationmark.triangle.fill")
+                            .font(.headline)
+                        Spacer()
+                        Text(issues.isEmpty ? "正常" : "\(issues.count) 项")
+                            .font(.caption.bold())
+                            .padding(.horizontal, 8)
+                            .padding(.vertical, 4)
+                            .background((issues.isEmpty ? Color.green : Color.orange).opacity(0.15))
+                            .foregroundColor(issues.isEmpty ? .green : .orange)
+                            .clipShape(Capsule())
+                    }
+
+                    if issues.isEmpty {
+                        Text("未发现重复卡号、非法账单日/还款日、有效期格式异常或共享额度冲突。")
+                            .font(.subheadline)
+                            .foregroundColor(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(16)
+                            .background(Color.green.opacity(0.08))
+                            .clipShape(RoundedRectangle(cornerRadius: 10))
+                    } else {
+                        VStack(spacing: 10) {
+                            ForEach(issues) { issue in
+                                HStack(alignment: .top, spacing: 10) {
+                                    Image(systemName: dataIssueIcon(issue.severity))
+                                        .font(.system(size: 16, weight: .semibold))
+                                        .foregroundColor(dataIssueColor(issue.severity))
+                                        .frame(width: 22)
+
+                                    VStack(alignment: .leading, spacing: 4) {
+                                        Text("\(issue.severity) · \(issue.title)")
+                                            .font(.subheadline.bold())
+                                            .foregroundColor(dataIssueColor(issue.severity))
+                                        if !issue.cardName.isEmpty {
+                                            Text(issue.cardName)
+                                                .font(.caption.bold())
+                                                .foregroundColor(.primary)
+                                        }
+                                        Text(issue.detail)
+                                            .font(.caption)
+                                            .foregroundColor(.secondary)
+                                    }
+                                    Spacer()
+                                }
+                                .padding(12)
+                                .background(dataIssueColor(issue.severity).opacity(0.09))
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 10)
+                                        .stroke(dataIssueColor(issue.severity).opacity(0.18), lineWidth: 1)
+                                )
+                                .clipShape(RoundedRectangle(cornerRadius: 10))
+                            }
+                        }
+                    }
+                }
+                .padding(16)
+                .background(Color.primary.opacity(0.04))
+                .clipShape(RoundedRectangle(cornerRadius: 12))
+            }
+            .padding(24)
+            .frame(maxWidth: 900, alignment: .leading)
+        }
+    }
     
     private func loadCards() {
         let result = LocalStorageManager.read()
         switch result {
         case .success(let loadedCards):
             self.cards = syncCoordinator.bootstrap(localCards: loadedCards)
+            refreshSystemNotifications(for: self.cards)
         case .failure(let error):
             print("读取本地数据失败，可能密码错误或数据损坏: \(error.localizedDescription)")
             self.cards = []
@@ -458,7 +552,65 @@ struct ContentView: View {
     private func runInitialAnnualFeeCheckIfNeeded() {
         guard !hasCheckedAnnualFeeStatus, !lockManager.isLocked else { return }
         hasCheckedAnnualFeeStatus = true
+        checkBillingCycleStatus()
         checkAnnualFeeQualifiedStatus()
+        checkCardExpiryStatus()
+    }
+
+    private func checkBillingCycleStatus() {
+        let reminders = DateCalculator.billingCycleReminderItems(for: cards)
+        guard !reminders.isEmpty else { return }
+
+        let cardList = reminders.prefix(10).map { item in
+            let label = item.reminder.kind == .repayment ? "还款日" : "账单日"
+            let note = item.reminder.kind == .repayment ? "请核对是否已还款" : "请关注本期出账"
+            return "• \(item.card.bank) - \(item.card.alias ?? "无别名")：\(item.reminder.title)，\(label) \(DateCalculator.formatDate(item.reminder.date))，\(note)"
+        }.joined(separator: "\n")
+        let extraText = reminders.count > 10 ? "\n另有 \(reminders.count - 10) 项提醒也需要处理。" : ""
+
+        let alert = NSAlert()
+        alert.messageText = "还款日/账单日检测"
+        alert.informativeText = """
+        检测到以下信用卡即将到达还款日或账单日。
+
+        \(cardList)\(extraText)
+        """
+        alert.alertStyle = reminders.contains { $0.reminder.kind == .repayment } ? .critical : .warning
+        alert.addButton(withTitle: "查看卡片提醒")
+        alert.addButton(withTitle: "知道了")
+
+        if alert.runModal() == .alertFirstButtonReturn {
+            selection = .annualFeeAlert
+        }
+    }
+
+    private func refreshSystemNotifications(for cards: [SharedCard]) {
+        guard !lockManager.isLocked else { return }
+        Task {
+            await CardSystemNotificationCenter.shared.refresh(cards: cards, locked: lockManager.isLocked)
+        }
+    }
+
+    private func dataIssueColor(_ severity: String) -> Color {
+        switch severity {
+        case "严重":
+            return .red
+        case "警告":
+            return .orange
+        default:
+            return .cyan
+        }
+    }
+
+    private func dataIssueIcon(_ severity: String) -> String {
+        switch severity {
+        case "严重":
+            return "xmark.octagon.fill"
+        case "警告":
+            return "exclamationmark.triangle.fill"
+        default:
+            return "info.circle.fill"
+        }
     }
     
     private func checkAnnualFeeQualifiedStatus() {
@@ -502,6 +654,51 @@ struct ContentView: View {
                 cards[index].lastModifyTime = nowTimestamp
             }
             cards = syncCoordinator.commit(cards: cards)
+        }
+    }
+
+    private func cardExpiryReminderStatus(for card: SharedCard) -> DateCalculator.CardExpiryStatus? {
+        guard let status = DateCalculator.cardExpiryStatus(valid: card.valid),
+              status == .expired || status == .soonExpiring else {
+            return nil
+        }
+        return status
+    }
+
+    private func checkCardExpiryStatus() {
+        let expiryCards = cards.compactMap { card -> (card: SharedCard, status: DateCalculator.CardExpiryStatus)? in
+            guard let status = cardExpiryReminderStatus(for: card) else { return nil }
+            return (card, status)
+        }.sorted { lhs, rhs in
+            let lhsPriority = lhs.status == .expired ? 0 : 1
+            let rhsPriority = rhs.status == .expired ? 0 : 1
+            if lhsPriority != rhsPriority { return lhsPriority < rhsPriority }
+            return lhs.card.bank < rhs.card.bank
+        }
+
+        guard !expiryCards.isEmpty else { return }
+
+        let cardList = expiryCards.prefix(8).map { item in
+            let statusText = item.status == .expired ? "已过期" : "6个月内到期"
+            return "• \(item.card.bank) - \(item.card.alias ?? "无别名")：\(item.card.valid ?? "--/--")，\(statusText)"
+        }.joined(separator: "\n")
+        let extraText = expiryCards.count > 8 ? "\n另有 \(expiryCards.count - 8) 张卡片也需要处理。" : ""
+
+        let alert = NSAlert()
+        alert.messageText = "卡片有效期检测"
+        alert.informativeText = """
+        检测到以下卡片已过期或将在 6 个月内到期。
+
+        \(cardList)\(extraText)
+
+        请确认银行是否已换发新卡，并在卡片详情里更新有效期。
+        """
+        alert.alertStyle = expiryCards.contains { $0.status == .expired } ? .critical : .warning
+        alert.addButton(withTitle: "查看统计")
+        alert.addButton(withTitle: "知道了")
+
+        if alert.runModal() == .alertFirstButtonReturn {
+            selection = .statistics
         }
     }
     
@@ -554,6 +751,70 @@ struct ContentView: View {
             updatedCard.lastModifyTime = DateCalculator.timestamp(from: Date())
             cards[index] = updatedCard
             cards = syncCoordinator.commit(cards: cards)
+        }
+    }
+}
+
+@MainActor
+private final class CardSystemNotificationCenter {
+    static let shared = CardSystemNotificationCenter()
+
+    private let center = UNUserNotificationCenter.current()
+    private let defaultsKey = "card_system_notification_daily_v1"
+
+    private init() {}
+
+    func refresh(cards: [SharedCard], locked: Bool) async {
+        guard !locked, !cards.isEmpty else { return }
+
+        let billingCount = DateCalculator.billingCycleReminderItems(for: cards).count
+        let annualCount = cards.filter { DateCalculator.annualFeeDetection(for: $0) != nil }.count
+        let expiryCount = cards.filter { card in
+            guard let status = DateCalculator.cardExpiryStatus(valid: card.valid) else { return false }
+            return status == .expired || status == .soonExpiring
+        }.count
+        let total = billingCount + annualCount + expiryCount
+        guard total > 0 else { return }
+
+        let todayKey = DateCalculator.formatDate(Date())
+        let fingerprint = "\(todayKey)|\(billingCount)|\(annualCount)|\(expiryCount)"
+        guard UserDefaults.standard.string(forKey: defaultsKey) != fingerprint else { return }
+        guard await requestAuthorizationIfNeeded() else { return }
+
+        var parts: [String] = []
+        if billingCount > 0 { parts.append("还款/账单 \(billingCount) 项") }
+        if annualCount > 0 { parts.append("年费 \(annualCount) 项") }
+        if expiryCount > 0 { parts.append("有效期 \(expiryCount) 项") }
+
+        let content = UNMutableNotificationContent()
+        content.title = "银行卡提醒"
+        content.body = "检测到\(parts.joined(separator: "、"))，请打开应用查看。"
+        content.sound = .default
+
+        let trigger = UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false)
+        let request = UNNotificationRequest(
+            identifier: "card_daily_summary_\(todayKey)",
+            content: content,
+            trigger: trigger
+        )
+
+        do {
+            try await center.add(request)
+            UserDefaults.standard.set(fingerprint, forKey: defaultsKey)
+        } catch {
+            print("发送系统通知失败: \(error.localizedDescription)")
+        }
+    }
+
+    private func requestAuthorizationIfNeeded() async -> Bool {
+        let settings = await center.notificationSettings()
+        switch settings.authorizationStatus {
+        case .authorized, .provisional:
+            return true
+        case .notDetermined:
+            return (try? await center.requestAuthorization(options: [.alert, .sound])) ?? false
+        default:
+            return false
         }
     }
 }

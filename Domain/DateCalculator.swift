@@ -23,6 +23,30 @@ public class DateCalculator {
         public let soonExpiring: Int
         public let normalCards: Int
     }
+
+    public enum BillingCycleReminderKind {
+        case bill
+        case repayment
+    }
+
+    public struct BillingCycleReminderResult: Identifiable {
+        public let id = UUID()
+        public let kind: BillingCycleReminderKind
+        public let days: Int
+        public let date: Date
+        public let title: String
+    }
+
+    public struct DataQualityIssue: Identifiable {
+        public let id = UUID()
+        public let severity: String
+        public let title: String
+        public let detail: String
+        public let cardName: String
+    }
+
+    public static let billWarningDays = 3
+    public static let repaymentWarningDays = 7
     
     private static let isoFormatter: DateFormatter = {
         let df = DateFormatter()
@@ -63,6 +87,10 @@ public class DateCalculator {
     public static func formatTimestampDate(_ timestamp: Double?) -> String {
         guard let date = date(fromTimestamp: timestamp) else { return "" }
         return isoFormatter.string(from: date)
+    }
+
+    public static func formatDate(_ date: Date) -> String {
+        isoFormatter.string(from: date)
     }
 
     public static func formatTimestampDateTime(_ timestamp: Double?, placeholder: String = "--") -> String {
@@ -360,5 +388,217 @@ public class DateCalculator {
             soonExpiring: soonExpiring,
             normalCards: normalCards
         )
+    }
+
+    public static func billingCycleReminders(
+        for card: SharedCard,
+        now: Date = Date(),
+        billWarningDays: Int = DateCalculator.billWarningDays,
+        repaymentWarningDays: Int = DateCalculator.repaymentWarningDays
+    ) -> [BillingCycleReminderResult] {
+        guard card.cardCategory != "debit" else { return [] }
+
+        var reminders: [BillingCycleReminderResult] = []
+
+        if let billDate = nextBillDate(accountBillDate: card.accountBillDate, now: now),
+           let days = daysUntil(billDate, now: now),
+           days >= 0,
+           days <= billWarningDays {
+            reminders.append(
+                BillingCycleReminderResult(
+                    kind: .bill,
+                    days: days,
+                    date: billDate,
+                    title: days == 0 ? "今天是账单日" : "\(days) 天后账单日"
+                )
+            )
+        }
+
+        if let dueDate = nextDueDate(accountBillDate: card.accountBillDate, dueDate: card.dueDate, now: now),
+           let days = daysUntil(dueDate, now: now),
+           days >= 0,
+           days <= repaymentWarningDays {
+            reminders.append(
+                BillingCycleReminderResult(
+                    kind: .repayment,
+                    days: days,
+                    date: dueDate,
+                    title: days == 0 ? "今天是还款日" : "\(days) 天后还款日"
+                )
+            )
+        }
+
+        return reminders
+    }
+
+    public static func billingCycleReminderItems(
+        for cards: [SharedCard],
+        now: Date = Date()
+    ) -> [(card: SharedCard, reminder: BillingCycleReminderResult)] {
+        cards.flatMap { card in
+            billingCycleReminders(for: card, now: now).map { reminder in
+                (card: card, reminder: reminder)
+            }
+        }
+        .sorted { lhs, rhs in
+            let lhsPriority = lhs.reminder.kind == .repayment ? 0 : 1
+            let rhsPriority = rhs.reminder.kind == .repayment ? 0 : 1
+            if lhsPriority != rhsPriority { return lhsPriority < rhsPriority }
+            if lhs.reminder.days != rhs.reminder.days { return lhs.reminder.days < rhs.reminder.days }
+            return lhs.card.bank < rhs.card.bank
+        }
+    }
+
+    public static func analyzeDataQuality(cards: [SharedCard]) -> [DataQualityIssue] {
+        var issues: [DataQualityIssue] = []
+        var numberGroups: [String: [SharedCard]] = [:]
+
+        func trimmed(_ value: String?) -> String {
+            (value ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+
+        func cardName(_ card: SharedCard) -> String {
+            let bank = trimmed(card.bank).isEmpty ? "未知银行" : card.bank
+            let alias = trimmed(card.alias).isEmpty ? "未命名卡片" : trimmed(card.alias)
+            return "\(bank) - \(alias)"
+        }
+
+        func add(_ severity: String, _ title: String, _ detail: String, card: SharedCard? = nil) {
+            issues.append(
+                DataQualityIssue(
+                    severity: severity,
+                    title: title,
+                    detail: detail,
+                    cardName: card.map(cardName) ?? ""
+                )
+            )
+        }
+
+        for card in cards {
+            let cleanNumber = String(card.cardNumber.filter { $0.isNumber })
+            if cleanNumber.isEmpty {
+                add("严重", "卡号缺失", "无法用于验卡或重复检测。", card: card)
+            } else {
+                numberGroups[cleanNumber, default: []].append(card)
+            }
+
+            if trimmed(card.bank).isEmpty {
+                add("警告", "银行缺失", "建议补全发卡银行，便于统计和同步审计。", card: card)
+            }
+
+            if !trimmed(card.valid).isEmpty, cardExpiryStatus(valid: card.valid) == nil {
+                add("严重", "有效期格式异常", "当前有效期为“\(card.valid ?? "")”，建议使用 MM/YY。", card: card)
+            }
+
+            if card.cardCategory != "debit" {
+                let billDay = dayNumber(card.accountBillDate)
+                let dueDay = dayNumber(card.dueDate)
+                if trimmed(card.accountBillDate).isEmpty || trimmed(card.dueDate).isEmpty {
+                    add("警告", "账单/还款配置缺失", "无法计算还款提醒和免息期。", card: card)
+                } else {
+                    if billDay == nil {
+                        add("严重", "账单日非法", "账单日必须是 1-31 之间的数字。", card: card)
+                    }
+                    if dueDay == nil {
+                        add("严重", "还款日非法", "还款日必须是 1-31 之间的数字。", card: card)
+                    }
+                }
+                if card.isQualified != "3", card.nextAnnualFeeCollectionTime == nil {
+                    add("警告", "年费日期缺失", "非终免年费卡片缺少下次年费收取时间。", card: card)
+                }
+            } else if !trimmed(card.accountBillDate).isEmpty ||
+                        !trimmed(card.dueDate).isEmpty ||
+                        (card.annualFee ?? 0) > 0 ||
+                        card.nextAnnualFeeCollectionTime != nil {
+                add("提示", "储蓄卡包含信用卡字段", "储蓄卡不会参与账单、还款和年费提醒，建议清理相关字段。", card: card)
+            }
+        }
+
+        for group in numberGroups.values where group.count > 1 {
+            add("严重", "卡号重复", group.map(cardName).joined(separator: "、"))
+        }
+
+        let sharedGroups = Dictionary(grouping: cards.filter { $0.cardCategory != "debit" && $0.isSharedLimit }) { card in
+            "\(card.country)|\(card.bank)|\(card.type ?? "")"
+        }
+
+        for group in sharedGroups.values where group.count > 1 {
+            let limits = Set(group.map { $0.limit ?? 0 })
+            if limits.count > 1 {
+                add(
+                    "警告",
+                    "共享额度不一致",
+                    group.map { card in
+                        "\(trimmed(card.alias).isEmpty ? "未命名卡片" : trimmed(card.alias))：\(card.limit ?? 0)"
+                    }.joined(separator: "、")
+                )
+            }
+        }
+
+        let weight = ["严重": 0, "警告": 1, "提示": 2]
+        return issues.sorted { (weight[$0.severity] ?? 9) < (weight[$1.severity] ?? 9) }
+    }
+
+    private static func dayNumber(_ value: String?) -> Int? {
+        guard let day = Int((value ?? "").trimmingCharacters(in: .whitespacesAndNewlines)),
+              (1...31).contains(day) else {
+            return nil
+        }
+        return day
+    }
+
+    private static func monthDayDate(day: Int, baseDate: Date, monthOffset: Int = 0) -> Date? {
+        let calendar = Calendar.current
+        let baseStart = calendar.startOfDay(for: baseDate)
+        guard let targetMonth = calendar.date(byAdding: .month, value: monthOffset, to: baseStart) else {
+            return nil
+        }
+
+        var components = calendar.dateComponents([.year, .month], from: targetMonth)
+        guard let firstDay = calendar.date(from: components),
+              let dayRange = calendar.range(of: .day, in: .month, for: firstDay) else {
+            return nil
+        }
+
+        components.day = min(day, dayRange.count)
+        return calendar.date(from: components).map { calendar.startOfDay(for: $0) }
+    }
+
+    private static func daysUntil(_ date: Date, now: Date) -> Int? {
+        let calendar = Calendar.current
+        let today = calendar.startOfDay(for: now)
+        let target = calendar.startOfDay(for: date)
+        return calendar.dateComponents([.day], from: today, to: target).day
+    }
+
+    private static func nextBillDate(accountBillDate: String?, now: Date) -> Date? {
+        guard let day = dayNumber(accountBillDate),
+              let current = monthDayDate(day: day, baseDate: now) else {
+            return nil
+        }
+        return current >= Calendar.current.startOfDay(for: now) ? current : monthDayDate(day: day, baseDate: now, monthOffset: 1)
+    }
+
+    private static func dueDateForBillMonth(
+        accountBillDate: String?,
+        dueDate: String?,
+        now: Date,
+        monthOffset: Int = 0
+    ) -> Date? {
+        guard let billDay = dayNumber(accountBillDate),
+              let dueDay = dayNumber(dueDate) else {
+            return nil
+        }
+        let dueMonthOffset = monthOffset + (dueDay < billDay ? 1 : 0)
+        return monthDayDate(day: dueDay, baseDate: now, monthOffset: dueMonthOffset)
+    }
+
+    private static func nextDueDate(accountBillDate: String?, dueDate: String?, now: Date) -> Date? {
+        guard let current = dueDateForBillMonth(accountBillDate: accountBillDate, dueDate: dueDate, now: now) else {
+            return nil
+        }
+        return current >= Calendar.current.startOfDay(for: now)
+            ? current
+            : dueDateForBillMonth(accountBillDate: accountBillDate, dueDate: dueDate, now: now, monthOffset: 1)
     }
 }

@@ -4,6 +4,7 @@ public enum NavigationSection: Hashable {
     case allCards
     case annualFeeAlert
     case statistics
+    case tools
     case cloudSync
     case settings
 }
@@ -21,11 +22,26 @@ public struct SidebarView: View {
     // 💡 退出按钮悬浮 Hover 状态
     @State private var isQuitHovered = false
     
-    // 计算需要处理的年费提醒卡片数量
+    // 计算需要处理的卡片提醒数量
     private var annualFeeAlertCount: Int {
         cards.filter { card in
             DateCalculator.annualFeeDetection(for: card) != nil
         }.count
+    }
+
+    private var expiryAlertCount: Int {
+        cards.filter { card in
+            guard let status = DateCalculator.cardExpiryStatus(valid: card.valid) else { return false }
+            return status == .expired || status == .soonExpiring
+        }.count
+    }
+
+    private var billingCycleAlertCount: Int {
+        DateCalculator.billingCycleReminderItems(for: cards).count
+    }
+
+    private var cardReminderCount: Int {
+        billingCycleAlertCount + annualFeeAlertCount + expiryAlertCount
     }
     
     public init(selection: Binding<NavigationSection?>, cards: [SharedCard]) {
@@ -40,14 +56,14 @@ public struct SidebarView: View {
                     Label("银行卡", systemImage: "creditcard")
                 }
                 
-                // 💡 年费提醒角标：存在待处理卡片时显示急需处理数量
-                if annualFeeAlertCount > 0 {
+                // 💡 卡片提醒角标：存在待处理事项时显示急需处理数量
+                if cardReminderCount > 0 {
                     NavigationLink(value: NavigationSection.annualFeeAlert) {
                         HStack {
-                            Label("年费提醒卡", systemImage: "clock.badge.exclamationmark")
+                            Label("卡片提醒卡", systemImage: "clock.badge.exclamationmark")
                                 .foregroundColor(.orange)
                             Spacer()
-                            Text("\(annualFeeAlertCount)")
+                            Text("\(cardReminderCount)")
                                 .font(.caption2)
                                 .bold()
                                 .padding(.horizontal, 6)
@@ -61,6 +77,10 @@ public struct SidebarView: View {
                 
                 NavigationLink(value: NavigationSection.statistics) {
                     Label("统计与分析", systemImage: "chart.pie.fill")
+                }
+
+                NavigationLink(value: NavigationSection.tools) {
+                    Label("工具", systemImage: "wrench.and.screwdriver.fill")
                 }
                 
                 NavigationLink(value: NavigationSection.cloudSync) {
