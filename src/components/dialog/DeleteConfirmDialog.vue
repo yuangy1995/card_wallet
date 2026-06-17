@@ -1,33 +1,40 @@
 <template>
   <el-dialog
     v-model="dialogVisible"
-    width="30%"
+    width="32%"
     :close-on-click-modal="false"
     draggable
   >
     <div class="delete-confirm-content">
-      <el-alert
-        type="warning"
-        :closable="false"
-        show-icon
-      >
-        <template #title>
-          <span class="warning-title">
-            <el-icon class="warning-icon"><Warning /></el-icon>
-            确定要删除这张卡片吗？
-          </span>
-        </template>
-        <template #default>
-          <div class="card-info">
-            <p><strong>卡片名称：</strong>{{ cardInfo.cardName }}</p>
-            <p><strong>发卡行：</strong>{{ cardInfo.bankName }}</p>
-            <p><strong>发行地区：</strong>{{ cardInfo.country }}</p>
-            <p><strong>卡片等级：</strong>{{ cardInfo.level }}</p>
-            <p v-if="cardInfo.limit"><strong>卡片额度：</strong>{{ cardInfo.limit }}</p>
-          </div>
-          <p class="warning-text">此操作将永久删除该卡片信息，无法恢复！</p>
-        </template>
-      </el-alert>
+      <div class="confirm-header">
+        <el-icon class="warning-icon"><Warning /></el-icon>
+        <span class="warning-title">确定要删除这张卡片吗？</span>
+      </div>
+      
+      <div class="card-details">
+        <div class="info-row">
+          <span class="info-label">卡片名称：</span>
+          <span class="info-value">{{ cardInfo.cardName }}</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">发卡行：</span>
+          <span class="info-value">{{ cardInfo.bankName }}</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">发行地区：</span>
+          <span class="info-value">{{ cardInfo.country }}</span>
+        </div>
+        <div class="info-row">
+          <span class="info-label">卡片等级：</span>
+          <span class="info-value">{{ cardInfo.level }}</span>
+        </div>
+        <div class="info-row" v-if="cardInfo.limit">
+          <span class="info-label">卡片额度：</span>
+          <span class="info-value">{{ cardInfo.limit }}</span>
+        </div>
+      </div>
+
+      <p class="warning-text">此操作将永久删除该卡片信息，无法恢复！</p>
     </div>
 
     <template #footer>
@@ -91,53 +98,91 @@ watch(isLocked, (locked) => {
 
 <style scoped>
 .delete-confirm-content {
+  /* 亮色模式配置变量 */
+  --del-title-color: #d46b08;
+  --del-card-bg: #f8fafc;
+  --del-label-color: #64748b;
+  --del-value-color: #1e293b;
+  --del-warning-text: #ef4444;
+  
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 18px;
+  padding: 8px 4px;
 }
 
-.warning-title {
+/* 适配暗色模式变量 */
+.dark .delete-confirm-content,
+:deep(.dark) .delete-confirm-content {
+  --del-title-color: #f1c40f;
+  --del-card-bg: rgba(255, 255, 255, 0.02);
+  --del-label-color: #9aa5b1;
+  --del-value-color: #f1f2f6;
+  --del-warning-text: #ff0844;
+}
+
+.confirm-header {
   display: flex;
   align-items: center;
-  gap: 8px;
-  font-size: 16px;
-  font-weight: bold;
+  gap: 10px;
 }
 
 .warning-icon {
-  font-size: 20px;
-  color: var(--el-color-warning);
+  font-size: 24px;
+  color: var(--del-title-color);
+  flex-shrink: 0;
 }
 
-.card-info {
+.warning-title {
+  font-size: 17px;
+  font-weight: 600;
+  color: var(--del-title-color);
+  letter-spacing: 0.5px;
+}
+
+.card-details {
+  background-color: var(--del-card-bg);
+  border-radius: 8px;
+  padding: 16px 20px;
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  margin: 12px 0;
-  padding: 12px;
-  background-color: var(--el-fill-color-light);
-  border-radius: 4px;
+  gap: 10px;
+  border: none !important; /* 去除多余的内部边框 */
+}
+
+.info-row {
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  font-size: 14px;
+  line-height: 1.6;
+}
+
+.info-label {
+  color: var(--del-label-color);
+  width: 80px;
+  flex-shrink: 0;
+  font-weight: 500;
+}
+
+.info-value {
+  color: var(--del-value-color);
+  font-weight: 600;
 }
 
 .warning-text {
-  color: var(--el-color-danger);
-  font-weight: bold;
-  margin-top: 8px;
+  color: var(--del-warning-text);
+  font-weight: 700;
+  font-size: 13px;
+  margin: 0;
+  padding-left: 4px;
 }
 
 .dialog-footer {
   display: flex;
   justify-content: center;
-  gap: 12px;
-  padding-top: 20px;
-}
-
-:deep(.el-alert__title) {
-  font-size: 16px;
-}
-
-:deep(.el-alert__content) {
-  width: 100%;
+  gap: 16px;
+  padding-top: 12px;
 }
 
 :deep(.el-dialog__header) {
