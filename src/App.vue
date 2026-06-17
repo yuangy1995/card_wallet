@@ -114,7 +114,7 @@
                 <el-icon><TrendCharts /></el-icon>统计分析
               </el-button>
               <el-button type="warning" size="small" @click="manualCheckAnnualFees">
-                <el-icon><Calendar /></el-icon>年费提醒
+                <el-icon><Calendar /></el-icon>卡片提醒
               </el-button>
             </el-button-group>
 
@@ -134,7 +134,7 @@
                     <el-icon><TrendCharts /></el-icon>统计分析
                   </el-dropdown-item>
                   <el-dropdown-item command="annualFeeRemind" class="mobile-only-menu-item">
-                    <el-icon><Calendar /></el-icon>年费提醒
+                    <el-icon><Calendar /></el-icon>卡片提醒
                   </el-dropdown-item>
 
                   <el-dropdown-item command="cloudSettings">
@@ -145,6 +145,12 @@
                   </el-dropdown-item>
                   <el-dropdown-item command="tableCustom">
                     <el-icon><Setting /></el-icon>自定义列
+                  </el-dropdown-item>
+                  <el-dropdown-item command="systemNotification">
+                    <el-icon><Bell /></el-icon>系统通知
+                  </el-dropdown-item>
+                  <el-dropdown-item command="dataDiagnostics">
+                    <el-icon><WarningFilled /></el-icon>数据异常检测
                   </el-dropdown-item>
                   <el-dropdown-item command="help">
                     <el-icon><QuestionFilled /></el-icon>使用帮助
@@ -420,11 +426,13 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   Delete,
   Setting,
+  Bell,
   Plus,
   TrendCharts,
   Calendar,
   Star,
   QuestionFilled,
+  WarningFilled,
   Connection,
   CopyDocument,
   Menu,
@@ -473,6 +481,22 @@ import { PasswordManager } from '@/utils/passwordManager'
 import { webdavSyncService } from '@/utils/webdavSyncService'
 import { formatCardTimestamp, normalizeCardTimeFields, timestampFromDateInput } from '@/utils/cardTimestamp'
 import { bankNamesReferToSameBank, displayBankName, shouldPropagateBankRename } from '@/utils/bankName'
+import {
+  AnnualFeeReminderKind,
+  analyzeCardDataIssues,
+  CardExpiryStatus,
+  getAnnualFeeDetection,
+  getAnnualFeeReminderGroups,
+  getBillingCycleReminderGroups,
+  getCardExpiryReminderCards,
+  getCardExpiryStatus,
+  isCreditCard,
+  normalizeCardCategory
+} from '@/utils/cardReminderRules'
+import {
+  maybeNotifyDailyCardReminders,
+  requestSystemNotificationPermission
+} from '@/utils/systemNotifications'
 
 // 主题控制
 const { isDarkMode, toggleTheme } = useTheme()
@@ -513,9 +537,6 @@ watch(viewMode, (newValue) => {
   // 视图切换时，自动清除所有批量勾选状态，防范多视图数据和渲染不同步的 Bug
   clearSelection()
 })
-
-const normalizeCardCategory = (card) => card?.cardCategory === 'debit' ? 'debit' : 'credit'
-const isCreditCard = (card) => normalizeCardCategory(card) === 'credit'
 
 const cardCategoryFilter = ref(localStorage.getItem('cardCategoryFilter') || 'all')
 watch(cardCategoryFilter, (newValue) => {
@@ -1163,6 +1184,7 @@ onMounted(async () => {
 
         // 自动检查年费情况
         await manualCheckAnnualFees()
+        maybeNotifyDailyCardReminders(cardData.value)
       }
 
       // 显示迁移报告（需要在所有loading完成后）
@@ -1188,12 +1210,8 @@ onMounted(async () => {
 const checkAnnualFeeQualified = async () => {
   const now = new Date()
   const warningCards = cardData.value.filter(card => {
-    if (!isCreditCard(card)) return false
-    // 排除终免年费('3')、已经是未达标状态('2')、或没有年费收取时间的卡片
-    if (card.isQualified === '3' || card.isQualified === '2' || !card.nextAnnualFeeCollectionTime) return false
-    const dueDate = new Date(card.nextAnnualFeeCollectionTime)
-    const diffDays = Math.ceil((dueDate - now) / (1000 * 60 * 60 * 24))
-    return diffDays <= BACKUP_CONSTANTS.ANNUAL_FEE_CHECK_DAYS && diffDays >= 0
+    const reminder = getAnnualFeeDetection(card, BACKUP_CONSTANTS.ANNUAL_FEE_CHECK_DAYS, now)
+    return reminder?.kind === AnnualFeeReminderKind.WARNING
   })
 
   if (warningCards.length > 0) {
@@ -1406,6 +1424,12 @@ const handleMoreAction = async (command) => {
     case 'tableCustom':
       openTableCustom()
       break
+    case 'systemNotification':
+      await enableSystemNotifications()
+      break
+    case 'dataDiagnostics':
+      await showDataDiagnostics()
+      break
     case 'help':
       showHelp()
       break
@@ -1439,36 +1463,54 @@ const showStatistics = () => {
 
 const manualCheckAnnualFees = async () => {
   const now = new Date()
-  const warningCards = []
-  const overdueCards = []
-  const unqualifiedCards = []
+  const {
+    unqualified: unqualifiedCards,
+    warning: warningCards,
+    overdue: overdueCards
+  } = getAnnualFeeReminderGroups(cardData.value, BACKUP_CONSTANTS.ANNUAL_FEE_CHECK_DAYS, now)
+  const {
+    bill: billReminderCards,
+    repayment: repaymentReminderCards
+  } = getBillingCycleReminderGroups(cardData.value, now)
+  const expiryReminderCards = getCardExpiryReminderCards(cardData.value, now)
+  const expiredCards = expiryReminderCards.filter(card => card.expiryStatus === CardExpiryStatus.EXPIRED)
+  const soonExpiringCards = expiryReminderCards.filter(card => card.expiryStatus === CardExpiryStatus.SOON_EXPIRING)
 
-  cardData.value.forEach(card => {
-    if (!isCreditCard(card)) return
-    // 如果是未达标的卡片
-    if (card.isQualified === '2' && card.nextAnnualFeeCollectionTime) {
-      const dueDate = new Date(card.nextAnnualFeeCollectionTime)
-      const diffDays = Math.ceil((dueDate - now) / (1000 * 60 * 60 * 24))
-      if (diffDays > 0) {  // 只显示还未到期的未达标卡片
-        unqualifiedCards.push({...card, diffDays})
-      }
-    }
-
-    // 检查年费时间
-    if (!card.nextAnnualFeeCollectionTime || card.isQualified === '3') return
-
-    const dueDate = new Date(card.nextAnnualFeeCollectionTime)
-    const diffDays = Math.ceil((dueDate - now) / (1000 * 60 * 60 * 24))
-
-    if (diffDays <= BACKUP_CONSTANTS.ANNUAL_FEE_CHECK_DAYS && diffDays > 0 && card.isQualified !== '2') {
-      warningCards.push(card)
-    } else if (diffDays <= 0 && diffDays > -60) {
-      overdueCards.push(card)
-    }
-  })
-
-  if (warningCards.length > 0 || overdueCards.length > 0 || unqualifiedCards.length > 0) {
+  if (
+    billReminderCards.length > 0 ||
+    repaymentReminderCards.length > 0 ||
+    warningCards.length > 0 ||
+    overdueCards.length > 0 ||
+    unqualifiedCards.length > 0 ||
+    expiryReminderCards.length > 0
+  ) {
     let message = '<div class="manual-check-container" style="max-height: 400px; overflow-y: auto;">'
+
+    if (repaymentReminderCards.length > 0) {
+      message += '<div style="margin-bottom: 16px;">'
+      message += '<h3 class="manual-check-section-title overdue" style="margin-bottom: 8px;">还款日提醒</h3>'
+      message += '<ul style="list-style-type: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 16px;">'
+      repaymentReminderCards.forEach(card => {
+        message += `<li class="manual-check-card-item overdue">
+          <div class="manual-check-card-title">${card.bank || ''} - ${card.alias || '未命名卡片'}</div>
+          <div class="manual-check-card-desc">${card.reminder.title}，请核对本期账单是否已还款</div>
+        </li>`
+      })
+      message += '</ul></div>'
+    }
+
+    if (billReminderCards.length > 0) {
+      message += '<div style="margin-bottom: 16px;">'
+      message += '<h3 class="manual-check-section-title warning" style="margin-bottom: 8px;">账单日提醒</h3>'
+      message += '<ul style="list-style-type: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 16px;">'
+      billReminderCards.forEach(card => {
+        message += `<li class="manual-check-card-item warning">
+          <div class="manual-check-card-title">${card.bank || ''} - ${card.alias || '未命名卡片'}</div>
+          <div class="manual-check-card-desc">${card.reminder.title}，请关注本期出账</div>
+        </li>`
+      })
+      message += '</ul></div>'
+    }
 
     if (unqualifiedCards.length > 0) {
       message += '<div style="margin-bottom: 16px;">'
@@ -1477,7 +1519,7 @@ const manualCheckAnnualFees = async () => {
       unqualifiedCards.forEach(card => {
         message += `<li class="manual-check-card-item unqualified">
           <div class="manual-check-card-title">${card.bank || ''} - ${card.alias}</div>
-          <div class="manual-check-card-desc">距离年费收取还有 ${card.diffDays} 天</div>
+          <div class="manual-check-card-desc">距离年费收取还有 ${card.reminder.days} 天</div>
         </li>`
       })
       message += '</ul></div>'
@@ -1490,7 +1532,7 @@ const manualCheckAnnualFees = async () => {
       warningCards.forEach(card => {
         message += `<li class="manual-check-card-item warning">
           <div class="manual-check-card-title">${card.bank || ''} - ${card.alias}</div>
-          <div class="manual-check-card-desc">将在 ${Math.ceil((new Date(card.nextAnnualFeeCollectionTime) - now) / (1000 * 60 * 60 * 24))} 天后收取年费</div>
+          <div class="manual-check-card-desc">将在 ${card.reminder.days} 天后收取年费</div>
         </li>`
       })
       message += '</ul></div>'
@@ -1503,7 +1545,33 @@ const manualCheckAnnualFees = async () => {
       overdueCards.forEach(card => {
         message += `<li class="manual-check-card-item overdue">
           <div class="manual-check-card-title">${card.bank || ''} - ${card.alias}</div>
-          <div class="manual-check-card-desc">已过期 ${Math.ceil((now - new Date(card.nextAnnualFeeCollectionTime)) / (1000 * 60 * 60 * 24))} 天</div>
+          <div class="manual-check-card-desc">已过期 ${card.reminder.days} 天</div>
+        </li>`
+      })
+      message += '</ul></div>'
+    }
+
+    if (expiredCards.length > 0) {
+      message += '<div style="margin-bottom: 16px;">'
+      message += '<h3 class="manual-check-section-title overdue" style="margin-bottom: 8px;">卡片有效期已过期</h3>'
+      message += '<ul style="list-style-type: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 16px;">'
+      expiredCards.forEach(card => {
+        message += `<li class="manual-check-card-item overdue">
+          <div class="manual-check-card-title">${card.bank || ''} - ${card.alias || '未命名卡片'}</div>
+          <div class="manual-check-card-desc">有效期：${card.valid || '--/--'}，请确认是否已换发新卡</div>
+        </li>`
+      })
+      message += '</ul></div>'
+    }
+
+    if (soonExpiringCards.length > 0) {
+      message += '<div>'
+      message += '<h3 class="manual-check-section-title warning" style="margin-bottom: 8px;">6个月内到期卡片</h3>'
+      message += '<ul style="list-style-type: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 16px;">'
+      soonExpiringCards.forEach(card => {
+        message += `<li class="manual-check-card-item warning">
+          <div class="manual-check-card-title">${card.bank || ''} - ${card.alias || '未命名卡片'}</div>
+          <div class="manual-check-card-desc">有效期：${card.valid || '--/--'}，请留意银行换卡进度</div>
         </li>`
       })
       message += '</ul></div>'
@@ -1514,7 +1582,7 @@ const manualCheckAnnualFees = async () => {
     try {
       await ElMessageBox.alert(
         message,
-        '',
+        '卡片提醒',
         {
           confirmButtonText: '知道了',
           dangerouslyUseHTMLString: true,
@@ -1527,10 +1595,52 @@ const manualCheckAnnualFees = async () => {
   } else {
     ElMessage({
       type: 'success',
-      message: '太好了！目前没有需要担心的年费问题',
+      message: '太好了！目前没有需要处理的账单、还款、年费或有效期问题',
       duration: 3000
     })
   }
+}
+
+const enableSystemNotifications = async () => {
+  const permission = await requestSystemNotificationPermission()
+  if (permission === 'granted') {
+    const sent = maybeNotifyDailyCardReminders(cardData.value, { force: true })
+    ElMessage.success(sent ? '系统通知已开启，并已发送本次卡片提醒' : '系统通知已开启，目前没有待提醒事项')
+  } else if (permission === 'denied') {
+    ElMessage.warning('系统通知权限被拒绝，请在浏览器站点设置中重新允许通知')
+  } else {
+    ElMessage.info('当前浏览器不支持系统通知')
+  }
+}
+
+const showDataDiagnostics = async () => {
+  const issues = analyzeCardDataIssues(cardData.value)
+  if (issues.length === 0) {
+    ElMessage.success('未发现明显数据异常')
+    return
+  }
+
+  const labelMap = { error: '严重', warning: '警告', info: '提示' }
+  const classMap = { error: 'overdue', warning: 'warning', info: 'unqualified' }
+  const message = `
+    <div class="manual-check-container" style="max-height: 460px; overflow-y: auto;">
+      <div style="margin-bottom: 12px; color: var(--el-text-color-secondary);">共发现 ${issues.length} 项数据问题，建议按严重程度逐项修正。</div>
+      <ul style="list-style-type: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 16px;">
+        ${issues.map(item => `
+          <li class="manual-check-card-item ${classMap[item.severity] || 'warning'}">
+            <div class="manual-check-card-title">${labelMap[item.severity] || '提示'} · ${item.title}</div>
+            <div class="manual-check-card-desc">${item.cardName ? `${item.cardName}：` : ''}${item.description}</div>
+          </li>
+        `).join('')}
+      </ul>
+    </div>
+  `
+  await ElMessageBox.alert(message, '数据异常检测', {
+    confirmButtonText: '知道了',
+    dangerouslyUseHTMLString: true,
+    customClass: 'annual-fee-dialog',
+    showClose: true
+  })
 }
 
 const generateRandomData = async () => {
@@ -1812,28 +1922,22 @@ const setAnnualFeeQualified = async (cardId) => {
 }
 
 const getRowClassName = ({ row }) => {
-  if (!isCreditCard(row)) {
-    return ''
+  const reminder = isCreditCard(row)
+    ? getAnnualFeeDetection(row, BACKUP_CONSTANTS.ANNUAL_FEE_CHECK_DAYS)
+    : null
+  const expiryStatus = getCardExpiryStatus(row.valid)
+  if (reminder?.kind === AnnualFeeReminderKind.OVERDUE) {
+    return 'danger-row'
+  }
+  if (expiryStatus === CardExpiryStatus.EXPIRED) {
+    return 'danger-row'
   }
   // 如果未达标，显示警告样式（橙色）
-  if (row.isQualified === '2') {
+  if (isCreditCard(row) && row.isQualified === '2') {
     return 'warning-row'
   }
-
-  // 如果有下次年费收取时间且不是终免年费
-  if (row.nextAnnualFeeCollectionTime && row.isQualified !== '3') {
-    const now = new Date()
-    const dueDate = new Date(row.nextAnnualFeeCollectionTime)
-    const diffDays = Math.ceil((dueDate - now) / (1000 * 60 * 60 * 24))
-
-    // 如果已超过年费收取期限，显示危险样式（红色）
-    if (diffDays <= 0) {
-      return 'danger-row'
-    }
-    // 如果即将收取年费，显示提醒样式（黄色）
-    else if (diffDays <= 60) {
-      return 'reminder-row'
-    }
+  if (reminder?.kind === AnnualFeeReminderKind.WARNING || expiryStatus === CardExpiryStatus.SOON_EXPIRING) {
+    return 'reminder-row'
   }
 
   return ''
@@ -2109,6 +2213,7 @@ const handlePasswordVerified = async () => {
     if (cardData.value && cardData.value.length > 0) {
       await checkAnnualFeeQualified()
       await manualCheckAnnualFees()
+      maybeNotifyDailyCardReminders(cardData.value)
     }
     if (pendingMigrationInfo.value) {
       await nextTick()

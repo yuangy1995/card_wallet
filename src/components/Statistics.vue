@@ -88,6 +88,34 @@
       </div>
     </el-card>
 
+    <el-card v-if="hasExpiryStats" class="total-limits-card">
+      <template #header>
+        <div class="card-header collapse-header" @click="collapsedPanels.expiryStats = !collapsedPanels.expiryStats">
+          <span>📅 卡片有效期分析</span>
+          <div class="header-actions">
+            <span class="fold-text">{{ collapsedPanels.expiryStats ? '展开' : '收起' }}</span>
+            <el-icon :class="{ 'is-collapsed': collapsedPanels.expiryStats }" class="fold-arrow">
+              <ArrowDown />
+            </el-icon>
+          </div>
+        </div>
+      </template>
+      <div v-show="!collapsedPanels.expiryStats" class="expiry-stats">
+        <div class="expiry-item warning" v-if="expiryStats.expiredCards > 0">
+          <el-icon><WarningFilled /></el-icon>
+          <span>已过期: {{ expiryStats.expiredCards }} 张</span>
+        </div>
+        <div class="expiry-item danger" v-if="expiryStats.soonExpiring > 0">
+          <el-icon><Clock /></el-icon>
+          <span>6个月内到期: {{ expiryStats.soonExpiring }} 张</span>
+        </div>
+        <div class="expiry-item success">
+          <el-icon><Check /></el-icon>
+          <span>有效期正常: {{ expiryStats.normalCards }} 张</span>
+        </div>
+      </div>
+    </el-card>
+
     <!-- 总额度汇总 -->
     <el-card v-if="creditCardCount > 0" class="total-limits-card">
       <template #header>
@@ -227,29 +255,6 @@
         </el-row>
 
         <el-row :gutter="20">
-          <el-col :xs="24" :lg="12">
-            <el-card class="analysis-card">
-              <template #header>
-                <div class="card-header">
-                  <span>📅 卡片有效期分析</span>
-                </div>
-              </template>
-              <div class="expiry-stats">
-                <div class="expiry-item warning" v-if="expiryStats.expiredCards > 0">
-                  <el-icon><WarningFilled /></el-icon>
-                  <span>已过期: {{ expiryStats.expiredCards }} 张</span>
-                </div>
-                <div class="expiry-item danger" v-if="expiryStats.soonExpiring > 0">
-                  <el-icon><Clock /></el-icon>
-                  <span>6个月内到期: {{ expiryStats.soonExpiring }} 张</span>
-                </div>
-                <div class="expiry-item success">
-                  <el-icon><Check /></el-icon>
-                  <span>有效期正常: {{ expiryStats.normalCards }} 张</span>
-                </div>
-              </div>
-            </el-card>
-          </el-col>
           <el-col :xs="24" :lg="12">
             <el-card class="analysis-card">
               <template #header>
@@ -409,7 +414,11 @@ import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { QuestionFilled, Download, WarningFilled, Clock, Check, ArrowDown } from '@element-plus/icons-vue'
 import * as echarts from 'echarts'
-import { BACKUP_CONSTANTS } from '@/config/constants'
+import {
+  AnnualFeeReminderKind,
+  getAnnualFeeDetection,
+  getCardExpiryStats
+} from '@/utils/cardReminderRules'
 
 // Props
 const props = defineProps({
@@ -428,6 +437,7 @@ const countryChart = ref(null)
 
 const collapsedPanels = ref({
   debitDistribution: false,
+  expiryStats: false,
   creditTotals: false,
   limitStats: false,
   annualFeeStats: false,
@@ -557,7 +567,6 @@ const currencyTotals = computed(() => {
 
 // 年费状态统计
 const annualFeeStats = computed(() => {
-  const now = new Date()
   let qualified = 0, unqualified = 0, warning = 0, lifetime = 0
   
   creditCards.value.forEach(card => {
@@ -565,12 +574,8 @@ const annualFeeStats = computed(() => {
     else if (card.isQualified === '2') unqualified++
     else if (card.isQualified === '3') lifetime++
     
-    // 检查即将到期的年费
-    if (card.nextAnnualFeeCollectionTime && card.isQualified !== '3') {
-      const dueDate = new Date(card.nextAnnualFeeCollectionTime)
-      const diffDays = Math.ceil((dueDate - now) / (1000 * 60 * 60 * 24))
-      if (diffDays <= 60 && diffDays > 0) warning++
-    }
+    const reminder = getAnnualFeeDetection(card)
+    if (reminder?.kind === AnnualFeeReminderKind.WARNING) warning++
   })
   
   return { qualified, unqualified, warning, lifetime }
@@ -616,28 +621,13 @@ const freeAnnualFeeCards = computed(() => {
 
 // 卡片有效期分析
 const expiryStats = computed(() => {
-  const now = new Date()
-  const sixMonthsLater = new Date()
-  sixMonthsLater.setMonth(now.getMonth() + 6)
-  
-  let expiredCards = 0, soonExpiring = 0, normalCards = 0
-  
-  creditCards.value.forEach(card => {
-    if (card.valid) {
-      const [month, year] = card.valid.split('/')
-      const expiryDate = new Date(2000 + parseInt(year), parseInt(month) - 1)
-      
-      if (expiryDate < now) {
-        expiredCards++
-      } else if (expiryDate < sixMonthsLater) {
-        soonExpiring++
-      } else {
-        normalCards++
-      }
-    }
-  })
-  
-  return { expiredCards, soonExpiring, normalCards }
+  return getCardExpiryStats(filteredCardData.value)
+})
+
+const hasExpiryStats = computed(() => {
+  return expiryStats.value.expiredCards > 0 ||
+    expiryStats.value.soonExpiring > 0 ||
+    expiryStats.value.normalCards > 0
 })
 
 // 提额分析统计
