@@ -56,6 +56,17 @@ struct ToolsView: View {
                         )
                     }
                     .buttonStyle(.plain)
+
+                    NavigationLink(value: ToolType.dataDiagnostics) {
+                        ToolCardView(
+                            title: "数据异常检测",
+                            subtitle: "检查重复卡号、账单还款配置、有效期格式和共享额度一致性",
+                            iconName: "exclamationmark.triangle.fill",
+                            iconColor: .orange,
+                            iconBgColor: .orange.opacity(0.12)
+                        )
+                    }
+                    .buttonStyle(.plain)
                 }
                 .padding(16)
             }
@@ -69,6 +80,8 @@ struct ToolsView: View {
                     BestUsageView()
                 case .statistics:
                     StatisticsView()
+                case .dataDiagnostics:
+                    DataDiagnosticsView(cards: syncCoordinator.cards)
                 }
             }
         }
@@ -79,6 +92,67 @@ private enum ToolType: Hashable {
     case syncHistory
     case bestUsage
     case statistics
+    case dataDiagnostics
+}
+
+private struct DataDiagnosticsView: View {
+    let cards: [SharedCard]
+
+    private var issues: [DateCalculator.DataQualityIssue] {
+        DateCalculator.analyzeDataQuality(cards: cards)
+    }
+
+    var body: some View {
+        List {
+            if issues.isEmpty {
+                ContentUnavailableView("未发现明显数据异常", systemImage: "checkmark.shield.fill")
+            } else {
+                Section {
+                    ForEach(issues) { issue in
+                        HStack(alignment: .top, spacing: 12) {
+                            Image(systemName: iconName(for: issue.severity))
+                                .font(.system(size: 18, weight: .semibold))
+                                .foregroundColor(color(for: issue.severity))
+                                .frame(width: 24)
+                            VStack(alignment: .leading, spacing: 4) {
+                                Text("\(issue.severity) · \(issue.title)")
+                                    .font(.system(.body, weight: .semibold))
+                                if !issue.cardName.isEmpty {
+                                    Text(issue.cardName)
+                                        .font(.system(size: 12, weight: .medium))
+                                        .foregroundColor(.secondary)
+                                }
+                                Text(issue.detail)
+                                    .font(.system(size: 12))
+                                    .foregroundColor(.secondary)
+                            }
+                        }
+                        .padding(.vertical, 4)
+                    }
+                } header: {
+                    Text("共 \(issues.count) 项")
+                }
+            }
+        }
+        .navigationTitle("数据异常检测")
+        .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private func color(for severity: String) -> Color {
+        switch severity {
+        case "严重": return .red
+        case "警告": return .orange
+        default: return .blue
+        }
+    }
+
+    private func iconName(for severity: String) -> String {
+        switch severity {
+        case "严重": return "xmark.octagon.fill"
+        case "警告": return "exclamationmark.triangle.fill"
+        default: return "info.circle.fill"
+        }
+    }
 }
 
 private struct ToolCardView: View {

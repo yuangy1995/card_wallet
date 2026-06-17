@@ -24,10 +24,6 @@ struct StatDetailListView: View {
         }
     }
 
-    private var creditCards: [SharedCard] {
-        cards.filter { $0.cardCategory != "debit" }
-    }
-
     private var groupedByBank: [String: [SharedCard]] {
         Dictionary(grouping: cards, by: { $0.bank })
     }
@@ -37,7 +33,7 @@ struct StatDetailListView: View {
     }
 
     private var filteredExpiryCards: [SharedCard] {
-        creditCards.filter { card in
+        cards.filter { card in
             guard let status = DateCalculator.cardExpiryStatus(valid: card.valid) else { return false }
             return status == .expired || status == .soonExpiring
         }

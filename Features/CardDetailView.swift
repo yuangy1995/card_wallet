@@ -36,6 +36,13 @@ struct CardDetailView: View {
         )
     }
 
+    private var hasCardReminder: Bool {
+        if !DateCalculator.billingCycleReminders(for: card).isEmpty { return true }
+        if DateCalculator.annualFeeDetection(for: card) != nil { return true }
+        guard let status = DateCalculator.cardExpiryStatus(valid: card.valid) else { return false }
+        return status == .expired || status == .soonExpiring
+    }
+
     var body: some View {
         ZStack {
             Color(.systemGroupedBackground).ignoresSafeArea()
@@ -46,6 +53,10 @@ struct CardDetailView: View {
 
                     // 敏感信息防窥区
                     sensitiveInfoSection
+
+                    if hasCardReminder {
+                        cardReminderSection
+                    }
 
                     // 卡片图片媒体文件
                     if !card.cardImages.isEmpty {
@@ -231,6 +242,52 @@ struct CardDetailView: View {
         }
     }
 
+    private var cardReminderSection: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            sectionHeader(title: "卡片提醒", icon: "exclamationmark.triangle.fill", color: .orange)
+            VStack(spacing: 0) {
+                let billingReminders = DateCalculator.billingCycleReminders(for: card)
+                let expiryReminderStatus = DateCalculator.cardExpiryStatus(valid: card.valid)
+                let hasExpiryReminder = expiryReminderStatus == .expired || expiryReminderStatus == .soonExpiring
+                ForEach(billingReminders) { reminder in
+                    reminderInfoRow(
+                        icon: reminder.kind == .repayment ? "calendar.badge.exclamationmark" : "calendar.badge.clock",
+                        color: reminder.kind == .repayment ? .red : .orange,
+                        title: reminder.title,
+                        detail: reminder.kind == .repayment ? "请核对本期账单是否已还款。" : "请关注本期账单出账。"
+                    )
+                    if reminder.id != billingReminders.last?.id {
+                        Divider().padding(.leading, 16)
+                    }
+                }
+                if !billingReminders.isEmpty && (DateCalculator.annualFeeDetection(for: card) != nil || hasExpiryReminder) {
+                    Divider().padding(.leading, 16)
+                }
+                if let annualReminder = DateCalculator.annualFeeDetection(for: card) {
+                    reminderInfoRow(
+                        icon: annualReminder.kind == .overdue ? "xmark.circle.fill" : "exclamationmark.circle.fill",
+                        color: annualReminder.kind == .overdue ? .red : .orange,
+                        title: annualReminderTitle(annualReminder),
+                        detail: annualReminderDetail(annualReminder)
+                    )
+                }
+                if let status = DateCalculator.cardExpiryStatus(valid: card.valid),
+                   status == .expired || status == .soonExpiring {
+                    if DateCalculator.annualFeeDetection(for: card) != nil {
+                        Divider().padding(.leading, 16)
+                    }
+                    reminderInfoRow(
+                        icon: "calendar.badge.exclamationmark",
+                        color: status == .expired ? .red : .orange,
+                        title: status == .expired ? "卡片有效期已过期" : "卡片将在 6 个月内到期",
+                        detail: "当前有效期：\(card.valid ?? "--/--")"
+                    )
+                }
+            }
+            .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14))
+        }
+    }
+
     // MARK: - 年费信息
     private var annualFeeSection: some View {
         let qualifiedText: String
@@ -255,7 +312,8 @@ struct CardDetailView: View {
                 }
                 if let nextFeeTime = card.nextAnnualFeeCollectionTime {
                     Divider().padding(.leading, 16)
-                    infoRow(label: "下次收费", value: DateCalculator.formatTimestampDate(nextFeeTime))
+                    let delta = DateCalculator.getDaysFromNow(nextFeeTime)
+                    infoRow(label: "下次收费", value: "\(DateCalculator.formatTimestampDate(nextFeeTime))（\(delta.text)\(delta.days)天）")
                 }
                 if let lastTime = card.lastTime {
                     Divider().padding(.leading, 16)
@@ -314,6 +372,26 @@ struct CardDetailView: View {
                 .foregroundColor(.secondary)
             Spacer()
             content()
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 12)
+    }
+
+    private func reminderInfoRow(icon: String, color: Color, title: String, detail: String) -> some View {
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: icon)
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundColor(color)
+                .frame(width: 24)
+            VStack(alignment: .leading, spacing: 3) {
+                Text(title)
+                    .font(.system(.body, weight: .semibold))
+                    .foregroundColor(.primary)
+                Text(detail)
+                    .font(.system(size: 12))
+                    .foregroundColor(.secondary)
+            }
+            Spacer()
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 12)
@@ -385,6 +463,22 @@ struct CardDetailView: View {
             withAnimation(.easeOut(duration: 0.2)) {
                 showCopiedToast = false
             }
+        }
+    }
+
+    private func annualReminderTitle(_ reminder: DateCalculator.AnnualFeeDetectionResult) -> String {
+        switch reminder.kind {
+        case .unqualified: return "年费尚未达标"
+        case .warning: return "年费即将扣收"
+        case .overdue: return "年费已过期"
+        }
+    }
+
+    private func annualReminderDetail(_ reminder: DateCalculator.AnnualFeeDetectionResult) -> String {
+        switch reminder.kind {
+        case .unqualified: return "距离扣年费还有 \(reminder.days) 天，请确认刷卡笔数或额度。"
+        case .warning: return "\(reminder.days) 天后收取年费，请确认今年是否已经达标。"
+        case .overdue: return "已过 \(reminder.days) 天，请核对是否已扣费并更新状态。"
         }
     }
 

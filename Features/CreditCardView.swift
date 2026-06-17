@@ -202,8 +202,10 @@ struct CreditCardView: View {
 
                     Spacer()
 
-                    // 年费状态指示
-                    annualFeeStatusBadge
+                    HStack(spacing: 4) {
+                        expiryStatusBadge
+                        annualFeeStatusBadge
+                    }
 
                     // 额度显示
                     if let limit = card.limit, limit > 0, !isDebitCard {
@@ -319,6 +321,25 @@ struct CreditCardView: View {
         }
     }
 
+    private var expiryStatusBadge: some View {
+        Group {
+            if let status = DateCalculator.cardExpiryStatus(valid: card.valid), status != .normal {
+                let color: Color = status == .expired ? .red : .orange
+                HStack(spacing: 3) {
+                    Image(systemName: "calendar.badge.exclamationmark")
+                        .font(.system(size: 10))
+                        .foregroundColor(color)
+                    Text(status == .expired ? "过期" : "到期")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundColor(color)
+                }
+                .padding(.horizontal, 5)
+                .padding(.vertical, 3)
+                .background(Capsule().fill(color.opacity(0.2)))
+            }
+        }
+    }
+
     // MARK: - Helpers
 
     private func formattedCardNumber() -> String {
@@ -424,6 +445,12 @@ struct CreditCardMiniView: View {
             if let result = DateCalculator.annualFeeDetection(for: card) {
                 Image(systemName: result.kind == .overdue ? "xmark.circle.fill" : "exclamationmark.circle.fill")
                     .foregroundColor(result.kind == .overdue ? .red : .orange)
+                    .font(.system(size: 14))
+            }
+
+            if let status = DateCalculator.cardExpiryStatus(valid: card.valid), status != .normal {
+                Image(systemName: "calendar.badge.exclamationmark")
+                    .foregroundColor(status == .expired ? .red : .orange)
                     .font(.system(size: 14))
             }
 

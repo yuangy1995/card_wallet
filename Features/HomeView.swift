@@ -15,6 +15,7 @@ struct HomeView: View {
     @State private var showSyncHistory = false
     @State private var syncFeedbackText: String?
     @State private var currentCardIndex = 0
+    @State private var showReminderSheet = false
 
     enum CardCategoryFilter: String, CaseIterable {
         case all = "全部"
@@ -69,6 +70,32 @@ struct HomeView: View {
 
     private var creditCardCount: Int { syncCoordinator.cards.filter { $0.cardCategory != "debit" }.count }
     private var debitCardCount: Int { syncCoordinator.cards.filter { $0.cardCategory == "debit" }.count }
+    private var annualReminderItems: [(card: SharedCard, result: DateCalculator.AnnualFeeDetectionResult)] {
+        syncCoordinator.cards.compactMap { card in
+            guard let result = DateCalculator.annualFeeDetection(for: card) else { return nil }
+            return (card, result)
+        }.sorted { lhs, rhs in
+            if lhs.result.sortPriority != rhs.result.sortPriority {
+                return lhs.result.sortPriority < rhs.result.sortPriority
+            }
+            if lhs.result.days != rhs.result.days {
+                return lhs.result.days < rhs.result.days
+            }
+            return lhs.card.bank < rhs.card.bank
+        }
+    }
+    private var expiryReminderCards: [SharedCard] {
+        syncCoordinator.cards.filter { card in
+            guard let status = DateCalculator.cardExpiryStatus(valid: card.valid) else { return false }
+            return status == .expired || status == .soonExpiring
+        }.sorted { $0.bank < $1.bank }
+    }
+    private var billingReminderItems: [(card: SharedCard, reminder: DateCalculator.BillingCycleReminderResult)] {
+        DateCalculator.billingCycleReminderItems(for: syncCoordinator.cards)
+    }
+    private var reminderCount: Int {
+        billingReminderItems.count + annualReminderItems.count + expiryReminderCards.count
+    }
 
     private func count(for filter: CardCategoryFilter) -> Int {
         switch filter {
@@ -120,6 +147,19 @@ struct HomeView: View {
                     .presentationDetents([.medium])
                     .presentationDragIndicator(.visible)
             }
+            .sheet(isPresented: $showReminderSheet) {
+                CardReminderSheet(
+                    cards: syncCoordinator.cards,
+                    onSelectCard: { card in
+                        showReminderSheet = false
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
+                            selectedCard = card
+                        }
+                    }
+                )
+                .presentationDetents([.medium, .large])
+                .presentationDragIndicator(.visible)
+            }
             .navigationDestination(item: $selectedCard) { card in
                 CardDetailView(card: card, onEdit: { cardToEdit = $0 }, onDelete: { deleteCard($0) })
             }
@@ -161,6 +201,13 @@ struct HomeView: View {
 
             ScrollView {
                 LazyVStack(spacing: 0) {
+                    if reminderCount > 0 {
+                        reminderBanner
+                            .padding(.horizontal, 16)
+                            .padding(.top, 8)
+                            .padding(.bottom, 10)
+                    }
+
                     // 卡片列表（分组）
                     ForEach(groupedCards, id: \.key) { group in
                         Section {
@@ -212,6 +259,37 @@ struct HomeView: View {
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 14))
     }
 
+    private var reminderBanner: some View {
+        Button {
+            showReminderSheet = true
+        } label: {
+            HStack(spacing: 12) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundColor(.orange)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("发现 \(reminderCount) 项卡片提醒")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundColor(.primary)
+                    Text("还款/账单 \(billingReminderItems.count) 项 / 年费 \(annualReminderItems.count) 项 / 有效期 \(expiryReminderCards.count) 项")
+                        .font(.system(size: 12))
+                        .foregroundColor(.secondary)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundColor(.secondary)
+            }
+            .padding(14)
+            .background(Color.orange.opacity(0.10), in: RoundedRectangle(cornerRadius: 14))
+            .overlay(
+                RoundedRectangle(cornerRadius: 14)
+                    .stroke(Color.orange.opacity(0.24), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+    }
+
     // MARK: - 分组标头
     private func groupHeader(_ title: String, count: Int) -> some View {
         HStack {
@@ -241,6 +319,14 @@ struct HomeView: View {
         .buttonStyle(.plain)
         .contextMenu {
             Button { cardToEdit = card } label: { Label("编辑", systemImage: "pencil") }
+            if card.cardCategory != "debit" {
+                Button { updateAnnualFeeStatus(card, status: "1") } label: {
+                    Label("标记年费已达标", systemImage: "checkmark.seal.fill")
+                }
+                Button { updateAnnualFeeStatus(card, status: "2") } label: {
+                    Label("标记年费未达标", systemImage: "exclamationmark.triangle.fill")
+                }
+            }
             Divider()
             Button(role: .destructive) { deleteCard(card) } label: { Label("删除", systemImage: "trash") }
         }
@@ -433,6 +519,20 @@ struct HomeView: View {
         syncCoordinator.commit(cards: remaining, deletedCardIDs: [card.id])
     }
 
+    private func updateAnnualFeeStatus(_ card: SharedCard, status: String) {
+        guard card.cardCategory != "debit" else { return }
+        var allCards = syncCoordinator.cards
+        guard let index = allCards.firstIndex(where: { $0.id == card.id }) else { return }
+        allCards[index].isQualified = status
+        if status == "1" {
+            allCards[index].nextAnnualFeeCollectionTime = DateCalculator.timestampByAddingOneYear(allCards[index].nextAnnualFeeCollectionTime)
+        } else if status == "3" {
+            allCards[index].nextAnnualFeeCollectionTime = nil
+        }
+        allCards[index].lastModifyTime = DataMigrationManager.currentTimestampMilliseconds()
+        syncCoordinator.commit(cards: allCards)
+    }
+
     private func commitSubmittedCard(_ submittedCard: SharedCard, previousCard: SharedCard?) {
         var allCards = syncCoordinator.cards
         var finalCard = submittedCard
@@ -540,6 +640,266 @@ struct FilterSortSheet: View {
                     Button("完成") { dismiss() }
                 }
             }
+        }
+    }
+}
+
+private struct AnnualReminderItem: Identifiable {
+    let card: SharedCard
+    let result: DateCalculator.AnnualFeeDetectionResult
+    var id: String { "annual-\(card.id)" }
+}
+
+private struct ExpiryReminderItem: Identifiable {
+    let card: SharedCard
+    let status: DateCalculator.CardExpiryStatus
+    var id: String { "expiry-\(card.id)" }
+}
+
+private struct BillingReminderItem: Identifiable {
+    let card: SharedCard
+    let reminder: DateCalculator.BillingCycleReminderResult
+    var id: String { "billing-\(reminder.kind)-\(card.id)" }
+}
+
+private struct CardReminderSheet: View {
+    let cards: [SharedCard]
+    let onSelectCard: (SharedCard) -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    private var annualItems: [AnnualReminderItem] {
+        cards.compactMap { card in
+            guard let result = DateCalculator.annualFeeDetection(for: card) else { return nil }
+            return AnnualReminderItem(card: card, result: result)
+        }.sorted {
+            if $0.result.sortPriority != $1.result.sortPriority {
+                return $0.result.sortPriority < $1.result.sortPriority
+            }
+            if $0.result.days != $1.result.days {
+                return $0.result.days < $1.result.days
+            }
+            return $0.card.bank < $1.card.bank
+        }
+    }
+
+    private var expiryItems: [ExpiryReminderItem] {
+        cards.compactMap { card in
+            guard let status = DateCalculator.cardExpiryStatus(valid: card.valid),
+                  status == .expired || status == .soonExpiring else {
+                return nil
+            }
+            return ExpiryReminderItem(card: card, status: status)
+        }.sorted {
+            if $0.status.sortPriority != $1.status.sortPriority {
+                return $0.status.sortPriority < $1.status.sortPriority
+            }
+            return $0.card.bank < $1.card.bank
+        }
+    }
+
+    private var billingItems: [BillingReminderItem] {
+        DateCalculator.billingCycleReminderItems(for: cards).map {
+            BillingReminderItem(card: $0.card, reminder: $0.reminder)
+        }
+    }
+
+    var body: some View {
+        NavigationStack {
+            List {
+                if billingItems.isEmpty && annualItems.isEmpty && expiryItems.isEmpty {
+                    ContentUnavailableView("暂无卡片提醒", systemImage: "checkmark.shield.fill")
+                }
+
+                if !billingItems.isEmpty {
+                    Section("还款与账单提醒") {
+                        ForEach(billingItems) { item in
+                            Button {
+                                dismiss()
+                                onSelectCard(item.card)
+                            } label: {
+                                ReminderRow(
+                                    icon: item.reminder.iconName,
+                                    color: item.reminder.tintColor,
+                                    title: item.card.bank,
+                                    subtitle: item.card.alias ?? "未命名卡片",
+                                    trailing: item.reminder.displayText
+                                )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+
+                if !annualItems.isEmpty {
+                    Section("年费提醒") {
+                        ForEach(annualItems) { item in
+                            Button {
+                                dismiss()
+                                onSelectCard(item.card)
+                            } label: {
+                                ReminderRow(
+                                    icon: item.result.iconName,
+                                    color: item.result.tintColor,
+                                    title: item.card.bank,
+                                    subtitle: item.card.alias ?? "未命名卡片",
+                                    trailing: item.result.displayText
+                                )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+
+                if !expiryItems.isEmpty {
+                    Section("有效期提醒") {
+                        ForEach(expiryItems) { item in
+                            Button {
+                                dismiss()
+                                onSelectCard(item.card)
+                            } label: {
+                                ReminderRow(
+                                    icon: item.status.iconName,
+                                    color: item.status.tintColor,
+                                    title: item.card.bank,
+                                    subtitle: item.card.valid ?? "--/--",
+                                    trailing: item.status.displayText
+                                )
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+            }
+            .navigationTitle("卡片提醒")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .navigationBarTrailing) {
+                    Button("完成") { dismiss() }
+                }
+            }
+        }
+    }
+}
+
+private struct ReminderRow: View {
+    let icon: String
+    let color: Color
+    let title: String
+    let subtitle: String
+    let trailing: String
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Image(systemName: icon)
+                .font(.system(size: 18, weight: .semibold))
+                .foregroundColor(color)
+                .frame(width: 28)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.system(.body, weight: .semibold))
+                    .foregroundColor(.primary)
+                Text(subtitle)
+                    .font(.system(size: 12))
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
+            }
+            Spacer()
+            Text(trailing)
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundColor(color)
+                .multilineTextAlignment(.trailing)
+        }
+        .padding(.vertical, 4)
+    }
+}
+
+private extension DateCalculator.BillingCycleReminderResult {
+    var tintColor: Color {
+        switch kind {
+        case .repayment: return .red
+        case .bill: return .orange
+        }
+    }
+
+    var iconName: String {
+        switch kind {
+        case .repayment: return "calendar.badge.exclamationmark"
+        case .bill: return "calendar.badge.clock"
+        }
+    }
+
+    var displayText: String {
+        switch kind {
+        case .repayment: return days == 0 ? "今日还款" : "\(days) 天后还款"
+        case .bill: return days == 0 ? "今日账单" : "\(days) 天后账单"
+        }
+    }
+}
+
+private extension DateCalculator.AnnualFeeDetectionResult {
+    var sortPriority: Int {
+        switch kind {
+        case .overdue: return 0
+        case .unqualified: return 1
+        case .warning: return 2
+        }
+    }
+
+    var tintColor: Color {
+        switch kind {
+        case .overdue: return .red
+        case .unqualified: return .orange
+        case .warning: return .yellow
+        }
+    }
+
+    var iconName: String {
+        switch kind {
+        case .overdue: return "xmark.circle.fill"
+        case .unqualified: return "exclamationmark.circle.fill"
+        case .warning: return "clock.badge.exclamationmark.fill"
+        }
+    }
+
+    var displayText: String {
+        switch kind {
+        case .overdue: return "已过 \(days) 天"
+        case .unqualified: return "剩 \(days) 天"
+        case .warning: return "\(days) 天后"
+        }
+    }
+}
+
+private extension DateCalculator.CardExpiryStatus {
+    var sortPriority: Int {
+        switch self {
+        case .expired: return 0
+        case .soonExpiring: return 1
+        case .normal: return 2
+        }
+    }
+
+    var tintColor: Color {
+        switch self {
+        case .expired: return .red
+        case .soonExpiring: return .orange
+        case .normal: return .green
+        }
+    }
+
+    var iconName: String {
+        switch self {
+        case .expired: return "calendar.badge.exclamationmark"
+        case .soonExpiring: return "calendar.badge.clock"
+        case .normal: return "checkmark.circle.fill"
+        }
+    }
+
+    var displayText: String {
+        switch self {
+        case .expired: return "已过期"
+        case .soonExpiring: return "6个月内"
+        case .normal: return "正常"
         }
     }
 }

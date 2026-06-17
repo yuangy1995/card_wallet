@@ -123,7 +123,7 @@ struct StatisticsView: View {
             }
             .buttonStyle(.plain)
 
-            let expiryStats = DateCalculator.cardExpiryStats(for: creditCards)
+            let expiryStats = DateCalculator.cardExpiryStats(for: cards)
             NavigationLink(destination: StatDetailListView(type: .expiry, cards: cards)) {
                 statCard(
                     title: "即将到期",
