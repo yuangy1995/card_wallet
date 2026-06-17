@@ -58,7 +58,10 @@ import com.example.creditcard.theme.*
 import com.example.creditcard.ui.components.AppBackButton
 import com.example.creditcard.ui.main.CreditCardTile
 import com.example.creditcard.ui.main.formatMaskedCardNumber
+import com.example.creditcard.utils.AnnualFeeDetectionKind
 import com.example.creditcard.utils.CardImageCodec
+import com.example.creditcard.utils.CardExpiryStatus
+import com.example.creditcard.utils.CardReminderRules
 import com.example.creditcard.utils.SyncCoordinator
 import com.example.creditcard.utils.ThemeManager
 import com.example.creditcard.utils.CardScanProgressManager
@@ -258,6 +261,25 @@ fun CardDetailScreen(
             }
 
             Spacer(modifier = Modifier.height(16.dp))
+
+            val expiryWarning = getExpiryWarningMessage(card)
+            if (expiryWarning != null) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(NeonRed.copy(alpha = if (isDark) 0.14f else 0.08f))
+                        .padding(horizontal = 16.dp, vertical = 12.dp)
+                ) {
+                    Text(
+                        text = expiryWarning,
+                        color = NeonRed,
+                        fontSize = 13.sp,
+                        fontWeight = FontWeight.Medium
+                    )
+                }
+                Spacer(modifier = Modifier.height(16.dp))
+            }
 
             // 3. 年费收取到期橙色警示栏
             val annualFeeWarning = getAnnualFeeWarningMessage(card)
@@ -1033,19 +1055,23 @@ fun formatSpacingCardNumber(rawNum: String): String {
  * 获取年费收取提示
  */
 private fun getAnnualFeeWarningMessage(card: SharedCard): String? {
-    if (card.cardCategory == "debit") {
-        return null
+    val result = CardReminderRules.annualFeeDetection(card) ?: return null
+    return when (result.kind) {
+        AnnualFeeDetectionKind.UNQUALIFIED ->
+            "⚠️ 年费未达标：距离扣年费时间还剩 ${result.days} 天，请尽快确认刷卡笔数或额度。"
+        AnnualFeeDetectionKind.WARNING ->
+            "⚠️ 年费即将扣收：${result.days} 天后收取年费，请确认今年是否已经达标。"
+        AnnualFeeDetectionKind.OVERDUE ->
+            "⚠️ 年费已过期：已过 ${result.days} 天，请核对是否已扣费并更新卡片状态。"
     }
-    if (card.isQualified == "3" || card.nextAnnualFeeCollectionTime == null || card.isQualified == "1") {
-        return null
+}
+
+private fun getExpiryWarningMessage(card: SharedCard): String? {
+    return when (CardReminderRules.cardExpiryStatus(card.valid)) {
+        CardExpiryStatus.EXPIRED -> "⚠️ 卡片有效期已过期：请确认是否已换发新卡并更新有效期。"
+        CardExpiryStatus.SOON_EXPIRING -> "⚠️ 卡片将在 6 个月内到期：请留意银行换卡进度。"
+        CardExpiryStatus.NORMAL, null -> null
     }
-    
-    val diffMs = card.nextAnnualFeeCollectionTime!! - System.currentTimeMillis()
-    val diffDays = (diffMs / (1000 * 60 * 60 * 24)).toInt()
-    
-    return if (diffDays in 0..60) {
-        "⚠️ 年费收取警告：本张卡片年费目前【未达标】，距离扣年费时间还剩 $diffDays 天，请尽快刷满笔数或额度进行减免！"
-    } else null
 }
 
 /**

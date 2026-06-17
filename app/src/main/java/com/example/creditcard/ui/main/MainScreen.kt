@@ -69,6 +69,11 @@ import com.example.creditcard.ui.components.AppBackButton
 import com.example.creditcard.utils.AppStorageManager
 import com.example.creditcard.utils.AppStorageSnapshot
 import com.example.creditcard.utils.BiometricAuthHelper
+import com.example.creditcard.utils.AnnualFeeDetectionKind
+import com.example.creditcard.utils.BillingCycleReminderKind
+import com.example.creditcard.utils.CardExpiryStatus
+import com.example.creditcard.utils.CardReminderRules
+import com.example.creditcard.utils.CardSystemNotifier
 import com.example.creditcard.utils.SecurityLockManager
 import com.example.creditcard.utils.SyncCoordinator
 import com.example.creditcard.utils.SyncTime
@@ -86,14 +91,15 @@ private enum class ToolsMode {
     VERIFY_PREFETCH,
     VERIFY,
     SYNC_LOG,
-    BEST_USAGE
+    BEST_USAGE,
+    DATA_DIAGNOSTICS
 }
 
 private const val TOOL_MENU_PREFS = "tool_menu_preferences"
 private const val TOOL_MENU_ORDER_KEY = "tool_menu_order"
 private const val TOOL_MENU_HIDDEN_KEY = "tool_menu_hidden"
 
-private val defaultToolMenuIds = listOf("stats", "verify", "best_usage", "sync_log")
+private val defaultToolMenuIds = listOf("stats", "verify", "best_usage", "data_diagnostics", "sync_log")
 
 private data class ToolMenuItem(
     val id: String,
@@ -126,6 +132,7 @@ fun MainScreen(
     // 监听全局核心状态
     val cards by SyncCoordinator.cardsFlow.collectAsState()
     val syncStatus by SyncCoordinator.syncStatus.collectAsState()
+    val securityState by SecurityLockManager.state.collectAsState()
     val isDark by ThemeManager.isDarkTheme.collectAsState()
 
     // 底部 Tab 切换状态 (0: 卡包, 1: 工具, 2: 设置) - 纯图标化极简渲染
@@ -157,6 +164,22 @@ fun MainScreen(
     var showAddMenu by remember { mutableStateOf(false) }
     val creditCardCount = remember(cards) { cards.count { it.cardCategory != "debit" } }
     val debitCardCount = remember(cards) { cards.count { it.cardCategory == "debit" } }
+    val annualReminderCount = remember(cards) { cards.count { CardReminderRules.annualFeeDetection(it) != null } }
+    val billingReminderCount = remember(cards) { CardReminderRules.billingCycleAlerts(cards).size }
+    val expiryReminderCount = remember(cards) {
+        cards.count { card ->
+            when (CardReminderRules.cardExpiryStatus(card.valid)) {
+                CardExpiryStatus.EXPIRED, CardExpiryStatus.SOON_EXPIRING -> true
+                else -> false
+            }
+        }
+    }
+
+    LaunchedEffect(cards, securityState.locked) {
+        if (!securityState.locked) {
+            CardSystemNotifier.notifyDailySummary(context, cards)
+        }
+    }
 
     // 过滤后的卡片列表
     val filteredCards = remember(cards, searchQuery, cardCategoryFilter) {
@@ -414,6 +437,20 @@ fun MainScreen(
                             }
                         }
 
+                        if (billingReminderCount + annualReminderCount + expiryReminderCount > 0) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                            ReminderSummaryStrip(
+                                billingCount = billingReminderCount,
+                                annualCount = annualReminderCount,
+                                expiryCount = expiryReminderCount,
+                                isDark = isDark,
+                                onClick = {
+                                    selectedTab = 1
+                                    toolsMode = ToolsMode.STATS
+                                }
+                            )
+                        }
+
                         Spacer(modifier = Modifier.height(10.dp))
 
                         // C. 过滤渲染卡片列表
@@ -468,7 +505,8 @@ fun MainScreen(
                                 }
                             },
                             onOpenSyncHistory = { toolsMode = ToolsMode.SYNC_LOG },
-                            onOpenBestUsage = { toolsMode = ToolsMode.BEST_USAGE }
+                            onOpenBestUsage = { toolsMode = ToolsMode.BEST_USAGE },
+                            onOpenDataDiagnostics = { toolsMode = ToolsMode.DATA_DIAGNOSTICS }
                         )
                         ToolsMode.STATS -> ToolsStatsPanel(
                             cards = cards,
@@ -501,6 +539,11 @@ fun MainScreen(
                             },
                             onBack = { toolsMode = ToolsMode.HOME }
                         )
+                        ToolsMode.DATA_DIAGNOSTICS -> DataDiagnosticsPanel(
+                            cards = cards,
+                            isDark = isDark,
+                            onBack = { toolsMode = ToolsMode.HOME }
+                        )
                     }
                 }
 
@@ -522,6 +565,56 @@ fun MainScreen(
 // =============================================================================
 // 📂 Tab 0 子组件: 动态云同步徽标、拟真卡片与金芯片手绘
 // =============================================================================
+
+@Composable
+fun ReminderSummaryStrip(
+    billingCount: Int,
+    annualCount: Int,
+    expiryCount: Int,
+    isDark: Boolean,
+    onClick: () -> Unit
+) {
+    val total = billingCount + annualCount + expiryCount
+    val accent = if (expiryCount > 0) NeonRed else if (isDark) Color(0xFFFF9100) else WarmOrange
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 12.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(accent.copy(alpha = if (isDark) 0.16f else 0.10f))
+            .border(1.dp, accent.copy(alpha = 0.28f), RoundedCornerShape(12.dp))
+            .clickable { onClick() }
+            .padding(horizontal = 12.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = Icons.Filled.ReportProblem,
+            contentDescription = "卡片提醒",
+            tint = accent,
+            modifier = Modifier.size(18.dp)
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = "发现 $total 项卡片提醒",
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onBackground
+            )
+            Text(
+                text = "还款/账单 $billingCount 项 / 年费 $annualCount 项 / 有效期 $expiryCount 项",
+                fontSize = 11.sp,
+                color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.64f)
+            )
+        }
+        Icon(
+            imageVector = Icons.Filled.ChevronRight,
+            contentDescription = "查看统计",
+            tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.45f),
+            modifier = Modifier.size(18.dp)
+        )
+    }
+}
 
 /**
  * 右上角发光动态云端/同步状态指示徽标 (Interactive Cloud Stamp)
@@ -609,6 +702,14 @@ fun CreditCardTile(
 ) {
     val brand = getCardBrand(card.cardNumber)
     val isDebitCard = card.cardCategory == "debit"
+    val hasAnnualReminder = CardReminderRules.annualFeeDetection(card) != null
+    val expiryStatus = CardReminderRules.cardExpiryStatus(card.valid)
+    val reminderColor = when {
+        expiryStatus == CardExpiryStatus.EXPIRED -> NeonRed
+        expiryStatus == CardExpiryStatus.SOON_EXPIRING -> Color(0xFFFF9100)
+        hasAnnualReminder -> Color(0xFFFF9100)
+        else -> null
+    }
     
     // 自定义卡片背景渐变
     val gradientBrush = when (brand) {
@@ -672,6 +773,14 @@ fun CreditCardTile(
                 }
 
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (reminderColor != null) {
+                        Icon(
+                            imageVector = Icons.Filled.ReportProblem,
+                            contentDescription = "卡片提醒",
+                            tint = reminderColor,
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
                     // 全套高保真卡组织徽标
                     CardBrandBadge(brand = brand)
                 }
@@ -746,7 +855,8 @@ fun ToolsPanel(
     onOpenStats: () -> Unit,
     onStartVerify: () -> Unit,
     onOpenSyncHistory: () -> Unit,
-    onOpenBestUsage: () -> Unit
+    onOpenBestUsage: () -> Unit,
+    onOpenDataDiagnostics: () -> Unit
 ) {
     val context = LocalContext.current
     var toolOrder by remember { mutableStateOf(loadToolMenuOrder(context)) }
@@ -788,6 +898,14 @@ fun ToolsPanel(
             subtitle = "查看与 WebDAV 云盘的数据同步记录",
             accent = if (isDark) NeonCyan else GoldPrimary,
             onClick = onOpenSyncHistory
+        ),
+        ToolMenuItem(
+            id = "data_diagnostics",
+            icon = Icons.Filled.ReportProblem,
+            title = "数据异常检测",
+            subtitle = "检查重复卡号、账单还款配置、有效期格式和共享额度一致性",
+            accent = if (isDark) Color(0xFFFF9100) else WarmOrange,
+            onClick = onOpenDataDiagnostics
         )
     )
     val toolMap = allTools.associateBy { it.id }
@@ -1140,6 +1258,116 @@ fun ToolsStatsPanel(cards: List<SharedCard>, isDark: Boolean, onBack: () -> Unit
             Text("统计分析", fontSize = 18.sp, fontWeight = FontWeight.Bold)
         }
         AnalyticsPanel(cards = cards, isDark = isDark)
+    }
+}
+
+@Composable
+fun DataDiagnosticsPanel(
+    cards: List<SharedCard>,
+    isDark: Boolean,
+    onBack: () -> Unit
+) {
+    val issues = remember(cards) { CardReminderRules.analyzeDataQuality(cards) }
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .padding(horizontal = 16.dp)
+            .verticalScroll(rememberScrollState()),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            val accent = if (isDark) Color(0xFFFF9100) else WarmOrange
+            AppBackButton(
+                onClick = onBack,
+                contentDescription = "返回工具",
+                tint = accent,
+                containerColor = MaterialTheme.colorScheme.surface,
+                borderColor = accent.copy(alpha = 0.34f)
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text("数据异常检测", fontSize = 22.sp, fontWeight = FontWeight.Black)
+                Text(
+                    text = if (issues.isEmpty()) "未发现明显数据异常" else "共发现 ${issues.size} 项需要确认",
+                    fontSize = 12.sp,
+                    color = accent,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+        }
+
+        if (issues.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(MaterialTheme.colorScheme.surface)
+                    .border(1.dp, (if (isDark) NeonGreen else ForestGreen).copy(alpha = 0.24f), RoundedCornerShape(14.dp))
+                    .padding(24.dp),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    text = "未发现重复卡号、非法账单日/还款日、有效期格式异常或共享额度冲突。",
+                    fontSize = 13.sp,
+                    lineHeight = 19.sp,
+                    color = if (isDark) TextGray else TextMuted,
+                    textAlign = TextAlign.Center
+                )
+            }
+        } else {
+            issues.forEach { issue ->
+                val color = when (issue.severity) {
+                    "严重" -> NeonRed
+                    "警告" -> Color(0xFFFF9100)
+                    else -> if (isDark) NeonCyan else GoldPrimary
+                }
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(color.copy(alpha = if (isDark) 0.15f else 0.09f))
+                        .border(1.dp, color.copy(alpha = 0.24f), RoundedCornerShape(12.dp))
+                        .padding(14.dp),
+                    verticalAlignment = Alignment.Top
+                ) {
+                    Icon(
+                        imageVector = when (issue.severity) {
+                            "严重" -> Icons.Filled.Error
+                            "警告" -> Icons.Filled.ReportProblem
+                            else -> Icons.Filled.Info
+                        },
+                        contentDescription = issue.severity,
+                        tint = color,
+                        modifier = Modifier.size(22.dp)
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "${issue.severity} · ${issue.title}",
+                            fontSize = 14.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = color
+                        )
+                        if (issue.cardName.isNotBlank()) {
+                            Spacer(modifier = Modifier.height(3.dp))
+                            Text(issue.cardName, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text(
+                            text = issue.detail,
+                            fontSize = 12.sp,
+                            lineHeight = 17.sp,
+                            color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.72f)
+                        )
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
     }
 }
 
@@ -1921,15 +2149,18 @@ fun AnalyticsPanel(cards: List<SharedCard>, isDark: Boolean) {
         }
     }
 
-    // B. 年费距离扣缴不足 60 天且未达标卡片警示列表
+    // B. 还款/账单、年费与有效期提醒，规则与 Web/macOS/iOS 对齐，呈现保持移动端非阻塞列表
+    val billingAlerts = remember(creditCards) {
+        CardReminderRules.billingCycleAlerts(creditCards)
+    }
     val feeAlerts = remember(creditCards) {
-        val now = System.currentTimeMillis()
-        val limitTime = now + 60L * 24 * 3600 * 1000 // 60天
-        creditCards.filter { card ->
-            card.isQualified == "2" && // 未达标
-            card.nextAnnualFeeCollectionTime != null &&
-            card.nextAnnualFeeCollectionTime!! in now..limitTime
-        }.sortedBy { it.nextAnnualFeeCollectionTime }
+        CardReminderRules.annualFeeAlerts(creditCards)
+    }
+    val expiryAlerts = remember(cards) {
+        CardReminderRules.cardExpiryAlerts(cards)
+    }
+    val expiryStats = remember(cards) {
+        CardReminderRules.cardExpiryStats(cards)
     }
 
     // C. 共享额度组看板数据
@@ -1963,6 +2194,14 @@ fun AnalyticsPanel(cards: List<SharedCard>, isDark: Boolean) {
                     SmallMetric("储蓄卡国家/地区", "$debitCountryCount", "个", isDark, Modifier.weight(1f))
                     SmallMetric("储蓄卡银行", "$debitBankCount", "家", isDark, Modifier.weight(1f))
                     SmallMetric("储蓄卡币种", "$debitCurrencyCount", "种", isDark, Modifier.weight(1f))
+                }
+            }
+            if (billingAlerts.isNotEmpty() || feeAlerts.isNotEmpty() || expiryAlerts.isNotEmpty()) {
+                Spacer(modifier = Modifier.height(10.dp))
+                Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
+                    SmallMetric("还款/账单提醒", "${billingAlerts.size}", "项", isDark, Modifier.weight(1f))
+                    SmallMetric("年费提醒", "${feeAlerts.size}", "项", isDark, Modifier.weight(1f))
+                    SmallMetric("有效期提醒", "${expiryAlerts.size}", "项", isDark, Modifier.weight(1f))
                 }
             }
         }
@@ -2065,17 +2304,85 @@ fun AnalyticsPanel(cards: List<SharedCard>, isDark: Boolean) {
             }
         }
 
-        // 2. 年费到达预警橙红色警报雷达
-        if (feeAlerts.isNotEmpty()) {
-            DetailSection(title = "🚨 年费扣缴雷达警报") {
+        if (billingAlerts.isNotEmpty()) {
+            DetailSection(title = "⏱️ 还款与账单雷达") {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    feeAlerts.forEach { card ->
-                        val daysLeft = ((card.nextAnnualFeeCollectionTime!! - System.currentTimeMillis()) / (24 * 3600 * 1000L)).coerceAtLeast(0)
+                    billingAlerts.forEach { (card, reminder) ->
+                        val alertColor = when (reminder.kind) {
+                            BillingCycleReminderKind.REPAYMENT -> NeonRed
+                            BillingCycleReminderKind.BILL -> Color(0xFFFF9100)
+                        }
+                        val label = when (reminder.kind) {
+                            BillingCycleReminderKind.REPAYMENT -> "还款日"
+                            BillingCycleReminderKind.BILL -> "账单日"
+                        }
                         Row(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .clip(RoundedCornerShape(8.dp))
-                                .background(if (daysLeft < 30) NeonRed.copy(alpha = 0.15f) else Color(0xFFFF9100).copy(alpha = 0.15f))
+                                .background(alertColor.copy(alpha = 0.13f))
+                                .padding(10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "${card.bank} (${card.alias.ifBlank { "信用卡" }})",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp,
+                                    color = alertColor,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    text = "${label}：${reminder.date}",
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.8f)
+                                )
+                            }
+                            Column(horizontalAlignment = Alignment.End) {
+                                Text(
+                                    text = reminder.title,
+                                    fontWeight = FontWeight.Black,
+                                    fontSize = 13.sp,
+                                    color = alertColor
+                                )
+                                Text(
+                                    text = if (reminder.kind == BillingCycleReminderKind.REPAYMENT) "请核对是否已还款" else "请关注本期出账",
+                                    fontSize = 9.sp,
+                                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.5f)
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // 3. 年费到达预警橙红色警报雷达
+        if (feeAlerts.isNotEmpty()) {
+            DetailSection(title = "🚨 年费扣缴雷达警报") {
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    feeAlerts.forEach { (card, result) ->
+                        val alertColor = when (result.kind) {
+                            AnnualFeeDetectionKind.UNQUALIFIED -> Color(0xFFFF9100)
+                            AnnualFeeDetectionKind.WARNING -> if (isDark) NeonCyan else GoldPrimary
+                            AnnualFeeDetectionKind.OVERDUE -> NeonRed
+                        }
+                        val statusText = when (result.kind) {
+                            AnnualFeeDetectionKind.UNQUALIFIED -> "未达标"
+                            AnnualFeeDetectionKind.WARNING -> "即将扣收"
+                            AnnualFeeDetectionKind.OVERDUE -> "已过期"
+                        }
+                        val daysText = when (result.kind) {
+                            AnnualFeeDetectionKind.OVERDUE -> "已过 ${result.days} 天"
+                            else -> "剩 ${result.days} 天"
+                        }
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(alertColor.copy(alpha = 0.15f))
                                 .padding(10.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
@@ -2085,20 +2392,20 @@ fun AnalyticsPanel(cards: List<SharedCard>, isDark: Boolean) {
                                     text = "${card.bank} (${card.alias})",
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 13.sp,
-                                    color = if (daysLeft < 30) NeonRed else Color(0xFFFF9100)
+                                    color = alertColor
                                 )
                                 Text(
-                                    text = "年费: ${card.type} $${card.annualFee} | 状态: 未达标",
+                                    text = "年费: ${card.type} $${card.annualFee} | 状态: $statusText",
                                     fontSize = 11.sp,
                                     color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.8f)
                                 )
                             }
                             Column(horizontalAlignment = Alignment.End) {
                                 Text(
-                                    text = "剩 $daysLeft 天",
+                                    text = daysText,
                                     fontWeight = FontWeight.Black,
                                     fontSize = 14.sp,
-                                    color = if (daysLeft < 30) NeonRed else Color(0xFFFF9100)
+                                    color = alertColor
                                 )
                                 Text(
                                     text = "到期扣收",
@@ -2107,6 +2414,61 @@ fun AnalyticsPanel(cards: List<SharedCard>, isDark: Boolean) {
                                 )
                             }
                         }
+                    }
+                }
+            }
+        }
+
+        if (expiryAlerts.isNotEmpty()) {
+            DetailSection(title = "卡片有效期雷达") {
+                Text(
+                    text = "已过期 ${expiryStats.expiredCards} 张 / 6个月内 ${expiryStats.soonExpiring} 张 / 正常 ${expiryStats.normalCards} 张",
+                    fontSize = 11.sp,
+                    color = if (isDark) TextGray else TextMuted
+                )
+                Spacer(modifier = Modifier.height(10.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                    expiryAlerts.take(10).forEach { (card, status) ->
+                        val isExpired = status == CardExpiryStatus.EXPIRED
+                        val alertColor = if (isExpired) NeonRed else Color(0xFFFF9100)
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(alertColor.copy(alpha = 0.13f))
+                                .padding(10.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "${card.bank} (${card.alias.ifBlank { if (card.cardCategory == "debit") "储蓄卡" else "信用卡" }})",
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 13.sp,
+                                    color = alertColor,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    text = "有效期 ${card.valid.ifBlank { "--" }}",
+                                    fontSize = 11.sp,
+                                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.8f)
+                                )
+                            }
+                            Text(
+                                text = if (isExpired) "已过期" else "6个月内到期",
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 12.sp,
+                                color = alertColor
+                            )
+                        }
+                    }
+                    if (expiryAlerts.size > 10) {
+                        Text(
+                            text = "另有 ${expiryAlerts.size - 10} 张卡片需要处理",
+                            fontSize = 11.sp,
+                            color = if (isDark) TextGray else TextMuted
+                        )
                     }
                 }
             }
