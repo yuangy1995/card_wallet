@@ -612,7 +612,7 @@ struct ContentView: View {
                         if !expiryReminders.isEmpty {
                             VStack(alignment: .leading, spacing: 12) {
                                 HStack(spacing: 8) {
-                                    Image(systemName: "hourglass.badge.exclamationmark")
+                                    Image(systemName: "calendar.badge.exclamationmark")
                                         .foregroundColor(SoftColors.purple)
                                     Text("有效期临界/过期")
                                         .font(.headline)
@@ -1304,7 +1304,7 @@ fileprivate struct CustomAlertOverlay: View {
                         if !expiryReminders.isEmpty {
                             VStack(alignment: .leading, spacing: 6) {
                                 HStack(spacing: 6) {
-                                    Image(systemName: "hourglass.badge.exclamationmark")
+                                    Image(systemName: "calendar.badge.exclamationmark")
                                         .font(.system(size: 10, weight: .bold))
                                     Text("卡片有效期提醒")
                                         .font(.system(size: 11, weight: .bold))
@@ -1867,5 +1867,4 @@ fileprivate struct DataIssueGridItem: View {
         }
     }
 }
-
 

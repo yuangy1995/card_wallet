@@ -33,27 +33,24 @@ run_xcodebuild_archive() {
     fi
 }
 
-# 1. 自动利用 sips 和 iconutil 生成系统级 .icns 图标
+# 1. 归档前刷新 Asset Catalog 图标，避免签名后再改 .app 包
 ICON_PNG="$(dirname "$0")/Resources/AppIcon.png"
 if [ -f "$ICON_PNG" ]; then
-    echo -e "${GREEN}发现精美 App 图标，开始制作 macOS 原生图标包 (.icns)...${NC}"
-    mkdir -p build/AppIcon.iconset
+    ICON_SET="$(dirname "$0")/Resources/Assets.xcassets/AppIcon.appiconset"
+    echo -e "${GREEN}发现 App 图标，正在刷新 macOS Asset Catalog...${NC}"
+    mkdir -p "$ICON_SET"
     
-    # 强制以 -s format png 输出真正的 PNG 图片，以避开 iconutil 校验失败
-    sips -s format png -z 16 16     "$ICON_PNG" --out build/AppIcon.iconset/icon_16x16.png > /dev/null 2>&1
-    sips -s format png -z 32 32     "$ICON_PNG" --out build/AppIcon.iconset/icon_16x16@2x.png > /dev/null 2>&1
-    sips -s format png -z 32 32     "$ICON_PNG" --out build/AppIcon.iconset/icon_32x32.png > /dev/null 2>&1
-    sips -s format png -z 64 64     "$ICON_PNG" --out build/AppIcon.iconset/icon_32x32@2x.png > /dev/null 2>&1
-    sips -s format png -z 128 128   "$ICON_PNG" --out build/AppIcon.iconset/icon_128x128.png > /dev/null 2>&1
-    sips -s format png -z 256 256   "$ICON_PNG" --out build/AppIcon.iconset/icon_128x128@2x.png > /dev/null 2>&1
-    sips -s format png -z 256 256   "$ICON_PNG" --out build/AppIcon.iconset/icon_256x256.png > /dev/null 2>&1
-    sips -s format png -z 512 512   "$ICON_PNG" --out build/AppIcon.iconset/icon_256x256@2x.png > /dev/null 2>&1
-    sips -s format png -z 512 512   "$ICON_PNG" --out build/AppIcon.iconset/icon_512x512.png > /dev/null 2>&1
-    sips -s format png -z 1024 1024 "$ICON_PNG" --out build/AppIcon.iconset/icon_512x512@2x.png > /dev/null 2>&1
-    
-    # 编译成原生图标文件
-    iconutil -c icns build/AppIcon.iconset -o build/AppIcon.icns
-    echo -e "${GREEN}系统图标 (AppIcon.icns) 编译成功！${NC}"
+    sips -s format png -z 16 16     "$ICON_PNG" --out "$ICON_SET/icon_16x16.png" > /dev/null 2>&1
+    sips -s format png -z 32 32     "$ICON_PNG" --out "$ICON_SET/icon_16x16@2x.png" > /dev/null 2>&1
+    sips -s format png -z 32 32     "$ICON_PNG" --out "$ICON_SET/icon_32x32.png" > /dev/null 2>&1
+    sips -s format png -z 64 64     "$ICON_PNG" --out "$ICON_SET/icon_32x32@2x.png" > /dev/null 2>&1
+    sips -s format png -z 128 128   "$ICON_PNG" --out "$ICON_SET/icon_128x128.png" > /dev/null 2>&1
+    sips -s format png -z 256 256   "$ICON_PNG" --out "$ICON_SET/icon_128x128@2x.png" > /dev/null 2>&1
+    sips -s format png -z 256 256   "$ICON_PNG" --out "$ICON_SET/icon_256x256.png" > /dev/null 2>&1
+    sips -s format png -z 512 512   "$ICON_PNG" --out "$ICON_SET/icon_256x256@2x.png" > /dev/null 2>&1
+    sips -s format png -z 512 512   "$ICON_PNG" --out "$ICON_SET/icon_512x512.png" > /dev/null 2>&1
+    sips -s format png -z 1024 1024 "$ICON_PNG" --out "$ICON_SET/icon_512x512@2x.png" > /dev/null 2>&1
+    echo -e "${GREEN}Asset Catalog 图标刷新完成。${NC}"
 fi
 
 # 2. 调用 XcodeGen 重新生成最新工程
@@ -95,19 +92,7 @@ if [ -d "$APP_PATH" ]; then
     mkdir -p ./dist
     rm -rf ./dist/CreditCardMac.app
     cp -R "$APP_PATH" ./dist/CreditCardMac.app
-    
-    # 5. 注入系统图标资产并配置 plist
-    if [ -f "build/AppIcon.icns" ]; then
-        echo -e "${GREEN}正在为应用注入专属 3D 霓虹卡标...${NC}"
-        mkdir -p ./dist/CreditCardMac.app/Contents/Resources
-        cp build/AppIcon.icns ./dist/CreditCardMac.app/Contents/Resources/AppIcon.icns
-        
-        # 强制配置 Info.plist 识别 AppIcon.icns
-        plutil -replace CFBundleIconFile -string AppIcon ./dist/CreditCardMac.app/Contents/Info.plist
-        # 触摸刷新访达缓存
-        touch ./dist/CreditCardMac.app
-    fi
-    
+
     # 离线构建使用 Ad-Hoc 签名便于本地打开；CloudKit 签名归档不得被覆盖。
     if [ "${CLOUDKIT_SIGNED_BUILD:-0}" != "1" ] && command -v codesign >/dev/null 2>&1; then
         echo -e "${GREEN}正在为可执行程序施加 Ad-Hoc 本地代码签名 (Ad-Hoc Code Signing)...${NC}"

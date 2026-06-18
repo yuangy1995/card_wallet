@@ -18,6 +18,7 @@
 		75FCAAA793B45D0849BF4962 /* CryptoTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B52D59276C9EA2F553833BFF /* CryptoTests.swift */; };
 		761306178F25FE49E1706893 /* CardBrandIcon.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9BBF5A7913BCD1BA08374BBB /* CardBrandIcon.swift */; };
 		7CEBE3188339F7BA759EBB5A /* SidebarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BAB79BAD9E50A9E719ED4B74 /* SidebarView.swift */; };
+		7EA895CF0B68DDFDE3993B88 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = EE1DBEB8985D4730F1A74373 /* Assets.xcassets */; };
 		8E2F4E313E72AB835167F3C8 /* CloudKitSyncService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 36EA37FCF17EA8F9A43FD7D4 /* CloudKitSyncService.swift */; };
 		8ED96BF4A23D6AE89E140F67 /* CardModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2438DA162090A1129CF9648 /* CardModels.swift */; };
 		993C0ADB9F297F319223F488 /* CreditCardApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = D20F3767139B02295E47C77A /* CreditCardApp.swift */; };
@@ -27,6 +28,7 @@
 		B6099858631471B3850F36C9 /* CardEditView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 17B42F329DCF8EE986256FE0 /* CardEditView.swift */; };
 		BCBFBE825C1C49CD46465EF0 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1428934F7025C070B87C31B9 /* SettingsView.swift */; };
 		BDE3E956350698CA02697D1F /* SyncCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE381F8A352381E90579DBBB /* SyncCoordinator.swift */; };
+		BEA5985EC2FB94D423B4756F /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = B019CB02E47828B74FEC1211 /* PrivacyInfo.xcprivacy */; };
 		CCE833AC18D1300BF9AD3FF8 /* LocalStorageManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB9349A3CBC3935C505D2A8C /* LocalStorageManager.swift */; };
 		CE4BE30528C126E44A849725 /* DateCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C0278348791C024271E1A98 /* DateCalculator.swift */; };
 		D547E426164B45DADC5BDF9D /* DataMigrationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78703BAB79809F69FC1B7206 /* DataMigrationManager.swift */; };
@@ -63,12 +65,14 @@
 		4E24989B9AFE12D61A76A0E2 /* SyncDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncDetailView.swift; sourceTree = "<group>"; };
 		580EA1E3A67161B26D4D2D97 /* CreditCardMac.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CreditCardMac.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		6DCB69F819080E42F97B875A /* BankNameNormalizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BankNameNormalizer.swift; sourceTree = "<group>"; };
+		77D4AF75378164F64D7AC168 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		78703BAB79809F69FC1B7206 /* DataMigrationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataMigrationManager.swift; sourceTree = "<group>"; };
 		852CD8E0C8F1F82A9AC867D7 /* SyncModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncModels.swift; sourceTree = "<group>"; };
 		8CE1C3496FC3E3897DCA53DF /* CardGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardGridView.swift; sourceTree = "<group>"; };
 		93050015F0352331F4826876 /* CreditCardMacTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CreditCardMacTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		9BBF5A7913BCD1BA08374BBB /* CardBrandIcon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardBrandIcon.swift; sourceTree = "<group>"; };
 		AB9349A3CBC3935C505D2A8C /* LocalStorageManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalStorageManager.swift; sourceTree = "<group>"; };
+		B019CB02E47828B74FEC1211 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		B52D59276C9EA2F553833BFF /* CryptoTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CryptoTests.swift; sourceTree = "<group>"; };
 		BAB79BAD9E50A9E719ED4B74 /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
 		BD62DCC01D3F9364CDEF6227 /* StatisticsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatisticsView.swift; sourceTree = "<group>"; };
@@ -78,6 +82,7 @@
 		DACEB93357067D2CA17021E7 /* KeychainManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainManager.swift; sourceTree = "<group>"; };
 		DC0FDDFB92ADC90BD0EE7A0D /* SyncLedgerStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncLedgerStore.swift; sourceTree = "<group>"; };
 		EAF19E198886B14379EAD841 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
+		EE1DBEB8985D4730F1A74373 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		F2438DA162090A1129CF9648 /* CardModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardModels.swift; sourceTree = "<group>"; };
 		F8CC4D72F0F18F7121E795BC /* AutoLockManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoLockManager.swift; sourceTree = "<group>"; };
 		FE381F8A352381E90579DBBB /* SyncCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncCoordinator.swift; sourceTree = "<group>"; };
@@ -146,7 +151,10 @@
 			children = (
 				32F787EC39436C1745C35653 /* .gitkeep */,
 				2E1BEA69AFB1F1626694B014 /* AppIcon.png */,
+				EE1DBEB8985D4730F1A74373 /* Assets.xcassets */,
 				41C92BECFAFA8B4024698F6B /* CreditCardMac.entitlements */,
+				77D4AF75378164F64D7AC168 /* Info.plist */,
+				B019CB02E47828B74FEC1211 /* PrivacyInfo.xcprivacy */,
 			);
 			path = Resources;
 			sourceTree = "<group>";
@@ -262,6 +270,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				9E843F31258561127ECB39F7 /* AppIcon.png in Resources */,
+				7EA895CF0B68DDFDE3993B88 /* Assets.xcassets in Resources */,
+				BEA5985EC2FB94D423B4756F /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -326,14 +336,18 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Resources/CreditCardMac.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_LSMinimumSystemVersion = 14.0;
-				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 2026. All rights reserved.";
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Resources/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.applist.CreditCardMac;
 				SDKROOT = macosx;
 			};
@@ -480,14 +494,18 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = Resources/CreditCardMac.entitlements;
 				COMBINE_HIDPI_IMAGES = YES;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_LSMinimumSystemVersion = 14.0;
-				INFOPLIST_KEY_NSHumanReadableCopyright = "Copyright © 2026. All rights reserved.";
+				CURRENT_PROJECT_VERSION = 1;
+				ENABLE_APP_SANDBOX = YES;
+				ENABLE_HARDENED_RUNTIME = YES;
+				ENABLE_OUTGOING_NETWORK_CONNECTIONS = YES;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = Resources/Info.plist;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
+				MARKETING_VERSION = 1.0.0;
 				PRODUCT_BUNDLE_IDENTIFIER = com.applist.CreditCardMac;
 				SDKROOT = macosx;
 			};

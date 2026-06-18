@@ -726,17 +726,18 @@ public struct StatisticsView: View {
                                 .frame(width: 140, height: 140)
                                 .chartBackground { chartProxy in
                                     GeometryReader { geometry in
-                                        let anchor = chartProxy.plotAreaFrame
-                                        let frame = geometry[anchor]
-                                        VStack(spacing: 2) {
-                                            Text("已达标率")
-                                                .font(.system(size: 9))
-                                                .foregroundColor(.secondary)
-                                            Text(qualifiedFeeRateText)
-                                                .font(.system(size: 15, weight: .bold, design: .rounded))
-                                                .foregroundColor(.primary)
+                                        if let anchor = chartProxy.plotFrame {
+                                            let frame = geometry[anchor]
+                                            VStack(spacing: 2) {
+                                                Text("已达标率")
+                                                    .font(.system(size: 9))
+                                                    .foregroundColor(.secondary)
+                                                Text(qualifiedFeeRateText)
+                                                    .font(.system(size: 15, weight: .bold, design: .rounded))
+                                                    .foregroundColor(.primary)
+                                            }
+                                            .position(x: frame.midX, y: frame.midY)
                                         }
-                                        .position(x: frame.midX, y: frame.midY)
                                     }
                                 }
                                 

@@ -42,7 +42,7 @@ public class KeychainManager {
                let mode = SecurityStorageMode(rawValue: raw) {
                 return mode
             }
-            return .appInternal
+            return .systemKeychain
         }
         set {
             UserDefaults.standard.set(newValue.rawValue, forKey: "security_storage_mode")
@@ -155,7 +155,7 @@ public class KeychainManager {
     
     /// 在“系统钥匙串”和“应用内高强度加密”之间进行一键、零打扰的平滑数据双向热迁移
     public static func migrate(to targetMode: SecurityStorageMode) -> Bool {
-        let keysToMigrate = ["webdav_password", "webdav_sync_password_v4", "app_lock_password", "webdav_config"]
+        let keysToMigrate = ["webdav_username", "webdav_password", "webdav_sync_password_v4", "app_lock_password", "webdav_config"]
         
         if targetMode == .appInternal {
             // 系统钥匙串 -> 应用内部加密
