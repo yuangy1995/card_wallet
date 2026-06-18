@@ -12,7 +12,6 @@
 		198DE8DD44A93011E569BCB6 /* SyncMergeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11DE89E980D44425757FB39C /* SyncMergeTests.swift */; };
 		1C5A43CEDCC2D3A44D2C7628 /* CryptoManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C315C733366CF89A7169E701 /* CryptoManager.swift */; };
 		1F3651DDFEBC3E65FB001C41 /* DateCalculatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3335A637AC44C646EB35A049 /* DateCalculatorTests.swift */; };
-		255726B63F40577332E8447B /* CloudSyncView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7F2338F3ED803328C4E1077D /* CloudSyncView.swift */; };
 		5089130E2CEE1C16639FC38D /* StatisticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD62DCC01D3F9364CDEF6227 /* StatisticsView.swift */; };
 		671EBE78C9C86C012ED3A2F6 /* WebDAVBridgeService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200646141CEE66C6830FEA09 /* WebDAVBridgeService.swift */; };
 		719D5E60E3CB62B356D99A1D /* WebDAVClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = C077E02FD8418BB708DC23A1 /* WebDAVClient.swift */; };
@@ -31,6 +30,7 @@
 		CCE833AC18D1300BF9AD3FF8 /* LocalStorageManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB9349A3CBC3935C505D2A8C /* LocalStorageManager.swift */; };
 		CE4BE30528C126E44A849725 /* DateCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C0278348791C024271E1A98 /* DateCalculator.swift */; };
 		D547E426164B45DADC5BDF9D /* DataMigrationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78703BAB79809F69FC1B7206 /* DataMigrationManager.swift */; };
+		D8304C48C5D4C7233574EDE1 /* SyncDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4E24989B9AFE12D61A76A0E2 /* SyncDetailView.swift */; };
 		DC012DCCDDDC6B43D8969ADF /* AutoLockManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = F8CC4D72F0F18F7121E795BC /* AutoLockManager.swift */; };
 		DD84F0DEBBFE70A67AD407DB /* SyncLedgerStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = DC0FDDFB92ADC90BD0EE7A0D /* SyncLedgerStore.swift */; };
 		EBAF354C03FB20594CFB43ED /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EAF19E198886B14379EAD841 /* ContentView.swift */; };
@@ -60,10 +60,10 @@
 		36EA37FCF17EA8F9A43FD7D4 /* CloudKitSyncService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudKitSyncService.swift; sourceTree = "<group>"; };
 		3C0278348791C024271E1A98 /* DateCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DateCalculator.swift; sourceTree = "<group>"; };
 		41C92BECFAFA8B4024698F6B /* CreditCardMac.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = CreditCardMac.entitlements; sourceTree = "<group>"; };
+		4E24989B9AFE12D61A76A0E2 /* SyncDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncDetailView.swift; sourceTree = "<group>"; };
 		580EA1E3A67161B26D4D2D97 /* CreditCardMac.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CreditCardMac.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		6DCB69F819080E42F97B875A /* BankNameNormalizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BankNameNormalizer.swift; sourceTree = "<group>"; };
 		78703BAB79809F69FC1B7206 /* DataMigrationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataMigrationManager.swift; sourceTree = "<group>"; };
-		7F2338F3ED803328C4E1077D /* CloudSyncView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudSyncView.swift; sourceTree = "<group>"; };
 		852CD8E0C8F1F82A9AC867D7 /* SyncModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncModels.swift; sourceTree = "<group>"; };
 		8CE1C3496FC3E3897DCA53DF /* CardGridView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardGridView.swift; sourceTree = "<group>"; };
 		93050015F0352331F4826876 /* CreditCardMacTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = CreditCardMacTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -132,11 +132,11 @@
 				9BBF5A7913BCD1BA08374BBB /* CardBrandIcon.swift */,
 				17B42F329DCF8EE986256FE0 /* CardEditView.swift */,
 				8CE1C3496FC3E3897DCA53DF /* CardGridView.swift */,
-				7F2338F3ED803328C4E1077D /* CloudSyncView.swift */,
 				20EB037E98B817601677ED26 /* LockScreenView.swift */,
 				1428934F7025C070B87C31B9 /* SettingsView.swift */,
 				BAB79BAD9E50A9E719ED4B74 /* SidebarView.swift */,
 				BD62DCC01D3F9364CDEF6227 /* StatisticsView.swift */,
+				4E24989B9AFE12D61A76A0E2 /* SyncDetailView.swift */,
 			);
 			path = Features;
 			sourceTree = "<group>";
@@ -289,7 +289,6 @@
 				9A901A8A5576595768F5A2F5 /* CardGridView.swift in Sources */,
 				8ED96BF4A23D6AE89E140F67 /* CardModels.swift in Sources */,
 				8E2F4E313E72AB835167F3C8 /* CloudKitSyncService.swift in Sources */,
-				255726B63F40577332E8447B /* CloudSyncView.swift in Sources */,
 				EBAF354C03FB20594CFB43ED /* ContentView.swift in Sources */,
 				993C0ADB9F297F319223F488 /* CreditCardApp.swift in Sources */,
 				1C5A43CEDCC2D3A44D2C7628 /* CryptoManager.swift in Sources */,
@@ -302,6 +301,7 @@
 				7CEBE3188339F7BA759EBB5A /* SidebarView.swift in Sources */,
 				5089130E2CEE1C16639FC38D /* StatisticsView.swift in Sources */,
 				BDE3E956350698CA02697D1F /* SyncCoordinator.swift in Sources */,
+				D8304C48C5D4C7233574EDE1 /* SyncDetailView.swift in Sources */,
 				DD84F0DEBBFE70A67AD407DB /* SyncLedgerStore.swift in Sources */,
 				AC34415F142959F1BA9C9EA3 /* SyncModels.swift in Sources */,
 				671EBE78C9C86C012ED3A2F6 /* WebDAVBridgeService.swift in Sources */,

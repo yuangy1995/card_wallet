@@ -22,6 +22,14 @@ private enum CardCategoryFilter: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
+fileprivate enum ToolSubView: String, CaseIterable, Identifiable {
+    case dataQualityIssues = "数据异常检测"
+    case statistics = "数据与统计分析"
+    case syncDetail = "同步历史与详情"
+    
+    var id: String { rawValue }
+}
+
 struct ContentView: View {
     @State private var cards: [SharedCard] = []
     @StateObject private var syncCoordinator = SyncCoordinator.shared
@@ -39,8 +47,15 @@ struct ContentView: View {
     @State private var detailCard: SharedCard?
     @State private var hasCheckedAnnualFeeStatus = false
     
+    // 💡 优雅的毛玻璃弹窗队列与当前状态
+    @State private var alertQueue: [AppAlertType] = []
+    @State private var activeAppAlert: AppAlertType? = nil
+    
     // 监听自动锁定状态
     @State private var lockManager = AutoLockManager.shared
+    
+    // 工具箱二级视图选中状态
+    @State private var activeToolSubView: ToolSubView? = nil
     
     var filteredCards: [SharedCard] {
         let categoryCards: [SharedCard]
@@ -90,8 +105,6 @@ struct ContentView: View {
                             StatisticsView(cards: cards)
                         case .tools:
                             toolsView
-                        case .cloudSync:
-                            CloudSyncView()
                         case .settings:
                             SettingsView()
                         case .none:
@@ -108,6 +121,25 @@ struct ContentView: View {
                 }
                 .transition(.opacity)
             }
+            
+            // 💡 自定义毛玻璃弹窗 Overlay
+            if let activeAlert = activeAppAlert {
+                Color.black.opacity(0.3)
+                    .transition(.opacity)
+                    .ignoresSafeArea()
+                    .onTapGesture {} // 拦截点击穿透
+                
+                CustomAlertOverlay(
+                    activeAlert: activeAlert,
+                    onDismiss: { dismissActiveAlert() },
+                    onAction: { alert in handleAlertAction(alert) }
+                )
+                .transition(.asymmetric(
+                    insertion: .scale(scale: 0.95).combined(with: .opacity),
+                    removal: .opacity
+                ))
+                .zIndex(999)
+            }
         }
         .animation(.easeInOut(duration: 0.3), value: lockManager.isLocked)
         .onAppear {
@@ -123,6 +155,9 @@ struct ContentView: View {
                 runInitialAnnualFeeCheckIfNeeded()
                 refreshSystemNotifications(for: cards)
             }
+        }
+        .onChange(of: selection) { _, _ in
+            activeToolSubView = nil
         }
         // 请求存在后才创建完整表单，避免首次呈现产生空内容窗口
         .sheet(item: $cardEditRequest) { request in
@@ -391,71 +426,251 @@ struct ContentView: View {
     
     // 卡片提醒视图
     private var cardReminderView: some View {
-        VStack(spacing: 0) {
+        // 数据源准备
+        let billingReminders = DateCalculator.billingCycleReminderItems(for: cards)
+        let repaymentReminders = billingReminders.filter { $0.reminder.kind == .repayment }
+        let billReminders = billingReminders.filter { $0.reminder.kind == .bill }
+        
+        let annualFeeReminders = cards.filter { card in
+            guard card.cardCategory != "debit",
+                  card.isQualified != "3",
+                  card.isQualified != "2",
+                  let diffDays = DateCalculator.annualFeeRemainingDays(card.nextAnnualFeeCollectionTime) else {
+                return false
+            }
+            return diffDays <= 60 && diffDays >= 0
+        }
+        
+        let expiryReminders = cards.compactMap { card -> (card: SharedCard, status: DateCalculator.CardExpiryStatus)? in
+            guard let status = cardExpiryReminderStatus(for: card) else { return nil }
+            return (card, status)
+        }.sorted { lhs, rhs in
+            let lhsPriority = lhs.status == .expired ? 0 : 1
+            let rhsPriority = rhs.status == .expired ? 0 : 1
+            if lhsPriority != rhsPriority { return lhsPriority < rhsPriority }
+            return lhs.card.bank < rhs.card.bank
+        }
+        
+        let hasAnyReminder = !repaymentReminders.isEmpty || !billReminders.isEmpty || !annualFeeReminders.isEmpty || !expiryReminders.isEmpty
+        
+        return VStack(spacing: 0) {
             // 顶部工具栏
             HStack {
-                HStack(spacing: 8) {
-                    Image(systemName: "exclamationmark.triangle.fill")
+                HStack(spacing: 10) {
+                    Image(systemName: "bell.badge.fill")
                         .font(.title2)
-                        .foregroundColor(.orange)
+                        .foregroundColor(SoftColors.orange)
                     Text("卡片提醒")
                         .font(.title2)
                         .bold()
-                        .foregroundColor(.orange)
                 }
                 Spacer()
             }
-            .padding(.horizontal, 20)
-            .padding(.top, 20)
-            .padding(.bottom, 10)
+            .padding(.horizontal, 24)
+            .padding(.top, 24)
+            .padding(.bottom, 16)
             
             Divider()
                 .background(Color.white.opacity(0.1))
             
-            let alertCards = cards.filter { card in
-                !DateCalculator.billingCycleReminders(for: card).isEmpty ||
-                    DateCalculator.annualFeeDetection(for: card) != nil ||
-                    cardExpiryReminderStatus(for: card) != nil
-            }
-            
-            if alertCards.isEmpty {
-                VStack(spacing: 12) {
+            if !hasAnyReminder {
+                VStack(spacing: 16) {
                     Image(systemName: "checkmark.shield.fill")
-                        .font(.system(size: 48))
-                        .foregroundColor(.green.opacity(0.6))
-                    Text("目前没有任何需要处理的卡片提醒。")
+                        .font(.system(size: 56))
+                        .foregroundColor(SoftColors.green.opacity(0.7))
+                    Text("省心！目前没有任何需要关注的卡片提醒")
+                        .font(.headline)
+                    Text("您的账单还款、年费达标以及卡片有效期均处于安全状态。")
                         .font(.subheadline)
                         .foregroundColor(.secondary)
                 }
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color.primary.opacity(0.01))
             } else {
-                CardGridView(
-                    cards: alertCards,
-                    groupBy: .none,
-                    sortBy: sortBy,
-                    onEdit: { card in
-                        cardEditRequest = CardEditRequest(mode: "edit", card: card)
-                    },
-                    onViewDetails: { card in
-                        detailCard = card
-                    },
-                    onDelete: { card in
-                        deleteCard(card)
-                    },
-                    onUpdateStatus: { card, newStatus in
-                        updateCardStatus(card, status: newStatus)
+                ScrollView {
+                    VStack(spacing: 24) {
+                        // 1. 还款提醒板块 (Repayment)
+                        if !repaymentReminders.isEmpty {
+                            VStack(alignment: .leading, spacing: 12) {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "exclamationmark.octagon.fill")
+                                        .foregroundColor(SoftColors.red)
+                                    Text("还款日提醒")
+                                        .font(.headline)
+                                        .foregroundColor(SoftColors.red)
+                                }
+                                .padding(.horizontal, 4)
+                                
+                                LazyVGrid(columns: [GridItem(.adaptive(minimum: 280, maximum: 400), spacing: 16)], spacing: 16) {
+                                    ForEach(repaymentReminders.indices, id: \.self) { index in
+                                        let item = repaymentReminders[index]
+                                        let days = item.reminder.days
+                                        ReminderDashboardItem(
+                                            card: item.card,
+                                            title: "即将到达还款日",
+                                            detail: "还款日：\(DateCalculator.formatDate(item.reminder.date))，请核对本期账单是否已还款",
+                                            tag: "剩 \(days) 天",
+                                            themeColor: SoftColors.red,
+                                            actionLabel: "查看详情",
+                                            onAction: { detailCard = item.card }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                        
+                        // 2. 账单提醒板块 (Billing)
+                        if !billReminders.isEmpty {
+                            VStack(alignment: .leading, spacing: 12) {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "doc.text.fill")
+                                        .foregroundColor(SoftColors.blue)
+                                    Text("账单日提醒")
+                                        .font(.headline)
+                                        .foregroundColor(SoftColors.blue)
+                                }
+                                .padding(.horizontal, 4)
+                                
+                                LazyVGrid(columns: [GridItem(.adaptive(minimum: 280, maximum: 400), spacing: 16)], spacing: 16) {
+                                    ForEach(billReminders.indices, id: \.self) { index in
+                                        let item = billReminders[index]
+                                        let days = item.reminder.days
+                                        ReminderDashboardItem(
+                                            card: item.card,
+                                            title: "账单日到了",
+                                            detail: "账单日：\(DateCalculator.formatDate(item.reminder.date))，请关注本期出账",
+                                            tag: days == 0 ? "今天" : "剩 \(days) 天",
+                                            themeColor: SoftColors.blue,
+                                            actionLabel: "查看详情",
+                                            onAction: { detailCard = item.card }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                        
+                        // 3. 年费警示板块 (Annual Fee)
+                        if !annualFeeReminders.isEmpty {
+                            VStack(alignment: .leading, spacing: 12) {
+                                HStack {
+                                    HStack(spacing: 8) {
+                                        Image(systemName: "dollarsign.circle.fill")
+                                            .foregroundColor(SoftColors.orange)
+                                        Text("年费达标警示")
+                                            .font(.headline)
+                                            .foregroundColor(SoftColors.orange)
+                                    }
+                                    Spacer()
+                                    // 提供全部标为未达标的便捷动作
+                                    Button(action: {
+                                        let warningIDs = Set(annualFeeReminders.map(\.id))
+                                        let nowTimestamp = DateCalculator.timestamp(from: Date())
+                                        for idx in cards.indices where warningIDs.contains(cards[idx].id) {
+                                            cards[idx].isQualified = "2"
+                                            cards[idx].lastModifyTime = nowTimestamp
+                                        }
+                                        cards = syncCoordinator.commit(cards: cards)
+                                    }) {
+                                        Text("全部更新为未达标")
+                                            .font(.system(size: 11, weight: .medium))
+                                            .foregroundColor(SoftColors.orange)
+                                            .padding(.horizontal, 10)
+                                            .padding(.vertical, 4)
+                                            .background(SoftColors.orange.opacity(0.12))
+                                            .cornerRadius(6)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                                .padding(.horizontal, 4)
+                                
+                                LazyVGrid(columns: [GridItem(.adaptive(minimum: 280, maximum: 400), spacing: 16)], spacing: 16) {
+                                    ForEach(annualFeeReminders.indices, id: \.self) { index in
+                                        let card = annualFeeReminders[index]
+                                        let dateText = DateCalculator.formatTimestampDate(card.nextAnnualFeeCollectionTime)
+                                        let days = DateCalculator.annualFeeRemainingDays(card.nextAnnualFeeCollectionTime) ?? 0
+                                        ReminderDashboardItem(
+                                            card: card,
+                                            title: "年费达标临界",
+                                            detail: "收取日：\(dateText)，距离产生年费仅剩 \(days) 天。若未达标，请及时跟进。",
+                                            tag: "剩 \(days) 天",
+                                            themeColor: SoftColors.orange,
+                                            actionLabel: "设为未达标",
+                                            onAction: {
+                                                if let idx = cards.firstIndex(where: { $0.id == card.id }) {
+                                                    cards[idx].isQualified = "2"
+                                                    cards[idx].lastModifyTime = DateCalculator.timestamp(from: Date())
+                                                    cards = syncCoordinator.commit(cards: cards)
+                                                }
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                        
+                        // 4. 有效期预警板块 (Expiry)
+                        if !expiryReminders.isEmpty {
+                            VStack(alignment: .leading, spacing: 12) {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "hourglass.badge.exclamationmark")
+                                        .foregroundColor(SoftColors.purple)
+                                    Text("有效期临界/过期")
+                                        .font(.headline)
+                                        .foregroundColor(SoftColors.purple)
+                                }
+                                .padding(.horizontal, 4)
+                                
+                                LazyVGrid(columns: [GridItem(.adaptive(minimum: 280, maximum: 400), spacing: 16)], spacing: 16) {
+                                    ForEach(expiryReminders.indices, id: \.self) { index in
+                                        let item = expiryReminders[index]
+                                        let isExpired = item.status == .expired
+                                        ReminderDashboardItem(
+                                            card: item.card,
+                                            title: isExpired ? "卡片已过期" : "卡片即将到期",
+                                            detail: "有效期：\(item.card.valid ?? "--/--")。\(isExpired ? "卡片已失效，请更新卡片信息。" : "请留意银行是否已安排寄送新卡并及时更新。")",
+                                            tag: isExpired ? "已失效" : "将到期",
+                                            themeColor: SoftColors.purple,
+                                            actionLabel: "更新有效期",
+                                            onAction: { detailCard = item.card }
+                                        )
+                                    }
+                                }
+                            }
+                        }
                     }
-                )
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                    .padding(24)
+                }
+                .background(Color.primary.opacity(0.005))
             }
         }
     }
 
     private var toolsView: some View {
-        let issues = DateCalculator.analyzeDataQuality(cards: cards)
+        Group {
+            if let subView = activeToolSubView {
+                switch subView {
+                case .dataQualityIssues:
+                    dataQualityIssuesDetailView
+                case .statistics:
+                    statisticsDetailView
+                case .syncDetail:
+                    SyncDetailView(onBack: {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            activeToolSubView = nil
+                        }
+                    })
+                }
+            } else {
+                toolsMainMenuView
+            }
+        }
+    }
 
+    private var toolsMainMenuView: some View {
+        let issues = DateCalculator.analyzeDataQuality(cards: cards)
+        
         return ScrollView {
-            VStack(alignment: .leading, spacing: 18) {
+            VStack(alignment: .leading, spacing: 20) {
                 HStack(spacing: 10) {
                     Image(systemName: "wrench.and.screwdriver.fill")
                         .font(.title2)
@@ -464,76 +679,210 @@ struct ContentView: View {
                         Text("工具")
                             .font(.title2)
                             .bold()
-                        Text("数据异常检测")
+                        Text("数据管理与分析中心")
                             .font(.subheadline)
                             .foregroundColor(.secondary)
                     }
                     Spacer()
                 }
+                
+                Divider()
+                    .background(Color.white.opacity(0.1))
+                    .padding(.vertical, 8)
+                
+                VStack(spacing: 16) {
+                    ToolMenuButton(
+                        iconName: "exclamationmark.triangle.fill",
+                        iconColor: issues.isEmpty ? SoftColors.green : SoftColors.orange,
+                        title: "数据异常检测",
+                        description: "一键分析检测重复卡号、格式异常、不合法账单日/还款日等数据质量问题",
+                        badgeText: issues.isEmpty ? "正常" : "\(issues.count) 项异常",
+                        badgeColor: issues.isEmpty ? SoftColors.green : SoftColors.orange,
+                        action: {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                activeToolSubView = .dataQualityIssues
+                            }
+                        }
+                    )
+                    
+                    ToolMenuButton(
+                        iconName: "chart.pie.fill",
+                        iconColor: SoftColors.blue,
+                        title: "数据与统计分析",
+                        description: "以直观图表展示信用卡额度占比、银行分布，推荐下一次最佳提额卡片",
+                        badgeText: nil,
+                        badgeColor: nil,
+                        action: {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                activeToolSubView = .statistics
+                            }
+                        }
+                    )
+                    
+                    ToolMenuButton(
+                        iconName: "clock.arrow.circlepath",
+                        iconColor: SoftColors.purple,
+                        title: "同步历史与详情",
+                        description: "查看 WebDAV 云端同步的耗时、读写文件历史、本机/云端变更的卡片详情日志",
+                        badgeText: nil,
+                        badgeColor: nil,
+                        action: {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                activeToolSubView = .syncDetail
+                            }
+                        }
+                    )
+                }
+            }
+            .padding(24)
+            .frame(maxWidth: 800, alignment: .leading)
+        }
+    }
 
-                VStack(alignment: .leading, spacing: 10) {
-                    HStack {
-                        Label("数据异常检测", systemImage: "exclamationmark.triangle.fill")
-                            .font(.headline)
-                        Spacer()
-                        Text(issues.isEmpty ? "正常" : "\(issues.count) 项")
-                            .font(.caption.bold())
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 4)
-                            .background((issues.isEmpty ? Color.green : Color.orange).opacity(0.15))
-                            .foregroundColor(issues.isEmpty ? .green : .orange)
-                            .clipShape(Capsule())
+    private var dataQualityIssuesDetailView: some View {
+        let issues = DateCalculator.analyzeDataQuality(cards: cards)
+        
+        return VStack(spacing: 0) {
+            // 顶部返回与标题栏
+            HStack(spacing: 14) {
+                Button(action: {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        activeToolSubView = nil
                     }
-
-                    if issues.isEmpty {
-                        Text("未发现重复卡号、非法账单日/还款日、有效期格式异常或共享额度冲突。")
-                            .font(.subheadline)
-                            .foregroundColor(.secondary)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(16)
-                            .background(Color.green.opacity(0.08))
-                            .clipShape(RoundedRectangle(cornerRadius: 10))
-                    } else {
-                        VStack(spacing: 10) {
+                }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 13, weight: .bold))
+                        Text("返回工具")
+                            .font(.system(size: 13, weight: .bold))
+                    }
+                    .foregroundColor(.secondary)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(Color.primary.opacity(0.04))
+                    .cornerRadius(8)
+                }
+                .buttonStyle(.plain)
+                
+                HStack(spacing: 10) {
+                    Image(systemName: "exclamationmark.triangle.fill")
+                        .font(.title3)
+                        .foregroundColor(issues.isEmpty ? SoftColors.green : SoftColors.orange)
+                    Text("数据异常检测")
+                        .font(.title3)
+                        .bold()
+                }
+                
+                Spacer()
+                
+                // 角标
+                Text(issues.isEmpty ? "数据良好" : "\(issues.count) 项待处理")
+                    .font(.system(size: 11, weight: .bold))
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 4)
+                    .background((issues.isEmpty ? SoftColors.green : SoftColors.orange).opacity(0.15))
+                    .foregroundColor(issues.isEmpty ? SoftColors.green : SoftColors.orange)
+                    .clipShape(Capsule())
+            }
+            .padding(.horizontal, 24)
+            .padding(.top, 24)
+            .padding(.bottom, 16)
+            
+            Divider()
+                .background(Color.white.opacity(0.1))
+            
+            if issues.isEmpty {
+                VStack(spacing: 16) {
+                    Image(systemName: "checkmark.shield.fill")
+                        .font(.system(size: 56))
+                        .foregroundColor(SoftColors.green.opacity(0.7))
+                    Text("非常好！未检测到任何数据异常")
+                        .font(.headline)
+                    Text("所有卡号、账单日、还款日、年费及有效期格式均处于健康状态。")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color.primary.opacity(0.01))
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 18) {
+                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 280, maximum: 400), spacing: 16)], spacing: 16) {
                             ForEach(issues) { issue in
-                                HStack(alignment: .top, spacing: 10) {
-                                    Image(systemName: dataIssueIcon(issue.severity))
-                                        .font(.system(size: 16, weight: .semibold))
-                                        .foregroundColor(dataIssueColor(issue.severity))
-                                        .frame(width: 22)
-
-                                    VStack(alignment: .leading, spacing: 4) {
-                                        Text("\(issue.severity) · \(issue.title)")
-                                            .font(.subheadline.bold())
-                                            .foregroundColor(dataIssueColor(issue.severity))
-                                        if !issue.cardName.isEmpty {
-                                            Text(issue.cardName)
-                                                .font(.caption.bold())
-                                                .foregroundColor(.primary)
+                                let associatedCard = findCard(for: issue.cardName)
+                                DataIssueGridItem(
+                                    issue: issue,
+                                    card: associatedCard,
+                                    onAction: {
+                                        if let card = associatedCard {
+                                            cardEditRequest = CardEditRequest(mode: "edit", card: card)
                                         }
-                                        Text(issue.detail)
-                                            .font(.caption)
-                                            .foregroundColor(.secondary)
                                     }
-                                    Spacer()
-                                }
-                                .padding(12)
-                                .background(dataIssueColor(issue.severity).opacity(0.09))
-                                .overlay(
-                                    RoundedRectangle(cornerRadius: 10)
-                                        .stroke(dataIssueColor(issue.severity).opacity(0.18), lineWidth: 1)
                                 )
-                                .clipShape(RoundedRectangle(cornerRadius: 10))
                             }
                         }
                     }
+                    .padding(24)
                 }
-                .padding(16)
-                .background(Color.primary.opacity(0.04))
-                .clipShape(RoundedRectangle(cornerRadius: 12))
+                .background(Color.primary.opacity(0.005))
             }
-            .padding(24)
-            .frame(maxWidth: 900, alignment: .leading)
+        }
+    }
+
+    private var statisticsDetailView: some View {
+        VStack(spacing: 0) {
+            // 顶部返回与标题栏
+            HStack(spacing: 14) {
+                Button(action: {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        activeToolSubView = nil
+                    }
+                }) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "chevron.left")
+                            .font(.system(size: 13, weight: .bold))
+                        Text("返回工具")
+                            .font(.system(size: 13, weight: .bold))
+                    }
+                    .foregroundColor(.secondary)
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 6)
+                    .background(Color.primary.opacity(0.04))
+                    .cornerRadius(8)
+                }
+                .buttonStyle(.plain)
+                
+                HStack(spacing: 10) {
+                    Image(systemName: "chart.pie.fill")
+                        .font(.title3)
+                        .foregroundColor(SoftColors.blue)
+                    Text("数据与统计分析")
+                        .font(.title3)
+                        .bold()
+                }
+                
+                Spacer()
+            }
+            .padding(.horizontal, 24)
+            .padding(.top, 24)
+            .padding(.bottom, 16)
+            
+            Divider()
+                .background(Color.white.opacity(0.1))
+            
+            // 嵌套 StatisticsView
+            StatisticsView(cards: cards)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        }
+    }
+
+    private func findCard(for cardName: String) -> SharedCard? {
+        guard !cardName.isEmpty else { return nil }
+        return cards.first { card in
+            let bank = card.bank.trimmingCharacters(in: .whitespacesAndNewlines)
+            let alias = (card.alias ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            let name = "\(bank.isEmpty ? "未知银行" : bank) - \(alias.isEmpty ? "未命名卡片" : alias)"
+            return name == cardName
         }
     }
     
@@ -552,35 +901,75 @@ struct ContentView: View {
     private func runInitialAnnualFeeCheckIfNeeded() {
         guard !hasCheckedAnnualFeeStatus, !lockManager.isLocked else { return }
         hasCheckedAnnualFeeStatus = true
-        checkBillingCycleStatus()
-        checkAnnualFeeQualifiedStatus()
-        checkCardExpiryStatus()
+        runUnifiedCardRemindersCheck()
     }
 
-    private func checkBillingCycleStatus() {
-        let reminders = DateCalculator.billingCycleReminderItems(for: cards)
-        guard !reminders.isEmpty else { return }
+    private func queueAlert(_ alert: AppAlertType) {
+        guard !alertQueue.contains(where: { $0.id == alert.id }) && activeAppAlert?.id != alert.id else {
+            return
+        }
+        alertQueue.append(alert)
+        if activeAppAlert == nil {
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+                activeAppAlert = alertQueue.removeFirst()
+            }
+        }
+    }
 
-        let cardList = reminders.prefix(10).map { item in
-            let label = item.reminder.kind == .repayment ? "还款日" : "账单日"
-            let note = item.reminder.kind == .repayment ? "请核对是否已还款" : "请关注本期出账"
-            return "• \(item.card.bank) - \(item.card.alias ?? "无别名")：\(item.reminder.title)，\(label) \(DateCalculator.formatDate(item.reminder.date))，\(note)"
-        }.joined(separator: "\n")
-        let extraText = reminders.count > 10 ? "\n另有 \(reminders.count - 10) 项提醒也需要处理。" : ""
+    private func dismissActiveAlert() {
+        withAnimation(.easeInOut(duration: 0.2)) {
+            activeAppAlert = nil
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.25) {
+            if !alertQueue.isEmpty {
+                withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+                    activeAppAlert = alertQueue.removeFirst()
+                }
+            }
+        }
+    }
 
-        let alert = NSAlert()
-        alert.messageText = "还款日/账单日检测"
-        alert.informativeText = """
-        检测到以下信用卡即将到达还款日或账单日。
-
-        \(cardList)\(extraText)
-        """
-        alert.alertStyle = reminders.contains { $0.reminder.kind == .repayment } ? .critical : .warning
-        alert.addButton(withTitle: "查看卡片提醒")
-        alert.addButton(withTitle: "知道了")
-
-        if alert.runModal() == .alertFirstButtonReturn {
+    private func handleAlertAction(_ alert: AppAlertType) {
+        switch alert {
+        case .unifiedReminders:
             selection = .annualFeeAlert
+            dismissActiveAlert()
+        case .deleteCard(let card):
+            cards.removeAll { $0.id == card.id }
+            cards = syncCoordinator.commit(cards: cards, deletedCardIDs: [card.id])
+            dismissActiveAlert()
+        }
+    }
+
+    private func runUnifiedCardRemindersCheck() {
+        let billingReminders = DateCalculator.billingCycleReminderItems(for: cards)
+        
+        let annualFeeReminders = cards.filter { card in
+            guard card.cardCategory != "debit",
+                  card.isQualified != "3",
+                  card.isQualified != "2",
+                  let diffDays = DateCalculator.annualFeeRemainingDays(card.nextAnnualFeeCollectionTime) else {
+                return false
+            }
+            return diffDays <= 60 && diffDays >= 0
+        }
+        
+        let expiryReminders = cards.compactMap { card -> (card: SharedCard, status: DateCalculator.CardExpiryStatus)? in
+            guard let status = cardExpiryReminderStatus(for: card) else { return nil }
+            return (card, status)
+        }.sorted { lhs, rhs in
+            let lhsPriority = lhs.status == .expired ? 0 : 1
+            let rhsPriority = rhs.status == .expired ? 0 : 1
+            if lhsPriority != rhsPriority { return lhsPriority < rhsPriority }
+            return lhs.card.bank < rhs.card.bank
+        }
+        
+        if !billingReminders.isEmpty || !annualFeeReminders.isEmpty || !expiryReminders.isEmpty {
+            queueAlert(.unifiedReminders(
+                billingReminders: billingReminders,
+                annualFeeReminders: annualFeeReminders,
+                expiryReminders: expiryReminders
+            ))
         }
     }
 
@@ -594,11 +983,11 @@ struct ContentView: View {
     private func dataIssueColor(_ severity: String) -> Color {
         switch severity {
         case "严重":
-            return .red
+            return SoftColors.red
         case "警告":
-            return .orange
+            return SoftColors.orange
         default:
-            return .cyan
+            return SoftColors.cyan
         }
     }
 
@@ -612,50 +1001,6 @@ struct ContentView: View {
             return "info.circle.fill"
         }
     }
-    
-    private func checkAnnualFeeQualifiedStatus() {
-        let warningCards = cards.filter { card in
-            guard card.cardCategory != "debit",
-                  card.isQualified != "3",
-                  card.isQualified != "2",
-                  let diffDays = DateCalculator.annualFeeRemainingDays(card.nextAnnualFeeCollectionTime) else {
-                return false
-            }
-            return diffDays <= 60 && diffDays >= 0
-        }
-        
-        guard !warningCards.isEmpty else { return }
-        
-        let cardList = warningCards.prefix(8).map { card in
-            let dateText = DateCalculator.formatTimestampDate(card.nextAnnualFeeCollectionTime)
-            let daysText = DateCalculator.annualFeeRemainingDays(card.nextAnnualFeeCollectionTime) ?? 0
-            return "• \(card.bank) - \(card.alias ?? "无别名")：\(dateText)，剩余 \(daysText) 天"
-        }.joined(separator: "\n")
-        let extraText = warningCards.count > 8 ? "\n另有 \(warningCards.count - 8) 张卡片也需要处理。" : ""
-        
-        let alert = NSAlert()
-        alert.messageText = "年费达标状态检测"
-        alert.informativeText = """
-        检测到以下卡片临近年费收取时间不足 60 天。
-        
-        \(cardList)\(extraText)
-        
-        如果去年已达标但今年尚未完成达标，建议更新为未达标以避免遗漏年费。
-        """
-        alert.alertStyle = .warning
-        alert.addButton(withTitle: "更新为未达标")
-        alert.addButton(withTitle: "取消")
-        
-        if alert.runModal() == .alertFirstButtonReturn {
-            let warningIDs = Set(warningCards.map(\.id))
-            let nowTimestamp = DateCalculator.timestamp(from: Date())
-            for index in cards.indices where warningIDs.contains(cards[index].id) {
-                cards[index].isQualified = "2"
-                cards[index].lastModifyTime = nowTimestamp
-            }
-            cards = syncCoordinator.commit(cards: cards)
-        }
-    }
 
     private func cardExpiryReminderStatus(for card: SharedCard) -> DateCalculator.CardExpiryStatus? {
         guard let status = DateCalculator.cardExpiryStatus(valid: card.valid),
@@ -664,56 +1009,9 @@ struct ContentView: View {
         }
         return status
     }
-
-    private func checkCardExpiryStatus() {
-        let expiryCards = cards.compactMap { card -> (card: SharedCard, status: DateCalculator.CardExpiryStatus)? in
-            guard let status = cardExpiryReminderStatus(for: card) else { return nil }
-            return (card, status)
-        }.sorted { lhs, rhs in
-            let lhsPriority = lhs.status == .expired ? 0 : 1
-            let rhsPriority = rhs.status == .expired ? 0 : 1
-            if lhsPriority != rhsPriority { return lhsPriority < rhsPriority }
-            return lhs.card.bank < rhs.card.bank
-        }
-
-        guard !expiryCards.isEmpty else { return }
-
-        let cardList = expiryCards.prefix(8).map { item in
-            let statusText = item.status == .expired ? "已过期" : "6个月内到期"
-            return "• \(item.card.bank) - \(item.card.alias ?? "无别名")：\(item.card.valid ?? "--/--")，\(statusText)"
-        }.joined(separator: "\n")
-        let extraText = expiryCards.count > 8 ? "\n另有 \(expiryCards.count - 8) 张卡片也需要处理。" : ""
-
-        let alert = NSAlert()
-        alert.messageText = "卡片有效期检测"
-        alert.informativeText = """
-        检测到以下卡片已过期或将在 6 个月内到期。
-
-        \(cardList)\(extraText)
-
-        请确认银行是否已换发新卡，并在卡片详情里更新有效期。
-        """
-        alert.alertStyle = expiryCards.contains { $0.status == .expired } ? .critical : .warning
-        alert.addButton(withTitle: "查看统计")
-        alert.addButton(withTitle: "知道了")
-
-        if alert.runModal() == .alertFirstButtonReturn {
-            selection = .statistics
-        }
-    }
     
     private func deleteCard(_ card: SharedCard) {
-        let alert = NSAlert()
-        alert.messageText = "确认要删除此卡片吗？"
-        alert.informativeText = "银行：\(card.bank)\n别名：\(card.alias ?? "无")\n卡号：\(card.cardNumber.suffix(4))\n\n删除后不可撤销，确认删除吗？"
-        alert.alertStyle = .warning
-        alert.addButton(withTitle: "删除")
-        alert.addButton(withTitle: "取消")
-        
-        if alert.runModal() == .alertFirstButtonReturn {
-            cards.removeAll { $0.id == card.id }
-            cards = syncCoordinator.commit(cards: cards, deletedCardIDs: [card.id])
-        }
+        queueAlert(.deleteCard(card: card))
     }
 
     private func propagateBankRename(from previousCard: SharedCard?, to updatedCard: SharedCard) -> Int {
@@ -818,3 +1116,756 @@ private final class CardSystemNotificationCenter {
         }
     }
 }
+
+// MARK: - 自定义弹窗关联类型与视图
+
+fileprivate enum AppAlertType: Identifiable, Equatable {
+    var id: String {
+        switch self {
+        case .unifiedReminders: return "unifiedReminders"
+        case .deleteCard(let card): return "deleteCard-\(card.id)"
+        }
+    }
+    
+    case unifiedReminders(
+        billingReminders: [(card: SharedCard, reminder: DateCalculator.BillingCycleReminderResult)],
+        annualFeeReminders: [SharedCard],
+        expiryReminders: [(card: SharedCard, status: DateCalculator.CardExpiryStatus)]
+    )
+    case deleteCard(card: SharedCard)
+    
+    static func == (lhs: AppAlertType, rhs: AppAlertType) -> Bool {
+        return lhs.id == rhs.id
+    }
+}
+
+fileprivate struct CustomAlertOverlay: View {
+    let activeAlert: AppAlertType
+    let onDismiss: () -> Void
+    let onAction: (AppAlertType) -> Void
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            // 顶部 Header
+            HStack(alignment: .top, spacing: 16) {
+                ZStack {
+                    Circle()
+                        .fill(gradientForAlert(activeAlert))
+                        .frame(width: 44, height: 44)
+                        .shadow(color: colorForAlert(activeAlert).opacity(0.25), radius: 8, x: 0, y: 4)
+                    
+                    Image(systemName: iconNameForAlert(activeAlert))
+                        .font(.system(size: 20, weight: .semibold))
+                        .foregroundColor(.white)
+                }
+                
+                VStack(alignment: .leading, spacing: 6) {
+                    Text(titleForAlert(activeAlert))
+                        .font(.system(size: 17, weight: .bold))
+                        .foregroundColor(.primary)
+                    
+                    Text(subtitleForAlert(activeAlert))
+                        .font(.system(size: 12.5))
+                        .foregroundColor(.secondary)
+                        .lineLimit(3)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Spacer()
+            }
+            .padding(.horizontal, 24)
+            .padding(.top, 24)
+            .padding(.bottom, 16)
+            
+            // 中间列表
+            ScrollView {
+                VStack(spacing: 12) {
+                    switch activeAlert {
+                    case .unifiedReminders(let billingReminders, let annualFeeReminders, let expiryReminders):
+                        // 1. 还款日提醒
+                        let repaymentReminders = billingReminders.filter { $0.reminder.kind == .repayment }
+                        if !repaymentReminders.isEmpty {
+                            VStack(alignment: .leading, spacing: 6) {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "exclamationmark.octagon.fill")
+                                        .font(.system(size: 10, weight: .bold))
+                                    Text("还款日提醒")
+                                        .font(.system(size: 11, weight: .bold))
+                                }
+                                .foregroundColor(SoftColors.red)
+                                .padding(.leading, 4)
+                                
+                                ForEach(repaymentReminders.indices, id: \.self) { index in
+                                    let item = repaymentReminders[index]
+                                    HStack(spacing: 8) {
+                                        bankLogo(for: item.card.bank)
+                                        VStack(alignment: .leading, spacing: 1) {
+                                            Text(item.card.bank)
+                                                .font(.system(size: 12, weight: .semibold))
+                                            Text(item.card.alias ?? "无别名")
+                                                .font(.system(size: 10))
+                                                .foregroundColor(.secondary)
+                                        }
+                                        Spacer()
+                                        let days = item.reminder.days
+                                        let dateStr = DateCalculator.formatDate(item.reminder.date)
+                                        Text(days == 0 ? "今天还款 (\(dateStr))" : "\(days)天后还款 (\(dateStr))")
+                                            .font(.system(size: 10.5, design: .rounded))
+                                            .foregroundColor(SoftColors.red)
+                                    }
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 8)
+                                    .background(SoftColors.red.opacity(0.09))
+                                    .cornerRadius(10)
+                                    .overlay(RoundedRectangle(cornerRadius: 10).stroke(SoftColors.red.opacity(0.24), lineWidth: 1))
+                                }
+                            }
+                        }
+                        
+                        // 2. 账单日提醒
+                        let billReminders = billingReminders.filter { $0.reminder.kind == .bill }
+                        if !billReminders.isEmpty {
+                            VStack(alignment: .leading, spacing: 6) {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "doc.text.fill")
+                                        .font(.system(size: 10, weight: .bold))
+                                    Text("账单日提醒")
+                                        .font(.system(size: 11, weight: .bold))
+                                }
+                                .foregroundColor(SoftColors.blue)
+                                .padding(.leading, 4)
+                                
+                                ForEach(billReminders.indices, id: \.self) { index in
+                                    let item = billReminders[index]
+                                    HStack(spacing: 8) {
+                                        bankLogo(for: item.card.bank)
+                                        VStack(alignment: .leading, spacing: 1) {
+                                            Text(item.card.bank)
+                                                .font(.system(size: 12, weight: .semibold))
+                                            Text(item.card.alias ?? "无别名")
+                                                .font(.system(size: 10))
+                                                .foregroundColor(.secondary)
+                                        }
+                                        Spacer()
+                                        let days = item.reminder.days
+                                        let dateStr = DateCalculator.formatDate(item.reminder.date)
+                                        Text(days == 0 ? "今天出账 (\(dateStr))" : "\(days)天后出账 (\(dateStr))")
+                                            .font(.system(size: 10.5, design: .rounded))
+                                            .foregroundColor(SoftColors.blue)
+                                    }
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 8)
+                                    .background(SoftColors.blue.opacity(0.09))
+                                    .cornerRadius(10)
+                                    .overlay(RoundedRectangle(cornerRadius: 10).stroke(SoftColors.blue.opacity(0.24), lineWidth: 1))
+                                }
+                            }
+                        }
+                        
+                        // 3. 年费达标提醒
+                        if !annualFeeReminders.isEmpty {
+                            VStack(alignment: .leading, spacing: 6) {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "dollarsign.circle.fill")
+                                        .font(.system(size: 10, weight: .bold))
+                                    Text("年费达标提醒")
+                                        .font(.system(size: 11, weight: .bold))
+                                }
+                                .foregroundColor(SoftColors.orange)
+                                .padding(.leading, 4)
+                                
+                                ForEach(annualFeeReminders.indices, id: \.self) { index in
+                                    let card = annualFeeReminders[index]
+                                    HStack(spacing: 8) {
+                                        bankLogo(for: card.bank)
+                                        VStack(alignment: .leading, spacing: 1) {
+                                            Text(card.bank)
+                                                .font(.system(size: 12, weight: .semibold))
+                                            Text(card.alias ?? "无别名")
+                                                .font(.system(size: 10))
+                                                .foregroundColor(.secondary)
+                                        }
+                                        Spacer()
+                                        let dateText = DateCalculator.formatTimestampDate(card.nextAnnualFeeCollectionTime)
+                                        let days = DateCalculator.annualFeeRemainingDays(card.nextAnnualFeeCollectionTime) ?? 0
+                                        Text("剩 \(days) 天 (\(dateText))")
+                                            .font(.system(size: 10.5, design: .rounded))
+                                            .foregroundColor(SoftColors.orange)
+                                    }
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 8)
+                                    .background(SoftColors.orange.opacity(0.09))
+                                    .cornerRadius(10)
+                                    .overlay(RoundedRectangle(cornerRadius: 10).stroke(SoftColors.orange.opacity(0.24), lineWidth: 1))
+                                }
+                            }
+                        }
+                        
+                        // 4. 卡片有效期提醒
+                        if !expiryReminders.isEmpty {
+                            VStack(alignment: .leading, spacing: 6) {
+                                HStack(spacing: 6) {
+                                    Image(systemName: "hourglass.badge.exclamationmark")
+                                        .font(.system(size: 10, weight: .bold))
+                                    Text("卡片有效期提醒")
+                                        .font(.system(size: 11, weight: .bold))
+                                }
+                                .foregroundColor(SoftColors.purple)
+                                .padding(.leading, 4)
+                                
+                                ForEach(expiryReminders.indices, id: \.self) { index in
+                                    let item = expiryReminders[index]
+                                    let isExpired = item.status == .expired
+                                    HStack(spacing: 8) {
+                                        bankLogo(for: item.card.bank)
+                                        VStack(alignment: .leading, spacing: 1) {
+                                            Text(item.card.bank)
+                                                .font(.system(size: 12, weight: .semibold))
+                                            Text(item.card.alias ?? "无别名")
+                                                .font(.system(size: 10))
+                                                .foregroundColor(.secondary)
+                                        }
+                                        Spacer()
+                                        let statusText = isExpired ? "已过期" : "即将到期"
+                                        Text("\(statusText) (\(item.card.valid ?? "--/--"))")
+                                            .font(.system(size: 10.5, weight: .semibold))
+                                            .foregroundColor(SoftColors.purple)
+                                    }
+                                    .padding(.horizontal, 10)
+                                    .padding(.vertical, 8)
+                                    .background(SoftColors.purple.opacity(0.09))
+                                    .cornerRadius(10)
+                                    .overlay(RoundedRectangle(cornerRadius: 10).stroke(SoftColors.purple.opacity(0.24), lineWidth: 1))
+                                }
+                            }
+                        }
+                        
+                    case .deleteCard(let card):
+                        VStack(spacing: 16) {
+                            ZStack(alignment: .topLeading) {
+                                RoundedRectangle(cornerRadius: 16)
+                                    .fill(LinearGradient(
+                                        colors: [bankColor(for: card.bank), bankColor(for: card.bank).opacity(0.8)],
+                                        startPoint: .topLeading, endPoint: .bottomTrailing
+                                    ))
+                                    .frame(height: 120)
+                                    .shadow(color: bankColor(for: card.bank).opacity(0.35), radius: 10, x: 0, y: 5)
+                                
+                                VStack(alignment: .leading, spacing: 12) {
+                                    HStack {
+                                        Text(card.bank)
+                                            .font(.system(size: 16, weight: .bold))
+                                            .foregroundColor(.white)
+                                        Spacer()
+                                        Text(card.cardCategory == "debit" ? "储蓄卡" : "信用卡")
+                                            .font(.system(size: 10, weight: .semibold))
+                                            .padding(.horizontal, 6)
+                                            .padding(.vertical, 2.5)
+                                            .background(.white.opacity(0.2))
+                                            .foregroundColor(.white)
+                                            .cornerRadius(4)
+                                    }
+                                    
+                                    Text(card.alias ?? "未命名卡片")
+                                        .font(.system(size: 12))
+                                        .foregroundColor(.white.opacity(0.8))
+                                    
+                                    Spacer()
+                                    
+                                    Text("••••  ••••  ••••  \(card.cardNumber.suffix(4))")
+                                        .font(.system(size: 16, weight: .bold, design: .monospaced))
+                                        .foregroundColor(.white)
+                                }
+                                .padding(16)
+                            }
+                            .frame(width: 280)
+                            .padding(.vertical, 8)
+                            
+                            Text("删除此卡片后数据无法恢复，与之相关的全部提醒也将一并删除。")
+                                .font(.system(size: 11.5))
+                                .foregroundColor(.red.opacity(0.85))
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal, 16)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+                    }
+                }
+                .padding(.horizontal, 24)
+            }
+            .frame(maxHeight: 280)
+            
+            Divider()
+                .background(Color.primary.opacity(0.1))
+                .padding(.top, 16)
+            
+            // 底部按钮
+            HStack(spacing: 12) {
+                if showCancelButton(activeAlert) {
+                    Button(action: {
+                        onDismiss()
+                    }) {
+                        Text(cancelButtonTitle(activeAlert))
+                            .font(.system(size: 13, weight: .medium))
+                            .foregroundColor(.primary.opacity(0.8))
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 9)
+                            .background(Color.primary.opacity(0.06))
+                            .cornerRadius(10)
+                    }
+                    .buttonStyle(.plain)
+                }
+                
+                Button(action: {
+                    onAction(activeAlert)
+                }) {
+                    Text(actionButtonTitle(activeAlert))
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundColor(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 9)
+                        .background(
+                            LinearGradient(
+                                colors: actionButtonColors(activeAlert),
+                                startPoint: .leading, endPoint: .trailing
+                            )
+                        )
+                        .cornerRadius(10)
+                        .shadow(color: actionButtonColors(activeAlert)[0].opacity(0.3), radius: 6, x: 0, y: 3)
+                }
+                .buttonStyle(.plain)
+            }
+            .padding(20)
+        }
+        .frame(width: 440)
+        .background(
+            RoundedRectangle(cornerRadius: 24)
+                .fill(.ultraThinMaterial)
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 24)
+                .stroke(Color.white.opacity(0.18), lineWidth: 1)
+        )
+        .shadow(color: Color.black.opacity(0.22), radius: 25, x: 0, y: 12)
+    }
+    
+    // MARK: - 辅助组件
+    
+    private func bankLogo(for bankName: String) -> some View {
+        ZStack {
+            Circle()
+                .fill(LinearGradient(
+                    colors: [bankColor(for: bankName), bankColor(for: bankName).opacity(0.75)],
+                    startPoint: .topLeading, endPoint: .bottomTrailing
+                ))
+                .frame(width: 26, height: 26)
+            
+            Text(String(bankName.prefix(1)))
+                .font(.system(size: 11, weight: .bold))
+                .foregroundColor(.white)
+        }
+    }
+    
+    // MARK: - 辅助方法
+    
+    private func bankColor(for bankName: String) -> Color {
+        if bankName.contains("招商") { return .red }
+        if bankName.contains("建设") { return .blue }
+        if bankName.contains("中国") { return .red }
+        if bankName.contains("工商") { return .red }
+        if bankName.contains("农业") { return .green }
+        if bankName.contains("交通") { return .blue }
+        if bankName.contains("浦发") { return .blue }
+        if bankName.contains("兴业") { return .blue }
+        if bankName.contains("中信") { return .red }
+        if bankName.contains("民生") { return .green }
+        if bankName.contains("光大") { return .orange }
+        if bankName.contains("广发") { return .red }
+        if bankName.contains("平安") { return .orange }
+        if bankName.contains("汇丰") { return .red }
+        if bankName.contains("渣打") { return .blue }
+        if bankName.contains("花旗") { return .blue }
+        if bankName.contains("工银") { return .red }
+        
+        let hash = abs(bankName.hashValue)
+        let colors: [Color] = [.cyan, .teal, .blue, .purple, .pink, .indigo]
+        return colors[hash % colors.count]
+    }
+    
+    private func gradientForAlert(_ alert: AppAlertType) -> LinearGradient {
+        switch alert {
+        case .unifiedReminders:
+            return LinearGradient(colors: [SoftColors.orange, SoftColors.red], startPoint: .top, endPoint: .bottom)
+        case .deleteCard:
+            return LinearGradient(colors: [SoftColors.red, Color(red: 0.75, green: 0.3, blue: 0.3)], startPoint: .top, endPoint: .bottom)
+        }
+    }
+    
+    private func colorForAlert(_ alert: AppAlertType) -> Color {
+        switch alert {
+        case .unifiedReminders: return SoftColors.orange
+        case .deleteCard: return SoftColors.red
+        }
+    }
+    
+    private func iconNameForAlert(_ alert: AppAlertType) -> String {
+        switch alert {
+        case .unifiedReminders: return "bell.badge.fill"
+        case .deleteCard: return "trash.fill"
+        }
+    }
+    
+    private func titleForAlert(_ alert: AppAlertType) -> String {
+        switch alert {
+        case .unifiedReminders: return "卡片提醒"
+        case .deleteCard: return "确认要删除此卡片吗？"
+        }
+    }
+    
+    private func subtitleForAlert(_ alert: AppAlertType) -> String {
+        switch alert {
+        case .unifiedReminders: return "检测到以下卡片有需要处理的事项，请及时关注。"
+        case .deleteCard: return "删除卡片后将不可恢复，与之相关的全部提醒也均会被清空。"
+        }
+    }
+    
+    private func showCancelButton(_ alert: AppAlertType) -> Bool {
+        return true
+    }
+    
+    private func cancelButtonTitle(_ alert: AppAlertType) -> String {
+        switch alert {
+        case .unifiedReminders: return "知道了"
+        case .deleteCard: return "取消"
+        }
+    }
+    
+    private func actionButtonTitle(_ alert: AppAlertType) -> String {
+        switch alert {
+        case .unifiedReminders: return "查看卡片提醒"
+        case .deleteCard: return "确认删除"
+        }
+    }
+    
+    private func actionButtonColors(_ alert: AppAlertType) -> [Color] {
+        switch alert {
+        case .unifiedReminders: return [SoftColors.blue, SoftColors.cyan]
+        case .deleteCard: return [SoftColors.red, Color(red: 0.75, green: 0.3, blue: 0.3)]
+        }
+    }
+}
+
+// MARK: - 精美提醒看板条目卡片
+
+struct ReminderDashboardItem: View {
+    let card: SharedCard
+    let title: String
+    let detail: String
+    let tag: String
+    let themeColor: Color
+    let actionLabel: String
+    let onAction: () -> Void
+    
+    @State private var isHovered = false
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                // 银行卡彩色迷你标
+                HStack(spacing: 8) {
+                    ZStack {
+                        Circle()
+                            .fill(LinearGradient(
+                                colors: [bankColor(for: card.bank), bankColor(for: card.bank).opacity(0.75)],
+                                startPoint: .topLeading, endPoint: .bottomTrailing
+                            ))
+                            .frame(width: 24, height: 24)
+                        
+                        Text(String(card.bank.prefix(1)))
+                            .font(.system(size: 11, weight: .bold))
+                            .foregroundColor(.white)
+                    }
+                    
+                    VStack(alignment: .leading, spacing: 1) {
+                        Text(card.bank)
+                            .font(.system(size: 13, weight: .semibold))
+                        Text(card.alias ?? "未命名卡片")
+                            .font(.system(size: 10))
+                            .foregroundColor(.secondary)
+                    }
+                }
+                
+                Spacer()
+                
+                // 右侧 Tag
+                Text(tag)
+                    .font(.system(size: 10, weight: .bold, design: .rounded))
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .background(themeColor.opacity(0.12))
+                    .foregroundColor(themeColor)
+                    .cornerRadius(6)
+            }
+            
+            Text(detail)
+                .font(.system(size: 11.5))
+                .foregroundColor(.primary.opacity(0.75))
+                .lineLimit(2)
+                .fixedSize(horizontal: false, vertical: true)
+            
+            HStack {
+                Text("尾号 *\(card.cardNumber.suffix(4))")
+                    .font(.system(size: 10, design: .monospaced))
+                    .foregroundColor(.secondary)
+                
+                Spacer()
+                
+                Button(action: onAction) {
+                    HStack(spacing: 4) {
+                        Text(actionLabel)
+                        Image(systemName: "chevron.right")
+                    }
+                    .font(.system(size: 11, weight: .medium))
+                    .foregroundColor(themeColor)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(14)
+        .background(themeColor.opacity(isHovered ? 0.08 : 0.04))
+        .cornerRadius(12)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(themeColor.opacity(isHovered ? 0.28 : 0.16), lineWidth: 1)
+        )
+        .onHover { hover in
+            withAnimation(.easeInOut(duration: 0.15)) {
+                isHovered = hover
+            }
+        }
+    }
+    
+    private func bankColor(for bankName: String) -> Color {
+        if bankName.contains("招商") { return .red }
+        if bankName.contains("建设") { return .blue }
+        if bankName.contains("中国") { return .red }
+        if bankName.contains("工商") { return .red }
+        if bankName.contains("农业") { return .green }
+        if bankName.contains("交通") { return .blue }
+        if bankName.contains("浦发") { return .blue }
+        if bankName.contains("兴业") { return .blue }
+        if bankName.contains("中信") { return .red }
+        if bankName.contains("民生") { return .green }
+        if bankName.contains("光大") { return .orange }
+        if bankName.contains("广发") { return .red }
+        if bankName.contains("平安") { return .orange }
+        if bankName.contains("汇丰") { return .red }
+        if bankName.contains("渣打") { return .blue }
+        if bankName.contains("花旗") { return .blue }
+        if bankName.contains("工银") { return .red }
+        
+        let hash = abs(bankName.hashValue)
+        let colors: [Color] = [.cyan, .teal, .blue, .purple, .pink, .indigo]
+        return colors[hash % colors.count]
+    }
+}
+
+fileprivate struct SoftColors {
+    static let red = Color(red: 1.0, green: 57.0/255.0, blue: 60.0/255.0)
+    static let blue = Color(red: 0.0, green: 198.0/255.0, blue: 246.0/255.0)
+    static let orange = Color(red: 0.96, green: 0.62, blue: 0.04)
+    static let purple = Color(red: 0.96, green: 0.62, blue: 0.04)
+    static let green = Color(red: 0.06, green: 0.73, blue: 0.50)
+    static let cyan = Color(red: 0.0, green: 0.85, blue: 0.95)
+}
+
+// MARK: - 工具箱高级卡片菜单项按钮
+fileprivate struct ToolMenuButton: View {
+    let iconName: String
+    let iconColor: Color
+    let title: String
+    let description: String
+    let badgeText: String?
+    let badgeColor: Color?
+    let action: () -> Void
+    
+    @State private var isHovered = false
+    
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: 16) {
+                ZStack {
+                    Circle()
+                        .fill(iconColor.opacity(0.12))
+                        .frame(width: 44, height: 44)
+                    Image(systemName: iconName)
+                        .font(.system(size: 20))
+                        .foregroundColor(iconColor)
+                }
+                
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text(title)
+                            .font(.headline)
+                            .foregroundColor(.primary)
+                        
+                        Spacer()
+                        
+                        if let bText = badgeText, let bColor = badgeColor {
+                            Text(bText)
+                                .font(.system(size: 10.5, weight: .bold))
+                                .padding(.horizontal, 8)
+                                .padding(.vertical, 3.5)
+                                .background(bColor.opacity(0.15))
+                                .foregroundColor(bColor)
+                                .cornerRadius(6)
+                        }
+                    }
+                    
+                    Text(description)
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                        .lineLimit(2)
+                        .multilineTextAlignment(.leading)
+                }
+                
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 14, weight: .semibold))
+                    .foregroundColor(.secondary)
+                    .padding(.leading, 8)
+            }
+            .padding(18)
+            .background(Color.primary.opacity(isHovered ? 0.04 : 0.02))
+            .cornerRadius(12)
+            .overlay(
+                RoundedRectangle(cornerRadius: 12)
+                    .stroke(isHovered ? iconColor.opacity(0.3) : Color.primary.opacity(0.08), lineWidth: 1)
+            )
+        }
+        .buttonStyle(.plain)
+        .onHover { hover in
+            withAnimation(.easeInOut(duration: 0.15)) {
+                isHovered = hover
+            }
+        }
+    }
+}
+
+// MARK: - 异常数据网格卡片
+fileprivate struct DataIssueGridItem: View {
+    let issue: DateCalculator.DataQualityIssue
+    let card: SharedCard?
+    let onAction: () -> Void
+    
+    @State private var isHovered = false
+    
+    private var severityColor: Color {
+        switch issue.severity {
+        case "严重":
+            return SoftColors.red
+        case "警告":
+            return SoftColors.orange
+        default:
+            return SoftColors.cyan
+        }
+    }
+    
+    private var severityIcon: String {
+        switch issue.severity {
+        case "严重":
+            return "xmark.octagon.fill"
+        case "警告":
+            return "exclamationmark.triangle.fill"
+        default:
+            return "info.circle.fill"
+        }
+    }
+    
+    var body: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack {
+                HStack(spacing: 6) {
+                    Image(systemName: severityIcon)
+                        .font(.system(size: 11, weight: .bold))
+                    Text(issue.severity)
+                        .font(.system(size: 11, weight: .bold))
+                }
+                .foregroundColor(severityColor)
+                .padding(.horizontal, 8)
+                .padding(.vertical, 3)
+                .background(severityColor.opacity(0.12))
+                .cornerRadius(6)
+                
+                Spacer()
+                
+                if let card = card {
+                    Text(card.cardCategory == "debit" ? "储蓄卡" : "信用卡")
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundColor(.secondary)
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(Color.primary.opacity(0.04))
+                        .cornerRadius(4)
+                }
+            }
+            
+            VStack(alignment: .leading, spacing: 4) {
+                Text(issue.title)
+                    .font(.system(size: 13, weight: .bold))
+                    .foregroundColor(.primary)
+                
+                if let card = card {
+                    Text("\(card.bank) · \(card.alias ?? "无别名")")
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(.primary.opacity(0.8))
+                } else if !issue.cardName.isEmpty {
+                    Text(issue.cardName)
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(.primary.opacity(0.8))
+                }
+            }
+            
+            Text(issue.detail)
+                .font(.system(size: 11.5))
+                .foregroundColor(.secondary)
+                .lineLimit(3)
+                .fixedSize(horizontal: false, vertical: true)
+            
+            if card != nil {
+                Spacer(minLength: 0)
+                
+                HStack {
+                    if let card = card {
+                        Text("尾号 *\(card.cardNumber.suffix(4))")
+                            .font(.system(size: 10, design: .monospaced))
+                            .foregroundColor(.secondary)
+                    }
+                    
+                    Spacer()
+                    
+                    Button(action: onAction) {
+                        HStack(spacing: 4) {
+                            Text("去处理")
+                            Image(systemName: "pencil")
+                        }
+                        .font(.system(size: 11, weight: .semibold))
+                        .foregroundColor(severityColor)
+                    }
+                    .buttonStyle(.plain)
+                }
+            }
+        }
+        .padding(14)
+        .background(severityColor.opacity(isHovered ? 0.08 : 0.04))
+        .cornerRadius(12)
+        .overlay(
+            RoundedRectangle(cornerRadius: 12)
+                .stroke(severityColor.opacity(isHovered ? 0.28 : 0.16), lineWidth: 1)
+        )
+        .onHover { hover in
+            withAnimation(.easeInOut(duration: 0.15)) {
+                isHovered = hover
+            }
+        }
+    }
+}
+
+

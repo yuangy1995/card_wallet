@@ -5,7 +5,6 @@ public enum NavigationSection: Hashable {
     case annualFeeAlert
     case statistics
     case tools
-    case cloudSync
     case settings
 }
 
@@ -75,17 +74,11 @@ public struct SidebarView: View {
                     }
                 }
                 
-                NavigationLink(value: NavigationSection.statistics) {
-                    Label("统计与分析", systemImage: "chart.pie.fill")
-                }
-
                 NavigationLink(value: NavigationSection.tools) {
                     Label("工具", systemImage: "wrench.and.screwdriver.fill")
                 }
                 
-                NavigationLink(value: NavigationSection.cloudSync) {
-                    Label("云同步", systemImage: "icloud.and.arrow.up.fill")
-                }
+
                 
                 NavigationLink(value: NavigationSection.settings) {
                     Label("设置", systemImage: "gearshape.2.fill")
