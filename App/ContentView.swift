@@ -224,7 +224,7 @@ struct ContentView: View {
                     Image(systemName: "creditcard.fill")
                         .font(.title2)
                         .foregroundColor(.cyan)
-                    Text("银行卡")
+                    Text("卡包")
                         .font(.title2)
                         .bold()
                 }
@@ -1867,4 +1867,3 @@ fileprivate struct DataIssueGridItem: View {
         }
     }
 }
-

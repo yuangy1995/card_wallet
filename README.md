@@ -1,6 +1,6 @@
-# 银行卡管理 macOS 端
+# 卡包 macOS 端
 
-SwiftUI 的 macOS 原生客户端，用于本地管理信用卡和储蓄卡，并通过 WebDAV SyncV4 与 Web、Android 端同步。
+SwiftUI 的 macOS 原生卡包客户端，用于本地管理信用卡和储蓄卡，并通过 WebDAV SyncV4 与 Web、Android 端同步。
 
 本仓库只保留根目录 `README.md` 作为维护入口。旧开发计划文档已删除，后续维护以当前代码和本文件为准。
 
@@ -35,7 +35,7 @@ CLOUDKIT_SIGNED_BUILD=1 DEVELOPMENT_TEAM=<Apple Team ID> ./build.sh
 脚本成功后会输出：
 
 ```text
-dist/CreditCardMac.app
+dist/卡包.app
 ```
 
 如果本机没有 XcodeGen，需要先安装：
@@ -48,7 +48,7 @@ brew install xcodegen
 
 - 构建失败时先查看 `build/xcodebuild-archive.log`。
 - WebDAV 同步异常优先检查 `Domain/WebDAVBridgeService.swift`、`Domain/WebDAVClient.swift` 和同步密钥。
-- 本地读写异常优先检查 `Domain/LocalStorageManager.swift`、`Domain/CryptoManager.swift` 和 Application Support 下的 `CreditCardMac/cards.json`。
+- 本地读写异常优先检查 `Domain/LocalStorageManager.swift`、`Domain/CryptoManager.swift` 和 Application Support 下的 `CreditCardMac/cards.json`。该目录名保留旧值用于兼容已有数据。
 - CloudKit 不可用时，先确认是否使用正式签名归档，以及 entitlement 中是否包含 CloudKit。
 
 ## 维护注意

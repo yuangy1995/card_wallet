@@ -55,7 +55,7 @@ public class KeychainManager {
     
     private static func getInternalStorageURL() -> URL {
         let paths = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)
-        let appSupportDirectory = paths[0].appendingPathComponent("CreditCardMac", isDirectory: true)
+        let appSupportDirectory = paths[0].appendingPathComponent("CardWallet", isDirectory: true)
         if !FileManager.default.fileExists(atPath: appSupportDirectory.path) {
             try? FileManager.default.createDirectory(at: appSupportDirectory, withIntermediateDirectories: true, attributes: nil)
         }

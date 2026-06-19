@@ -107,7 +107,7 @@ public class AutoLockManager {
         
         // 1. 检查设备硬件是否支持生物识别（Touch ID）
         if context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error) {
-            let reason = "验证 Touch ID 以快速解锁您的卡包管理系统"
+            let reason = "验证 Touch ID 以快速解锁卡包"
             
             context.evaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, localizedReason: reason) { success, authenticationError in
                 DispatchQueue.main.async {

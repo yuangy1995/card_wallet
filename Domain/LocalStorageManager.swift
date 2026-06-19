@@ -2,7 +2,7 @@ import Foundation
 
 public class LocalStorageManager {
     
-    private static let appFolderName = "CreditCardMac"
+    private static let appFolderName = "CardWallet"
     private static let cardFileName = "cards.json"
     
     /// 获取应用专属的沙盒 Application Support 目录路径

@@ -7,7 +7,7 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m' # 无颜色
 
-echo -e "${YELLOW}=== 开始打包 macOS 原生信用卡管理客户端 ===${NC}"
+echo -e "${YELLOW}=== 开始打包 macOS 原生卡包客户端 ===${NC}"
 mkdir -p build
 BUILD_LOG="./build/xcodebuild-archive.log"
 
@@ -90,20 +90,21 @@ APP_PATH="./build/CreditCardMac.xcarchive/Products/Applications/CreditCardMac.ap
 if [ -d "$APP_PATH" ]; then
     echo -e "${GREEN}编译成功！正在提取并规范部署应用程序至 dist/ 目录...${NC}"
     mkdir -p ./dist
-    rm -rf ./dist/CreditCardMac.app
-    cp -R "$APP_PATH" ./dist/CreditCardMac.app
+    DIST_APP_PATH="./dist/卡包.app"
+    rm -rf "$DIST_APP_PATH"
+    cp -R "$APP_PATH" "$DIST_APP_PATH"
 
     # 离线构建使用 Ad-Hoc 签名便于本地打开；CloudKit 签名归档不得被覆盖。
     if [ "${CLOUDKIT_SIGNED_BUILD:-0}" != "1" ] && command -v codesign >/dev/null 2>&1; then
         echo -e "${GREEN}正在为可执行程序施加 Ad-Hoc 本地代码签名 (Ad-Hoc Code Signing)...${NC}"
-        codesign --force --deep --sign - ./dist/CreditCardMac.app > /dev/null 2>&1
+        codesign --force --deep --sign - "$DIST_APP_PATH" > /dev/null 2>&1
         echo -e "${GREEN}本地临时自签名注入成功！${NC}"
     fi
     
     echo -e "${GREEN}================================================${NC}"
     echo -e "${GREEN}🎉 恭喜！macOS 原生客户端一键打包构建成功！${NC}"
-    echo -e "${GREEN}📁 规范应用程序物理路径: $(pwd)/dist/CreditCardMac.app${NC}"
-    echo -e "${YELLOW}👉 体验方式：您现在可以直接在 Finder 中双击 dist/ 目录下的 'CreditCardMac.app' 进行无感运行体验！${NC}"
+    echo -e "${GREEN}📁 规范应用程序物理路径: $(pwd)/dist/卡包.app${NC}"
+    echo -e "${YELLOW}👉 体验方式：您现在可以直接在 Finder 中双击 dist/ 目录下的 '卡包.app' 进行无感运行体验！${NC}"
     echo -e "${GREEN}================================================${NC}"
 else
     echo -e "${RED}❌ 提取编译包失败，归档未能成功生成，请检查 Xcode 编译日志。${NC}"

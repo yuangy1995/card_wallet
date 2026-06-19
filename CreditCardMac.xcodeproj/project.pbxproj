@@ -12,6 +12,7 @@
 		198DE8DD44A93011E569BCB6 /* SyncMergeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 11DE89E980D44425757FB39C /* SyncMergeTests.swift */; };
 		1C5A43CEDCC2D3A44D2C7628 /* CryptoManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = C315C733366CF89A7169E701 /* CryptoManager.swift */; };
 		1F3651DDFEBC3E65FB001C41 /* DateCalculatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3335A637AC44C646EB35A049 /* DateCalculatorTests.swift */; };
+		44C4F24F98B9F777C57C1E98 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = BC277E80E48AD226766D990D /* InfoPlist.strings */; };
 		5089130E2CEE1C16639FC38D /* StatisticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD62DCC01D3F9364CDEF6227 /* StatisticsView.swift */; };
 		671EBE78C9C86C012ED3A2F6 /* WebDAVBridgeService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200646141CEE66C6830FEA09 /* WebDAVBridgeService.swift */; };
 		719D5E60E3CB62B356D99A1D /* WebDAVClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = C077E02FD8418BB708DC23A1 /* WebDAVClient.swift */; };
@@ -29,6 +30,7 @@
 		BCBFBE825C1C49CD46465EF0 /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1428934F7025C070B87C31B9 /* SettingsView.swift */; };
 		BDE3E956350698CA02697D1F /* SyncCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = FE381F8A352381E90579DBBB /* SyncCoordinator.swift */; };
 		BEA5985EC2FB94D423B4756F /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = B019CB02E47828B74FEC1211 /* PrivacyInfo.xcprivacy */; };
+		C1637AF668B8BF8A55FE61A3 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = F86F87A8C573F530FC7FDF63 /* InfoPlist.strings */; };
 		CCE833AC18D1300BF9AD3FF8 /* LocalStorageManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = AB9349A3CBC3935C505D2A8C /* LocalStorageManager.swift */; };
 		CE4BE30528C126E44A849725 /* DateCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3C0278348791C024271E1A98 /* DateCalculator.swift */; };
 		D547E426164B45DADC5BDF9D /* DataMigrationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 78703BAB79809F69FC1B7206 /* DataMigrationManager.swift */; };
@@ -75,6 +77,7 @@
 		B019CB02E47828B74FEC1211 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		B52D59276C9EA2F553833BFF /* CryptoTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CryptoTests.swift; sourceTree = "<group>"; };
 		BAB79BAD9E50A9E719ED4B74 /* SidebarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarView.swift; sourceTree = "<group>"; };
+		BC277E80E48AD226766D990D /* InfoPlist.strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = InfoPlist.strings; path = "zh-Hans.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
 		BD62DCC01D3F9364CDEF6227 /* StatisticsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatisticsView.swift; sourceTree = "<group>"; };
 		C077E02FD8418BB708DC23A1 /* WebDAVClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebDAVClient.swift; sourceTree = "<group>"; };
 		C315C733366CF89A7169E701 /* CryptoManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CryptoManager.swift; sourceTree = "<group>"; };
@@ -84,6 +87,7 @@
 		EAF19E198886B14379EAD841 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		EE1DBEB8985D4730F1A74373 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		F2438DA162090A1129CF9648 /* CardModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardModels.swift; sourceTree = "<group>"; };
+		F86F87A8C573F530FC7FDF63 /* InfoPlist.strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = InfoPlist.strings; path = "zh-Hant.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
 		F8CC4D72F0F18F7121E795BC /* AutoLockManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoLockManager.swift; sourceTree = "<group>"; };
 		FE381F8A352381E90579DBBB /* SyncCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncCoordinator.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -154,6 +158,8 @@
 				EE1DBEB8985D4730F1A74373 /* Assets.xcassets */,
 				41C92BECFAFA8B4024698F6B /* CreditCardMac.entitlements */,
 				77D4AF75378164F64D7AC168 /* Info.plist */,
+				BC277E80E48AD226766D990D /* InfoPlist.strings */,
+				F86F87A8C573F530FC7FDF63 /* InfoPlist.strings */,
 				B019CB02E47828B74FEC1211 /* PrivacyInfo.xcprivacy */,
 			);
 			path = Resources;
@@ -247,6 +253,8 @@
 			knownRegions = (
 				Base,
 				en,
+				"zh-Hans",
+				"zh-Hant",
 			);
 			mainGroup = ECE2D9E2F360AC2A5E9D357B;
 			minimizedProjectReferenceProxies = 1;
@@ -271,6 +279,8 @@
 			files = (
 				9E843F31258561127ECB39F7 /* AppIcon.png in Resources */,
 				7EA895CF0B68DDFDE3993B88 /* Assets.xcassets in Resources */,
+				44C4F24F98B9F777C57C1E98 /* InfoPlist.strings in Resources */,
+				C1637AF668B8BF8A55FE61A3 /* InfoPlist.strings in Resources */,
 				BEA5985EC2FB94D423B4756F /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -348,7 +358,7 @@
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 1.0.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.applist.CreditCardMac;
+				PRODUCT_BUNDLE_IDENTIFIER = com.applist.cardwallet.mac;
 				SDKROOT = macosx;
 			};
 			name = Release;
@@ -506,7 +516,7 @@
 				);
 				MACOSX_DEPLOYMENT_TARGET = 14.0;
 				MARKETING_VERSION = 1.0.0;
-				PRODUCT_BUNDLE_IDENTIFIER = com.applist.CreditCardMac;
+				PRODUCT_BUNDLE_IDENTIFIER = com.applist.cardwallet.mac;
 				SDKROOT = macosx;
 			};
 			name = Debug;

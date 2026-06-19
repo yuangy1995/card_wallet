@@ -5,7 +5,7 @@ import SwiftUI
 
 public final class CloudKitSyncService: NSObject, ObservableObject, CKSyncEngineDelegate, @unchecked Sendable {
     public static let shared = CloudKitSyncService()
-    public static let containerIdentifier = "iCloud.com.applist.CreditCardMac"
+    public static let containerIdentifier = "iCloud.com.applist.cardwallet.mac"
 
     @Published public private(set) var statusDescription = "iCloud 未启用"
     @Published public private(set) var isAvailable = false

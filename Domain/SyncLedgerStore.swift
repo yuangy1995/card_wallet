@@ -4,7 +4,7 @@ public final class SyncLedgerStore {
     public static let shared = SyncLedgerStore()
 
     private let fileManager = FileManager.default
-    private let appFolderName = "CreditCardMac"
+    private let appFolderName = "CardWallet"
     private let ledgerFileName = "sync-ledger-v4.json"
 
     private init() {}
