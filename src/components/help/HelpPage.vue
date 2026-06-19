@@ -12,7 +12,7 @@
   >
     <el-scrollbar height="75vh" class="help-scrollbar">
       <div class="help-content">
-        <h2>银行卡管理系统使用指南</h2>
+        <h2>卡包使用指南</h2>
         
         <el-divider content-position="left">快速开始</el-divider>
         <div class="section">
@@ -239,11 +239,11 @@ const openWebDAVDocs = () => {
     </style>
 </head>
 <body>
-<h1>信用卡管理 WebDAV 版本完整配置</h1>
+<h1>卡包 WebDAV 版本完整配置</h1>
 
 <p>一个安全的部署方案是应用使用 HTTPS，并且 WebDAV 服务/服务商也使用 HTTPS。</p>
 
-<h2>部署信用卡管理</h2>
+<h2>部署卡包</h2>
 
 <p>nginx 加入以下区块：</p>
 

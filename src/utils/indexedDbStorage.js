@@ -1,6 +1,6 @@
 import { STORAGE_KEYS } from '@/config/constants'
 
-const DB_NAME = 'credit-card-web-local-db'
+const DB_NAME = 'card-wallet-web-local-db'
 const DB_VERSION = 1
 const STORE_NAME = 'kv'
 

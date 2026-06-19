@@ -110,7 +110,7 @@ const generateQuestions = () => {
   cardData.value = getCardData()
   
   if (cardData.value.length === 0) {
-    ElMessage.error('没有找到信用卡数据，无法生成验证问题')
+    ElMessage.error('没有找到卡包数据，无法生成验证问题')
     visible.value = false
     return
   }

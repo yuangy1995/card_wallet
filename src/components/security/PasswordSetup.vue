@@ -125,7 +125,7 @@ const dialogTitle = computed(() =>
 const alertMessage = computed(() => 
   hasPassword.value 
     ? '重新设置新的应用密码以增强安全性' 
-    : '为了保护您的信用卡数据安全，请设置应用密码'
+    : '为了保护您的卡包数据安全，请设置应用密码'
 )
 
 // 动态按钮文本

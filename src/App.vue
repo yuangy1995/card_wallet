@@ -2236,7 +2236,7 @@ const handleForgotPasswordOption = (option) => {
 const handleResetAllData = async () => {
   try {
     await ElMessageBox.confirm(
-      '此操作将清除所有数据，包括信用卡信息和云同步配置。确定继续吗？',
+      '此操作将清除所有卡包数据，包括卡片信息和云同步配置。确定继续吗？',
       '警告',
       {
         confirmButtonText: '确定清除',

@@ -1,5 +1,5 @@
 {
-  "name": "credit_card",
+  "name": "card-wallet",
   "version": "0.0.0",
   "private": true,
   "scripts": {
@@ -39,7 +39,7 @@
       "picomatch@>=4.0.0 <4.0.4": "4.0.4"
     }
   },
-  "description": "一个基于 Vue.js 的现代化银行卡管理系统，帮助用户高效管理信用卡和储蓄卡信息。",
+  "description": "一个基于 Vue.js 的现代化卡包应用，帮助用户高效管理信用卡和储蓄卡信息。",
   "main": "vite.config.mjs",
   "repository": {
     "type": "git",

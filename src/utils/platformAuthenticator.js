@@ -1,7 +1,8 @@
 import { StorageManager } from './storage'
+import { getAppName } from './appName'
 
 const CREDENTIAL_KEY = 'platform_unlock_credential'
-const APP_NAME = '信用卡管理'
+const APP_NAME = getAppName()
 const USER_NAME = 'credit-card-local-user'
 
 const toBase64Url = (buffer) => {

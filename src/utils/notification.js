@@ -52,9 +52,9 @@ export const notifyError = (title, message, options = {}) => {
 // 预定义的通知
 export const predefinedNotifications = {
   // 卡片操作
-  cardAdded: () => notifySuccess('添加成功', '信用卡信息已添加'),
-  cardUpdated: () => notifySuccess('更新成功', '信用卡信息已更新'),
-  cardDeleted: () => notifySuccess('删除成功', '信用卡已被删除'),
+  cardAdded: () => notifySuccess('添加成功', '卡片信息已添加'),
+  cardUpdated: () => notifySuccess('更新成功', '卡片信息已更新'),
+  cardDeleted: () => notifySuccess('删除成功', '卡片已被删除'),
   
   // 数据操作
   dataImported: () => notifySuccess('导入成功', '数据已成功导入'),
