@@ -21,6 +21,7 @@
 		4D103626125B366EA6C33A26 /* CardDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28931C6003862119AF27EC9B /* CardDetailView.swift */; };
 		572B37D44F3CA5DA36604A9C /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBE0640D82A3645BC5B5C2EF /* HomeView.swift */; };
 		787E24A42ED3020188F6D5FF /* CardBrandIcon.swift in Sources */ = {isa = PBXBuildFile; fileRef = 787A33BC82604278589D5205 /* CardBrandIcon.swift */; };
+		97B3179978D5C9C2ED2A2C5E /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 2CC35D59C30E53108E7A19F5 /* InfoPlist.strings */; };
 		9BF4888967E9ED6722815813 /* SyncModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9D2C20EA19F78C50E0F475D /* SyncModels.swift */; };
 		A030EE302B6C508FC99F7F19 /* CreditCardIOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 543A6481C530F53709472E22 /* CreditCardIOSApp.swift */; };
 		A98D55FDCB4087C8C58AB2E0 /* BestUsageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD4E62252DC49635A578434D /* BestUsageView.swift */; };
@@ -33,6 +34,7 @@
 		BF1B20E4C5E46E69E1432FF7 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 2D36F5164C5879138C0EC33C /* PrivacyInfo.xcprivacy */; };
 		C3011045AEE56A0EFD0AF606 /* SyncLedgerStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 079808CBB0C02B0CA485288A /* SyncLedgerStore.swift */; };
 		C51E97C1B2785EAD04738C09 /* StatDetailListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6A36B477C2159195BDFE1F3 /* StatDetailListView.swift */; };
+		DC59FFF9C899D3F8585129A4 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 906F9B6FCA419E0F25C3A8F4 /* InfoPlist.strings */; };
 		E94AA6FC9017E673C7714514 /* CloudSyncView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6A16C8D18C9F588D348882F /* CloudSyncView.swift */; };
 		EF491E5BDD6A4F625AD6433A /* WebDAVClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74E0333D109FF39A3288E30F /* WebDAVClient.swift */; };
 		F4A58F2B7DB756F3D9BD4BD9 /* ToolsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6ACE63D0C6122205974E2095 /* ToolsView.swift */; };
@@ -43,6 +45,8 @@
 		1247E85801306F9F10C16DDA /* CreditCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreditCardView.swift; sourceTree = "<group>"; };
 		226B5C17E25F53DF8BC27EE8 /* StatisticsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatisticsView.swift; sourceTree = "<group>"; };
 		28931C6003862119AF27EC9B /* CardDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardDetailView.swift; sourceTree = "<group>"; };
+		2CC35D59C30E53108E7A19F5 /* InfoPlist.strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = InfoPlist.strings; path = "zh-Hant.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
+		2D17720EDE529BA21E2C0F76 /* CreditCardIOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = CreditCardIOS.entitlements; sourceTree = "<group>"; };
 		2D36F5164C5879138C0EC33C /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		316F4552D449B6714BC64402 /* AutoLockManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoLockManager.swift; sourceTree = "<group>"; };
 		31AE7BB12D1C481C44C96D08 /* KeychainManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainManager.swift; sourceTree = "<group>"; };
@@ -58,6 +62,7 @@
 		7AADEB492941A9A06492F786 /* BankNameNormalizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BankNameNormalizer.swift; sourceTree = "<group>"; };
 		8AFF3A94B9E779A1F13F88F7 /* LockScreenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LockScreenView.swift; sourceTree = "<group>"; };
 		8CD18A2990D61727EBF4D5E7 /* AppRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRootView.swift; sourceTree = "<group>"; };
+		906F9B6FCA419E0F25C3A8F4 /* InfoPlist.strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = InfoPlist.strings; path = "zh-Hans.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
 		A9D2C20EA19F78C50E0F475D /* SyncModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncModels.swift; sourceTree = "<group>"; };
 		B40C8D0B6739686670839F69 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		B9AF4ABBB8E854EB78116A1B /* StorageManagementView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorageManagementView.swift; sourceTree = "<group>"; };
@@ -78,6 +83,8 @@
 			children = (
 				E8878DAC2C7FD2B74943390A /* Assets.xcassets */,
 				B40C8D0B6739686670839F69 /* Info.plist */,
+				906F9B6FCA419E0F25C3A8F4 /* InfoPlist.strings */,
+				2CC35D59C30E53108E7A19F5 /* InfoPlist.strings */,
 				2D36F5164C5879138C0EC33C /* PrivacyInfo.xcprivacy */,
 			);
 			path = Resources;
@@ -142,6 +149,7 @@
 		C20E03B8F502B35C7487FB69 = {
 			isa = PBXGroup;
 			children = (
+				2D17720EDE529BA21E2C0F76 /* CreditCardIOS.entitlements */,
 				819DA7FF5A68784A546113C1 /* App */,
 				42C9927AD94A1ABB0E6D4A10 /* Domain */,
 				6C089C34D1CBEB962A09CBA4 /* Features */,
@@ -188,6 +196,8 @@
 			knownRegions = (
 				Base,
 				en,
+				"zh-Hans",
+				"zh-Hant",
 			);
 			mainGroup = C20E03B8F502B35C7487FB69;
 			minimizedProjectReferenceProxies = 1;
@@ -207,6 +217,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				1602AA337A87B79B2E627E39 /* Assets.xcassets in Resources */,
+				DC59FFF9C899D3F8585129A4 /* InfoPlist.strings in Resources */,
+				97B3179978D5C9C2ED2A2C5E /* InfoPlist.strings in Resources */,
 				BF1B20E4C5E46E69E1432FF7 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -260,6 +272,7 @@
 					"AppIcon-Retro",
 				);
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = CreditCardIOS.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Resources/Info.plist;
@@ -269,7 +282,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.applist.CreditCardIOS;
+				PRODUCT_BUNDLE_IDENTIFIER = com.applist.cardwallet.ios;
 				SDKROOT = iphoneos;
 				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -402,6 +415,7 @@
 					"AppIcon-Retro",
 				);
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = CreditCardIOS.entitlements;
 				CODE_SIGN_IDENTITY = "iPhone Developer";
 				GENERATE_INFOPLIST_FILE = NO;
 				INFOPLIST_FILE = Resources/Info.plist;
@@ -411,7 +425,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.applist.CreditCardIOS;
+				PRODUCT_BUNDLE_IDENTIFIER = com.applist.cardwallet.ios;
 				SDKROOT = iphoneos;
 				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = "1,2";

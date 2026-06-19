@@ -142,6 +142,7 @@ public final class SyncCoordinator: ObservableObject {
     private static let lastSyncAtKey = "webdav_last_sync_at_ms"
     private static let lastSyncDurationKey = "webdav_last_sync_duration_seconds"
     private static let syncHistoryKey = "webdav_sync_history_v1"
+    private static let maxSnapshotsToMerge = 5
 
     public enum SyncStatus: Equatable {
         case idle
@@ -185,7 +186,7 @@ public final class SyncCoordinator: ObservableObject {
             ledger = SyncLedgerStore.shared.load(seeding: localCards)
             if ledger.records.isEmpty && !localCards.isEmpty {
                 ledger.records = localCards.map(CardSyncRecord.activeUsingCardTimestamp)
-                SyncLedgerStore.shared.save(ledger)
+                SyncLedgerStore.shared.saveInBackground(ledger)
             }
             cards = CardSyncMergeEngine.activeCards(from: ledger.records)
         case .failure:
@@ -331,7 +332,14 @@ public final class SyncCoordinator: ObservableObject {
                     if leftDate != rightDate { return leftDate > rightDate }
                     return $0.filename > $1.filename
                 }
-            let filesToRead = Array(automaticFiles.prefix(5))
+            // 每份 SyncV4 文件都是完整快照。空本地首次恢复只读取最新一份，
+            // 已有本地数据时仍合并最近 5 份以保留跨设备冲突收敛能力。
+            let snapshotReadLimit = ledger.records.isEmpty ? 1 : Self.maxSnapshotsToMerge
+            let filesToRead = Array(automaticFiles.prefix(snapshotReadLimit))
+            let isFreshSingleSnapshotRestore = ledger.records.isEmpty &&
+                !ledger.pendingWebDAVUpload &&
+                !forceUpload &&
+                filesToRead.count == 1
             downloadedFiles = filesToRead.map(\.filename)
 
             if filesToRead.isEmpty, !forceUpload, !ledger.pendingWebDAVUpload {
@@ -367,11 +375,14 @@ public final class SyncCoordinator: ObservableObject {
 
             let totalBytes = filesToRead.reduce(0) { $0 + $1.size }
             let progressBox = ProgressBox()
+            let downloadDetail = filesToRead.count == 1
+                ? "正在下载最新云端快照"
+                : "正在并发下载最近 \(filesToRead.count) 个快照"
             updateProgress(
                 "读取同步文件",
                 step: 3,
                 total: 6,
-                detail: "正在并发下载最近 \(filesToRead.count) 个快照",
+                detail: downloadDetail,
                 totalBytes: totalBytes,
                 downloadedBytes: progressBox.value
             )
@@ -383,7 +394,7 @@ public final class SyncCoordinator: ObservableObject {
                         "读取同步文件",
                         step: 3,
                         total: 6,
-                        detail: "正在并发下载最近 \(filesToRead.count) 个快照",
+                        detail: downloadDetail,
                         totalBytes: totalBytes,
                         downloadedBytes: progressBox.value
                     )
@@ -405,16 +416,16 @@ public final class SyncCoordinator: ObservableObject {
             try ensureSyncNotCancelled()
             if mergeResult.changedByRemote {
                 ledger.records = mergeResult.mergedRecords
-                SyncLedgerStore.shared.save(ledger)
+                await SyncLedgerStore.shared.saveAsync(ledger)
                 await persistActiveCardsAsync()
                 let activeCardsAfterMerge = await Self.activeCards(from: mergeResult.mergedRecords)
                 remoteChanges = Self.cardChanges(before: activeCardsBeforeSync, after: activeCardsAfterMerge, kind: "云端更新")
             }
 
             let shouldUpload = forceUpload ||
-                mergeResult.changedByRemote ||
                 ledger.pendingWebDAVUpload ||
-                (automaticFiles.isEmpty && !mergeResult.mergedRecords.isEmpty)
+                (automaticFiles.isEmpty && !mergeResult.mergedRecords.isEmpty) ||
+                (mergeResult.changedByRemote && !isFreshSingleSnapshotRestore)
 
             if shouldUpload {
                 try ensureSyncNotCancelled()
@@ -445,8 +456,13 @@ public final class SyncCoordinator: ObservableObject {
                     ])
                 }
             } else {
-                recordProcessedSnapshots(snapshots, newestFilename: automaticFiles.first?.filename, snapshotRevision: snapshotRevision)
-                let message = "云端与本机已同步"
+                recordProcessedSnapshots(
+                    snapshots,
+                    newestFilename: automaticFiles.first?.filename,
+                    snapshotRevision: snapshotRevision,
+                    allowUpdatingLastFilename: isFreshSingleSnapshotRestore
+                )
+                let message = mergeResult.changedByRemote ? "云端数据已恢复到本机" : "云端与本机已同步"
                 appendSyncHistory(
                     status: "success",
                     message: message,
@@ -884,18 +900,25 @@ public final class SyncCoordinator: ObservableObject {
         ledger.processedWebDAVSnapshotIDs.insert(prepared.snapshot.snapshotId)
         ledger.lastWebDAVSnapshotFilename = prepared.filename
         ledger.pendingWebDAVUpload = localRevision != snapshotRevision
-        SyncLedgerStore.shared.save(ledger)
+        await SyncLedgerStore.shared.saveAsync(ledger)
         await persistActiveCardsAsync()
         print("[SyncCoordinator] 已上传 WebDAV 快照: \(prepared.filename), pending=\(ledger.pendingWebDAVUpload)")
         return prepared.filename
     }
 
-    private func recordProcessedSnapshots(_ snapshots: [WebDAVSyncSnapshotV4], newestFilename: String?, snapshotRevision: Int) {
+    private func recordProcessedSnapshots(
+        _ snapshots: [WebDAVSyncSnapshotV4],
+        newestFilename: String?,
+        snapshotRevision: Int,
+        allowUpdatingLastFilename: Bool = false
+    ) {
         ledger.processedWebDAVSnapshotIDs.formUnion(snapshots.map(\.snapshotId))
-        // 不在此处更新 lastWebDAVSnapshotFilename：
-        // 该字段只应在本机上传成功后（uploadConsolidatedSnapshot）设置为本机文件名。
-        // 若在"无需上传"分支中将其更新为其他设备的文件名，会导致下次同步
-        // canSkipSnapshotDownload 误判命中，iOS 本机修改永久无法触发上传。
+        // 通常不在此处更新 lastWebDAVSnapshotFilename：
+        // 该字段优先记录本机上传成功后的文件名。只有空本地首次恢复单个最新
+        // 快照时可以记录远端文件名，避免下一次同步重复下载同一份快照。
+        if allowUpdatingLastFilename {
+            ledger.lastWebDAVSnapshotFilename = newestFilename
+        }
         if localRevision == snapshotRevision {
             ledger.pendingWebDAVUpload = false
         } else {

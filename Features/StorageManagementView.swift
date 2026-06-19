@@ -237,12 +237,12 @@ struct StorageManagementView: View {
             let docDir = paths[0]
             
             // 1. 卡片数据 cards.json
-            let cardsURL = docDir.appendingPathComponent("CreditCardIOS/cards.json")
+            let cardsURL = docDir.appendingPathComponent("CardWallet/cards.json")
             let cardsAttr = try? fileManager.attributesOfItem(atPath: cardsURL.path)
             let cardsBytes = cardsAttr?[.size] as? Int64 ?? 0
             
             // 2. 同步账本 sync_ledger.json
-            let ledgerURL = docDir.appendingPathComponent("CreditCardIOS/sync_ledger.json")
+            let ledgerURL = docDir.appendingPathComponent("CardWallet/sync_ledger.json")
             let ledgerAttr = try? fileManager.attributesOfItem(atPath: ledgerURL.path)
             let ledgerBytes = ledgerAttr?[.size] as? Int64 ?? 0
             
@@ -315,7 +315,7 @@ struct StorageManagementView: View {
                 }
             }
             
-            // 3. 清理 Documents 根目录下文件（排除子目录，避免删除 CreditCardIOS 数据）
+            // 3. 清理 Documents 根目录下文件（排除子目录，避免删除 CardWallet 数据）
             let docDir = fileManager.urls(for: .documentDirectory, in: .userDomainMask)[0]
             if let docContents = try? fileManager.contentsOfDirectory(at: docDir, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsSubdirectoryDescendants]) {
                 for item in docContents {

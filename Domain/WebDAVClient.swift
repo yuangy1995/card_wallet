@@ -151,11 +151,23 @@ public final class WebDAVClient: Sendable {
         var cleanURL = sanitizeBaseURL(url)
         cleanURL += "/"
         guard URL(string: cleanURL) != nil else { return .failure(WebDAVError.invalidURL) }
-        UserDefaults.standard.set(cleanURL, forKey: "webdav_url")
-        KeychainManager.save(key: "webdav_username", value: username)
-        if !password.isEmpty {
-            KeychainManager.save(key: "webdav_password", value: password)
+
+        switch KeychainManager.save(key: "webdav_username", value: username) {
+        case .success:
+            break
+        case .failure(let error):
+            return .failure(error)
         }
+        if !password.isEmpty {
+            switch KeychainManager.save(key: "webdav_password", value: password) {
+            case .success:
+                break
+            case .failure(let error):
+                return .failure(error)
+            }
+        }
+
+        UserDefaults.standard.set(cleanURL, forKey: "webdav_url")
         return .success(())
     }
 
@@ -167,6 +179,21 @@ public final class WebDAVClient: Sendable {
             return
         }
         ensureBackupDirectory(baseURLString: urlStr, username: username, password: password, completion: completion)
+    }
+
+    public func testConnection(
+        url: String,
+        username: String,
+        password: String,
+        completion: @escaping @Sendable (Result<Void, Error>) -> Void
+    ) {
+        var cleanURL = sanitizeBaseURL(url)
+        cleanURL += "/"
+        guard URL(string: cleanURL) != nil else {
+            completion(.failure(WebDAVError.invalidURL))
+            return
+        }
+        ensureBackupDirectory(baseURLString: cleanURL, username: username, password: password, completion: completion)
     }
 
     public func getBackupList(completion: @escaping @Sendable (Result<[WebDAVBackupFile], Error>) -> Void) {

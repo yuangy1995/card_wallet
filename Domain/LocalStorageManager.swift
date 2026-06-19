@@ -1,7 +1,7 @@
 import Foundation
 
 public class LocalStorageManager {
-    private static let appFolderName = "CreditCardIOS"
+    private static let appFolderName = "CardWallet"
     private static let cardFileName = "cards.json"
     private static let writeQueue = DispatchQueue(label: "com.applist.credit-card-ios.local-storage", qos: .utility)
 

@@ -8,8 +8,10 @@ struct CloudSyncView: View {
     @State private var webdavPassword = ""
     @State private var webdavSyncPassword = ""
     @State private var isTestingConnection = false
+    @State private var isSavingConfig = false
     @State private var connectionMessage = ""
     @State private var connectionSuccess = false
+    @State private var lastSuccessfulConnectionTestSignature: String?
     @State private var hasSavedWebDAVPassword = false
     @State private var hasSavedSyncPassword = false
     @State private var showSyncHistory = false
@@ -35,6 +37,15 @@ struct CloudSyncView: View {
             SyncHistoryView()
         }
         .onAppear { loadConfig() }
+        .onChange(of: webdavUrl) { _, _ in
+            invalidateConnectionTestIfNeeded()
+        }
+        .onChange(of: webdavUsername) { _, _ in
+            invalidateConnectionTestIfNeeded()
+        }
+        .onChange(of: webdavPassword) { _, _ in
+            invalidateConnectionTestIfNeeded()
+        }
         .onChange(of: enableWebDAVSync) { _, enabled in
             if enabled && !savedConfigReady {
                 enableWebDAVSync = false
@@ -193,13 +204,19 @@ struct CloudSyncView: View {
                 }
             }
             .buttonStyle(.bordered)
-            .disabled(!canTestConnection)
+            .disabled(!canTestConnection || isTestingConnection || isSavingConfig)
 
-            Button("保存配置") {
+            Button {
                 saveConfig()
+            } label: {
+                if isSavingConfig {
+                    ProgressView().frame(maxWidth: .infinity)
+                } else {
+                    Text("保存配置").frame(maxWidth: .infinity)
+                }
             }
             .buttonStyle(.borderedProminent)
-            .disabled(!canSaveConfig)
+            .disabled(!canSaveConfig || isTestingConnection || isSavingConfig)
         }
         .padding(.vertical, 4)
     }
@@ -300,12 +317,18 @@ struct CloudSyncView: View {
         webdavPassword.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    private var effectiveWebDAVPasswordForConnection: String {
+        if !cleanWebDAVPassword.isEmpty { return cleanWebDAVPassword }
+        return (KeychainManager.load(key: "webdav_password") ?? "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
     private var cleanSyncPassword: String {
         webdavSyncPassword.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     private var canTestConnection: Bool {
-        !cleanWebDAVURL.isEmpty && !cleanUsername.isEmpty && (hasSavedWebDAVPassword || !cleanWebDAVPassword.isEmpty)
+        !cleanWebDAVURL.isEmpty && !cleanUsername.isEmpty && !effectiveWebDAVPasswordForConnection.isEmpty
     }
 
     private var canSaveConfig: Bool {
@@ -314,6 +337,21 @@ struct CloudSyncView: View {
 
     private var savedConfigReady: Bool {
         !cleanWebDAVURL.isEmpty && !cleanUsername.isEmpty && hasSavedWebDAVPassword && hasSavedSyncPassword
+    }
+
+    private var currentConnectionTestSignature: String? {
+        guard canTestConnection else { return nil }
+        return [
+            cleanWebDAVURL,
+            cleanUsername,
+            effectiveWebDAVPasswordForConnection
+        ].joined(separator: "\u{1F}")
+    }
+
+    private var hasCurrentSuccessfulConnectionTest: Bool {
+        connectionSuccess &&
+            currentConnectionTestSignature != nil &&
+            lastSuccessfulConnectionTestSignature == currentConnectionTestSignature
     }
 
     private func loadConfig() {
@@ -326,6 +364,7 @@ struct CloudSyncView: View {
         webdavSyncPassword = savedSyncPassword
         hasSavedSyncPassword = !savedSyncPassword.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         connectionSuccess = savedConfigReady
+        lastSuccessfulConnectionTestSignature = nil
         isEditingConfig = !savedConfigReady
         syncCoordinator.refreshWebDAVConfigurationState()
         if !savedConfigReady && enableWebDAVSync {
@@ -341,10 +380,52 @@ struct CloudSyncView: View {
             return
         }
 
+        if hasCurrentSuccessfulConnectionTest {
+            persistConfigAfterConnectionCheck(message: "连接成功，配置已保存并开启自动同步")
+            return
+        }
+
+        guard let signature = currentConnectionTestSignature else {
+            connectionSuccess = false
+            connectionMessage = "请先填写服务器、用户名和 WebDAV 密码"
+            return
+        }
+
+        isSavingConfig = true
+        connectionSuccess = false
+        connectionMessage = "正在测试连接..."
+        WebDAVClient.shared.testConnection(
+            url: cleanWebDAVURL,
+            username: cleanUsername,
+            password: effectiveWebDAVPasswordForConnection
+        ) { result in
+            Task { @MainActor in
+                isSavingConfig = false
+                switch result {
+                case .success:
+                    guard signature == currentConnectionTestSignature else {
+                        lastSuccessfulConnectionTestSignature = nil
+                        connectionSuccess = false
+                        connectionMessage = "配置已变更，请重新保存"
+                        return
+                    }
+                    lastSuccessfulConnectionTestSignature = signature
+                    persistConfigAfterConnectionCheck(message: "连接成功，配置已保存并开启自动同步")
+                case .failure(let error):
+                    lastSuccessfulConnectionTestSignature = nil
+                    connectionSuccess = false
+                    connectionMessage = error.localizedDescription
+                }
+            }
+        }
+    }
+
+    private func persistConfigAfterConnectionCheck(message: String) {
         switch WebDAVClient.shared.saveConfig(url: cleanWebDAVURL, username: cleanUsername, password: cleanWebDAVPassword) {
         case .success:
             break
         case .failure(let error):
+            lastSuccessfulConnectionTestSignature = nil
             connectionSuccess = false
             connectionMessage = error.localizedDescription
             return
@@ -354,6 +435,7 @@ struct CloudSyncView: View {
         case .success:
             break
         case .failure(let error):
+            lastSuccessfulConnectionTestSignature = nil
             connectionSuccess = false
             connectionMessage = error.localizedDescription
             return
@@ -366,10 +448,12 @@ struct CloudSyncView: View {
         hasSavedSyncPassword = true
         syncCoordinator.refreshWebDAVConfigurationState()
         connectionSuccess = true
-        connectionMessage = "配置已保存"
+        connectionMessage = message
         isEditingConfig = false
-        if enableWebDAVSync {
-            Task { await syncCoordinator.synchronize(forceUpload: false) }
+        let wasAutoSyncEnabled = enableWebDAVSync
+        enableWebDAVSync = true
+        if wasAutoSyncEnabled {
+            syncCoordinator.setWebDAVEnabled(true)
         }
     }
 
@@ -379,28 +463,47 @@ struct CloudSyncView: View {
             connectionMessage = "请先填写服务器、用户名和 WebDAV 密码"
             return
         }
+        guard let signature = currentConnectionTestSignature else {
+            connectionSuccess = false
+            connectionMessage = "请先填写服务器、用户名和 WebDAV 密码"
+            return
+        }
         isTestingConnection = true
         connectionMessage = ""
-        UserDefaults.standard.set(cleanWebDAVURL, forKey: "webdav_url")
-        KeychainManager.save(key: "webdav_username", value: cleanUsername)
-        if !cleanWebDAVPassword.isEmpty {
-            KeychainManager.save(key: "webdav_password", value: cleanWebDAVPassword)
-            hasSavedWebDAVPassword = true
-        }
-        webdavUrl = cleanWebDAVURL
-        webdavUsername = cleanUsername
-        WebDAVClient.shared.testConnection { result in
+        WebDAVClient.shared.testConnection(
+            url: cleanWebDAVURL,
+            username: cleanUsername,
+            password: effectiveWebDAVPasswordForConnection
+        ) { result in
             Task { @MainActor in
                 isTestingConnection = false
                 switch result {
                 case .success:
+                    guard signature == currentConnectionTestSignature else {
+                        lastSuccessfulConnectionTestSignature = nil
+                        connectionSuccess = false
+                        connectionMessage = "配置已变更，请重新测试连接"
+                        return
+                    }
+                    lastSuccessfulConnectionTestSignature = signature
                     connectionSuccess = true
-                    connectionMessage = savedConfigReady ? "连接成功" : "连接成功，请继续保存同步密钥"
+                    connectionMessage = "连接成功"
                 case .failure(let error):
+                    lastSuccessfulConnectionTestSignature = nil
                     connectionSuccess = false
                     connectionMessage = error.localizedDescription
                 }
             }
+        }
+    }
+
+    private func invalidateConnectionTestIfNeeded() {
+        guard !isTestingConnection, !isSavingConfig else { return }
+        guard lastSuccessfulConnectionTestSignature != currentConnectionTestSignature else { return }
+        lastSuccessfulConnectionTestSignature = nil
+        if connectionSuccess {
+            connectionSuccess = false
+            connectionMessage = ""
         }
     }
 

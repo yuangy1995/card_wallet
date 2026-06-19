@@ -8,7 +8,7 @@ public final class SyncLedgerStore: Sendable {
 
     private func fileURL() -> URL {
         let paths = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)
-        let dir = paths[0].appendingPathComponent("CreditCardIOS", isDirectory: true)
+        let dir = paths[0].appendingPathComponent("CardWallet", isDirectory: true)
         if !FileManager.default.fileExists(atPath: dir.path) {
             try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true, attributes: nil)
         }
@@ -37,6 +37,15 @@ public final class SyncLedgerStore: Sendable {
     public func saveInBackground(_ ledger: SyncLedger) {
         writeQueue.async { [self] in
             save(ledger)
+        }
+    }
+
+    public func saveAsync(_ ledger: SyncLedger) async {
+        await withCheckedContinuation { continuation in
+            writeQueue.async { [self] in
+                save(ledger)
+                continuation.resume()
+            }
         }
     }
 }

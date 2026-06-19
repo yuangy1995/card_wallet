@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import UserNotifications
 
 struct RootView: View {
@@ -42,7 +43,11 @@ struct RootView: View {
         .task {
             await CardSystemNotificationCenter.shared.refresh(cards: syncCoordinator.cards, locked: lockManager.isLocked)
         }
-        .onTapGesture { lockManager.userInteracted() }
+        .background {
+            WindowTapObserver {
+                lockManager.userInteracted()
+            }
+        }
     }
 
     private var mainTabView: some View {
@@ -73,6 +78,78 @@ private enum AppTab: Hashable {
     case cards
     case tools
     case settings
+}
+
+private struct WindowTapObserver: UIViewRepresentable {
+    let onTap: () -> Void
+
+    func makeUIView(context: Context) -> UIView {
+        let view = UIView(frame: .zero)
+        view.isUserInteractionEnabled = false
+        context.coordinator.onTap = onTap
+        DispatchQueue.main.async {
+            context.coordinator.attach(to: view.window)
+        }
+        return view
+    }
+
+    func updateUIView(_ uiView: UIView, context: Context) {
+        context.coordinator.onTap = onTap
+        DispatchQueue.main.async {
+            context.coordinator.attach(to: uiView.window)
+        }
+    }
+
+    static func dismantleUIView(_ uiView: UIView, coordinator: Coordinator) {
+        coordinator.detach()
+    }
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(onTap: onTap)
+    }
+
+    final class Coordinator: NSObject, UIGestureRecognizerDelegate {
+        var onTap: () -> Void
+        private weak var window: UIWindow?
+        private weak var recognizer: UITapGestureRecognizer?
+
+        init(onTap: @escaping () -> Void) {
+            self.onTap = onTap
+        }
+
+        func attach(to window: UIWindow?) {
+            guard let window, self.window !== window else { return }
+            detach()
+
+            let recognizer = UITapGestureRecognizer(target: self, action: #selector(handleTap))
+            recognizer.cancelsTouchesInView = false
+            recognizer.delaysTouchesBegan = false
+            recognizer.delaysTouchesEnded = false
+            recognizer.delegate = self
+            window.addGestureRecognizer(recognizer)
+            self.window = window
+            self.recognizer = recognizer
+        }
+
+        func detach() {
+            if let recognizer, let window {
+                window.removeGestureRecognizer(recognizer)
+            }
+            recognizer = nil
+            window = nil
+        }
+
+        @objc private func handleTap() {
+            onTap()
+        }
+
+        func gestureRecognizer(
+            _ gestureRecognizer: UIGestureRecognizer,
+            shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
+        ) -> Bool {
+            true
+        }
+    }
 }
 
 @MainActor

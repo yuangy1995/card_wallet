@@ -27,6 +27,8 @@ targets:
       - path: Resources
     settings:
       base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.applist.cardwallet.ios
+        CODE_SIGN_ENTITLEMENTS: CreditCardIOS.entitlements
         IPHONEOS_DEPLOYMENT_TARGET: "17.0"
         GENERATE_INFOPLIST_FILE: NO
         INFOPLIST_FILE: Resources/Info.plist
