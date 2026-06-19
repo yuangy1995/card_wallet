@@ -89,6 +89,7 @@ object SyncCoordinator {
     private const val KEY_MUTATION_REVISION = "local_mutation_revision"
     private const val KEY_LAST_WEBDAV_SNAPSHOT = "last_webdav_snapshot_filename"
     private const val PROGRESS_UI_INTERVAL_MS = 250L
+    private const val MAX_SNAPSHOTS_TO_MERGE = 5
 
     // 用 MutableStateFlow 进行全局同步状态发布，Compose 侧可极其优雅地消费它
     private val _syncStatus = MutableStateFlow(SyncStatus())
@@ -671,7 +672,7 @@ object SyncCoordinator {
 
             val db = DatabaseHelper(appContext)
             try {
-                synchronized(dbWriteLock) {
+                val localRecordsAtStart = synchronized(dbWriteLock) {
                     loadMergedLocalRecords(db)
                 }
                 ensureSyncNotCancelled()
@@ -686,7 +687,15 @@ object SyncCoordinator {
                 val automaticFiles = rawFiles.filter { file ->
                     file.filename.contains("[SyncV4]") && file.filename.contains("[自]")
                 }.sortedWith(compareByDescending<BackupFile> { it.lastModified }.thenByDescending { it.filename })
-                val filesToRead = automaticFiles.take(5)
+                // 每份 SyncV4 文件都是完整快照。全新/空本地恢复时先读取最新一份，
+                // 避免在移动网络上同时拉取 5 份大文件；已有本地数据时仍合并最近 5 份。
+                val snapshotReadLimit = if (
+                    localRecordsAtStart.isEmpty() && pendingLocalChangesAtStart.isEmpty()
+                ) 1 else MAX_SNAPSHOTS_TO_MERGE
+                val filesToRead = automaticFiles.take(snapshotReadLimit)
+                val isFreshSingleSnapshotRestore = localRecordsAtStart.isEmpty() &&
+                    pendingLocalChangesAtStart.isEmpty() &&
+                    filesToRead.size == 1
                 downloadedFilenames = filesToRead.map { it.filename }
                 val newestFilename = automaticFiles.firstOrNull()?.filename.orEmpty()
                 val canSkipSnapshotDownload = !isPending(appContext) &&
@@ -745,14 +754,19 @@ object SyncCoordinator {
                 }
 
                 val totalDownloadBytes = filesToRead.sumOf { it.size.coerceAtLeast(0L) }
+                val downloadDetail = if (filesToRead.size == 1) {
+                    "正在下载最新云同步快照$totalFilesText，网络慢时会自动续传"
+                } else {
+                    "正在并发下载 ${filesToRead.size} 份云同步文件$totalFilesText，网络慢时会自动续传"
+                }
                 val downloadProgressLock = Any()
                 var downloadedBytes = 0L
                 var lastDownloadProgressReportAt = 0L
                 fun reportDownloadDelta(delta: Long, force: Boolean = false) {
-                    if (delta <= 0L || totalDownloadBytes <= 0L) return
+                    if (delta == 0L || totalDownloadBytes <= 0L) return
                     val now = SyncTime.nowMillis()
                     val (currentBytes, shouldReport) = synchronized(downloadProgressLock) {
-                        downloadedBytes = (downloadedBytes + delta).coerceAtMost(totalDownloadBytes)
+                        downloadedBytes = (downloadedBytes + delta).coerceIn(0L, totalDownloadBytes)
                         val canReport = force ||
                             downloadedBytes >= totalDownloadBytes ||
                             now - lastDownloadProgressReportAt >= PROGRESS_UI_INTERVAL_MS
@@ -766,7 +780,7 @@ object SyncCoordinator {
                         "读取文件",
                         3,
                         6,
-                        "正在并发下载 ${filesToRead.size} 份云同步文件$totalFilesText，网络慢时会自动续传",
+                        downloadDetail,
                         totalBytes = totalDownloadBytes,
                         transferredBytes = currentBytes
                     )
@@ -777,13 +791,13 @@ object SyncCoordinator {
                         "读取文件",
                         3,
                         6,
-                        "正在并发下载 ${filesToRead.size} 份云同步文件$totalFilesText，网络慢时会自动续传",
+                        downloadDetail,
                         totalBytes = totalDownloadBytes,
                         transferredBytes = 0L
                     )
                 }
 
-                // 3. 并发下载并解密最近自动同步文件。每个文件的下载请求都支持慢网重试
+                // 3. 下载并解密选中的自动同步文件。每个文件的下载请求都支持慢网重试
                 // 和 Range 续传，避免大文件还在传输时被总时长限制误判失败。
                 val readResults = coroutineScope {
                     filesToRead.mapIndexed { index, file ->
@@ -794,7 +808,11 @@ object SyncCoordinator {
                                     "读取文件",
                                     3,
                                     6,
-                                    "正在并发读取 ${index + 1}/${filesToRead.size}：${file.filename}",
+                                    if (filesToRead.size == 1) {
+                                        "正在读取最新快照：${file.filename}"
+                                    } else {
+                                        "正在并发读取 ${index + 1}/${filesToRead.size}：${file.filename}"
+                                    },
                                     totalBytes = totalDownloadBytes,
                                     transferredBytes = downloadedBytes
                                 )
@@ -808,8 +826,8 @@ object SyncCoordinator {
                                     file.filename,
                                     onProgress = { bytesRead ->
                                         val delta = bytesRead - fileDownloadedBytes
-                                        if (delta > 0L) {
-                                            fileDownloadedBytes = bytesRead
+                                        fileDownloadedBytes = bytesRead
+                                        if (delta != 0L) {
                                             reportDownloadDelta(delta)
                                         }
                                     }
@@ -914,9 +932,13 @@ object SyncCoordinator {
                 }
 
                 // 6. 是否需要把最新合流数据发布回云端？
-                // 如果本地有 pending、或者有远程合流变动、或者云端没有任何自动快照但本地有卡包
+                // 空本地首次恢复单个最新快照时只落库，不重复上传同一份完整快照。
                 val hasPending = isPending(appContext)
-                if (changedByRemote || hasPending || (automaticFiles.isEmpty() && mergedRecords.isNotEmpty())) {
+                val shouldUploadMergedSnapshot =
+                    hasPending ||
+                        (changedByRemote && !isFreshSingleSnapshotRestore) ||
+                        (automaticFiles.isEmpty() && mergedRecords.isNotEmpty())
+                if (shouldUploadMergedSnapshot) {
                     val isoNow = SyncTime.nowIso()
                     val snapshot = SyncSnapshot(
                         generatedAt = isoNow,
@@ -1009,7 +1031,11 @@ object SyncCoordinator {
                         startedAt = startedAt,
                         finishedAt = SyncTime.nowIso(),
                         status = "success",
-                        message = if (needsFollowUpSync) "同步成功：同步期间有新修改，正在继续同步" else "同步成功：本机与云端已更新",
+                        message = when {
+                            needsFollowUpSync -> "同步成功：同步期间有新修改，正在继续同步"
+                            uploadedFilename.isEmpty() && changedByRemote -> "同步成功：云端数据已恢复到本机"
+                            else -> "同步成功：本机与云端已更新"
+                        },
                         durationMs = syncDurationSince(startedAtMillis),
                         uploadedFile = uploadedFilename,
                         downloadedFiles = downloadedFilenames,
@@ -1030,7 +1056,12 @@ object SyncCoordinator {
                         updateProgress("继续同步", 6, 6, "本轮耗时 ${formatDurationText(durationMs)}，新修改已保留，将继续发布到云端")
                     } else {
                         updateStatus("云端同步成功，本机已是最新状态", "success", isPending(appContext), lastDurationMs = durationMs)
-                        updateProgress("同步完成", 6, 6, "耗时 ${formatDurationText(durationMs)}；新增 ${remoteChangeDetails.count { it.kind == "added" }}，修改 ${remoteChangeDetails.count { it.kind == "modified" }}，删除 ${remoteChangeDetails.count { it.kind == "deleted" }}")
+                        val detail = if (uploadedFilename.isEmpty() && changedByRemote) {
+                            "耗时 ${formatDurationText(durationMs)}；已下载云端最新快照"
+                        } else {
+                            "耗时 ${formatDurationText(durationMs)}；新增 ${remoteChangeDetails.count { it.kind == "added" }}，修改 ${remoteChangeDetails.count { it.kind == "modified" }}，删除 ${remoteChangeDetails.count { it.kind == "deleted" }}"
+                        }
+                        updateProgress("同步完成", 6, 6, detail)
                     }
                 }
                 if (needsFollowUpSync) {

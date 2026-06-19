@@ -8,7 +8,7 @@ android {
     namespace = "com.example.creditcard"
     compileSdk = 36
     defaultConfig {
-        applicationId = "com.example.creditcard"
+        applicationId = "com.applist.cardwallet"
         minSdk = 23
         targetSdk = 36
         versionCode = 1

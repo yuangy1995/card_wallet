@@ -30,7 +30,7 @@ data class AppStorageCleanupResult(
 )
 
 object AppStorageManager {
-    private const val DATABASE_NAME = "credit_card.db"
+    private const val DATABASE_NAME = "card_wallet.db"
 
     private val knownPreferenceNames = listOf(
         "credit_card_sync_prefs",

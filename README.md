@@ -1,6 +1,6 @@
-# 银行卡管理 Android 端
+# 卡包 Android 端
 
-Kotlin + Jetpack Compose 的原生 Android 客户端，用于本地管理信用卡和储蓄卡，并通过 WebDAV SyncV4 与 Web、macOS 端同步。
+Kotlin + Jetpack Compose 的原生 Android 卡包客户端，用于本地管理信用卡和储蓄卡，并通过 WebDAV SyncV4 与 Web、macOS 端同步。
 
 本仓库只保留根目录 `README.md` 作为维护入口。过期设计说明不再作为实现依据，实际行为以当前代码和三端 SyncV4 数据语义为准。
 
@@ -8,7 +8,7 @@ Kotlin + Jetpack Compose 的原生 Android 客户端，用于本地管理信用�
 
 - 平台：Android 原生应用，`minSdk 23`，`targetSdk 36`，Java/Kotlin 17。
 - UI：Jetpack Compose + Material 3。
-- 本地数据：SQLite 数据库 `credit_card.db`，包含 `cards` 和 `sync_records` 两张核心表。
+- 本地数据：SQLite 数据库 `credit_card.db`，包含 `cards` 和 `sync_records` 两张核心表。数据库名保留旧值用于兼容已有安装。
 - 偏好配置：主题、工具菜单、WebDAV 配置、同步状态等使用 `SharedPreferences`。
 - 云同步：`SyncCoordinator` 负责本地 SQLite 与 WebDAV SyncV4 快照合并。
 - NFC：只在快速验卡或添加卡片的 NFC 页面开启前台读卡会话，离开页面后关闭。
@@ -38,8 +38,8 @@ Kotlin + Jetpack Compose 的原生 Android 客户端，用于本地管理信用�
 
 Release 成功后，脚本会输出：
 
-- `releases/CreditCard-Release.apk`
-- `releases/CreditCard-Release-<时间戳>.apk`
+- `releases/CardWallet-Release.apk`
+- `releases/CardWallet-Release-<时间戳>.apk`
 
 安装或转发给手机时，优先使用带时间戳的 APK，避免聊天工具或文件管理器缓存同名安装包。
 

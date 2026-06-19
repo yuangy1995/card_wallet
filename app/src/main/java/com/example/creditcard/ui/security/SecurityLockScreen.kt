@@ -260,7 +260,7 @@ private fun UnlockContent(
                 BiometricAuthHelper.authenticate(
                     activity = activity,
                     title = "${biometricLabel}解锁",
-                    subtitle = "验证通过后解锁信用卡管理",
+                    subtitle = "验证通过后解锁卡包",
                     onSuccess = {
                         busy = false
                         SecurityLockManager.unlock(context)

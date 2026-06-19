@@ -5636,18 +5636,18 @@ fun SettingsAboutPanel(
                 ) {
                     Icon(
                         imageVector = Icons.Filled.AutoAwesome,
-                        contentDescription = "卡包卫士",
+                        contentDescription = "卡包",
                         tint = if (isDark) NeonCyan else GoldPrimary,
                         modifier = Modifier.size(44.dp)
                     )
                     Text(
-                        text = "卡包卫士 Premium",
+                        text = "卡包",
                         fontSize = 18.sp,
                         fontWeight = FontWeight.Black,
                         color = if (isDark) TextWhite else TextDark
                     )
                     Text(
-                        text = "版本号：v2.2.0 Premium (2026)",
+                        text = "版本号：v2.2.0 (2026)",
                         fontSize = 12.sp,
                         fontWeight = FontWeight.SemiBold,
                         color = if (isDark) NeonCyan else GoldPrimary
@@ -5658,7 +5658,7 @@ fun SettingsAboutPanel(
             // 软件简介
             DetailSection(title = "📝 软件简介") {
                 Text(
-                    text = "卡包卫士 Premium 是一款专注安全、精细拟真的银行卡管理助手。应用通过完全离线的本地沙盒数据库以及高规格的本地 NFC 读卡、相机识别技术，让您能够轻松归集信用卡和储蓄卡。信用卡支持共享额度、年费和免息期推算，储蓄卡保留国家/地区、银行、币种、权益、备注与卡片媒体，并通过端到端加密的 WebDAV 私人同步通道保护数据。",
+                    text = "卡包是一款专注安全、精细拟真的银行卡管理助手。应用通过完全离线的本地沙盒数据库以及高规格的本地 NFC 读卡、相机识别技术，让您能够轻松归集信用卡和储蓄卡。信用卡支持共享额度、年费和免息期推算，储蓄卡保留国家/地区、银行、币种、权益、备注与卡片媒体，并通过端到端加密的 WebDAV 私人同步通道保护数据。",
                     fontSize = 12.sp,
                     color = if (isDark) TextGray else TextMuted,
                     lineHeight = 18.sp,
@@ -5846,7 +5846,7 @@ fun SettingsPrivacyPanel(
             // 权限列表介绍
             item {
                 Text(
-                    text = "卡包卫士 Premium 承诺严格保护持卡人资产与数据隐私。本软件为纯本地单机沙盒数据库运行，所有敏感权限仅在您激活对应场景（如贴卡、扫码）时在本地起效，绝无任何远端个人隐私收集行为。",
+                    text = "卡包承诺严格保护持卡人资产与数据隐私。本软件为纯本地单机沙盒数据库运行，所有敏感权限仅在您激活对应场景（如贴卡、扫码）时在本地起效，绝无任何远端个人隐私收集行为。",
                     fontSize = 12.sp,
                     color = if (isDark) TextGray else TextMuted,
                     lineHeight = 18.sp,

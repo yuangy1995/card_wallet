@@ -15,7 +15,7 @@ import kotlinx.serialization.builtins.ListSerializer
 class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME, null, DATABASE_VERSION) {
 
     companion object {
-        private const val DATABASE_NAME = "credit_card.db"
+        private const val DATABASE_NAME = "card_wallet.db"
         private const val DATABASE_VERSION = 3
 
         // 表名
