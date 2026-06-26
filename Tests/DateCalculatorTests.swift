@@ -19,9 +19,6 @@ final class DateCalculatorTests: XCTestCase {
         // 验证 2 月份等月末日期的边界效应
         // 如果账单日设为 31 号，由于 2 月份没有 31 号，应当自动裁剪并补全为 2 月的最后一天（28号或29号）
         let billDate = "31"
-        let currentYear = Calendar.current.component(.year, from: Date())
-        let isLeap = (currentYear % 4 == 0 && currentYear % 100 != 0) || (currentYear % 400 == 0)
-        let expectedFebMaxDay = isLeap ? "29" : "28"
         
         // 我们通过 completeDueDate 或 completeAccountBillDate 手动检查它在 2 月的推导
         // 在 DateCalculator 中，如果把月份偏移推到 2 月：
