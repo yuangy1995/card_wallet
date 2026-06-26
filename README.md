@@ -33,11 +33,11 @@ pnpm build
 不同部署路径的构建方式：
 
 ```bash
-# 子路径部署，例如 https://example.com/card/
-pnpm build -- --mode with-card
+# 默认使用相对路径，适合根路径或任意子路径静态部署
+pnpm build
 
-# 根路径部署，例如 https://example.com/
-pnpm build -- --mode without-card
+# 如果部署平台明确需要绝对子路径，例如 https://example.com/card/
+VITE_BASE=/card/ pnpm build
 ```
 
 ## 本地验证

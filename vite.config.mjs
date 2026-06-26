@@ -19,14 +19,12 @@ const isVueUsePureAnnotationWarning = (warning) => {
 export default defineConfig(({ command, mode }) => {
   // 加载环境变量
   const env = loadEnv(mode, process.cwd())
-  // Dev 使用根路径，Build 优先使用 VITE_BASE；否则根据开关使用 '/card/' 或相对 './'
+  // Dev 使用根路径，Build 优先使用 VITE_BASE；否则使用相对路径，便于任意静态路径部署
   let baseUrl = '/'
   if (command === 'build') {
     const rawBase = (env.VITE_BASE || '').trim()
     if (rawBase) {
       baseUrl = rawBase.endsWith('/') ? rawBase : `${rawBase}/`
-    } else if (env.VITE_USE_CARD_PREFIX === 'true') {
-      baseUrl = '/card/'
     } else {
       baseUrl = './'
     }
