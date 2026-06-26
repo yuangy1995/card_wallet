@@ -88,6 +88,7 @@ import com.example.creditcard.utils.ThemeManager
 import com.example.creditcard.utils.NfcScannerManager
 import com.example.creditcard.utils.CardScanProgressManager
 import com.example.creditcard.utils.CardImageCodec
+import com.example.creditcard.utils.VibrationUtils
 import com.example.creditcard.utils.bankNamesReferToSameBank
 import com.example.creditcard.utils.displayBankName
 import com.example.creditcard.utils.shouldPropagateBankRename
@@ -472,7 +473,7 @@ fun CardFormScreen(
                 lifecycleOwner = lifecycleOwner,
                 onBack = onBack,
                 onSwitchManual = { currentStep = FormStep.MANUAL_FORM },
-                tempCardId = if (isEditMode) cardId!! else tempCardId,
+                tempCardId = if (isEditMode) cardId else tempCardId,
                 onCardScanned = { scannedNo, scannedVal, imagePath ->
                     handleScannedCard(scannedNo, scannedVal, imagePath, "Camera")
                 }
@@ -1787,15 +1788,7 @@ fun NfcScanLayout(
                 uiState = NfcUiState.SUCCESS
                 
                 // 4. 触发智能震动
-                try {
-                    val vibrator = context.getSystemService(android.content.Context.VIBRATOR_SERVICE) as? android.os.Vibrator
-                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                        vibrator?.vibrate(android.os.VibrationEffect.createOneShot(120, android.os.VibrationEffect.DEFAULT_AMPLITUDE))
-                    } else {
-                        @Suppress("DEPRECATION")
-                        vibrator?.vibrate(120)
-                    }
-                } catch (e: Exception) {}
+                VibrationUtils.vibrate(context, 120)
                 
                 // 5. 让用户看清成功动画后，执行成功回调
                 kotlinx.coroutines.delay(1000)
@@ -1807,15 +1800,7 @@ fun NfcScanLayout(
                 uiState = NfcUiState.ERROR
                 
                 // 触发错误震动反馈
-                try {
-                    val vibrator = context.getSystemService(android.content.Context.VIBRATOR_SERVICE) as? android.os.Vibrator
-                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                        vibrator?.vibrate(android.os.VibrationEffect.createWaveform(longArrayOf(0, 80, 80, 80), -1))
-                    } else {
-                        @Suppress("DEPRECATION")
-                        vibrator?.vibrate(160)
-                    }
-                } catch (e: Exception) {}
+                VibrationUtils.vibratePattern(context, longArrayOf(0, 80, 80, 80))
             }
         }
     }
@@ -2043,7 +2028,6 @@ fun NfcScanLayout(
 /**
  * CameraX 真实渲染且包含绿色发光激光扫描线的高清对齐蒙板全屏页面
  */
-@OptIn(androidx.camera.core.ExperimentalGetImage::class)
 @Composable
 fun CameraScanLayout(
     context: android.content.Context,
@@ -2098,11 +2082,6 @@ fun CameraScanLayout(
 
         var cameraBindError by remember { mutableStateOf(false) }
 
-        // 用于刷卡或识别成功的震动提示器
-        val vibrator = remember {
-            context.getSystemService(android.content.Context.VIBRATOR_SERVICE) as? android.os.Vibrator
-        }
-
         // 用以控制防抖，防止识别到后多次回调
         var isScannedTriggered by remember { mutableStateOf(false) }
 
@@ -2151,7 +2130,7 @@ fun CameraScanLayout(
 
                             (ctx as? android.app.Activity)?.runOnUiThread {
                                 isCapturing = false
-                                try { vibrator?.vibrate(100) } catch (e: Exception) {}
+                                VibrationUtils.vibrate(ctx, 100)
                                 if (parsed != null) {
                                     val (cardNo, expiry) = parsed
                                     Toast.makeText(ctx, "📸 智能识别并自动代入卡号！", Toast.LENGTH_SHORT).show()
@@ -2218,14 +2197,7 @@ fun CameraScanLayout(
                                                 isScannedTriggered = true
                                                 val (cardNo, expiry) = parsed
                                                 
-                                                try {
-                                                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                                                        vibrator?.vibrate(android.os.VibrationEffect.createOneShot(100, android.os.VibrationEffect.DEFAULT_AMPLITUDE))
-                                                    } else {
-                                                        @Suppress("DEPRECATION")
-                                                        vibrator?.vibrate(100)
-                                                    }
-                                                } catch (e: Exception) {}
+                                                VibrationUtils.vibrate(ctx, 100)
 
                                                 // 自动流解析无法提取裁剪图，代入 null
                                                 onCardScanned(cardNo, expiry, null)

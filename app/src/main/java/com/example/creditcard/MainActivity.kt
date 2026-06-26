@@ -16,6 +16,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.zIndex
+import androidx.core.content.IntentCompat
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.lifecycleScope
 import com.example.creditcard.theme.CreditCardTheme
@@ -157,7 +158,7 @@ class MainActivity : FragmentActivity() {
             NfcAdapter.ACTION_TAG_DISCOVERED == action) {
             
             // 1. 获取物理卡片标识 (UID) 或是 EMV 实体
-            val tag = intent.getParcelableExtra<Tag>(NfcAdapter.EXTRA_TAG)
+            val tag = IntentCompat.getParcelableExtra(intent, NfcAdapter.EXTRA_TAG, Tag::class.java)
             val tagIdBytes = tag?.id
             val tagIdHex = tagIdBytes?.joinToString("") { String.format("%02X", it) } ?: "UNKNOWN"
 

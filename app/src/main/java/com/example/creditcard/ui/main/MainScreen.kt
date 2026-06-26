@@ -28,6 +28,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.FactCheck
+import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -81,6 +83,7 @@ import com.example.creditcard.utils.NfcScannerManager
 import com.example.creditcard.utils.ThemeManager
 import com.example.creditcard.utils.WebDAVClient
 import com.example.creditcard.utils.WebDAVConfig
+import com.example.creditcard.utils.VibrationUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -331,9 +334,18 @@ fun MainScreen(
                                     statusType = syncStatus.type,
                                     isDark = isDark,
                                     onSyncClick = {
-                                        Toast.makeText(context, "正在同步云端数据...", Toast.LENGTH_SHORT).show()
-                                        coroutineScope.launch {
-                                            SyncCoordinator.synchronize(context, publishLocalChanges = true)
+                                        val config = SyncCoordinator.loadConfig(context)
+                                        val syncUnavailableMessage = config.syncUnavailableMessage()
+                                        if (syncUnavailableMessage != null) {
+                                            Toast.makeText(context, syncUnavailableMessage, Toast.LENGTH_SHORT).show()
+                                            coroutineScope.launch {
+                                                SyncCoordinator.synchronize(context, publishLocalChanges = true)
+                                            }
+                                        } else {
+                                            Toast.makeText(context, "正在同步云端数据...", Toast.LENGTH_SHORT).show()
+                                            coroutineScope.launch {
+                                                SyncCoordinator.synchronize(context, publishLocalChanges = true)
+                                            }
                                         }
                                     },
                                     onSyncingClick = {
@@ -877,7 +889,7 @@ fun ToolsPanel(
         ),
         ToolMenuItem(
             id = "verify",
-            icon = Icons.Filled.FactCheck,
+            icon = Icons.AutoMirrored.Filled.FactCheck,
             title = "快速验卡",
             subtitle = "先同步云端最新数据，再用 NFC 逐张核对本地卡包",
             accent = if (isDark) NeonGreen else ForestGreen,
@@ -1488,7 +1500,7 @@ fun VerifyCloudPrefetchPanel(
     LaunchedEffect(seed, attempt) {
         failedMessage = null
         val config = SyncCoordinator.loadConfig(context)
-        if (!config.isEnabled || config.url.isBlank()) {
+        if (!config.isReadyForSync) {
             kotlinx.coroutines.delay(700)
             onReady()
             return@LaunchedEffect
@@ -1663,15 +1675,7 @@ fun QuickVerifyPanel(
                 }
                 
                 // 4. 触发智能震动
-                try {
-                    val vibrator = context.getSystemService(android.content.Context.VIBRATOR_SERVICE) as? android.os.Vibrator
-                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                        vibrator?.vibrate(android.os.VibrationEffect.createOneShot(120, android.os.VibrationEffect.DEFAULT_AMPLITUDE))
-                    } else {
-                        @Suppress("DEPRECATION")
-                        vibrator?.vibrate(120)
-                    }
-                } catch (e: Exception) {}
+                VibrationUtils.vibrate(context, 120)
             }
         }
         launch {
@@ -1688,15 +1692,7 @@ fun QuickVerifyPanel(
                 currentMessage = "解析失败，该卡不支持读取"
                 
                 // 触发错误短震动两次
-                try {
-                    val vibrator = context.getSystemService(android.content.Context.VIBRATOR_SERVICE) as? android.os.Vibrator
-                    if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
-                        vibrator?.vibrate(android.os.VibrationEffect.createWaveform(longArrayOf(0, 80, 80, 80), -1))
-                    } else {
-                        @Suppress("DEPRECATION")
-                        vibrator?.vibrate(160)
-                    }
-                } catch (e: Exception) {}
+                VibrationUtils.vibratePattern(context, longArrayOf(0, 80, 80, 80))
             }
         }
     }
@@ -2553,7 +2549,7 @@ fun AnalyticsPanel(cards: List<SharedCard>, isDark: Boolean) {
                                 exit = shrinkVertically() + fadeOut()
                             ) {
                                 Column(modifier = Modifier.padding(top = 8.dp)) {
-                                    Divider(
+                                    HorizontalDivider(
                                         color = (if (isDark) TextGray else TextMuted).copy(alpha = 0.15f),
                                         thickness = 1.dp,
                                         modifier = Modifier.padding(vertical = 6.dp)
@@ -2999,7 +2995,7 @@ fun SettingsMainPanel(
                 ) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Icon(
-                            imageVector = Icons.Filled.HelpOutline,
+                            imageVector = Icons.AutoMirrored.Filled.HelpOutline,
                             contentDescription = "使用帮助",
                             tint = if (isDark) NeonCyan else GoldPrimary,
                             modifier = Modifier.size(18.dp)
@@ -3838,7 +3834,7 @@ fun SettingsWebDAVPanel(
     val syncStatus by SyncCoordinator.syncStatus.collectAsState()
 
     // 3. 配置模式控制
-    val isConfigured = url.trim().isNotEmpty() && user.trim().isNotEmpty() && syncPassword.trim().isNotEmpty()
+    val isConfigured = url.trim().isNotEmpty() && user.trim().isNotEmpty() && pass.trim().isNotEmpty() && syncPassword.trim().isNotEmpty()
     var isEditingConfig by remember { mutableStateOf(!isConfigured) }
 
     Column(

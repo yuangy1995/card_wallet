@@ -39,7 +39,23 @@ data class WebDAVConfig(
     val pass: String = "",
     val syncPassword: String = "",
     val isEnabled: Boolean = false
-)
+) {
+    val isReadyForSync: Boolean
+        get() = isEnabled &&
+            url.isNotBlank() &&
+            user.isNotBlank() &&
+            pass.isNotBlank() &&
+            syncPassword.isNotBlank()
+
+    fun syncUnavailableMessage(): String? {
+        return when {
+            !isEnabled -> "请先在 WebDAV 设置中配置并开启云同步"
+            url.isBlank() || user.isBlank() || pass.isBlank() || syncPassword.isBlank() ->
+                "WebDAV 配置不完整，请先填齐服务器、账号、应用密码和同步密钥"
+            else -> null
+        }
+    }
+}
 
 /**
  * 同步状态信息
@@ -127,8 +143,9 @@ object SyncCoordinator {
         _syncHistory.value = loadSyncHistory(context)
         
         val config = loadConfig(context)
-        if (!config.isEnabled) {
-            updateStatus("未配置云同步，卡片数据将保存在本地", "info", isPending(context))
+        if (!config.isReadyForSync) {
+            val message = config.syncUnavailableMessage() ?: "未配置云同步，卡片数据将保存在本地"
+            updateStatus(message, if (config.isEnabled) "warning" else "info", isPending(context))
         } else {
             updateStatus("已启用云同步，正在检查云端数据", "info", isPending(context))
             requestBackgroundSync(context, publishLocalChanges = false)
@@ -154,8 +171,10 @@ object SyncCoordinator {
             apply()
         }
         
-        if (config.isEnabled) {
+        if (config.isReadyForSync) {
             updateStatus("云同步配置已保存，正在尝试建立首期同步...", "info", isPending(context))
+        } else if (config.isEnabled) {
+            updateStatus(config.syncUnavailableMessage() ?: "WebDAV 配置不完整", "warning", isPending(context))
         } else {
             updateStatus("云同步已关闭，本机改动将仅保留于本地", "info", isPending(context))
         }
@@ -639,17 +658,11 @@ object SyncCoordinator {
         syncMutex.withLock {
             val appContext = context.applicationContext
             val config = loadConfig(appContext)
-            if (!config.isEnabled || config.url.isEmpty()) {
+            val syncUnavailableMessage = config.syncUnavailableMessage()
+            if (syncUnavailableMessage != null) {
                 withContext(Dispatchers.Main) {
-                    updateStatus("未开启云同步，已将所有本机改动保存在本地", "info", isPending(appContext))
-                    updateProgress("空闲", 0, 0)
-                }
-                return@withLock
-            }
-            if (config.syncPassword.isBlank()) {
-                withContext(Dispatchers.Main) {
-                    updateStatus("请先在 WebDAV 设置中填写同步密钥", "warning", isPending(appContext))
-                    updateProgress("等待配置", 0, 0, "缺少同步加密密码")
+                    updateStatus(syncUnavailableMessage, if (config.isEnabled) "warning" else "info", isPending(appContext))
+                    updateProgress("等待配置", 0, 0, syncUnavailableMessage)
                 }
                 return@withLock
             }
@@ -1152,7 +1165,7 @@ object SyncCoordinator {
     private fun requestBackgroundSync(context: Context, publishLocalChanges: Boolean) {
         val appContext = context.applicationContext
         val config = loadConfig(appContext)
-        if (!config.isEnabled || config.url.isBlank()) return
+        if (!config.isReadyForSync) return
         val shouldLaunch = synchronized(backgroundSyncLock) {
             backgroundSyncPublishLocalChanges = backgroundSyncPublishLocalChanges || publishLocalChanges
             if (backgroundSyncScheduled) {
