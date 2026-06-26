@@ -146,6 +146,22 @@ const REMARK_POOL = [
   '测试数据：卡片页展示样例'
 ]
 
+const DEBIT_EQUITY_POOL = [
+  '跨境取现、境外消费提醒',
+  '工资卡、快捷支付主卡',
+  '生活缴费、转账免手续费',
+  '多币种账户、境外刷卡备用',
+  '储蓄理财、日常现金管理'
+]
+
+const DEBIT_REMARK_POOL = [
+  '测试数据：储蓄卡国家分布',
+  '测试数据：储蓄卡币种统计',
+  '测试数据：移动端同步储蓄卡',
+  '测试数据：无信用额度字段',
+  '测试数据：银行卡筛选样例'
+]
+
 const randomInt = (min, max) => Math.floor(Math.random() * (max - min + 1)) + min
 const randomPick = (items) => items[randomInt(0, items.length - 1)]
 const randomBool = (probability = 0.5) => Math.random() < probability
@@ -303,7 +319,7 @@ const generateSharedPoolKey = (card) => {
 }
 
 const applySharedLimitPool = (card, sharedPools) => {
-  if (!card.isSharedLimit) return card
+  if (card.cardCategory === 'debit' || !card.isSharedLimit) return card
 
   const poolKey = generateSharedPoolKey(card)
   if (!sharedPools.has(poolKey)) {
@@ -342,8 +358,7 @@ const createScenarioSeeds = (count) => {
   })
 }
 
-// 生成单个信用卡数据，字段结构对齐 DEFAULT_CARD_DATA。
-export const generateCreditCard = ({ sharedPools = new Map(), scenario = null, index = 0 } = {}) => {
+const buildBaseScenario = (scenario) => {
   const country = scenario?.country || pickFromOptions(
     creditCardOptions.countryData,
     randomBool(0.75) ? COMMON_COUNTRIES : []
@@ -356,12 +371,20 @@ export const generateCreditCard = ({ sharedPools = new Map(), scenario = null, i
     creditCardOptions.currencyList,
     CURRENCY_BY_COUNTRY[country] || ['CNY', 'USD', 'HKD', 'EUR']
   )
+
+  return { country, bank, type }
+}
+
+// 生成单个信用卡数据，字段结构对齐 DEFAULT_CARD_DATA。
+export const generateCreditCard = ({ sharedPools = new Map(), scenario = null, index = 0 } = {}) => {
+  const { country, bank, type } = buildBaseScenario(scenario)
   const level = pickFromOptions(creditCardOptions.cardLevel)
   const organization = getCardOrganization(level)
   const isQualified = generateQualificationStatus()
   const billDates = generateBillDates()
   const isSharedLimit = randomBool(0.7)
   const baseCard = createNewCardData({
+    cardCategory: 'credit',
     country,
     bank,
     alias: `${bank}${level}-${type}-${String(index + 1).padStart(2, '0')}`,
@@ -387,13 +410,47 @@ export const generateCreditCard = ({ sharedPools = new Map(), scenario = null, i
   return applySharedLimitPool(baseCard, sharedPools)
 }
 
-// 生成多条随机信用卡数据，保留共享额度分组，便于表格合并列和统计模块一起验证。
+// 生成单个储蓄卡数据，覆盖储蓄卡筛选、统计和详情页分支。
+export const generateDebitCard = ({ scenario = null, index = 0 } = {}) => {
+  const { country, bank, type } = buildBaseScenario(scenario)
+  const level = pickFromOptions(creditCardOptions.cardLevel, ['银联-普卡', '银联-金卡', 'VISA-普卡'])
+  const organization = getCardOrganization(level)
+
+  return createNewCardData({
+    cardCategory: 'debit',
+    country,
+    bank,
+    alias: `${bank}储蓄卡-${type}-${String(index + 1).padStart(2, '0')}`,
+    level,
+    cardNumber: generateCardNumber(bank, organization),
+    cvv: generateCVV(organization),
+    valid: generateValidDate(),
+    limit: null,
+    type,
+    isSharedLimit: false,
+    accountBillDate: '',
+    dueDate: '',
+    billingDaySpendingToNextBill: true,
+    annualFee: null,
+    isQualified: '',
+    nextAnnualFeeCollectionTime: null,
+    lastTime: null,
+    lastModifyTime: generateLastModifyTime(),
+    equity: randomBool(0.55) ? randomPick(DEBIT_EQUITY_POOL) : '',
+    remark: randomBool(0.7) ? randomPick(DEBIT_REMARK_POOL) : ''
+  })
+}
+
+// 生成多条随机银行卡数据，覆盖信用卡共享额度、年费场景和储蓄卡统计分支。
 export const generateMockData = (count = 50) => {
   const sharedPools = new Map()
   const scenarios = createScenarioSeeds(count)
 
   return Array.from({ length: count }, (_, index) => {
     const scenario = randomBool(0.82) ? randomPick(scenarios) : null
-    return generateCreditCard({ sharedPools, scenario, index })
+    const shouldGenerateDebitCard = count > 1 && (index + 1) % 4 === 0
+    return shouldGenerateDebitCard
+      ? generateDebitCard({ scenario, index })
+      : generateCreditCard({ sharedPools, scenario, index })
   })
 }

@@ -489,7 +489,7 @@ class WebDAVSyncService {
       if (changedByRemote || cardSyncLedger.isPending() ||
           (automaticFiles.length === 0 && merged.length > 0)) {
         let lastUploadProgressReportAt = 0
-        webdavClient.setProgressCallback((type, loaded, total) => {
+        webdavClient.setProgressCallback?.((type, loaded, total) => {
           if (type !== 'upload') return
           const uploadedBytes = Number(loaded || 0)
           const totalBytes = Number(total || 0)
@@ -509,7 +509,7 @@ class WebDAVSyncService {
         })
         this.updateProgress('上传合并快照', 5, 6, '正在写入 WebDAV 加密快照')
         uploadedFile = await webdavClient.uploadSyncSnapshot(createSnapshot(merged), syncPassword)
-        webdavClient.setProgressCallback(null)
+        webdavClient.setProgressCallback?.(null)
         if (cardSyncLedger.revision() === snapshotRevision) {
           await cardSyncLedger.setPending(false)
         } else {
@@ -550,7 +550,7 @@ class WebDAVSyncService {
         { lastDurationMs: durationMs }
       )
     } catch (error) {
-      webdavClient.setProgressCallback(null)
+      webdavClient.setProgressCallback?.(null)
       await cardSyncLedger.setPending(true)
       this.lastFailedSyncAt = Date.now()
       const durationMs = this.finishTiming()

@@ -1648,11 +1648,12 @@ const generateRandomData = async () => {
   const mockData = generateMockData(50)
   try {
     cardData.value = mockData
+    cardCategoryFilter.value = 'all'
     resetSearchForm(false)
     quickSearchQuery.value = ''
     clearSelection()
     await persistSyncedMutation({ replace: true })
-    ElMessage.success('成功生成 50 条测试数据')
+    ElMessage.success('成功生成 50 条银行卡测试数据（含信用卡和储蓄卡）')
   } catch (error) {
     cardData.value = previousData
     ElMessage.error(`生成测试数据失败：${error.message}`)
