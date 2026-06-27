@@ -23,8 +23,4 @@ fun bankNamesReferToSameBank(left: String?, right: String?): Boolean {
     return leftKey.isNotBlank() && rightKey.isNotBlank() && leftKey == rightKey
 }
 
-fun shouldPropagateBankRename(previousBank: String?, nextBank: String?): Boolean {
-    val previousDisplay = displayBankName(previousBank)
-    val nextDisplay = displayBankName(nextBank)
-    return previousDisplay.isNotBlank() && nextDisplay.isNotBlank() && previousDisplay != nextDisplay
-}
+

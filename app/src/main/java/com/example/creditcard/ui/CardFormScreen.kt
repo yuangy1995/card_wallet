@@ -91,7 +91,7 @@ import com.example.creditcard.utils.CardImageCodec
 import com.example.creditcard.utils.VibrationUtils
 import com.example.creditcard.utils.bankNamesReferToSameBank
 import com.example.creditcard.utils.displayBankName
-import com.example.creditcard.utils.shouldPropagateBankRename
+
 import androidx.camera.core.ImageAnalysis
 import androidx.camera.core.ImageCapture
 import androidx.camera.core.ImageCaptureException
@@ -1659,27 +1659,7 @@ fun executeSaveCard(
     // 保存至本地账本（自动管理 lastModifyTime 和触发 pendingSync 状态）
     SyncCoordinator.commitCardChange(context, finalCard)
 
-    var renamedBankCount = 0
-    if (shouldPropagateBankRename(originalCard?.bank, finalCard.bank)) {
-        db.getAllCards()
-            .filter {
-                it.id != finalCard.id &&
-                    bankNamesReferToSameBank(it.bank, originalCard?.bank) &&
-                    displayBankName(it.bank) != displayBankName(finalCard.bank)
-            }
-            .forEach { relatedCard ->
-                relatedCard.bank = finalCard.bank
-                SyncCoordinator.commitCardChange(context, relatedCard)
-                renamedBankCount += 1
-            }
-    }
-
-    val message = if (renamedBankCount > 0) {
-        "卡片已保存，已同步更新 ${renamedBankCount} 张同银行银行卡"
-    } else {
-        "卡片已保存"
-    }
-    Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+    Toast.makeText(context, "卡片已保存", Toast.LENGTH_SHORT).show()
 }
 
 private fun formatExpiryInput(input: String, previousValue: String): String {

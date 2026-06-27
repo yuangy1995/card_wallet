@@ -173,8 +173,25 @@ fun MainScreen(
     var searchQuery by remember { mutableStateOf("") }
     var cardCategoryFilter by remember { mutableStateOf("all") }
     var showAddMenu by remember { mutableStateOf(false) }
-    val creditCardCount = remember(cards) { cards.count { it.cardCategory != "debit" } }
-    val debitCardCount = remember(cards) { cards.count { it.cardCategory == "debit" } }
+
+    val searchFilteredCards = remember(cards, searchQuery) {
+        if (searchQuery.isBlank()) {
+            cards
+        } else {
+            cards.filter { card ->
+                val categoryText = if (card.cardCategory == "debit") "储蓄卡 debit" else "信用卡 credit"
+                card.bank.contains(searchQuery, ignoreCase = true) ||
+                card.alias.contains(searchQuery, ignoreCase = true) ||
+                card.cardNumber.replace(" ", "").contains(searchQuery.replace(" ", "")) ||
+                card.remark.contains(searchQuery, ignoreCase = true) ||
+                getCardBrand(card.cardNumber).contains(searchQuery, ignoreCase = true) ||
+                categoryText.contains(searchQuery, ignoreCase = true)
+            }
+        }
+    }
+
+    val creditCardCount = remember(searchFilteredCards) { searchFilteredCards.count { it.cardCategory != "debit" } }
+    val debitCardCount = remember(searchFilteredCards) { searchFilteredCards.count { it.cardCategory == "debit" } }
     val annualReminderCount = remember(cards) { cards.count { CardReminderRules.annualFeeDetection(it) != null } }
     val billingReminderCount = remember(cards) { CardReminderRules.billingCycleAlerts(cards).size }
     val expiryReminderCount = remember(cards) {
@@ -193,24 +210,11 @@ fun MainScreen(
     }
 
     // 过滤后的卡片列表
-    val filteredCards = remember(cards, searchQuery, cardCategoryFilter) {
-        val categoryFiltered = when (cardCategoryFilter) {
-            "credit" -> cards.filter { it.cardCategory != "debit" }
-            "debit" -> cards.filter { it.cardCategory == "debit" }
-            else -> cards
-        }
-        if (searchQuery.isBlank()) {
-            categoryFiltered
-        } else {
-            categoryFiltered.filter { card ->
-                val categoryText = if (card.cardCategory == "debit") "储蓄卡 debit" else "信用卡 credit"
-                card.bank.contains(searchQuery, ignoreCase = true) ||
-                card.alias.contains(searchQuery, ignoreCase = true) ||
-                card.cardNumber.replace(" ", "").contains(searchQuery.replace(" ", "")) ||
-                card.remark.contains(searchQuery, ignoreCase = true) ||
-                getCardBrand(card.cardNumber).contains(searchQuery, ignoreCase = true) ||
-                categoryText.contains(searchQuery, ignoreCase = true)
-            }
+    val filteredCards = remember(searchFilteredCards, cardCategoryFilter) {
+        when (cardCategoryFilter) {
+            "credit" -> searchFilteredCards.filter { it.cardCategory != "debit" }
+            "debit" -> searchFilteredCards.filter { it.cardCategory == "debit" }
+            else -> searchFilteredCards
         }
     }
 
