@@ -57,21 +57,11 @@ struct ContentView: View {
     // 工具箱二级视图选中状态
     @State private var activeToolSubView: ToolSubView? = nil
     
-    var filteredCards: [SharedCard] {
-        let categoryCards: [SharedCard]
-        switch cardCategoryFilter {
-        case .all:
-            categoryCards = cards
-        case .credit:
-            categoryCards = cards.filter { $0.cardCategory != "debit" }
-        case .debit:
-            categoryCards = cards.filter { $0.cardCategory == "debit" }
-        }
-        
+    var searchFilteredCards: [SharedCard] {
         if searchText.isEmpty {
-            return categoryCards
+            return cards
         } else {
-            return categoryCards.filter { card in
+            return cards.filter { card in
                 let categoryText = card.cardCategory == "debit" ? "储蓄卡 debit" : "信用卡 credit"
                 return card.bank.localizedCaseInsensitiveContains(searchText) ||
                 (card.alias ?? "").localizedCaseInsensitiveContains(searchText) ||
@@ -80,9 +70,20 @@ struct ContentView: View {
             }
         }
     }
+
+    var filteredCards: [SharedCard] {
+        switch cardCategoryFilter {
+        case .all:
+            return searchFilteredCards
+        case .credit:
+            return searchFilteredCards.filter { $0.cardCategory != "debit" }
+        case .debit:
+            return searchFilteredCards.filter { $0.cardCategory == "debit" }
+        }
+    }
     
-    private var creditCardCount: Int { cards.filter { $0.cardCategory != "debit" }.count }
-    private var debitCardCount: Int { cards.filter { $0.cardCategory == "debit" }.count }
+    private var creditCardCount: Int { searchFilteredCards.filter { $0.cardCategory != "debit" }.count }
+    private var debitCardCount: Int { searchFilteredCards.filter { $0.cardCategory == "debit" }.count }
     
     var body: some View {
         ZStack {
@@ -167,9 +168,6 @@ struct ContentView: View {
                 initialCardCategory: request.card?.cardCategory ?? request.cardCategory,
                 existingCards: cards,
                 onSubmit: { finalCard in
-                    let previousCard = request.mode == "edit"
-                        ? (cards.first { $0.id == finalCard.id } ?? request.card)
-                        : nil
 
                     if request.mode == "add" {
                         cards.append(finalCard)
@@ -179,7 +177,6 @@ struct ContentView: View {
                         }
                     }
 
-                    _ = propagateBankRename(from: previousCard, to: finalCard)
                     
                     // 💡 联动同步：如果信用卡启用了共享额度，自动同步批量更新其他同银行的共享额度卡片
                     if finalCard.cardCategory != "debit", finalCard.isSharedLimit {
@@ -258,7 +255,7 @@ struct ContentView: View {
                 )
                 
                 Picker("卡类别", selection: $cardCategoryFilter) {
-                    Text("全部 \(cards.count)").tag(CardCategoryFilter.all)
+                    Text("全部 \(searchFilteredCards.count)").tag(CardCategoryFilter.all)
                     Text("信用卡 \(creditCardCount)").tag(CardCategoryFilter.credit)
                     Text("储蓄卡 \(debitCardCount)").tag(CardCategoryFilter.debit)
                 }
@@ -1014,25 +1011,6 @@ struct ContentView: View {
         queueAlert(.deleteCard(card: card))
     }
 
-    private func propagateBankRename(from previousCard: SharedCard?, to updatedCard: SharedCard) -> Int {
-        guard BankNameNormalizer.shouldPropagateRename(from: previousCard?.bank, to: updatedCard.bank) else {
-            return 0
-        }
-
-        let nowTimestamp = DateCalculator.timestamp(from: Date())
-        var updatedCount = 0
-        for index in cards.indices {
-            guard cards[index].id != updatedCard.id,
-                  BankNameNormalizer.namesReferToSameBank(cards[index].bank, previousCard?.bank),
-                  BankNameNormalizer.display(cards[index].bank) != BankNameNormalizer.display(updatedCard.bank) else {
-                continue
-            }
-            cards[index].bank = updatedCard.bank
-            cards[index].lastModifyTime = nowTimestamp
-            updatedCount += 1
-        }
-        return updatedCount
-    }
     
     private func updateCardStatus(_ card: SharedCard, status: String) {
         guard card.cardCategory != "debit" else { return }
