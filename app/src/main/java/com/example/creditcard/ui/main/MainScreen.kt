@@ -29,6 +29,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.FactCheck
+import androidx.compose.material.icons.automirrored.filled.EventNote
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
@@ -63,6 +64,7 @@ import java.time.temporal.ChronoUnit
 import kotlin.math.min
 import com.example.creditcard.CardDetail
 import com.example.creditcard.CardForm
+import com.example.creditcard.CardReminders
 import com.example.creditcard.data.CardChangeDetail
 import com.example.creditcard.data.SharedCard
 import com.example.creditcard.data.SyncHistoryEntry
@@ -78,6 +80,7 @@ import com.example.creditcard.utils.CardReminderRules
 import com.example.creditcard.utils.CardSystemNotifier
 import com.example.creditcard.utils.SecurityLockManager
 import com.example.creditcard.utils.SyncCoordinator
+import com.example.creditcard.utils.SyncNetworkPreference
 import com.example.creditcard.utils.SyncTime
 import com.example.creditcard.utils.NfcScannerManager
 import com.example.creditcard.utils.ThemeManager
@@ -135,6 +138,7 @@ fun MainScreen(
     // 监听全局核心状态
     val cards by SyncCoordinator.cardsFlow.collectAsState()
     val syncStatus by SyncCoordinator.syncStatus.collectAsState()
+    val needsCellularSyncConfirmation by SyncCoordinator.needsCellularSyncConfirmation.collectAsState()
     val securityState by SecurityLockManager.state.collectAsState()
     val isDark by ThemeManager.isDarkTheme.collectAsState()
 
@@ -145,7 +149,11 @@ fun MainScreen(
     var verifySessionSeed by remember { mutableIntStateOf(0) }
 
     // 系统返回先处理工具、设置子页面和非首页 Tab，再交给 Activity 默认退出。
-    BackHandler(enabled = selectedTab != 0 || toolsMode != ToolsMode.HOME || settingsMode != SettingsMode.MAIN) {
+    BackHandler(
+        enabled = selectedTab != 0 ||
+            toolsMode != ToolsMode.HOME ||
+            settingsMode != SettingsMode.MAIN
+    ) {
         when {
             selectedTab == 1 && toolsMode != ToolsMode.HOME -> toolsMode = ToolsMode.HOME
             selectedTab == 2 && settingsMode != SettingsMode.MAIN -> settingsMode = SettingsMode.MAIN
@@ -208,6 +216,24 @@ fun MainScreen(
 
     val isSubPage = (selectedTab == 1 && toolsMode != ToolsMode.HOME) ||
                     (selectedTab == 2 && settingsMode != SettingsMode.MAIN)
+
+    if (needsCellularSyncConfirmation) {
+        AlertDialog(
+            onDismissRequest = SyncCoordinator::cancelCellularSyncConfirmation,
+            title = { Text("当前将使用移动数据进行同步") },
+            text = { Text("同步可能会产生流量费用，请确保流量充足！") },
+            confirmButton = {
+                TextButton(onClick = { SyncCoordinator.confirmCellularSync(context) }) {
+                    Text("继续")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = SyncCoordinator::cancelCellularSyncConfirmation) {
+                    Text("取消")
+                }
+            }
+        )
+    }
 
     Scaffold(
         bottomBar = {
@@ -338,14 +364,8 @@ fun MainScreen(
                                         val syncUnavailableMessage = config.syncUnavailableMessage()
                                         if (syncUnavailableMessage != null) {
                                             Toast.makeText(context, syncUnavailableMessage, Toast.LENGTH_SHORT).show()
-                                            coroutineScope.launch {
-                                                SyncCoordinator.synchronize(context, publishLocalChanges = true)
-                                            }
                                         } else {
-                                            Toast.makeText(context, "正在同步云端数据...", Toast.LENGTH_SHORT).show()
-                                            coroutineScope.launch {
-                                                SyncCoordinator.synchronize(context, publishLocalChanges = true)
-                                            }
+                                            SyncCoordinator.requestManualSync(context)
                                         }
                                     },
                                     onSyncingClick = {
@@ -456,10 +476,7 @@ fun MainScreen(
                                 annualCount = annualReminderCount,
                                 expiryCount = expiryReminderCount,
                                 isDark = isDark,
-                                onClick = {
-                                    selectedTab = 1
-                                    toolsMode = ToolsMode.STATS
-                                }
+                                onClick = { onItemClick(CardReminders) }
                             )
                         }
 
@@ -621,9 +638,279 @@ fun ReminderSummaryStrip(
         }
         Icon(
             imageVector = Icons.Filled.ChevronRight,
-            contentDescription = "查看统计",
+            contentDescription = "查看卡片提醒",
             tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.45f),
             modifier = Modifier.size(18.dp)
+        )
+    }
+}
+
+@Composable
+fun ReminderDetailsPanel(
+    cards: List<SharedCard>,
+    isDark: Boolean,
+    onBack: () -> Unit,
+    onCardClick: (String) -> Unit
+) {
+    val billingItems = remember(cards) { CardReminderRules.billingCycleAlerts(cards) }
+    val annualItems = remember(cards) { CardReminderRules.annualFeeAlerts(cards) }
+    val expiryItems = remember(cards) { CardReminderRules.cardExpiryAlerts(cards) }
+    val accent = if (isDark) NeonCyan else GoldPrimary
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .statusBarsPadding()
+            .padding(horizontal = 16.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            AppBackButton(
+                onClick = onBack,
+                contentDescription = "返回卡包",
+                tint = accent,
+                containerColor = MaterialTheme.colorScheme.surface,
+                borderColor = accent.copy(alpha = 0.34f)
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Column {
+                Text("卡片提醒", fontSize = 22.sp, fontWeight = FontWeight.Black)
+                Text(
+                    "还款、账单、年费与有效期",
+                    fontSize = 12.sp,
+                    color = accent,
+                    fontWeight = FontWeight.SemiBold
+                )
+            }
+        }
+
+        LazyColumn(
+            modifier = Modifier.fillMaxSize(),
+            contentPadding = PaddingValues(bottom = 24.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            item {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    ReminderCountCard("还款/账单", billingItems.size, Color(0xFFFF5252), Modifier.weight(1f))
+                    ReminderCountCard("年费", annualItems.size, Color(0xFFFF9100), Modifier.weight(1f))
+                    ReminderCountCard("有效期", expiryItems.size, accent, Modifier.weight(1f))
+                }
+            }
+
+            if (billingItems.isNotEmpty()) {
+                item {
+                    ReminderGroupCard("还款与账单提醒", Icons.Filled.EventBusy, isDark) {
+                        billingItems.forEach { (card, reminder) ->
+                            val color = if (reminder.kind == BillingCycleReminderKind.REPAYMENT) {
+                                NeonRed
+                            } else {
+                                Color(0xFFFF9100)
+                            }
+                            ReminderDetailRow(
+                                icon = if (reminder.kind == BillingCycleReminderKind.REPAYMENT) {
+                                    Icons.Filled.EventBusy
+                                } else {
+                                    Icons.AutoMirrored.Filled.EventNote
+                                },
+                                color = color,
+                                title = card.bank,
+                                subtitle = card.alias.ifBlank { "未命名卡片" },
+                                detail = reminder.date.toString(),
+                                trailing = reminder.title,
+                                onClick = { onCardClick(card.id) }
+                            )
+                        }
+                    }
+                }
+            }
+
+            if (annualItems.isNotEmpty()) {
+                item {
+                    ReminderGroupCard("年费提醒", Icons.Filled.PriceCheck, isDark) {
+                        annualItems.forEach { (card, result) ->
+                            val color = when (result.kind) {
+                                AnnualFeeDetectionKind.OVERDUE -> NeonRed
+                                AnnualFeeDetectionKind.UNQUALIFIED -> Color(0xFFFF9100)
+                                AnnualFeeDetectionKind.WARNING -> accent
+                            }
+                            val trailing = when (result.kind) {
+                                AnnualFeeDetectionKind.OVERDUE -> "已过 ${result.days} 天"
+                                AnnualFeeDetectionKind.UNQUALIFIED -> "未达标 · 剩 ${result.days} 天"
+                                AnnualFeeDetectionKind.WARNING -> "${result.days} 天后扣收"
+                            }
+                            ReminderDetailRow(
+                                icon = Icons.Filled.PriceCheck,
+                                color = color,
+                                title = card.bank,
+                                subtitle = card.alias.ifBlank { "未命名卡片" },
+                                detail = "年费 ${card.type} ${card.annualFee}",
+                                trailing = trailing,
+                                onClick = { onCardClick(card.id) }
+                            )
+                        }
+                    }
+                }
+            }
+
+            if (expiryItems.isNotEmpty()) {
+                item {
+                    ReminderGroupCard("有效期提醒", Icons.Filled.CreditCardOff, isDark) {
+                        expiryItems.forEach { (card, status) ->
+                            val expired = status == CardExpiryStatus.EXPIRED
+                            val color = if (expired) NeonRed else Color(0xFFFF9100)
+                            ReminderDetailRow(
+                                icon = Icons.Filled.CreditCardOff,
+                                color = color,
+                                title = card.bank,
+                                subtitle = card.alias.ifBlank {
+                                    if (card.cardCategory == "debit") "储蓄卡" else "信用卡"
+                                },
+                                detail = "有效期 ${card.valid.ifBlank { "--/--" }}",
+                                trailing = if (expired) "已过期" else "即将到期",
+                                onClick = { onCardClick(card.id) }
+                            )
+                        }
+                    }
+                }
+            }
+
+            if (billingItems.isEmpty() && annualItems.isEmpty() && expiryItems.isEmpty()) {
+                item {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 80.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Icon(
+                            Icons.Filled.VerifiedUser,
+                            contentDescription = null,
+                            tint = accent,
+                            modifier = Modifier.size(48.dp)
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text("暂无卡片提醒", fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ReminderCountCard(
+    title: String,
+    count: Int,
+    color: Color,
+    modifier: Modifier = Modifier
+) {
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(12.dp))
+            .background(color.copy(alpha = 0.12f))
+            .padding(vertical = 12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text("$count", fontSize = 20.sp, fontWeight = FontWeight.Black, color = color)
+        Text(title, fontSize = 10.sp, color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.65f))
+    }
+}
+
+@Composable
+private fun ReminderGroupCard(
+    title: String,
+    icon: ImageVector,
+    isDark: Boolean,
+    initialExpanded: Boolean = true,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    var expanded by remember { mutableStateOf(initialExpanded) }
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(if (isDark) DarkCardBg else Color.White)
+            .border(
+                1.dp,
+                MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
+                RoundedCornerShape(14.dp)
+            )
+            .padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clickable { expanded = !expanded },
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(icon, contentDescription = null, modifier = Modifier.size(18.dp))
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(title, fontSize = 14.sp, fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+            Icon(
+                imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                contentDescription = if (expanded) "折叠" else "展开",
+                modifier = Modifier.size(20.dp),
+                tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+            )
+        }
+        if (expanded) {
+            Spacer(modifier = Modifier.height(4.dp))
+            content()
+        }
+    }
+}
+
+@Composable
+private fun ReminderDetailRow(
+    icon: ImageVector,
+    color: Color,
+    title: String,
+    subtitle: String,
+    detail: String,
+    trailing: String,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .clickable(onClick = onClick)
+            .padding(horizontal = 8.dp, vertical = 10.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(22.dp))
+        Spacer(modifier = Modifier.width(10.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(title, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+            Text(
+                "$subtitle · $detail",
+                fontSize = 10.sp,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.58f),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        Text(
+            trailing,
+            fontSize = 11.sp,
+            fontWeight = FontWeight.Bold,
+            color = color,
+            textAlign = TextAlign.End
+        )
+        Spacer(modifier = Modifier.width(4.dp))
+        Icon(
+            Icons.Filled.ChevronRight,
+            contentDescription = "查看卡片",
+            tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.32f),
+            modifier = Modifier.size(16.dp)
         )
     }
 }
@@ -1445,9 +1732,7 @@ fun ToolsSyncHistoryPanel(
                     Toast.makeText(context, "已请求终止当前同步", Toast.LENGTH_SHORT).show()
                 },
                 onRetry = {
-                    coroutineScope.launch {
-                        SyncCoordinator.synchronize(context, publishLocalChanges = true)
-                    }
+                    SyncCoordinator.requestManualSync(context)
                 }
             )
         }
@@ -2178,7 +2463,7 @@ fun AnalyticsPanel(cards: List<SharedCard>, isDark: Boolean) {
     ) {
         Spacer(modifier = Modifier.height(6.dp))
 
-        DetailSection(title = "📌 卡包概览") {
+        DetailSection(title = "📌 卡包概览", isCollapsible = true) {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
                 SmallMetric("全部", "${cards.size}", "张", isDark, Modifier.weight(1f))
                 SmallMetric("信用卡", "${creditCards.size}", "张", isDark, Modifier.weight(1f))
@@ -2203,7 +2488,7 @@ fun AnalyticsPanel(cards: List<SharedCard>, isDark: Boolean) {
         }
 
         if (creditCards.isEmpty()) {
-            DetailSection(title = "💳 信用卡统计") {
+            DetailSection(title = "💳 信用卡统计", isCollapsible = true) {
                 Text(
                     text = "当前卡包仅包含储蓄卡，信用额度、年费和免息期统计不适用。",
                     fontSize = 13.sp,
@@ -2215,7 +2500,7 @@ fun AnalyticsPanel(cards: List<SharedCard>, isDark: Boolean) {
         } else {
 
         // 1. Canvas 手工绘制的拟真资产额度占比 Donut 环形图 (按去重额度比例展示)
-        DetailSection(title = "📊 信用额度占比图") {
+        DetailSection(title = "📊 信用额度占比图", isCollapsible = true) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -2301,7 +2586,7 @@ fun AnalyticsPanel(cards: List<SharedCard>, isDark: Boolean) {
         }
 
         if (billingAlerts.isNotEmpty()) {
-            DetailSection(title = "⏱️ 还款与账单雷达") {
+            DetailSection(title = "⏱️ 还款与账单雷达", isCollapsible = true) {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     billingAlerts.forEach { (card, reminder) ->
                         val alertColor = when (reminder.kind) {
@@ -2357,7 +2642,7 @@ fun AnalyticsPanel(cards: List<SharedCard>, isDark: Boolean) {
 
         // 3. 年费到达预警橙红色警报雷达
         if (feeAlerts.isNotEmpty()) {
-            DetailSection(title = "🚨 年费扣缴雷达警报") {
+            DetailSection(title = "🚨 年费扣缴雷达警报", isCollapsible = true) {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     feeAlerts.forEach { (card, result) ->
                         val alertColor = when (result.kind) {
@@ -2416,7 +2701,7 @@ fun AnalyticsPanel(cards: List<SharedCard>, isDark: Boolean) {
         }
 
         if (expiryAlerts.isNotEmpty()) {
-            DetailSection(title = "卡片有效期雷达") {
+            DetailSection(title = "卡片有效期雷达", isCollapsible = true) {
                 Text(
                     text = "已过期 ${expiryStats.expiredCards} 张 / 6个月内 ${expiryStats.soonExpiring} 张 / 正常 ${expiryStats.normalCards} 张",
                     fontSize = 11.sp,
@@ -2472,7 +2757,7 @@ fun AnalyticsPanel(cards: List<SharedCard>, isDark: Boolean) {
 
         // 3. 共享额度组看版 - 精美折叠支持，收放自如 (第 6 点)
         if (sharedLimitGroups.isNotEmpty()) {
-            DetailSection(title = "🤝 共享额度组看版 (点击行展开)") {
+            DetailSection(title = "🤝 共享额度组看版 (点击行展开)", isCollapsible = true) {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     sharedLimitGroups.forEach { (bank, groupCards) ->
                         val representative = groupCards.first()
@@ -2588,7 +2873,7 @@ fun AnalyticsPanel(cards: List<SharedCard>, isDark: Boolean) {
         }
 
         // 4. 多币种信用资产看板 (已应用共享去重算法，100%精准财务资产)
-        DetailSection(title = "💳 多币种真实总信用资产") {
+        DetailSection(title = "💳 多币种真实总信用资产", isCollapsible = true) {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 currencySummary.forEach { (currency, triple) ->
                     val (totalLimit, totalFee, cardCount) = triple
@@ -3814,6 +4099,45 @@ private fun formatStorageBytes(bytes: Long): String {
 }
 
 @Composable
+private fun SyncNetworkPreferenceSelector(
+    selected: SyncNetworkPreference,
+    onSelected: (SyncNetworkPreference) -> Unit,
+    isDark: Boolean
+) {
+    Column(
+        modifier = Modifier.fillMaxWidth(),
+        verticalArrangement = Arrangement.spacedBy(6.dp)
+    ) {
+        Text("同步网络", fontWeight = FontWeight.Bold, fontSize = 13.sp)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            SyncNetworkPreference.entries.forEach { preference ->
+                FilterChip(
+                    selected = selected == preference,
+                    onClick = { onSelected(preference) },
+                    label = {
+                        Text(
+                            preference.title,
+                            modifier = Modifier.fillMaxWidth(),
+                            textAlign = TextAlign.Center
+                        )
+                    },
+                    modifier = Modifier.weight(1f)
+                )
+            }
+        }
+        Text(
+            text = "默认仅在 Wi‑Fi 下自动同步。允许使用流量后，手动同步在移动数据下仍会先询问。",
+            fontSize = 10.sp,
+            lineHeight = 14.sp,
+            color = if (isDark) TextGray else TextMuted
+        )
+    }
+}
+
+@Composable
 fun SettingsWebDAVPanel(
     isDark: Boolean,
     onBack: () -> Unit
@@ -3828,6 +4152,7 @@ fun SettingsWebDAVPanel(
     var pass by remember { mutableStateOf(loadedConfig.pass) }
     var syncPassword by remember { mutableStateOf(loadedConfig.syncPassword) }
     var isEnabled by remember { mutableStateOf(loadedConfig.isEnabled) }
+    var networkPreference by remember { mutableStateOf(loadedConfig.networkPreference) }
 
     // 2. 状态监听
     var isTestingConnection by remember { mutableStateOf(false) }
@@ -3916,7 +4241,14 @@ fun SettingsWebDAVPanel(
                             checked = isEnabled,
                             onCheckedChange = { 
                                 isEnabled = it 
-                                val newConfig = WebDAVConfig(url.trim(), user.trim(), pass.trim(), syncPassword.trim(), it)
+                                val newConfig = WebDAVConfig(
+                                    url.trim(),
+                                    user.trim(),
+                                    pass.trim(),
+                                    syncPassword.trim(),
+                                    it,
+                                    networkPreference
+                                )
                                 SyncCoordinator.saveConfig(context, newConfig)
                                 Toast.makeText(context, "自动同步状态已成功更新", Toast.LENGTH_SHORT).show()
                             },
@@ -3931,15 +4263,32 @@ fun SettingsWebDAVPanel(
                     HorizontalDivider(color = (if (isDark) TextGray else TextMuted).copy(alpha = 0.15f), thickness = 1.dp)
                     Spacer(modifier = Modifier.height(12.dp))
 
+                    SyncNetworkPreferenceSelector(
+                        selected = networkPreference,
+                        onSelected = {
+                            networkPreference = it
+                            SyncCoordinator.saveConfig(
+                                context,
+                                WebDAVConfig(
+                                    url.trim(),
+                                    user.trim(),
+                                    pass.trim(),
+                                    syncPassword.trim(),
+                                    isEnabled,
+                                    it
+                                )
+                            )
+                        },
+                        isDark = isDark
+                    )
+
                     Column(
                         modifier = Modifier.fillMaxWidth(),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         Button(
                             onClick = {
-                                coroutineScope.launch {
-                                    SyncCoordinator.synchronize(context, publishLocalChanges = true)
-                                }
+                                SyncCoordinator.requestManualSync(context)
                             },
                             modifier = Modifier.fillMaxWidth(),
                             enabled = !syncStatus.isSyncing,
@@ -4058,6 +4407,12 @@ fun SettingsWebDAVPanel(
                         )
                     }
 
+                    SyncNetworkPreferenceSelector(
+                        selected = networkPreference,
+                        onSelected = { networkPreference = it },
+                        isDark = isDark
+                    )
+
                     Spacer(modifier = Modifier.height(4.dp))
                     HorizontalDivider(color = (if (isDark) TextGray else TextMuted).copy(alpha = 0.15f), thickness = 1.dp)
                     Spacer(modifier = Modifier.height(4.dp))
@@ -4108,7 +4463,14 @@ fun SettingsWebDAVPanel(
                                     return@Button
                                 }
                                 
-                                val newConfig = WebDAVConfig(url.trim(), user.trim(), pass.trim(), syncPassword.trim(), isEnabled)
+                                val newConfig = WebDAVConfig(
+                                    url.trim(),
+                                    user.trim(),
+                                    pass.trim(),
+                                    syncPassword.trim(),
+                                    isEnabled,
+                                    networkPreference
+                                )
                                 SyncCoordinator.saveConfig(context, newConfig)
                                 Toast.makeText(context, "配置已保存，网络通道畅通", Toast.LENGTH_SHORT).show()
                                 isEditingConfig = false
@@ -4478,9 +4840,12 @@ fun formatSyncDuration(durationMs: Long): String {
 @Composable
 fun DetailSection(
     title: String,
+    isCollapsible: Boolean = false,
+    initialExpanded: Boolean = true,
     content: @Composable ColumnScope.() -> Unit
 ) {
     val isDark by ThemeManager.isDarkTheme.collectAsState()
+    var expanded by remember { mutableStateOf(initialExpanded) }
     
     Column(
         modifier = Modifier
@@ -4494,14 +4859,39 @@ fun DetailSection(
             .background(if (isDark) DarkCardBg else Color.White)
             .padding(14.dp)
     ) {
-        Text(
-            text = title,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Bold,
-            color = if (isDark) NeonCyan else GoldPrimary
-        )
-        Spacer(modifier = Modifier.height(12.dp))
-        content()
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .then(
+                    if (isCollapsible) {
+                        Modifier.clickable { expanded = !expanded }
+                    } else {
+                        Modifier
+                    }
+                ),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                text = title,
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Bold,
+                color = if (isDark) NeonCyan else GoldPrimary,
+                modifier = Modifier.weight(1f)
+            )
+            if (isCollapsible) {
+                Icon(
+                    imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
+                    contentDescription = if (expanded) "折叠" else "展开",
+                    modifier = Modifier.size(18.dp),
+                    tint = (if (isDark) NeonCyan else GoldPrimary).copy(alpha = 0.7f)
+                )
+            }
+        }
+        if (!isCollapsible || expanded) {
+            Spacer(modifier = Modifier.height(12.dp))
+            content()
+        }
     }
 }
 

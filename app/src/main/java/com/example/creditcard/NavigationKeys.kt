@@ -8,6 +8,8 @@ import kotlinx.serialization.Serializable
  */
 @Serializable data object Main : NavKey
 
+@Serializable data object CardReminders : NavKey
+
 @Serializable data class CardDetail(val cardId: String) : NavKey
 
 @Serializable data class CardForm(

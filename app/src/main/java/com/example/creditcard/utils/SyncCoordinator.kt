@@ -1,6 +1,9 @@
 package com.example.creditcard.utils
 
 import android.content.Context
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
 import com.example.creditcard.data.CardChangeDetail
 import com.example.creditcard.data.CardSyncRecord
 import com.example.creditcard.data.DatabaseHelper
@@ -38,7 +41,8 @@ data class WebDAVConfig(
     val user: String = "",
     val pass: String = "",
     val syncPassword: String = "",
-    val isEnabled: Boolean = false
+    val isEnabled: Boolean = false,
+    val networkPreference: SyncNetworkPreference = SyncNetworkPreference.WIFI_ONLY
 ) {
     val isReadyForSync: Boolean
         get() = isEnabled &&
@@ -53,6 +57,17 @@ data class WebDAVConfig(
             url.isBlank() || user.isBlank() || pass.isBlank() || syncPassword.isBlank() ->
                 "WebDAV 配置不完整，请先填齐服务器、账号、应用密码和同步密钥"
             else -> null
+        }
+    }
+}
+
+enum class SyncNetworkPreference(val storedValue: String, val title: String) {
+    WIFI_ONLY("wifi_only", "仅 Wi‑Fi"),
+    WIFI_AND_CELLULAR("wifi_and_cellular", "Wi‑Fi + 流量");
+
+    companion object {
+        fun fromStoredValue(value: String?): SyncNetworkPreference {
+            return entries.firstOrNull { it.storedValue == value } ?: WIFI_ONLY
         }
     }
 }
@@ -99,6 +114,7 @@ object SyncCoordinator {
     private const val KEY_PASS = "webdav_pass"
     private const val KEY_SYNC_PASSWORD = "webdav_sync_password_v4"
     private const val KEY_ENABLED = "webdav_enabled"
+    private const val KEY_NETWORK_PREFERENCE = "webdav_sync_network_preference"
     private const val KEY_PENDING = "sync_pending"
     private const val KEY_SYNC_HISTORY = "sync_history"
     private const val KEY_PENDING_MUTATIONS = "pending_mutation_details"
@@ -117,6 +133,9 @@ object SyncCoordinator {
     private val _syncHistory = MutableStateFlow<List<SyncHistoryEntry>>(emptyList())
     val syncHistory: StateFlow<List<SyncHistoryEntry>> = _syncHistory
 
+    private val _needsCellularSyncConfirmation = MutableStateFlow(false)
+    val needsCellularSyncConfirmation: StateFlow<Boolean> = _needsCellularSyncConfirmation
+
     // 本地缓存的卡片列表流，供主页监听
     private val _cardsFlow = MutableStateFlow<List<SharedCard>>(emptyList())
     val cardsFlow: StateFlow<List<SharedCard>> = _cardsFlow
@@ -131,12 +150,14 @@ object SyncCoordinator {
     @Volatile private var backgroundSyncPublishLocalChanges = false
     @Volatile private var syncStartedAtMillis = 0L
     @Volatile private var syncElapsedJob: Job? = null
+    @Volatile private var networkCallbackRegistered = false
 
     /**
      * 加载本地缓存好的卡包数据，作为应用启动的主入口数据源
      */
     fun initLocalData(context: Context) {
         val appContext = context.applicationContext
+        registerNetworkCallback(appContext)
         _cardsFlow.value = DatabaseHelper(appContext).use { db ->
             db.getAllCards()
         }
@@ -168,6 +189,7 @@ object SyncCoordinator {
                 putString(KEY_SYNC_PASSWORD, CryptoManager.encrypt(config.syncPassword))
             }
             putBoolean(KEY_ENABLED, config.isEnabled)
+            putString(KEY_NETWORK_PREFERENCE, config.networkPreference.storedValue)
             apply()
         }
         
@@ -208,7 +230,10 @@ object SyncCoordinator {
         } else ""
 
         val isEnabled = prefs.getBoolean(KEY_ENABLED, false)
-        return WebDAVConfig(url, user, pass, syncPassword, isEnabled)
+        val networkPreference = SyncNetworkPreference.fromStoredValue(
+            prefs.getString(KEY_NETWORK_PREFERENCE, null)
+        )
+        return WebDAVConfig(url, user, pass, syncPassword, isEnabled, networkPreference)
     }
 
     /**
@@ -652,9 +677,15 @@ object SyncCoordinator {
 
     /**
      * 核心双向同步机制（协程挂起函数）
-     * @param publishLocalChanges 如果为 true，代表用户手动点击“立即同步”，将强制发布当前数据
+     * @param publishLocalChanges 是否强制发布当前本机数据；后台本地变更同步也会使用此参数
+     * @param manualRequest 是否由用户主动发起，用于移动数据确认策略
      */
-    suspend fun synchronize(context: Context, publishLocalChanges: Boolean = false) = withContext(Dispatchers.IO) {
+    suspend fun synchronize(
+        context: Context,
+        publishLocalChanges: Boolean = false,
+        manualRequest: Boolean = false,
+        cellularConfirmed: Boolean = false
+    ) = withContext(Dispatchers.IO) {
         syncMutex.withLock {
             val appContext = context.applicationContext
             val config = loadConfig(appContext)
@@ -665,6 +696,19 @@ object SyncCoordinator {
                     updateProgress("等待配置", 0, 0, syncUnavailableMessage)
                 }
                 return@withLock
+            }
+            if (isUsingCellular(appContext)) {
+                if (manualRequest && !cellularConfirmed) {
+                    _needsCellularSyncConfirmation.value = true
+                    return@withLock
+                }
+                if (!manualRequest && config.networkPreference == SyncNetworkPreference.WIFI_ONLY) {
+                    withContext(Dispatchers.Main) {
+                        updateStatus("已暂停自动同步：当前使用移动数据", "warning", isPending(appContext))
+                        updateProgress("等待 Wi‑Fi", 0, 0, "自动同步仅使用 Wi‑Fi，连接 Wi‑Fi 后将自动重试")
+                    }
+                    return@withLock
+                }
             }
 
             cancelRequested = false
@@ -1160,6 +1204,76 @@ object SyncCoordinator {
 
     fun getIsoTimestamp(): String {
         return SyncTime.nowIso()
+    }
+
+    fun requestManualSync(context: Context) {
+        val appContext = context.applicationContext
+        val config = loadConfig(appContext)
+        if (config.syncUnavailableMessage() != null) {
+            syncScope.launch {
+                synchronize(appContext, publishLocalChanges = true, manualRequest = true)
+            }
+            return
+        }
+        if (isUsingCellular(appContext)) {
+            _needsCellularSyncConfirmation.value = true
+            return
+        }
+        syncScope.launch {
+            synchronize(appContext, publishLocalChanges = true, manualRequest = true)
+        }
+    }
+
+    fun confirmCellularSync(context: Context) {
+        _needsCellularSyncConfirmation.value = false
+        val appContext = context.applicationContext
+        syncScope.launch {
+            synchronize(
+                appContext,
+                publishLocalChanges = true,
+                manualRequest = true,
+                cellularConfirmed = true
+            )
+        }
+    }
+
+    fun cancelCellularSyncConfirmation() {
+        _needsCellularSyncConfirmation.value = false
+    }
+
+    private fun isUsingCellular(context: Context): Boolean {
+        val connectivityManager =
+            context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        val activeNetwork = connectivityManager.activeNetwork ?: return false
+        val capabilities = connectivityManager.getNetworkCapabilities(activeNetwork) ?: return false
+        return capabilities.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) &&
+            capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)
+    }
+
+    private fun registerNetworkCallback(context: Context) {
+        synchronized(backgroundSyncLock) {
+            if (networkCallbackRegistered) return
+            networkCallbackRegistered = true
+        }
+        val connectivityManager =
+            context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+        connectivityManager.registerDefaultNetworkCallback(
+            object : ConnectivityManager.NetworkCallback() {
+                override fun onCapabilitiesChanged(
+                    network: Network,
+                    networkCapabilities: NetworkCapabilities
+                ) {
+                    val config = loadConfig(context)
+                    if (!config.isReadyForSync) return
+                    val canAutoSync =
+                        networkCapabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
+                            config.networkPreference == SyncNetworkPreference.WIFI_AND_CELLULAR
+                    if (canAutoSync) {
+                        requestBackgroundSync(context, publishLocalChanges = false)
+                    }
+                }
+            }
+        )
     }
 
     private fun requestBackgroundSync(context: Context, publishLocalChanges: Boolean) {

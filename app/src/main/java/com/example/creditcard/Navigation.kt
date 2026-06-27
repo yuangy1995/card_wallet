@@ -2,12 +2,17 @@ package com.example.creditcard
 
 import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.ui.NavDisplay
 import com.example.creditcard.ui.CardDetailScreen
 import com.example.creditcard.ui.CardFormScreen
 import com.example.creditcard.ui.main.MainScreen
+import com.example.creditcard.ui.main.ReminderDetailsPanel
+import com.example.creditcard.utils.SyncCoordinator
+import com.example.creditcard.utils.ThemeManager
 
 /**
  * Android 原生 App 全局路由导航控制器
@@ -38,8 +43,20 @@ fun MainNavigation() {
                     onItemClick = { navKey -> backStack.add(navKey) }
                 )
             }
+
+            // 2. 卡片提醒独立页面，确保详情返回时回到提醒列表。
+            entry<CardReminders> {
+                val cards by SyncCoordinator.cardsFlow.collectAsState()
+                val isDark by ThemeManager.isDarkTheme.collectAsState()
+                ReminderDetailsPanel(
+                    cards = cards,
+                    isDark = isDark,
+                    onBack = popBackStack,
+                    onCardClick = { id -> backStack.add(CardDetail(id)) }
+                )
+            }
             
-            // 2. 卡片防窥详情界面路由
+            // 3. 卡片防窥详情界面路由
             entry<CardDetail> { key ->
                 CardDetailScreen(
                     cardId = key.cardId,
@@ -48,7 +65,7 @@ fun MainNavigation() {
                 )
             }
             
-            // 3. 新建/修改信用卡表单路由
+            // 4. 新建/修改信用卡表单路由
             entry<CardForm> { key ->
                 CardFormScreen(
                     cardId = key.cardId,
