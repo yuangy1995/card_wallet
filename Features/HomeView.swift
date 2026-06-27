@@ -31,25 +31,27 @@ struct HomeView: View {
         }
     }
 
-    var filteredCards: [SharedCard] {
-        let categoryCards: [SharedCard]
-        switch categoryFilter {
-        case .all:    categoryCards = syncCoordinator.cards
-        case .credit: categoryCards = syncCoordinator.cards.filter { $0.cardCategory != "debit" }
-        case .debit:  categoryCards = syncCoordinator.cards.filter { $0.cardCategory == "debit" }
-        }
-        let searched: [SharedCard]
+    var searchFilteredCards: [SharedCard] {
         if searchText.isEmpty {
-            searched = categoryCards
+            return syncCoordinator.cards
         } else {
-            searched = categoryCards.filter { card in
+            return syncCoordinator.cards.filter { card in
                 card.bank.localizedCaseInsensitiveContains(searchText) ||
                 (card.alias ?? "").localizedCaseInsensitiveContains(searchText) ||
                 card.cardNumber.contains(searchText) ||
                 (card.level ?? "").localizedCaseInsensitiveContains(searchText)
             }
         }
-        return sortCards(searched)
+    }
+
+    var filteredCards: [SharedCard] {
+        let categoryCards: [SharedCard]
+        switch categoryFilter {
+        case .all:    categoryCards = searchFilteredCards
+        case .credit: categoryCards = searchFilteredCards.filter { $0.cardCategory != "debit" }
+        case .debit:  categoryCards = searchFilteredCards.filter { $0.cardCategory == "debit" }
+        }
+        return sortCards(categoryCards)
     }
 
     var groupedCards: [(key: String, cards: [SharedCard])] {
@@ -69,8 +71,7 @@ struct HomeView: View {
         return groups.sorted { $0.key < $1.key }.map { (key: $0.key, cards: $0.value) }
     }
 
-    private var creditCardCount: Int { syncCoordinator.cards.filter { $0.cardCategory != "debit" }.count }
-    private var debitCardCount: Int { syncCoordinator.cards.filter { $0.cardCategory == "debit" }.count }
+
     private var annualReminderItems: [(card: SharedCard, result: DateCalculator.AnnualFeeDetectionResult)] {
         syncCoordinator.cards.compactMap { card in
             guard let result = DateCalculator.annualFeeDetection(for: card) else { return nil }
@@ -100,9 +101,9 @@ struct HomeView: View {
 
     private func count(for filter: CardCategoryFilter) -> Int {
         switch filter {
-        case .all: return syncCoordinator.cards.count
-        case .credit: return creditCardCount
-        case .debit: return debitCardCount
+        case .all: return searchFilteredCards.count
+        case .credit: return searchFilteredCards.filter { $0.cardCategory != "debit" }.count
+        case .debit: return searchFilteredCards.filter { $0.cardCategory == "debit" }.count
         }
     }
 
@@ -564,16 +565,7 @@ struct HomeView: View {
             allCards.append(finalCard)
         }
 
-        if BankNameNormalizer.shouldPropagateRename(from: previousCard?.bank, to: finalCard.bank) {
-            for index in allCards.indices where allCards[index].id != finalCard.id {
-                guard BankNameNormalizer.namesReferToSameBank(allCards[index].bank, previousCard?.bank),
-                      BankNameNormalizer.display(allCards[index].bank) != BankNameNormalizer.display(finalCard.bank) else {
-                    continue
-                }
-                allCards[index].bank = finalCard.bank
-                allCards[index].lastModifyTime = now
-            }
-        }
+
 
         if finalCard.cardCategory != "debit",
            finalCard.isSharedLimit,

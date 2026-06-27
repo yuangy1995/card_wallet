@@ -170,16 +170,7 @@ struct BestUsageView: View {
             allCards.append(finalCard)
         }
 
-        if BankNameNormalizer.shouldPropagateRename(from: previousCard?.bank, to: finalCard.bank) {
-            for index in allCards.indices where allCards[index].id != finalCard.id {
-                guard BankNameNormalizer.namesReferToSameBank(allCards[index].bank, previousCard?.bank),
-                      BankNameNormalizer.display(allCards[index].bank) != BankNameNormalizer.display(finalCard.bank) else {
-                    continue
-                }
-                allCards[index].bank = finalCard.bank
-                allCards[index].lastModifyTime = now
-            }
-        }
+
 
         if finalCard.cardCategory != "debit",
            finalCard.isSharedLimit,

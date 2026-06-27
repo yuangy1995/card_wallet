@@ -26,9 +26,5 @@ public enum BankNameNormalizer {
         return !leftKey.isEmpty && !rightKey.isEmpty && leftKey == rightKey
     }
 
-    public static func shouldPropagateRename(from previousBank: String?, to nextBank: String?) -> Bool {
-        let previousDisplay = display(previousBank)
-        let nextDisplay = display(nextBank)
-        return !previousDisplay.isEmpty && !nextDisplay.isEmpty && previousDisplay != nextDisplay
-    }
+
 }
