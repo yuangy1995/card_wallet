@@ -18,8 +18,4 @@ export const bankNamesReferToSameBank = (left, right) => {
   return Boolean(leftKey && rightKey && leftKey === rightKey)
 }
 
-export const shouldPropagateBankRename = (previousBank, nextBank) => {
-  const previousDisplay = displayBankName(previousBank)
-  const nextDisplay = displayBankName(nextBank)
-  return Boolean(previousDisplay && nextDisplay && previousDisplay !== nextDisplay)
-}
+

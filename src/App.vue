@@ -480,7 +480,7 @@ import { useAutoLock } from '@/composables/useAutoLock'
 import { PasswordManager } from '@/utils/passwordManager'
 import { webdavSyncService } from '@/utils/webdavSyncService'
 import { formatCardTimestamp, normalizeCardTimeFields, timestampFromDateInput } from '@/utils/cardTimestamp'
-import { bankNamesReferToSameBank, displayBankName, shouldPropagateBankRename } from '@/utils/bankName'
+import { bankNamesReferToSameBank, displayBankName } from '@/utils/bankName'
 import {
   AnnualFeeReminderKind,
   analyzeCardDataIssues,
@@ -544,9 +544,91 @@ watch(cardCategoryFilter, (newValue) => {
   clearSelection()
 })
 
+const searchFilteredCards = computed(() => {
+  const query = debouncedQuickSearchQuery.value ? debouncedQuickSearchQuery.value.trim().toLowerCase() : ''
+
+  if (query) {
+    // 存在万能检索条件时：对卡片所有相关字段执行全局模糊检索
+    return cardData.value.filter(card => {
+      const cardCategoryMatch = (normalizeCardCategory(card) === 'credit' ? '信用卡 credit' : '储蓄卡 debit').includes(query)
+      const bankMatch = card.bank && card.bank.toLowerCase().includes(query)
+      const aliasMatch = card.alias && card.alias.toLowerCase().includes(query)
+
+      // 卡号去除多余的分隔符进行容错检索
+      const cleanQuery = query.replace(/[\s-]/g, '')
+      const cleanCardNumber = card.cardNumber ? card.cardNumber.replace(/[\s-]/g, '').toLowerCase() : ''
+      const cardNumberMatch = cleanCardNumber.includes(cleanQuery)
+
+      const levelMatch = card.level && card.level.toLowerCase().includes(query)
+      const typeMatch = card.type && card.type.toLowerCase().includes(query)
+      const countryMatch = card.country && card.country.toLowerCase().includes(query)
+      const equityMatch = card.equity && card.equity.toLowerCase().includes(query)
+      const remarkMatch = card.remark && card.remark.toLowerCase().includes(query)
+
+      // 额度检索
+      const limitMatch = card.limit && card.limit.toString().includes(query)
+
+      return cardCategoryMatch || bankMatch || aliasMatch || cardNumberMatch || levelMatch || typeMatch || countryMatch || equityMatch || remarkMatch || limitMatch
+    })
+  } else {
+    // 否则，使用高级搜索逻辑（排除类别筛选，以便进行独立计数统计）
+    const form = debouncedSearchForm.value
+    return cardData.value.filter(card => {
+      // 币种匹配
+      const matchType = !form.type ||
+                       (card.type && (form.type.includes(card.type) ||
+                       card.type.includes(form.type)));
+
+      // 银行匹配
+      const matchBank = !form.bank ||
+                       (card.bank && (form.bank.includes(card.bank) ||
+                       card.bank.includes(form.bank)));
+
+      // 卡片等级匹配
+      const matchLevel = !form.level ||
+                        (card.level && (form.level.includes(card.level) ||
+                        card.level.includes(form.level)));
+
+      // 年费达标状态匹配
+      const matchStatus = !form.isQualified ||
+                         form.isQualified.length === 0 ||
+                         form.isQualified.includes(card.isQualified);
+
+      // 别名搜索
+      const matchAlias = !form.alias ||
+                        (card.alias && card.alias.toLowerCase().includes(form.alias.toLowerCase()));
+
+      // 国家匹配
+      const matchCountry = !form.country ||
+                          (card.country && (form.country.includes(card.country) ||
+                          card.country.includes(form.country)));
+
+      // 卡号匹配 - 去除空格和其他格式字符进行匹配
+      const matchCardNumber = !form.cardNumber ||
+                             (card.cardNumber &&
+                              card.cardNumber.replace(/[\s-]/g, '').includes(form.cardNumber.replace(/[\s-]/g, '')));
+
+      // 额度匹配
+      const matchLimit = !form.limit ||
+                        (card.limit && card.limit.toString().includes(form.limit));
+
+      // 权益匹配
+      const matchEquity = !form.equity ||
+                         (card.equity && card.equity.toLowerCase().includes(form.equity.toLowerCase()));
+
+      // 备注匹配
+      const matchRemark = !form.remark ||
+                         (card.remark && card.remark.toLowerCase().includes(form.remark.toLowerCase()));
+
+      return matchType && matchBank && matchLevel && matchStatus && matchAlias &&
+             matchCountry && matchCardNumber && matchLimit && matchEquity && matchRemark;
+    });
+  }
+})
+
 const categoryCounts = computed(() => {
-  const credit = cardData.value.filter(card => normalizeCardCategory(card) === 'credit').length
-  const debit = cardData.value.filter(card => normalizeCardCategory(card) === 'debit').length
+  const credit = searchFilteredCards.value.filter(card => normalizeCardCategory(card) === 'credit').length
+  const debit = searchFilteredCards.value.filter(card => normalizeCardCategory(card) === 'debit').length
   return {
     all: credit + debit,
     credit,
@@ -836,92 +918,22 @@ const debouncedSearchForm = useDebouncedRef(searchForm, 300)
 
 const tableData = computed(() => {
   const query = debouncedQuickSearchQuery.value ? debouncedQuickSearchQuery.value.trim().toLowerCase() : ''
-  const categoryFilteredCards = cardData.value.filter(card =>
-    cardCategoryFilter.value === 'all' || normalizeCardCategory(card) === cardCategoryFilter.value
-  )
+  const form = debouncedSearchForm.value
 
-  let filtered = []
-  if (query) {
-    // 存在万能检索条件时：对卡片所有相关字段执行全局模糊检索
-    filtered = categoryFilteredCards.filter(card => {
-      const cardCategoryMatch = (normalizeCardCategory(card) === 'credit' ? '信用卡 credit' : '储蓄卡 debit').includes(query)
-      const bankMatch = card.bank && card.bank.toLowerCase().includes(query)
-      const aliasMatch = card.alias && card.alias.toLowerCase().includes(query)
+  const filtered = searchFilteredCards.value.filter(card => {
+    // 顶部单选分类过滤
+    const matchCategoryFilter = cardCategoryFilter.value === 'all' || normalizeCardCategory(card) === cardCategoryFilter.value
 
-      // 卡号去除多余的分隔符进行容错检索
-      const cleanQuery = query.replace(/[\s-]/g, '')
-      const cleanCardNumber = card.cardNumber ? card.cardNumber.replace(/[\s-]/g, '').toLowerCase() : ''
-      const cardNumberMatch = cleanCardNumber.includes(cleanQuery)
+    // 高级搜索中的分类多选过滤（若无万能检索输入则生效）
+    let matchFormCategory = true
+    if (!query) {
+      matchFormCategory = !form.cardCategory ||
+                          form.cardCategory.length === 0 ||
+                          form.cardCategory.includes(normalizeCardCategory(card));
+    }
 
-      const levelMatch = card.level && card.level.toLowerCase().includes(query)
-      const typeMatch = card.type && card.type.toLowerCase().includes(query)
-      const countryMatch = card.country && card.country.toLowerCase().includes(query)
-      const equityMatch = card.equity && card.equity.toLowerCase().includes(query)
-      const remarkMatch = card.remark && card.remark.toLowerCase().includes(query)
-
-      // 额度检索
-      const limitMatch = card.limit && card.limit.toString().includes(query)
-
-      return cardCategoryMatch || bankMatch || aliasMatch || cardNumberMatch || levelMatch || typeMatch || countryMatch || equityMatch || remarkMatch || limitMatch
-    })
-  } else {
-    // 否则，使用高级搜索逻辑
-    const form = debouncedSearchForm.value
-    filtered = categoryFilteredCards.filter(card => {
-      const matchCardCategory = !form.cardCategory ||
-                       form.cardCategory.length === 0 ||
-                       form.cardCategory.includes(normalizeCardCategory(card));
-
-      // 币种匹配
-      const matchType = !form.type ||
-                       (card.type && (form.type.includes(card.type) ||
-                       card.type.includes(form.type)));
-
-      // 银行匹配
-      const matchBank = !form.bank ||
-                       (card.bank && (form.bank.includes(card.bank) ||
-                       card.bank.includes(form.bank)));
-
-      // 卡片等级匹配
-      const matchLevel = !form.level ||
-                        (card.level && (form.level.includes(card.level) ||
-                        card.level.includes(form.level)));
-
-      // 年费达标状态匹配
-      const matchStatus = !form.isQualified ||
-                         form.isQualified.length === 0 ||
-                         form.isQualified.includes(card.isQualified);
-
-      // 别名搜索
-      const matchAlias = !form.alias ||
-                        (card.alias && card.alias.toLowerCase().includes(form.alias.toLowerCase()));
-
-      // 国家匹配
-      const matchCountry = !form.country ||
-                          (card.country && (form.country.includes(card.country) ||
-                          card.country.includes(form.country)));
-
-      // 卡号匹配 - 去除空格和其他格式字符进行匹配
-      const matchCardNumber = !form.cardNumber ||
-                             (card.cardNumber &&
-                              card.cardNumber.replace(/[\s-]/g, '').includes(form.cardNumber.replace(/[\s-]/g, '')));
-
-      // 额度匹配
-      const matchLimit = !form.limit ||
-                        (card.limit && card.limit.toString().includes(form.limit));
-
-      // 权益匹配
-      const matchEquity = !form.equity ||
-                         (card.equity && card.equity.toLowerCase().includes(form.equity.toLowerCase()));
-
-      // 备注匹配
-      const matchRemark = !form.remark ||
-                         (card.remark && card.remark.toLowerCase().includes(form.remark.toLowerCase()));
-
-      return matchCardCategory && matchType && matchBank && matchLevel && matchStatus && matchAlias &&
-             matchCountry && matchCardNumber && matchLimit && matchEquity && matchRemark;
-    });
-  }
+    return matchCategoryFilter && matchFormCategory
+  })
 
   // 默认排序：先按国家，再按银行
   const sorted = filtered.sort((a, b) => {
@@ -1071,26 +1083,6 @@ const persistSyncedMutation = async (options = {}) => {
   await webdavSyncService.commitCards(cardData.value, options)
 }
 
-const propagateBankRename = (previousCard, updatedCard) => {
-  const previousBank = previousCard?.bank || ''
-  const nextBank = updatedCard?.bank || ''
-  if (!shouldPropagateBankRename(previousBank, nextBank)) return 0
-
-  const now = getCurrentTimestamp()
-  let updatedCount = 0
-  cardData.value.forEach((card, index) => {
-    if (card.id === updatedCard.id) return
-    if (!bankNamesReferToSameBank(card.bank, previousBank)) return
-    if (displayBankName(card.bank) === displayBankName(nextBank)) return
-    cardData.value[index] = {
-      ...card,
-      bank: nextBank,
-      lastModifyTime: now
-    }
-    updatedCount += 1
-  })
-  return updatedCount
-}
 
 const publishCurrentV4Snapshot = async (afterPublish) => {
   try {
@@ -1362,7 +1354,6 @@ const confirmAdd = async (data) => {
       }
     }
 
-    const renamedBankCount = propagateBankRename(previousCard, data)
 
     // 如果是共享额度，同步更新所有同银行共享额度的卡片
     if (isCreditCard(data) && data.isSharedLimit && data.bank && data.country) {
@@ -1390,7 +1381,7 @@ const confirmAdd = async (data) => {
     ElMessage({
       message: status.value === 'add'
         ? `${categoryText}添加成功！`
-        : `${categoryText}信息更新成功！${renamedBankCount ? `已同步更新 ${renamedBankCount} 张同银行银行卡。` : ''}`,
+        : `${categoryText}信息更新成功！`,
       type: 'success',
       duration: 2000,
       showClose: true
