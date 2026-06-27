@@ -48,6 +48,22 @@ struct RootView: View {
                 lockManager.userInteracted()
             }
         }
+        .alert(
+            "当前将使用移动数据进行同步",
+            isPresented: Binding(
+                get: { syncCoordinator.needsCellularSyncConfirmation },
+                set: { if !$0 { syncCoordinator.cancelCellularSyncConfirmation() } }
+            )
+        ) {
+            Button("取消", role: .cancel) {
+                syncCoordinator.cancelCellularSyncConfirmation()
+            }
+            Button("继续") {
+                syncCoordinator.confirmCellularSync()
+            }
+        } message: {
+            Text("同步可能会产生流量费用，请确保流量充足！")
+        }
     }
 
     private var mainTabView: some View {

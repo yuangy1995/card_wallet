@@ -38,11 +38,13 @@
 		E94AA6FC9017E673C7714514 /* CloudSyncView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6A16C8D18C9F588D348882F /* CloudSyncView.swift */; };
 		EF491E5BDD6A4F625AD6433A /* WebDAVClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74E0333D109FF39A3288E30F /* WebDAVClient.swift */; };
 		F4A58F2B7DB756F3D9BD4BD9 /* ToolsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6ACE63D0C6122205974E2095 /* ToolsView.swift */; };
+		F709394AC682FEB8949D2524 /* SyncNetworkPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B61891A9E29513F45C92E09 /* SyncNetworkPolicy.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		079808CBB0C02B0CA485288A /* SyncLedgerStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncLedgerStore.swift; sourceTree = "<group>"; };
 		1247E85801306F9F10C16DDA /* CreditCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreditCardView.swift; sourceTree = "<group>"; };
+		1B61891A9E29513F45C92E09 /* SyncNetworkPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncNetworkPolicy.swift; sourceTree = "<group>"; };
 		226B5C17E25F53DF8BC27EE8 /* StatisticsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatisticsView.swift; sourceTree = "<group>"; };
 		28931C6003862119AF27EC9B /* CardDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardDetailView.swift; sourceTree = "<group>"; };
 		2CC35D59C30E53108E7A19F5 /* InfoPlist.strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = InfoPlist.strings; path = "zh-Hant.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
@@ -112,6 +114,7 @@
 				BC5DE3BF7E9EEEF80BD290D9 /* SyncCoordinator.swift */,
 				079808CBB0C02B0CA485288A /* SyncLedgerStore.swift */,
 				A9D2C20EA19F78C50E0F475D /* SyncModels.swift */,
+				1B61891A9E29513F45C92E09 /* SyncNetworkPolicy.swift */,
 				74E0333D109FF39A3288E30F /* WebDAVClient.swift */,
 			);
 			path = Domain;
@@ -255,6 +258,7 @@
 				33B72EBBB135B6B3F7271CDE /* SyncCoordinator.swift in Sources */,
 				C3011045AEE56A0EFD0AF606 /* SyncLedgerStore.swift in Sources */,
 				9BF4888967E9ED6722815813 /* SyncModels.swift in Sources */,
+				F709394AC682FEB8949D2524 /* SyncNetworkPolicy.swift in Sources */,
 				F4A58F2B7DB756F3D9BD4BD9 /* ToolsView.swift in Sources */,
 				EF491E5BDD6A4F625AD6433A /* WebDAVClient.swift in Sources */,
 			);

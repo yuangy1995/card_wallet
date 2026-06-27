@@ -19,6 +19,7 @@ struct CloudSyncView: View {
 
     @AppStorage("enable_webdav_sync") private var enableWebDAVSync = false
     @AppStorage("auto_sync_interval") private var autoSyncInterval = 300.0
+    @AppStorage(SyncNetworkPreference.defaultsKey) private var syncNetworkPreference = SyncNetworkPreference.wifiOnly.rawValue
 
     var body: some View {
         Form {
@@ -72,6 +73,13 @@ struct CloudSyncView: View {
             if savedConfigReady {
                 Toggle("启用自动同步", isOn: $enableWebDAVSync)
                     .font(.system(.subheadline))
+
+                Picker("同步网络", selection: $syncNetworkPreference) {
+                    ForEach(SyncNetworkPreference.allCases) { preference in
+                        Text(preference.title).tag(preference.rawValue)
+                    }
+                }
+                .pickerStyle(.segmented)
             }
         } header: {
             Label("WebDAV 同步配置", systemImage: "icloud.and.arrow.up.fill")
@@ -226,9 +234,7 @@ struct CloudSyncView: View {
         Section {
             Button {
                 guard !syncCoordinator.isSynchronizing else { return }
-                Task {
-                    await syncCoordinator.synchronize(forceUpload: true)
-                }
+                syncCoordinator.requestManualSync()
             } label: {
                 HStack {
                     Label(syncCoordinator.isSynchronizing ? "正在同步" : "立即同步", systemImage: "arrow.triangle.2.circlepath.icloud.fill")
@@ -629,7 +635,7 @@ struct SyncHistoryView: View {
                 }
 
                 Button {
-                    Task { await syncCoordinator.synchronize(forceUpload: true) }
+                    syncCoordinator.requestManualSync()
                 } label: {
                     Label(syncHistoryActionTitle, systemImage: syncHistoryActionIcon)
                         .frame(maxWidth: .infinity)

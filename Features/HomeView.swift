@@ -16,7 +16,7 @@ struct HomeView: View {
     @State private var showCloudSync = false
     @State private var syncFeedbackText: String?
     @State private var currentCardIndex = 0
-    @State private var showReminderSheet = false
+    @State private var showReminderPage = false
 
     enum CardCategoryFilter: String, CaseIterable {
         case all = "全部"
@@ -148,18 +148,12 @@ struct HomeView: View {
                     .presentationDetents([.medium])
                     .presentationDragIndicator(.visible)
             }
-            .sheet(isPresented: $showReminderSheet) {
-                CardReminderSheet(
+            .navigationDestination(isPresented: $showReminderPage) {
+                CardReminderPage(
                     cards: syncCoordinator.cards,
-                    onSelectCard: { card in
-                        showReminderSheet = false
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) {
-                            selectedCard = card
-                        }
-                    }
+                    onEditCard: { cardToEdit = $0 },
+                    onDeleteCard: { deleteCard($0) }
                 )
-                .presentationDetents([.medium, .large])
-                .presentationDragIndicator(.visible)
             }
             .navigationDestination(item: $selectedCard) { card in
                 CardDetailView(card: card, onEdit: { cardToEdit = $0 }, onDelete: { deleteCard($0) })
@@ -273,7 +267,7 @@ struct HomeView: View {
 
     private var reminderBanner: some View {
         Button {
-            showReminderSheet = true
+            showReminderPage = true
         } label: {
             HStack(spacing: 12) {
                 Image(systemName: "exclamationmark.triangle.fill")
@@ -425,8 +419,7 @@ struct HomeView: View {
                     } else if !syncCoordinator.refreshWebDAVConfigurationState() {
                         showCloudSync = true
                     } else {
-                        showSyncFeedback("已开始同步")
-                        Task { await syncCoordinator.synchronize(forceUpload: true) }
+                        syncCoordinator.requestManualSync()
                     }
                 } label: {
                     Group {
@@ -688,10 +681,10 @@ private struct BillingReminderItem: Identifiable {
     var id: String { "billing-\(reminder.kind)-\(card.id)" }
 }
 
-private struct CardReminderSheet: View {
+private struct CardReminderPage: View {
     let cards: [SharedCard]
-    let onSelectCard: (SharedCard) -> Void
-    @Environment(\.dismiss) private var dismiss
+    let onEditCard: (SharedCard) -> Void
+    let onDeleteCard: (SharedCard) -> Void
 
     private var annualItems: [AnnualReminderItem] {
         cards.compactMap { card in
@@ -730,80 +723,76 @@ private struct CardReminderSheet: View {
     }
 
     var body: some View {
-        NavigationStack {
-            List {
-                if billingItems.isEmpty && annualItems.isEmpty && expiryItems.isEmpty {
-                    ContentUnavailableView("暂无卡片提醒", systemImage: "checkmark.shield.fill")
-                }
+        List {
+            if billingItems.isEmpty && annualItems.isEmpty && expiryItems.isEmpty {
+                ContentUnavailableView("暂无卡片提醒", systemImage: "checkmark.shield.fill")
+            }
 
-                if !billingItems.isEmpty {
-                    Section("还款与账单提醒") {
-                        ForEach(billingItems) { item in
-                            Button {
-                                dismiss()
-                                onSelectCard(item.card)
-                            } label: {
-                                ReminderRow(
-                                    icon: item.reminder.iconName,
-                                    color: item.reminder.tintColor,
-                                    title: item.card.bank,
-                                    subtitle: item.card.alias ?? "未命名卡片",
-                                    trailing: item.reminder.displayText
-                                )
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                }
-
-                if !annualItems.isEmpty {
-                    Section("年费提醒") {
-                        ForEach(annualItems) { item in
-                            Button {
-                                dismiss()
-                                onSelectCard(item.card)
-                            } label: {
-                                ReminderRow(
-                                    icon: item.result.iconName,
-                                    color: item.result.tintColor,
-                                    title: item.card.bank,
-                                    subtitle: item.card.alias ?? "未命名卡片",
-                                    trailing: item.result.displayText
-                                )
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                }
-
-                if !expiryItems.isEmpty {
-                    Section("有效期提醒") {
-                        ForEach(expiryItems) { item in
-                            Button {
-                                dismiss()
-                                onSelectCard(item.card)
-                            } label: {
-                                ReminderRow(
-                                    icon: item.status.iconName,
-                                    color: item.status.tintColor,
-                                    title: item.card.bank,
-                                    subtitle: item.card.valid ?? "--/--",
-                                    trailing: item.status.displayText
-                                )
-                            }
-                            .buttonStyle(.plain)
+            if !billingItems.isEmpty {
+                Section("还款与账单提醒") {
+                    ForEach(billingItems) { item in
+                        NavigationLink {
+                            cardDetail(for: item.card)
+                        } label: {
+                            ReminderRow(
+                                icon: item.reminder.iconName,
+                                color: item.reminder.tintColor,
+                                title: item.card.bank,
+                                subtitle: item.card.alias ?? "未命名卡片",
+                                trailing: item.reminder.displayText
+                            )
                         }
                     }
                 }
             }
-            .navigationTitle("卡片提醒")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("完成") { dismiss() }
+
+            if !annualItems.isEmpty {
+                Section("年费提醒") {
+                    ForEach(annualItems) { item in
+                        NavigationLink {
+                            cardDetail(for: item.card)
+                        } label: {
+                            ReminderRow(
+                                icon: item.result.iconName,
+                                color: item.result.tintColor,
+                                title: item.card.bank,
+                                subtitle: item.card.alias ?? "未命名卡片",
+                                trailing: item.result.displayText
+                            )
+                        }
+                    }
+                }
+            }
+
+            if !expiryItems.isEmpty {
+                Section("有效期提醒") {
+                    ForEach(expiryItems) { item in
+                        NavigationLink {
+                            cardDetail(for: item.card)
+                        } label: {
+                            ReminderRow(
+                                icon: item.status.iconName,
+                                color: item.status.tintColor,
+                                title: item.card.bank,
+                                subtitle: item.card.valid ?? "--/--",
+                                trailing: item.status.displayText
+                            )
+                        }
+                    }
                 }
             }
         }
+        .navigationTitle("卡片提醒")
+        .navigationBarTitleDisplayMode(.large)
+        .toolbar(.hidden, for: .tabBar)
+    }
+
+    private func cardDetail(for card: SharedCard) -> some View {
+        CardDetailView(
+            card: card,
+            onEdit: onEditCard,
+            onDelete: onDeleteCard
+        )
     }
 }
 

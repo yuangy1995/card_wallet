@@ -130,10 +130,13 @@ public final class SyncCoordinator: ObservableObject {
     @Published public private(set) var syncProgress = SyncProgress()
     @Published public private(set) var syncHistory: [SyncHistoryEntry] = []
     @Published public private(set) var webDAVConfigReady = false
+    @Published public private(set) var needsCellularSyncConfirmation = false
 
     private var ledger = SyncLedger()
     private var hasBootstrapped = false
     private var queuedForceUpload = false
+    private var queuedCellularOverride = false
+    private var activeCellularOverride = false
     private var cancelRequested = false
     private var syncTimer: Timer?
     private var elapsedTimer: Timer?
@@ -143,6 +146,18 @@ public final class SyncCoordinator: ObservableObject {
     private static let lastSyncDurationKey = "webdav_last_sync_duration_seconds"
     private static let syncHistoryKey = "webdav_sync_history_v1"
     private static let maxSnapshotsToMerge = 5
+
+    private enum SyncTrigger {
+        case automatic
+        case manual(cellularConfirmed: Bool)
+
+        var cellularConfirmed: Bool {
+            if case .manual(let confirmed) = self {
+                return confirmed
+            }
+            return false
+        }
+    }
 
     public enum SyncStatus: Equatable {
         case idle
@@ -286,11 +301,52 @@ public final class SyncCoordinator: ObservableObject {
     }
 
     public func synchronize(forceUpload: Bool = false) async {
+        await synchronize(forceUpload: forceUpload, trigger: .automatic)
+    }
+
+    public func requestManualSync() {
+        Task {
+            guard refreshWebDAVConfigurationState() else {
+                await synchronize(forceUpload: true, trigger: .manual(cellularConfirmed: false))
+                return
+            }
+            if await SyncNetworkMonitor.shared.connection() == .cellular {
+                needsCellularSyncConfirmation = true
+                return
+            }
+            await synchronize(forceUpload: true, trigger: .manual(cellularConfirmed: false))
+        }
+    }
+
+    public func confirmCellularSync() {
+        needsCellularSyncConfirmation = false
+        Task { await synchronize(forceUpload: true, trigger: .manual(cellularConfirmed: true)) }
+    }
+
+    public func cancelCellularSyncConfirmation() {
+        needsCellularSyncConfirmation = false
+    }
+
+    private func synchronize(forceUpload: Bool, trigger: SyncTrigger) async {
         guard UserDefaults.standard.bool(forKey: "enable_webdav_sync") || forceUpload else { return }
         guard refreshWebDAVConfigurationState(disableAutoSyncWhenInvalid: true) else { return }
+        if await SyncNetworkMonitor.shared.connection() == .cellular {
+            switch trigger {
+            case .automatic where SyncNetworkPreference.saved == .wifiOnly:
+                syncStatus = .warning("已暂停自动同步：当前使用移动数据")
+                updateProgress("等待 Wi‑Fi", step: 0, total: 0, detail: "自动同步仅使用 Wi‑Fi，连接 Wi‑Fi 后将自动重试")
+                return
+            case .manual(let confirmed) where !confirmed:
+                needsCellularSyncConfirmation = true
+                return
+            default:
+                break
+            }
+        }
         if isSynchronizing {
             if forceUpload {
                 queuedForceUpload = true
+                queuedCellularOverride = queuedCellularOverride || trigger.cellularConfirmed
                 ledger.pendingWebDAVUpload = true
                 SyncLedgerStore.shared.save(ledger)
             }
@@ -307,6 +363,9 @@ public final class SyncCoordinator: ObservableObject {
         }
 
         isSynchronizing = true
+        activeCellularOverride = trigger.cellularConfirmed
+        let allowsCellularAccess =
+            SyncNetworkPreference.saved == .wifiAndCellular || trigger.cellularConfirmed
         cancelRequested = false
         syncStatus = .syncing
         startSyncTiming()
@@ -322,7 +381,7 @@ public final class SyncCoordinator: ObservableObject {
         do {
             try ensureSyncNotCancelled()
             updateProgress("读取云端列表", step: 2, total: 6, detail: "正在连接 WebDAV")
-            let files = try await getBackupList()
+            let files = try await getBackupList(allowsCellularAccess: allowsCellularAccess)
             try ensureSyncNotCancelled()
             let automaticFiles = files
                 .filter { $0.filename.contains("[SyncV4]") && $0.filename.contains("[自]") }
@@ -386,7 +445,11 @@ public final class SyncCoordinator: ObservableObject {
                 totalBytes: totalBytes,
                 downloadedBytes: progressBox.value
             )
-            let snapshots = await Self.downloadSnapshots(files: filesToRead, syncPassword: syncPassword) { [weak self] delta in
+            let snapshots = await Self.downloadSnapshots(
+                files: filesToRead,
+                syncPassword: syncPassword,
+                allowsCellularAccess: allowsCellularAccess
+            ) { [weak self] delta in
                 guard let self else { return }
                 DispatchQueue.main.async {
                     progressBox.value += delta
@@ -435,7 +498,8 @@ public final class SyncCoordinator: ObservableObject {
                     downloadedSnapshots: snapshots,
                     listedFiles: files,
                     syncPassword: syncPassword,
-                    snapshotRevision: snapshotRevision
+                    snapshotRevision: snapshotRevision,
+                    allowsCellularAccess: allowsCellularAccess
                 )
                 try ensureSyncNotCancelled()
                 let message = ledger.pendingWebDAVUpload ? "本机有新修改，正在继续同步" : "云端与本机已同步"
@@ -774,9 +838,9 @@ public final class SyncCoordinator: ObservableObject {
         return "\(bank) / \(alias)"
     }
 
-    private func getBackupList() async throws -> [WebDAVBackupFile] {
+    private func getBackupList(allowsCellularAccess: Bool) async throws -> [WebDAVBackupFile] {
         try await withCheckedThrowingContinuation { continuation in
-            WebDAVClient.shared.getBackupList { result in
+            WebDAVClient.shared.getBackupList(allowsCellularAccess: allowsCellularAccess) { result in
                 continuation.resume(with: result)
             }
         }
@@ -795,6 +859,7 @@ public final class SyncCoordinator: ObservableObject {
     private nonisolated static func downloadSnapshots(
         files: [WebDAVBackupFile],
         syncPassword: String,
+        allowsCellularAccess: Bool,
         onProgress: @escaping @Sendable (Int64) -> Void
     ) async -> [WebDAVSyncSnapshotV4] {
         await withTaskGroup(of: WebDAVSyncSnapshotV4?.self, returning: [WebDAVSyncSnapshotV4].self) { group in
@@ -805,7 +870,12 @@ public final class SyncCoordinator: ObservableObject {
                         downloadedForThisFile.value += delta
                         onProgress(delta)
                     }
-                    let snapshot = await downloadSnapshot(file: file, syncPassword: syncPassword, onProgress: fileProgress)
+                    let snapshot = await downloadSnapshot(
+                        file: file,
+                        syncPassword: syncPassword,
+                        allowsCellularAccess: allowsCellularAccess,
+                        onProgress: fileProgress
+                    )
                     if snapshot != nil {
                         let remaining = file.size - downloadedForThisFile.value
                         if remaining > 0 {
@@ -829,11 +899,16 @@ public final class SyncCoordinator: ObservableObject {
     private nonisolated static func downloadSnapshot(
         file: WebDAVBackupFile,
         syncPassword: String,
+        allowsCellularAccess: Bool,
         onProgress: (@Sendable (Int64) -> Void)? = nil
     ) async -> WebDAVSyncSnapshotV4? {
         do {
             let cipherText = try await withCheckedThrowingContinuation { continuation in
-                WebDAVClient.shared.downloadBackup(filename: file.filename, onProgress: onProgress) { result in
+                WebDAVClient.shared.downloadBackup(
+                    filename: file.filename,
+                    allowsCellularAccess: allowsCellularAccess,
+                    onProgress: onProgress
+                ) { result in
                     continuation.resume(with: result)
                 }
             }
@@ -848,7 +923,8 @@ public final class SyncCoordinator: ObservableObject {
         downloadedSnapshots: [WebDAVSyncSnapshotV4],
         listedFiles: [WebDAVBackupFile],
         syncPassword: String,
-        snapshotRevision: Int
+        snapshotRevision: Int,
+        allowsCellularAccess: Bool
     ) async throws -> String {
         let prepared = try await Self.prepareUploadSnapshot(records: records, syncPassword: syncPassword)
         let uploadSize = Int64(prepared.cipherText.data(using: .utf8)?.count ?? 0)
@@ -867,6 +943,7 @@ public final class SyncCoordinator: ObservableObject {
             WebDAVClient.shared.uploadBackup(
                 filename: prepared.filename,
                 cipherText: prepared.cipherText,
+                allowsCellularAccess: allowsCellularAccess,
                 onProgress: { [weak self] bytesSent in
                     guard let self else { return }
                     DispatchQueue.main.async {
@@ -1039,10 +1116,16 @@ public final class SyncCoordinator: ObservableObject {
         }
 
         let shouldContinue = continueQueued && (queuedForceUpload || ledger.pendingWebDAVUpload)
+        let shouldContinueOnCellular = queuedCellularOverride || activeCellularOverride
         queuedForceUpload = false
+        queuedCellularOverride = false
+        activeCellularOverride = false
         cancelRequested = false
         if shouldContinue {
-            Task { await synchronize(forceUpload: true) }
+            let trigger: SyncTrigger = shouldContinueOnCellular
+                ? .manual(cellularConfirmed: true)
+                : .automatic
+            Task { await synchronize(forceUpload: true, trigger: trigger) }
         }
     }
 

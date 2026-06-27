@@ -220,7 +220,7 @@ struct SettingsView: View {
                 Button {
                     guard !syncCoordinator.isSynchronizing else { return }
                     if hasCompleteWebDAVConfig {
-                        Task { await syncCoordinator.synchronize(forceUpload: true) }
+                        syncCoordinator.requestManualSync()
                     } else {
                         showCloudSync = true
                     }

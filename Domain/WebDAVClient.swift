@@ -119,11 +119,12 @@ public final class WebDAVClient: Sendable {
 
     private init() {}
 
-    private static func transferSessionConfiguration() -> URLSessionConfiguration {
+    private static func transferSessionConfiguration(allowsCellularAccess: Bool) -> URLSessionConfiguration {
         let configuration = URLSessionConfiguration.default
         configuration.timeoutIntervalForRequest = transferTimeout
         configuration.timeoutIntervalForResource = transferResourceTimeout
         configuration.waitsForConnectivity = true
+        configuration.allowsCellularAccess = allowsCellularAccess
         return configuration
     }
 
@@ -196,7 +197,10 @@ public final class WebDAVClient: Sendable {
         ensureBackupDirectory(baseURLString: cleanURL, username: username, password: password, completion: completion)
     }
 
-    public func getBackupList(completion: @escaping @Sendable (Result<[WebDAVBackupFile], Error>) -> Void) {
+    public func getBackupList(
+        allowsCellularAccess: Bool = true,
+        completion: @escaping @Sendable (Result<[WebDAVBackupFile], Error>) -> Void
+    ) {
         guard let urlStr = UserDefaults.standard.string(forKey: "webdav_url"),
               let username = KeychainManager.load(key: "webdav_username"),
               let password = KeychainManager.load(key: "webdav_password") else {
@@ -204,7 +208,12 @@ public final class WebDAVClient: Sendable {
             return
         }
 
-        ensureBackupDirectory(baseURLString: urlStr, username: username, password: password) { result in
+        ensureBackupDirectory(
+            baseURLString: urlStr,
+            username: username,
+            password: password,
+            allowsCellularAccess: allowsCellularAccess
+        ) { result in
             switch result {
             case .failure(let error):
                 completion(.failure(error))
@@ -216,6 +225,7 @@ public final class WebDAVClient: Sendable {
                 var request = URLRequest(url: url)
                 request.httpMethod = "PROPFIND"
                 request.timeoutInterval = Self.requestTimeout
+                request.allowsCellularAccess = allowsCellularAccess
                 request.setValue("1", forHTTPHeaderField: "Depth")
                 request.setValue(self.authHeader(username: username, password: password), forHTTPHeaderField: "Authorization")
 
@@ -255,6 +265,7 @@ public final class WebDAVClient: Sendable {
     public func uploadBackup(
         filename: String,
         cipherText: String,
+        allowsCellularAccess: Bool = true,
         onProgress: (@Sendable (Int64) -> Void)? = nil,
         completion: @escaping @Sendable (Result<Void, Error>) -> Void
     ) {
@@ -268,7 +279,12 @@ public final class WebDAVClient: Sendable {
             completion(.failure(WebDAVError.notConfigured))
             return
         }
-        ensureBackupDirectory(baseURLString: urlStr, username: username, password: password) { result in
+        ensureBackupDirectory(
+            baseURLString: urlStr,
+            username: username,
+            password: password,
+            allowsCellularAccess: allowsCellularAccess
+        ) { result in
             switch result {
             case .failure(let error):
                 completion(.failure(error))
@@ -276,6 +292,7 @@ public final class WebDAVClient: Sendable {
                 self.upload(
                     data: data,
                     to: Self.backupFileURLString(baseURLString: urlStr, filename: filename),
+                    allowsCellularAccess: allowsCellularAccess,
                     onProgress: onProgress,
                     completion: completion
                 )
@@ -285,6 +302,7 @@ public final class WebDAVClient: Sendable {
 
     public func downloadBackup(
         filename: String,
+        allowsCellularAccess: Bool = true,
         onProgress: (@Sendable (Int64) -> Void)? = nil,
         completion: @escaping @Sendable (Result<String, Error>) -> Void
     ) {
@@ -294,6 +312,7 @@ public final class WebDAVClient: Sendable {
         }
         download(
             from: Self.backupFileURLString(baseURLString: urlStr, filename: filename),
+            allowsCellularAccess: allowsCellularAccess,
             onProgress: onProgress
         ) { result in
             switch result {
@@ -338,6 +357,7 @@ public final class WebDAVClient: Sendable {
     public func upload(
         data: Data,
         to urlStr: String,
+        allowsCellularAccess: Bool = true,
         onProgress: (@Sendable (Int64) -> Void)? = nil,
         completion: @escaping @Sendable (Result<Void, Error>) -> Void
     ) {
@@ -350,11 +370,16 @@ public final class WebDAVClient: Sendable {
         var request = URLRequest(url: url)
         request.httpMethod = "PUT"
         request.timeoutInterval = Self.transferTimeout
+        request.allowsCellularAccess = allowsCellularAccess
         request.setValue(authHeader(username: username, password: password), forHTTPHeaderField: "Authorization")
 
         if let onProgress {
             let delegate = UploadProgressDelegate(onProgress: onProgress)
-            let session = URLSession(configuration: Self.transferSessionConfiguration(), delegate: delegate, delegateQueue: nil)
+            let session = URLSession(
+                configuration: Self.transferSessionConfiguration(allowsCellularAccess: allowsCellularAccess),
+                delegate: delegate,
+                delegateQueue: nil
+            )
             let task = session.uploadTask(with: request, from: data) { _, response, error in
                 session.finishTasksAndInvalidate()
                 if let error {
@@ -371,7 +396,9 @@ public final class WebDAVClient: Sendable {
             task.resume()
         } else {
             request.httpBody = data
-            let session = URLSession(configuration: Self.transferSessionConfiguration())
+            let session = URLSession(
+                configuration: Self.transferSessionConfiguration(allowsCellularAccess: allowsCellularAccess)
+            )
             session.dataTask(with: request) { _, response, error in
                 session.finishTasksAndInvalidate()
                 if let error {
@@ -390,6 +417,7 @@ public final class WebDAVClient: Sendable {
 
     public func download(
         from urlStr: String,
+        allowsCellularAccess: Bool = true,
         onProgress: (@Sendable (Int64) -> Void)? = nil,
         completion: @escaping @Sendable (Result<Data, Error>) -> Void
     ) {
@@ -401,6 +429,7 @@ public final class WebDAVClient: Sendable {
         }
         var request = URLRequest(url: url)
         request.timeoutInterval = Self.transferTimeout
+        request.allowsCellularAccess = allowsCellularAccess
         request.setValue(authHeader(username: username, password: password), forHTTPHeaderField: "Authorization")
 
         if let onProgress {
@@ -428,11 +457,17 @@ public final class WebDAVClient: Sendable {
                     }
                 }
             )
-            let session = URLSession(configuration: Self.transferSessionConfiguration(), delegate: delegate, delegateQueue: nil)
+            let session = URLSession(
+                configuration: Self.transferSessionConfiguration(allowsCellularAccess: allowsCellularAccess),
+                delegate: delegate,
+                delegateQueue: nil
+            )
             let task = session.downloadTask(with: request)
             task.resume()
         } else {
-            let session = URLSession(configuration: Self.transferSessionConfiguration())
+            let session = URLSession(
+                configuration: Self.transferSessionConfiguration(allowsCellularAccess: allowsCellularAccess)
+            )
             session.dataTask(with: request) { data, response, error in
                 session.finishTasksAndInvalidate()
                 if let error {
@@ -449,7 +484,13 @@ public final class WebDAVClient: Sendable {
         }
     }
 
-    private func ensureBackupDirectory(baseURLString: String, username: String, password: String, completion: @escaping @Sendable (Result<Void, Error>) -> Void) {
+    private func ensureBackupDirectory(
+        baseURLString: String,
+        username: String,
+        password: String,
+        allowsCellularAccess: Bool = true,
+        completion: @escaping @Sendable (Result<Void, Error>) -> Void
+    ) {
         guard let url = URL(string: Self.backupDirectoryURLString(from: baseURLString)) else {
             completion(.failure(WebDAVError.invalidURL))
             return
@@ -457,6 +498,7 @@ public final class WebDAVClient: Sendable {
         var request = URLRequest(url: url)
         request.httpMethod = "PROPFIND"
         request.timeoutInterval = Self.requestTimeout
+        request.allowsCellularAccess = allowsCellularAccess
         request.setValue("0", forHTTPHeaderField: "Depth")
         request.setValue(authHeader(username: username, password: password), forHTTPHeaderField: "Authorization")
         URLSession.shared.dataTask(with: request) { _, response, error in
@@ -484,6 +526,7 @@ public final class WebDAVClient: Sendable {
             var mkcolRequest = URLRequest(url: url)
             mkcolRequest.httpMethod = "MKCOL"
             mkcolRequest.timeoutInterval = Self.requestTimeout
+            mkcolRequest.allowsCellularAccess = allowsCellularAccess
             mkcolRequest.setValue(self.authHeader(username: username, password: password), forHTTPHeaderField: "Authorization")
             URLSession.shared.dataTask(with: mkcolRequest) { _, mkcolResponse, mkcolError in
                 if let mkcolError {
