@@ -57,6 +57,17 @@ struct ContentView: View {
     // 工具箱二级视图选中状态
     @State private var activeToolSubView: ToolSubView? = nil
     
+    // 💡 规避 macOS titlebarAppearsTransparent 在模态 sheet 消失后下沉偏移的重绘触发器
+    @State private var offsetResetTrigger = false
+    
+    private var hasDetailCard: Bool {
+        detailCard != nil
+    }
+    
+    private var hasCardEditRequest: Bool {
+        cardEditRequest != nil
+    }
+    
     var searchFilteredCards: [SharedCard] {
         if searchText.isEmpty {
             return cards
@@ -71,16 +82,7 @@ struct ContentView: View {
         }
     }
 
-    var filteredCards: [SharedCard] {
-        switch cardCategoryFilter {
-        case .all:
-            return searchFilteredCards
-        case .credit:
-            return searchFilteredCards.filter { $0.cardCategory != "debit" }
-        case .debit:
-            return searchFilteredCards.filter { $0.cardCategory == "debit" }
-        }
-    }
+
     
     private var creditCardCount: Int { searchFilteredCards.filter { $0.cardCategory != "debit" }.count }
     private var debitCardCount: Int { searchFilteredCards.filter { $0.cardCategory == "debit" }.count }
@@ -99,9 +101,28 @@ struct ContentView: View {
                     Group {
                         switch selection {
                         case .allCards:
-                            allCardsView
+                            AllCardsView(
+                                cards: cards,
+                                searchFilteredCards: searchFilteredCards,
+                                creditCardCount: creditCardCount,
+                                debitCardCount: debitCardCount,
+                                searchText: $searchText,
+                                cardCategoryFilter: $cardCategoryFilter,
+                                groupBy: $groupBy,
+                                sortBy: $sortBy,
+                                showingFilterPopover: $showingFilterPopover,
+                                cardEditRequest: $cardEditRequest,
+                                detailCard: $detailCard,
+                                onDelete: { card in deleteCard(card) },
+                                onUpdateStatus: { card, newStatus in updateCardStatus(card, status: newStatus) }
+                            )
                         case .annualFeeAlert:
-                            cardReminderView
+                            CardReminderView(
+                                cards: cards,
+                                detailCard: $detailCard,
+                                cardsBinding: $cards,
+                                syncCoordinator: syncCoordinator
+                            )
                         case .statistics:
                             StatisticsView(cards: cards)
                         case .tools:
@@ -142,6 +163,7 @@ struct ContentView: View {
                 .zIndex(999)
             }
         }
+        .padding(.top, offsetResetTrigger ? 0.2 : 0)
         .animation(.easeInOut(duration: 0.3), value: lockManager.isLocked)
         .onAppear {
             syncCoordinator.onCardsChanged = { updatedCards in
@@ -159,6 +181,22 @@ struct ContentView: View {
         }
         .onChange(of: selection) { _, _ in
             activeToolSubView = nil
+        }
+        .onChange(of: hasDetailCard) { _, newValue in
+            if !newValue {
+                // 当卡片详情弹窗被关闭时，在下个 Layout Runloop 触发 0.2pt 微小重绘微调，强制 AppKit 重新刷新主窗口 safe area，解决 hiddenTitleBar 模式下的下移顽疾
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
+                    offsetResetTrigger.toggle()
+                }
+            }
+        }
+        .onChange(of: hasCardEditRequest) { _, newValue in
+            if !newValue {
+                // 当编辑/添加卡片弹窗被关闭时同样触发，保障返回主视图时排版居中正常
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.08) {
+                    offsetResetTrigger.toggle()
+                }
+            }
         }
         // 请求存在后才创建完整表单，避免首次呈现产生空内容窗口
         .sheet(item: $cardEditRequest) { request in
@@ -212,435 +250,7 @@ struct ContentView: View {
         }
     }
     
-    // 所有卡片视图
-    private var allCardsView: some View {
-        VStack(spacing: 0) {
-            // 顶部工具栏
-            HStack {
-                HStack(spacing: 8) {
-                    Image(systemName: "creditcard.fill")
-                        .font(.title2)
-                        .foregroundColor(.cyan)
-                    Text("卡包")
-                        .font(.title2)
-                        .bold()
-                }
-                
-                Spacer()
-                
-                // 搜索框
-                HStack {
-                    Image(systemName: "magnifyingglass")
-                        .foregroundColor(.secondary)
-                    TextField("搜索银行、别名、卡号、卡类别...", text: $searchText)
-                        .textFieldStyle(.plain)
-                        .frame(width: 180)
-                    if !searchText.isEmpty {
-                        Button {
-                            searchText = ""
-                        } label: {
-                            Image(systemName: "xmark.circle.fill")
-                                .foregroundColor(.secondary)
-                        }
-                        .buttonStyle(.plain)
-                    }
-                }
-                .padding(.horizontal, 8)
-                .padding(.vertical, 4)
-                .background(Color.primary.opacity(0.06))
-                .cornerRadius(8)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8)
-                        .stroke(Color.primary.opacity(0.15), lineWidth: 1)
-                )
-                
-                Picker("卡类别", selection: $cardCategoryFilter) {
-                    Text("全部 \(searchFilteredCards.count)").tag(CardCategoryFilter.all)
-                    Text("信用卡 \(creditCardCount)").tag(CardCategoryFilter.credit)
-                    Text("储蓄卡 \(debitCardCount)").tag(CardCategoryFilter.debit)
-                }
-                .pickerStyle(.segmented)
-                .labelsHidden()
-                .frame(width: 260)
-                
-                // 💡 筛选与组合排序胶囊控制按钮
-                Button {
-                    showingFilterPopover = true
-                } label: {
-                    HStack(spacing: 6) {
-                        Image(systemName: "line.3.horizontal.decrease.circle")
-                            .font(.system(size: 13, weight: .semibold))
-                        Text("分组: \(groupBy.rawValue) · 排序: \(sortBy.rawValue)")
-                            .font(.system(size: 12, weight: .medium))
-                        Image(systemName: "chevron.down")
-                            .font(.system(size: 10))
-                    }
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 5)
-                    .background(Color.primary.opacity(0.06))
-                    .cornerRadius(8)
-                    .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .popover(isPresented: $showingFilterPopover, arrowEdge: .bottom) {
-                    VStack(alignment: .leading, spacing: 14) {
-                        // 1. 分组选择区
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack(spacing: 6) {
-                                Image(systemName: "square.grid.3x3.fill")
-                                    .foregroundColor(.cyan)
-                                    .font(.system(size: 12))
-                                Text("选择分组维度")
-                                    .font(.system(size: 11, weight: .bold))
-                                    .foregroundColor(.secondary)
-                            }
-                            
-                            HStack(spacing: 6) {
-                                ForEach(GroupOption.allCases) { option in
-                                    Button {
-                                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                                            groupBy = option
-                                        }
-                                    } label: {
-                                        VStack(spacing: 4) {
-                                            Image(systemName: option.icon)
-                                                .font(.system(size: 14))
-                                            Text(option.rawValue)
-                                                .font(.system(size: 9))
-                                        }
-                                        .frame(width: 58, height: 48)
-                                        .background(groupBy == option ? Color.cyan.opacity(0.15) : Color.primary.opacity(0.03))
-                                        .foregroundColor(groupBy == option ? .cyan : .primary)
-                                        .cornerRadius(6)
-                                        .overlay(
-                                            RoundedRectangle(cornerRadius: 6)
-                                                .stroke(groupBy == option ? Color.cyan.opacity(0.4) : Color.clear, lineWidth: 1)
-                                        )
-                                    }
-                                    .buttonStyle(.plain)
-                                }
-                            }
-                        }
-                        
-                        Divider()
-                            .opacity(0.5)
-                        
-                        // 2. 排序选择区
-                        VStack(alignment: .leading, spacing: 8) {
-                            HStack(spacing: 6) {
-                                Image(systemName: "arrow.up.arrow.down.circle.fill")
-                                    .foregroundColor(.cyan)
-                                    .font(.system(size: 12))
-                                Text("选择排序算法")
-                                    .font(.system(size: 11, weight: .bold))
-                                    .foregroundColor(.secondary)
-                            }
-                            
-                            VStack(spacing: 4) {
-                                ForEach(SortOption.allCases) { option in
-                                    Button {
-                                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
-                                            sortBy = option
-                                        }
-                                    } label: {
-                                        HStack {
-                                            Image(systemName: option.icon)
-                                                .font(.system(size: 12))
-                                                .foregroundColor(sortBy == option ? .cyan : .secondary)
-                                            Text(option.rawValue)
-                                                .font(.system(size: 11))
-                                                .foregroundColor(sortBy == option ? .primary : .secondary)
-                                            Spacer()
-                                            if sortBy == option {
-                                                Image(systemName: "checkmark")
-                                                    .font(.system(size: 10, weight: .bold))
-                                                    .foregroundColor(.cyan)
-                                            }
-                                        }
-                                        .padding(.horizontal, 8)
-                                        .padding(.vertical, 6)
-                                        .background(sortBy == option ? Color.cyan.opacity(0.08) : Color.clear)
-                                        .cornerRadius(4)
-                                    }
-                                    .buttonStyle(.plain)
-                                }
-                            }
-                        }
-                    }
-                    .padding(14)
-                    .frame(width: 320)
-                    .background(.ultraThinMaterial)
-                }
-                
-                // 新增按钮
-                Button {
-                    cardEditRequest = CardEditRequest(mode: "add", card: nil, cardCategory: "credit")
-                } label: {
-                    Label("新增卡片", systemImage: "plus")
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(.cyan)
-            }
-            .padding(.horizontal, 20)
-            .padding(.top, 20)
-            .padding(.bottom, 10)
-            
-            Divider()
-                .background(Color.white.opacity(0.1))
-            
-            if filteredCards.isEmpty {
-                VStack(spacing: 12) {
-                    Image(systemName: "creditcard")
-                        .font(.system(size: 48))
-                        .foregroundColor(.gray.opacity(0.4))
-                    Text(searchText.isEmpty ? "目前暂无银行卡数据，点击右上方新增卡片吧！" : "没有找到符合搜索条件的卡片")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-                CardGridView(
-                    cards: filteredCards,
-                    groupBy: groupBy,
-                    sortBy: sortBy,
-                    onEdit: { card in
-                        cardEditRequest = CardEditRequest(mode: "edit", card: card)
-                    },
-                    onViewDetails: { card in
-                        detailCard = card
-                    },
-                    onDelete: { card in
-                        deleteCard(card)
-                    },
-                    onUpdateStatus: { card, newStatus in
-                        updateCardStatus(card, status: newStatus)
-                    }
-                )
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            }
-        }
-    }
-    
-    // 卡片提醒视图
-    private var cardReminderView: some View {
-        // 数据源准备
-        let billingReminders = DateCalculator.billingCycleReminderItems(for: cards)
-        let repaymentReminders = billingReminders.filter { $0.reminder.kind == .repayment }
-        let billReminders = billingReminders.filter { $0.reminder.kind == .bill }
-        
-        let annualFeeReminders = cards.filter { card in
-            guard card.cardCategory != "debit",
-                  card.isQualified != "3",
-                  card.isQualified != "2",
-                  let diffDays = DateCalculator.annualFeeRemainingDays(card.nextAnnualFeeCollectionTime) else {
-                return false
-            }
-            return diffDays <= 60 && diffDays >= 0
-        }
-        
-        let expiryReminders = cards.compactMap { card -> (card: SharedCard, status: DateCalculator.CardExpiryStatus)? in
-            guard let status = cardExpiryReminderStatus(for: card) else { return nil }
-            return (card, status)
-        }.sorted { lhs, rhs in
-            let lhsPriority = lhs.status == .expired ? 0 : 1
-            let rhsPriority = rhs.status == .expired ? 0 : 1
-            if lhsPriority != rhsPriority { return lhsPriority < rhsPriority }
-            return lhs.card.bank < rhs.card.bank
-        }
-        
-        let hasAnyReminder = !repaymentReminders.isEmpty || !billReminders.isEmpty || !annualFeeReminders.isEmpty || !expiryReminders.isEmpty
-        
-        return VStack(spacing: 0) {
-            // 顶部工具栏
-            HStack {
-                HStack(spacing: 10) {
-                    Image(systemName: "bell.badge.fill")
-                        .font(.title2)
-                        .foregroundColor(SoftColors.orange)
-                    Text("卡片提醒")
-                        .font(.title2)
-                        .bold()
-                }
-                Spacer()
-            }
-            .padding(.horizontal, 24)
-            .padding(.top, 24)
-            .padding(.bottom, 16)
-            
-            Divider()
-                .background(Color.white.opacity(0.1))
-            
-            if !hasAnyReminder {
-                VStack(spacing: 16) {
-                    Image(systemName: "checkmark.shield.fill")
-                        .font(.system(size: 56))
-                        .foregroundColor(SoftColors.green.opacity(0.7))
-                    Text("省心！目前没有任何需要关注的卡片提醒")
-                        .font(.headline)
-                    Text("您的账单还款、年费达标以及卡片有效期均处于安全状态。")
-                        .font(.subheadline)
-                        .foregroundColor(.secondary)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(Color.primary.opacity(0.01))
-            } else {
-                ScrollView {
-                    VStack(spacing: 24) {
-                        // 1. 还款提醒板块 (Repayment)
-                        if !repaymentReminders.isEmpty {
-                            VStack(alignment: .leading, spacing: 12) {
-                                HStack(spacing: 8) {
-                                    Image(systemName: "exclamationmark.octagon.fill")
-                                        .foregroundColor(SoftColors.red)
-                                    Text("还款日提醒")
-                                        .font(.headline)
-                                        .foregroundColor(SoftColors.red)
-                                }
-                                .padding(.horizontal, 4)
-                                
-                                LazyVGrid(columns: [GridItem(.adaptive(minimum: 280, maximum: 400), spacing: 16)], spacing: 16) {
-                                    ForEach(repaymentReminders.indices, id: \.self) { index in
-                                        let item = repaymentReminders[index]
-                                        let days = item.reminder.days
-                                        ReminderDashboardItem(
-                                            card: item.card,
-                                            title: "即将到达还款日",
-                                            detail: "还款日：\(DateCalculator.formatDate(item.reminder.date))，请核对本期账单是否已还款",
-                                            tag: "剩 \(days) 天",
-                                            themeColor: SoftColors.red,
-                                            actionLabel: "查看详情",
-                                            onAction: { detailCard = item.card }
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                        
-                        // 2. 账单提醒板块 (Billing)
-                        if !billReminders.isEmpty {
-                            VStack(alignment: .leading, spacing: 12) {
-                                HStack(spacing: 8) {
-                                    Image(systemName: "doc.text.fill")
-                                        .foregroundColor(SoftColors.blue)
-                                    Text("账单日提醒")
-                                        .font(.headline)
-                                        .foregroundColor(SoftColors.blue)
-                                }
-                                .padding(.horizontal, 4)
-                                
-                                LazyVGrid(columns: [GridItem(.adaptive(minimum: 280, maximum: 400), spacing: 16)], spacing: 16) {
-                                    ForEach(billReminders.indices, id: \.self) { index in
-                                        let item = billReminders[index]
-                                        let days = item.reminder.days
-                                        ReminderDashboardItem(
-                                            card: item.card,
-                                            title: "账单日到了",
-                                            detail: "账单日：\(DateCalculator.formatDate(item.reminder.date))，请关注本期出账",
-                                            tag: days == 0 ? "今天" : "剩 \(days) 天",
-                                            themeColor: SoftColors.blue,
-                                            actionLabel: "查看详情",
-                                            onAction: { detailCard = item.card }
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                        
-                        // 3. 年费警示板块 (Annual Fee)
-                        if !annualFeeReminders.isEmpty {
-                            VStack(alignment: .leading, spacing: 12) {
-                                HStack {
-                                    HStack(spacing: 8) {
-                                        Image(systemName: "dollarsign.circle.fill")
-                                            .foregroundColor(SoftColors.orange)
-                                        Text("年费达标警示")
-                                            .font(.headline)
-                                            .foregroundColor(SoftColors.orange)
-                                    }
-                                    Spacer()
-                                    // 提供全部标为未达标的便捷动作
-                                    Button(action: {
-                                        let warningIDs = Set(annualFeeReminders.map(\.id))
-                                        let nowTimestamp = DateCalculator.timestamp(from: Date())
-                                        for idx in cards.indices where warningIDs.contains(cards[idx].id) {
-                                            cards[idx].isQualified = "2"
-                                            cards[idx].lastModifyTime = nowTimestamp
-                                        }
-                                        cards = syncCoordinator.commit(cards: cards)
-                                    }) {
-                                        Text("全部更新为未达标")
-                                            .font(.system(size: 11, weight: .medium))
-                                            .foregroundColor(SoftColors.orange)
-                                            .padding(.horizontal, 10)
-                                            .padding(.vertical, 4)
-                                            .background(SoftColors.orange.opacity(0.12))
-                                            .cornerRadius(6)
-                                    }
-                                    .buttonStyle(.plain)
-                                }
-                                .padding(.horizontal, 4)
-                                
-                                LazyVGrid(columns: [GridItem(.adaptive(minimum: 280, maximum: 400), spacing: 16)], spacing: 16) {
-                                    ForEach(annualFeeReminders.indices, id: \.self) { index in
-                                        let card = annualFeeReminders[index]
-                                        let dateText = DateCalculator.formatTimestampDate(card.nextAnnualFeeCollectionTime)
-                                        let days = DateCalculator.annualFeeRemainingDays(card.nextAnnualFeeCollectionTime) ?? 0
-                                        ReminderDashboardItem(
-                                            card: card,
-                                            title: "年费达标临界",
-                                            detail: "收取日：\(dateText)，距离产生年费仅剩 \(days) 天。若未达标，请及时跟进。",
-                                            tag: "剩 \(days) 天",
-                                            themeColor: SoftColors.orange,
-                                            actionLabel: "设为未达标",
-                                            onAction: {
-                                                if let idx = cards.firstIndex(where: { $0.id == card.id }) {
-                                                    cards[idx].isQualified = "2"
-                                                    cards[idx].lastModifyTime = DateCalculator.timestamp(from: Date())
-                                                    cards = syncCoordinator.commit(cards: cards)
-                                                }
-                                            }
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                        
-                        // 4. 有效期预警板块 (Expiry)
-                        if !expiryReminders.isEmpty {
-                            VStack(alignment: .leading, spacing: 12) {
-                                HStack(spacing: 8) {
-                                    Image(systemName: "calendar.badge.exclamationmark")
-                                        .foregroundColor(SoftColors.purple)
-                                    Text("有效期临界/过期")
-                                        .font(.headline)
-                                        .foregroundColor(SoftColors.purple)
-                                }
-                                .padding(.horizontal, 4)
-                                
-                                LazyVGrid(columns: [GridItem(.adaptive(minimum: 280, maximum: 400), spacing: 16)], spacing: 16) {
-                                    ForEach(expiryReminders.indices, id: \.self) { index in
-                                        let item = expiryReminders[index]
-                                        let isExpired = item.status == .expired
-                                        ReminderDashboardItem(
-                                            card: item.card,
-                                            title: isExpired ? "卡片已过期" : "卡片即将到期",
-                                            detail: "有效期：\(item.card.valid ?? "--/--")。\(isExpired ? "卡片已失效，请更新卡片信息。" : "请留意银行是否已安排寄送新卡并及时更新。")",
-                                            tag: isExpired ? "已失效" : "将到期",
-                                            themeColor: SoftColors.purple,
-                                            actionLabel: "更新有效期",
-                                            onAction: { detailCard = item.card }
-                                        )
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    .padding(24)
-                }
-                .background(Color.primary.opacity(0.005))
-            }
-        }
-    }
+
 
     private var toolsView: some View {
         Group {
@@ -1841,6 +1451,495 @@ fileprivate struct DataIssueGridItem: View {
         .onHover { hover in
             withAnimation(.easeInOut(duration: 0.15)) {
                 isHovered = hover
+            }
+        }
+    }
+}
+
+// MARK: - 拆分出的卡包主视图以优化重绘性能
+fileprivate struct AllCardsView: View {
+    let cards: [SharedCard]
+    let searchFilteredCards: [SharedCard]
+    let creditCardCount: Int
+    let debitCardCount: Int
+    @Binding var searchText: String
+    @Binding var cardCategoryFilter: CardCategoryFilter
+    @Binding var groupBy: GroupOption
+    @Binding var sortBy: SortOption
+    @Binding var showingFilterPopover: Bool
+    @Binding var cardEditRequest: CardEditRequest?
+    @Binding var detailCard: SharedCard?
+    let onDelete: (SharedCard) -> Void
+    let onUpdateStatus: (SharedCard, String) -> Void
+
+    // 局部计算属性：最终显示的列表，切断 ContentView 对其频繁重绘
+    private var filteredCards: [SharedCard] {
+        searchFilteredCards.filter { card in
+            switch cardCategoryFilter {
+            case .all:
+                return true
+            case .credit:
+                return card.cardCategory != "debit"
+            case .debit:
+                return card.cardCategory == "debit"
+            }
+        }
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            // 顶部工具栏
+            HStack {
+                HStack(spacing: 8) {
+                    Image(systemName: "creditcard.fill")
+                        .font(.title2)
+                        .foregroundColor(.cyan)
+                    Text("卡包")
+                        .font(.title2)
+                        .bold()
+                }
+                
+                Spacer()
+                
+                // 搜索框
+                HStack {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundColor(.secondary)
+                    TextField("搜索银行、别名、卡号、卡类别...", text: $searchText)
+                        .textFieldStyle(.plain)
+                        .frame(width: 180)
+                    if !searchText.isEmpty {
+                        Button {
+                            searchText = ""
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundColor(.secondary)
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+                .padding(.horizontal, 8)
+                .padding(.vertical, 4)
+                .background(Color.primary.opacity(0.06))
+                .cornerRadius(8)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 8)
+                        .stroke(Color.primary.opacity(0.15), lineWidth: 1)
+                )
+                
+                Picker("卡类别", selection: $cardCategoryFilter) {
+                    Text("全部 \(searchFilteredCards.count)").tag(CardCategoryFilter.all)
+                    Text("信用卡 \(creditCardCount)").tag(CardCategoryFilter.credit)
+                    Text("储蓄卡 \(debitCardCount)").tag(CardCategoryFilter.debit)
+                }
+                .pickerStyle(.segmented)
+                .labelsHidden()
+                .frame(width: 260)
+                
+                // 💡 筛选与组合排序胶囊控制按钮
+                Button {
+                    showingFilterPopover = true
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: "line.3.horizontal.decrease.circle")
+                            .font(.system(size: 13, weight: .semibold))
+                        Text("分组: \(groupBy.rawValue) · 排序: \(sortBy.rawValue)")
+                            .font(.system(size: 12, weight: .medium))
+                        Image(systemName: "chevron.down")
+                            .font(.system(size: 10))
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 5)
+                    .background(Color.primary.opacity(0.06))
+                    .cornerRadius(8)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .popover(isPresented: $showingFilterPopover, arrowEdge: .bottom) {
+                    VStack(alignment: .leading, spacing: 14) {
+                        // 1. 分组选择区
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack(spacing: 6) {
+                                Image(systemName: "square.grid.3x3.fill")
+                                    .foregroundColor(.cyan)
+                                    .font(.system(size: 12))
+                                Text("选择分组维度")
+                                    .font(.system(size: 11, weight: .bold))
+                                    .foregroundColor(.secondary)
+                            }
+                            
+                            HStack(spacing: 6) {
+                                ForEach(GroupOption.allCases) { option in
+                                    Button {
+                                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                                            groupBy = option
+                                        }
+                                    } label: {
+                                        VStack(spacing: 4) {
+                                            Image(systemName: option.icon)
+                                                .font(.system(size: 14))
+                                            Text(option.rawValue)
+                                                .font(.system(size: 9))
+                                        }
+                                        .frame(width: 58, height: 48)
+                                        .background(groupBy == option ? Color.cyan.opacity(0.15) : Color.primary.opacity(0.03))
+                                        .foregroundColor(groupBy == option ? .cyan : .primary)
+                                        .cornerRadius(6)
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 6)
+                                                .stroke(groupBy == option ? Color.cyan.opacity(0.4) : Color.clear, lineWidth: 1)
+                                        )
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                        }
+                        
+                        Divider()
+                            .opacity(0.5)
+                        
+                        // 2. 排序选择区
+                        VStack(alignment: .leading, spacing: 8) {
+                            HStack(spacing: 6) {
+                                Image(systemName: "arrow.up.arrow.down.circle.fill")
+                                    .foregroundColor(.cyan)
+                                    .font(.system(size: 12))
+                                Text("选择排序算法")
+                                    .font(.system(size: 11, weight: .bold))
+                                    .foregroundColor(.secondary)
+                            }
+                            
+                            VStack(spacing: 4) {
+                                ForEach(SortOption.allCases) { option in
+                                    Button {
+                                        withAnimation(.spring(response: 0.35, dampingFraction: 0.8)) {
+                                            sortBy = option
+                                        }
+                                    } label: {
+                                        HStack {
+                                            Image(systemName: option.icon)
+                                                .font(.system(size: 12))
+                                                .foregroundColor(sortBy == option ? .cyan : .secondary)
+                                            Text(option.rawValue)
+                                                .font(.system(size: 11))
+                                                .foregroundColor(sortBy == option ? .primary : .secondary)
+                                            Spacer()
+                                            if sortBy == option {
+                                                Image(systemName: "checkmark")
+                                                    .font(.system(size: 10, weight: .bold))
+                                                    .foregroundColor(.cyan)
+                                            }
+                                        }
+                                        .padding(.horizontal, 8)
+                                        .padding(.vertical, 6)
+                                        .background(sortBy == option ? Color.cyan.opacity(0.08) : Color.clear)
+                                        .cornerRadius(4)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                            }
+                        }
+                    }
+                    .padding(14)
+                    .frame(width: 320)
+                    .background(.ultraThinMaterial)
+                }
+                
+                // 新增按钮
+                Button {
+                    cardEditRequest = CardEditRequest(mode: "add", card: nil, cardCategory: "credit")
+                } label: {
+                    Label("新增卡片", systemImage: "plus")
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(.cyan)
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 20)
+            .padding(.bottom, 10)
+            
+            Divider()
+                .background(Color.white.opacity(0.1))
+            
+            if filteredCards.isEmpty {
+                VStack(spacing: 12) {
+                    Image(systemName: "creditcard")
+                        .font(.system(size: 48))
+                        .foregroundColor(.gray.opacity(0.4))
+                    Text(searchText.isEmpty ? "目前暂无银行卡数据，点击右上方新增卡片吧！" : "没有找到符合搜索条件的卡片")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                CardGridView(
+                    cards: filteredCards,
+                    groupBy: groupBy,
+                    sortBy: sortBy,
+                    onEdit: { card in
+                        cardEditRequest = CardEditRequest(mode: "edit", card: card)
+                    },
+                    onViewDetails: { card in
+                        detailCard = card
+                    },
+                    onDelete: { card in
+                        onDelete(card)
+                    },
+                    onUpdateStatus: { card, newStatus in
+                        onUpdateStatus(card, newStatus)
+                    }
+                )
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+            }
+        }
+    }
+}
+
+// MARK: - 拆分出的卡片提醒视图以优化重绘性能
+fileprivate struct CardReminderView: View {
+    let cards: [SharedCard]
+    @Binding var detailCard: SharedCard?
+    @Binding var cardsBinding: [SharedCard] // 因为年费设为达标/未达标需要回写 cards
+    let syncCoordinator: SyncCoordinator
+    
+    // 提醒数据局部惰性计算属性
+    private var billingReminders: [(card: SharedCard, reminder: DateCalculator.BillingCycleReminderResult)] {
+        DateCalculator.billingCycleReminderItems(for: cards)
+    }
+    
+    private var repaymentReminders: [(card: SharedCard, reminder: DateCalculator.BillingCycleReminderResult)] {
+        billingReminders.filter { $0.reminder.kind == .repayment }
+    }
+    
+    private var billReminders: [(card: SharedCard, reminder: DateCalculator.BillingCycleReminderResult)] {
+        billingReminders.filter { $0.reminder.kind == .bill }
+    }
+    
+    private var annualFeeReminders: [SharedCard] {
+        cards.filter { card in
+            guard card.cardCategory != "debit",
+                  card.isQualified != "3",
+                  card.isQualified != "2",
+                  let diffDays = DateCalculator.annualFeeRemainingDays(card.nextAnnualFeeCollectionTime) else {
+                return false
+            }
+            return diffDays <= 60 && diffDays >= 0
+        }
+    }
+    
+    private var expiryReminders: [(card: SharedCard, status: DateCalculator.CardExpiryStatus)] {
+        cards.compactMap { card -> (card: SharedCard, status: DateCalculator.CardExpiryStatus)? in
+            guard let status = cardExpiryReminderStatus(for: card) else { return nil }
+            return (card, status)
+        }.sorted { lhs, rhs in
+            let lhsPriority = lhs.status == .expired ? 0 : 1
+            let rhsPriority = rhs.status == .expired ? 0 : 1
+            if lhsPriority != rhsPriority { return lhsPriority < rhsPriority }
+            return lhs.card.bank < rhs.card.bank
+        }
+    }
+    
+    private var hasAnyReminder: Bool {
+        !repaymentReminders.isEmpty || !billReminders.isEmpty || !annualFeeReminders.isEmpty || !expiryReminders.isEmpty
+    }
+    
+    private func cardExpiryReminderStatus(for card: SharedCard) -> DateCalculator.CardExpiryStatus? {
+        guard let status = DateCalculator.cardExpiryStatus(valid: card.valid),
+              status == .expired || status == .soonExpiring else {
+            return nil
+        }
+        return status
+    }
+    
+    var body: some View {
+        VStack(spacing: 0) {
+            // 顶部工具栏
+            HStack {
+                HStack(spacing: 10) {
+                    Image(systemName: "bell.badge.fill")
+                        .font(.title2)
+                        .foregroundColor(SoftColors.orange)
+                    Text("卡片提醒")
+                        .font(.title2)
+                        .bold()
+                }
+                Spacer()
+            }
+            .padding(.horizontal, 24)
+            .padding(.top, 24)
+            .padding(.bottom, 16)
+            
+            Divider()
+                .background(Color.white.opacity(0.1))
+            
+            if !hasAnyReminder {
+                VStack(spacing: 16) {
+                    Image(systemName: "checkmark.shield.fill")
+                        .font(.system(size: 56))
+                        .foregroundColor(SoftColors.green.opacity(0.7))
+                    Text("省心！目前没有任何需要关注的卡片提醒")
+                        .font(.headline)
+                    Text("您的账单还款、年费达标以及卡片有效期均处于安全状态。")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .background(Color.primary.opacity(0.01))
+            } else {
+                ScrollView {
+                    VStack(spacing: 24) {
+                        // 1. 还款提醒板块 (Repayment)
+                        if !repaymentReminders.isEmpty {
+                            VStack(alignment: .leading, spacing: 12) {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "exclamationmark.octagon.fill")
+                                        .foregroundColor(SoftColors.red)
+                                    Text("还款日提醒")
+                                        .font(.headline)
+                                        .foregroundColor(SoftColors.red)
+                                }
+                                .padding(.horizontal, 4)
+                                
+                                LazyVGrid(columns: [GridItem(.adaptive(minimum: 280, maximum: 400), spacing: 16)], spacing: 16) {
+                                    ForEach(repaymentReminders.indices, id: \.self) { index in
+                                        let item = repaymentReminders[index]
+                                        let days = item.reminder.days
+                                        ReminderDashboardItem(
+                                            card: item.card,
+                                            title: "即将到达还款日",
+                                            detail: "还款日：\(DateCalculator.formatDate(item.reminder.date))，请核对本期账单是否已还款",
+                                            tag: "剩 \(days) 天",
+                                            themeColor: SoftColors.red,
+                                            actionLabel: "查看详情",
+                                            onAction: { detailCard = item.card }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                        
+                        // 2. 账单提醒板块 (Billing)
+                        if !billReminders.isEmpty {
+                            VStack(alignment: .leading, spacing: 12) {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "doc.text.fill")
+                                        .foregroundColor(SoftColors.blue)
+                                    Text("账单日提醒")
+                                        .font(.headline)
+                                        .foregroundColor(SoftColors.blue)
+                                }
+                                .padding(.horizontal, 4)
+                                
+                                LazyVGrid(columns: [GridItem(.adaptive(minimum: 280, maximum: 400), spacing: 16)], spacing: 16) {
+                                    ForEach(billReminders.indices, id: \.self) { index in
+                                        let item = billReminders[index]
+                                        let days = item.reminder.days
+                                        ReminderDashboardItem(
+                                            card: item.card,
+                                            title: "账单日到了",
+                                            detail: "账单日：\(DateCalculator.formatDate(item.reminder.date))，请关注本期出账",
+                                            tag: days == 0 ? "今天" : "剩 \(days) 天",
+                                            themeColor: SoftColors.blue,
+                                            actionLabel: "查看详情",
+                                            onAction: { detailCard = item.card }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                        
+                        // 3. 年费警示板块 (Annual Fee)
+                        if !annualFeeReminders.isEmpty {
+                            VStack(alignment: .leading, spacing: 12) {
+                                HStack {
+                                    HStack(spacing: 8) {
+                                        Image(systemName: "dollarsign.circle.fill")
+                                            .foregroundColor(SoftColors.orange)
+                                        Text("年费达标警示")
+                                            .font(.headline)
+                                            .foregroundColor(SoftColors.orange)
+                                    }
+                                    Spacer()
+                                    // 提供全部标为未达标的便捷动作
+                                    Button(action: {
+                                        let warningIDs = Set(annualFeeReminders.map(\.id))
+                                        let nowTimestamp = DateCalculator.timestamp(from: Date())
+                                        for idx in cardsBinding.indices where warningIDs.contains(cardsBinding[idx].id) {
+                                            cardsBinding[idx].isQualified = "2"
+                                            cardsBinding[idx].lastModifyTime = nowTimestamp
+                                        }
+                                        cardsBinding = syncCoordinator.commit(cards: cardsBinding)
+                                    }) {
+                                        Text("全部更新为未达标")
+                                            .font(.system(size: 11, weight: .medium))
+                                            .foregroundColor(SoftColors.orange)
+                                            .padding(.horizontal, 10)
+                                            .padding(.vertical, 4)
+                                            .background(SoftColors.orange.opacity(0.12))
+                                            .cornerRadius(6)
+                                    }
+                                    .buttonStyle(.plain)
+                                }
+                                .padding(.horizontal, 4)
+                                
+                                LazyVGrid(columns: [GridItem(.adaptive(minimum: 280, maximum: 400), spacing: 16)], spacing: 16) {
+                                    ForEach(annualFeeReminders.indices, id: \.self) { index in
+                                        let card = annualFeeReminders[index]
+                                        let dateText = DateCalculator.formatTimestampDate(card.nextAnnualFeeCollectionTime)
+                                        let days = DateCalculator.annualFeeRemainingDays(card.nextAnnualFeeCollectionTime) ?? 0
+                                        ReminderDashboardItem(
+                                            card: card,
+                                            title: "年费达标临界",
+                                            detail: "收取日：\(dateText)，距离产生年费仅剩 \(days) 天。若未达标，请及时跟进。",
+                                            tag: "剩 \(days) 天",
+                                            themeColor: SoftColors.orange,
+                                            actionLabel: "设为未达标",
+                                            onAction: {
+                                                if let idx = cardsBinding.firstIndex(where: { $0.id == card.id }) {
+                                                    cardsBinding[idx].isQualified = "2"
+                                                    cardsBinding[idx].lastModifyTime = DateCalculator.timestamp(from: Date())
+                                                    cardsBinding = syncCoordinator.commit(cards: cardsBinding)
+                                                }
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                        
+                        // 4. 有效期预警板块 (Expiry)
+                        if !expiryReminders.isEmpty {
+                            VStack(alignment: .leading, spacing: 12) {
+                                HStack(spacing: 8) {
+                                    Image(systemName: "calendar.badge.exclamationmark")
+                                        .foregroundColor(SoftColors.purple)
+                                    Text("有效期临界/过期")
+                                        .font(.headline)
+                                        .foregroundColor(SoftColors.purple)
+                                }
+                                .padding(.horizontal, 4)
+                                
+                                LazyVGrid(columns: [GridItem(.adaptive(minimum: 280, maximum: 400), spacing: 16)], spacing: 16) {
+                                    ForEach(expiryReminders.indices, id: \.self) { index in
+                                        let item = expiryReminders[index]
+                                        let isExpired = item.status == .expired
+                                        ReminderDashboardItem(
+                                            card: item.card,
+                                            title: isExpired ? "卡片已过期" : "卡片即将到期",
+                                            detail: "有效期：\(item.card.valid ?? "--/--")。\(isExpired ? "卡片已失效，请更新卡片信息。" : "请留意银行是否已安排寄送新卡并及时更新。")",
+                                            tag: isExpired ? "已失效" : "将到期",
+                                            themeColor: SoftColors.purple,
+                                            actionLabel: "更新有效期",
+                                            onAction: { detailCard = item.card }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+                    .padding(24)
+                }
+                .background(Color.primary.opacity(0.005))
             }
         }
     }

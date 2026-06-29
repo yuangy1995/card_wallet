@@ -1,6 +1,56 @@
 import SwiftUI
 import AppKit
 
+/// 模拟实体卡金色金属安全芯片的 3D 立体组件
+fileprivate struct CardChipView: View {
+    var body: some View {
+        ZStack {
+            // 芯片金属基底（拉丝金渐变）
+            RoundedRectangle(cornerRadius: 5)
+                .fill(
+                    LinearGradient(
+                        colors: [
+                            Color(red: 0.95, green: 0.82, blue: 0.5),
+                            Color(red: 1.0, green: 0.95, blue: 0.72),
+                            Color(red: 0.78, green: 0.62, blue: 0.35)
+                        ],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .frame(width: 32, height: 24)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 5)
+                        .stroke(Color.black.opacity(0.15), lineWidth: 0.8)
+                )
+            
+            // 芯片触点金属丝分割线
+            GeometryReader { geo in
+                Path { path in
+                    // 横向分割线
+                    path.move(to: CGPoint(x: 0, y: geo.size.height * 0.5))
+                    path.addLine(to: CGPoint(x: geo.size.width, y: geo.size.height * 0.5))
+                    
+                    // 纵向三段线
+                    path.move(to: CGPoint(x: geo.size.width * 0.32, y: 0))
+                    path.addLine(to: CGPoint(x: geo.size.width * 0.32, y: geo.size.height))
+                    
+                    path.move(to: CGPoint(x: geo.size.width * 0.68, y: 0))
+                    path.addLine(to: CGPoint(x: geo.size.width * 0.68, y: geo.size.height))
+                }
+                .stroke(Color.black.opacity(0.18), lineWidth: 0.8)
+            }
+            .frame(width: 32, height: 24)
+            
+            // 中部核心触点微孔
+            RoundedRectangle(cornerRadius: 1.5)
+                .fill(Color.black.opacity(0.12))
+                .frame(width: 6, height: 5)
+        }
+        .shadow(color: .black.opacity(0.2), radius: 1, x: 0, y: 0.8)
+    }
+}
+
 /// 极具科技感的银行卡磁贴组件 (1:1.586 黄金比例)
 public struct CreditCardView: View {
     public let card: SharedCard
@@ -41,7 +91,7 @@ public struct CreditCardView: View {
     
     public var body: some View {
         ZStack {
-            // 1. 卡片科技暗色拉丝渐变底图
+            // 1. 卡片高级微渐变底色
             RoundedRectangle(cornerRadius: 16)
                 .fill(
                     LinearGradient(
@@ -50,66 +100,131 @@ public struct CreditCardView: View {
                         endPoint: .bottomTrailing
                     )
                 )
-                .overlay(
-                    // 极细的霓虹边缘描边
-                    RoundedRectangle(cornerRadius: 16)
-                        .stroke(
-                            LinearGradient(
-                                colors: [Color.cyan.opacity(0.8), Color.purple.opacity(0.8)],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            ),
-                            lineWidth: 1.5
-                        )
-                )
-                .shadow(color: getShadowColor(brand).opacity(isHovered ? 0.5 : 0.2), radius: isHovered ? 12 : 6, x: 0, y: 4)
             
-            // 2. 卡片内容布局
+            // 2. 覆盖一层对角拉丝光泽，增加质感
+            RoundedRectangle(cornerRadius: 16)
+                .fill(
+                    LinearGradient(
+                        colors: [Color.white.opacity(0.12), Color.clear, Color.black.opacity(0.22)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .blendMode(.overlay)
+            
+            // 3. 极富未来科技感的几何镭射防伪波纹线
+            Canvas { context, size in
+                context.stroke(
+                    Path { path in
+                        // 第一条大正弦波线
+                        path.move(to: CGPoint(x: 0, y: size.height * 0.75))
+                        path.addCurve(
+                            to: CGPoint(x: size.width, y: size.height * 0.25),
+                            control1: CGPoint(x: size.width * 0.35, y: size.height * 0.95),
+                            control2: CGPoint(x: size.width * 0.65, y: size.height * 0.05)
+                        )
+                        // 第二条紧挨着的平行波线
+                        path.move(to: CGPoint(x: 0, y: size.height * 0.83))
+                        path.addCurve(
+                            to: CGPoint(x: size.width, y: size.height * 0.33),
+                            control1: CGPoint(x: size.width * 0.35, y: size.height * 1.03),
+                            control2: CGPoint(x: size.width * 0.65, y: size.height * 0.13)
+                        )
+                    },
+                    with: .linearGradient(
+                        Gradient(colors: [Color.white.opacity(0.15), Color.white.opacity(0.02), Color.clear]),
+                        startPoint: CGPoint(x: 0, y: size.height * 0.5),
+                        endPoint: CGPoint(x: size.width, y: size.height * 0.5)
+                    ),
+                    lineWidth: 1.0
+                )
+            }
+            .allowsHitTesting(false)
+            
+            // 4. 双重精致描边，营造微弱的发光切边质感
+            RoundedRectangle(cornerRadius: 16)
+                .stroke(
+                    LinearGradient(
+                        colors: [Color.white.opacity(0.28), Color.white.opacity(0.05), Color.black.opacity(0.25)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 1.0
+                )
+                .shadow(color: getShadowColor(brand).opacity(isHovered ? 0.45 : 0.18), radius: isHovered ? 12 : 6, x: 0, y: 4)
+            
+            // 5. 内容布局
             VStack(alignment: .leading, spacing: 0) {
-                // 顶部：银行名 & 原生代码手绘矢量卡标
+                // 顶部：银行名 & 半透明磨砂底片包裹的卡标
                 HStack(alignment: .center) {
                     VStack(alignment: .leading, spacing: 2) {
                         Text(card.bank)
-                            .font(.system(.headline, design: .rounded))
-                            .bold()
+                            .font(.system(size: 16, weight: .bold, design: .rounded))
                             .foregroundColor(.white)
+                            .shadow(color: Color.black.opacity(0.35), radius: 1, x: 0, y: 1)
                         if let alias = card.alias, !alias.isEmpty {
                             Text(alias)
-                                .font(.system(size: 10))
-                                .foregroundColor(.white.opacity(0.6))
+                                .font(.system(size: 9))
+                                .foregroundColor(.white.opacity(0.65))
+                                .shadow(color: Color.black.opacity(0.25), radius: 0.5, x: 0, y: 0.5)
                         }
                     }
                     Spacer()
+                    
                     Button(action: onViewDetails) {
                         Image(systemName: "info.circle.fill")
-                            .font(.system(size: 14))
-                            .foregroundColor(.white.opacity(0.8))
+                            .font(.system(size: 13))
+                            .foregroundColor(.white.opacity(0.85))
                     }
                     .buttonStyle(.plain)
                     .help("查看详情")
+                    .padding(.trailing, 4)
 
-                    CardBrandIcon(brand: brand)
-                        .scaleEffect(0.9)
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 6)
+                            .fill(Color.white.opacity(0.12))
+                            .frame(width: 44, height: 26)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 6)
+                                    .stroke(Color.white.opacity(0.15), lineWidth: 0.5)
+                            )
+                        
+                        CardBrandIcon(brand: brand)
+                            .scaleEffect(0.82)
+                    }
                 }
                 .padding(.top, 16)
                 .padding(.horizontal, 16)
                 
                 Spacer()
                 
+                // 中部偏上：金属安全芯片与无线闪付标（极富金融卡片质感）
+                HStack(spacing: 8) {
+                    CardChipView()
+                    
+                    Image(systemName: "wave.3.right")
+                        .font(.system(size: 12, weight: .bold))
+                        .foregroundColor(.white.opacity(0.35))
+                }
+                .padding(.horizontal, 16)
+                .padding(.bottom, 4)
+                
+                Spacer()
+                
                 // 中部：卡号（支持一键防窥切换）
                 HStack(spacing: 8) {
                     Text(getFormattedCardNumber())
-                        .font(.system(.title3, design: .monospaced))
-                        .bold()
+                        .font(.system(size: 18, weight: .bold, design: .monospaced))
                         .foregroundColor(.white)
-                        .tracking(1.5)
+                        .shadow(color: Color.black.opacity(0.65), radius: 1, x: 0, y: 1.2)
+                        .tracking(1.2)
                     
                     Button {
                         toggleNumberVisibility()
                     } label: {
                         Image(systemName: isShowingNumber ? "eye.slash.fill" : "eye.fill")
-                            .font(.system(size: 12))
-                            .foregroundColor(.white.opacity(0.7))
+                            .font(.system(size: 11))
+                            .foregroundColor(.white.opacity(0.75))
                     }
                     .buttonStyle(.plain)
                     
@@ -117,12 +232,12 @@ public struct CreditCardView: View {
                     if isShowingNumber {
                         ZStack {
                             Circle()
-                                .stroke(Color.white.opacity(0.2), lineWidth: 1.5)
-                                .frame(width: 14, height: 14)
+                                .stroke(Color.white.opacity(0.2), lineWidth: 1.2)
+                                .frame(width: 12, height: 12)
                             Circle()
                                 .trim(from: 0, to: CGFloat(remainingShowSeconds / 5.0))
-                                .stroke(Color.cyan, lineWidth: 1.5)
-                                .frame(width: 14, height: 14)
+                                .stroke(Color.cyan, lineWidth: 1.2)
+                                .frame(width: 12, height: 12)
                                 .rotationEffect(.degrees(-90))
                         }
                     }
@@ -131,24 +246,26 @@ public struct CreditCardView: View {
                 
                 Spacer()
                 
-                // 底部：有效期、CVV 还有年费状态
+                // 底部：有效期、CVV 还有年费/限额状态
                 HStack(alignment: .bottom) {
                     // 有效期与 CVV
                     VStack(alignment: .leading, spacing: 2) {
                         Text("VALID THRU")
-                            .font(.system(size: 8))
+                            .font(.system(size: 8, weight: .semibold))
                             .foregroundColor(.white.opacity(0.5))
                         Text(card.valid ?? "00/00")
-                            .font(.system(.caption, design: .monospaced))
+                            .font(.system(size: 11, weight: .bold, design: .monospaced))
                             .foregroundColor(.white)
+                            .shadow(color: Color.black.opacity(0.35), radius: 0.5, x: 0, y: 0.5)
                         
                         HStack(spacing: 4) {
                             Text("CVV:")
-                                .font(.system(size: 8))
+                                .font(.system(size: 8, weight: .semibold))
                                 .foregroundColor(.white.opacity(0.5))
                             Text(isShowingCVV ? (card.cvv ?? "•••") : "•••")
-                                .font(.system(.caption, design: .monospaced))
+                                .font(.system(size: 11, weight: .bold, design: .monospaced))
                                 .foregroundColor(.white)
+                                .shadow(color: Color.black.opacity(0.35), radius: 0.5, x: 0, y: 0.5)
                             
                             if isShowingCVV {
                                 ZStack {
@@ -169,7 +286,7 @@ public struct CreditCardView: View {
                         }
                         .padding(.horizontal, 6)
                         .padding(.vertical, 3)
-                        .background(Color.white.opacity(0.1))
+                        .background(Color.white.opacity(0.12))
                         .cornerRadius(4)
                         .contentShape(Rectangle())
                         .onTapGesture {
@@ -183,14 +300,14 @@ public struct CreditCardView: View {
                     VStack(alignment: .trailing, spacing: 4) {
                         let limitType = isDebitCard ? "币种" : (card.isSharedLimit ? "共享额度" : "独立额度")
                         Text(limitType)
-                            .font(.system(size: 8))
+                            .font(.system(size: 8, weight: .semibold))
                             .foregroundColor(.white.opacity(0.5))
                         
                         let symbol = getCurrencySymbol(card.type ?? "CNY")
                         Text(isDebitCard ? (card.type ?? "CNY") : "\(symbol)\(Int(card.limit ?? 0).description)")
-                            .font(.system(.body, design: .rounded))
-                            .bold()
+                            .font(.system(size: 13, weight: .bold, design: .rounded))
                             .foregroundColor(.white)
+                            .shadow(color: Color.black.opacity(0.35), radius: 0.5, x: 0, y: 0.5)
                         
                         if !isDebitCard {
                             // 免息天数显示
@@ -200,7 +317,7 @@ public struct CreditCardView: View {
                                 billingDayToNextBill: card.billingDaySpendingToNextBill
                             )
                             Text("免息期: \(days)天")
-                                .font(.system(size: 10, weight: .semibold))
+                                .font(.system(size: 10, weight: .bold))
                                 .foregroundColor(.cyan)
                                 .padding(.horizontal, 6)
                                 .padding(.vertical, 2)
@@ -476,6 +593,7 @@ struct CardDetailView: View {
     
     private var headerCard: some View {
         ZStack(alignment: .topTrailing) {
+            // 1. 卡片高级微渐变底色
             RoundedRectangle(cornerRadius: 18)
                 .fill(
                     LinearGradient(
@@ -484,57 +602,149 @@ struct CardDetailView: View {
                         endPoint: .bottomTrailing
                     )
                 )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 18)
-                        .stroke(Color.white.opacity(0.2), lineWidth: 1)
+            
+            // 2. 覆盖一层精致的对角拉丝反光效果，增加金属光亮质感
+            RoundedRectangle(cornerRadius: 18)
+                .fill(
+                    LinearGradient(
+                        colors: [Color.white.opacity(0.12), Color.clear, Color.black.opacity(0.22)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    )
+                )
+                .blendMode(.overlay)
+            
+            // 3. 极富未来科技感的几何镭射防伪波纹线
+            Canvas { context, size in
+                context.stroke(
+                    Path { path in
+                        // 第一条大正弦波线
+                        path.move(to: CGPoint(x: 0, y: size.height * 0.72))
+                        path.addCurve(
+                            to: CGPoint(x: size.width, y: size.height * 0.22),
+                            control1: CGPoint(x: size.width * 0.35, y: size.height * 0.92),
+                            control2: CGPoint(x: size.width * 0.65, y: size.height * 0.02)
+                        )
+                        // 第二条紧挨着的平行波线
+                        path.move(to: CGPoint(x: 0, y: size.height * 0.8))
+                        path.addCurve(
+                            to: CGPoint(x: size.width, y: size.height * 0.3),
+                            control1: CGPoint(x: size.width * 0.35, y: size.height * 1.0),
+                            control2: CGPoint(x: size.width * 0.65, y: size.height * 0.1)
+                        )
+                    },
+                    with: .linearGradient(
+                        Gradient(colors: [Color.white.opacity(0.16), Color.white.opacity(0.02), Color.clear]),
+                        startPoint: CGPoint(x: 0, y: size.height * 0.5),
+                        endPoint: CGPoint(x: size.width, y: size.height * 0.5)
+                    ),
+                    lineWidth: 1.2
+                )
+            }
+            .allowsHitTesting(false)
+            
+            // 4. 双重精致描边
+            RoundedRectangle(cornerRadius: 18)
+                .stroke(
+                    LinearGradient(
+                        colors: [Color.white.opacity(0.32), Color.white.opacity(0.05), Color.black.opacity(0.28)],
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ),
+                    lineWidth: 1.0
                 )
             
-            VStack(alignment: .leading, spacing: 18) {
+            // 5. 信息布局
+            VStack(alignment: .leading, spacing: 0) {
+                // 顶部：发卡行名字，别名，卡组织 Logo
                 HStack(alignment: .top) {
-                    VStack(alignment: .leading, spacing: 6) {
+                    VStack(alignment: .leading, spacing: 4) {
                         Text(card.bank)
                             .font(.system(size: 24, weight: .bold, design: .rounded))
-                            .foregroundStyle(.white)
-                        Text(cleanValue(card.alias))
-                            .font(.subheadline)
-                            .foregroundStyle(.white.opacity(0.7))
+                            .foregroundColor(.white)
+                            .shadow(color: Color.black.opacity(0.35), radius: 1, x: 0, y: 1)
+                        
+                        if let alias = card.alias, !alias.isEmpty {
+                            Text(alias)
+                                .font(.system(size: 11))
+                                .foregroundColor(.white.opacity(0.7))
+                                .shadow(color: Color.black.opacity(0.25), radius: 0.5, x: 0, y: 0.5)
+                        }
                     }
+                    
                     Spacer()
-                    CardBrandIcon(brand: brand)
-                        .scaleEffect(1.1)
+                    
+                    // 用精致的半透明白色圆角底板包裹卡组织 Logo
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Color.white.opacity(0.12))
+                            .frame(width: 52, height: 32)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(Color.white.opacity(0.18), lineWidth: 0.5)
+                            )
+                        
+                        CardBrandIcon(brand: brand)
+                            .scaleEffect(0.95)
+                    }
                 }
+                .padding(.top, 22)
+                .padding(.horizontal, 22)
                 
                 Spacer()
                 
-                Text(formattedCardNumber(masked: !showFullCardNumber))
-                    .font(.system(size: 22, weight: .semibold, design: .monospaced))
-                    .foregroundStyle(.white)
-                    .lineLimit(1)
+                // 中部：金色立体安全芯片与闪付波纹
+                HStack(spacing: 8) {
+                    CardChipView()
+                        .scaleEffect(1.1)
+                    
+                    Image(systemName: "wave.3.right")
+                        .font(.system(size: 14, weight: .bold))
+                        .foregroundColor(.white.opacity(0.35))
+                }
+                .padding(.horizontal, 22)
+                .padding(.bottom, 6)
                 
-                HStack {
-                    VStack(alignment: .leading, spacing: 3) {
+                Spacer()
+                
+                // 卡号
+                Text(formattedCardNumber(masked: !showFullCardNumber))
+                    .font(.system(size: 22, weight: .bold, design: .monospaced))
+                    .foregroundColor(.white)
+                    .shadow(color: Color.black.opacity(0.65), radius: 1, x: 0, y: 1.2)
+                    .lineLimit(1)
+                    .padding(.horizontal, 22)
+                
+                Spacer()
+                
+                // 底部：有效期与额度信息
+                HStack(alignment: .bottom) {
+                    VStack(alignment: .leading, spacing: 2) {
                         Text("VALID THRU")
-                            .font(.system(size: 9, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.55))
-                        Text(cleanValue(card.valid))
-                            .font(.system(.body, design: .monospaced))
-                            .foregroundStyle(.white)
+                            .font(.system(size: 8, weight: .semibold))
+                            .foregroundColor(.white.opacity(0.5))
+                        let validText = card.valid ?? ""
+                        Text(validText.isEmpty ? "--/--" : validText)
+                            .font(.system(size: 13, weight: .bold, design: .monospaced))
+                            .foregroundColor(.white)
+                            .shadow(color: Color.black.opacity(0.35), radius: 0.5, x: 0, y: 0.5)
                     }
                     
                     Spacer()
                     
-                    VStack(alignment: .trailing, spacing: 3) {
+                    VStack(alignment: .trailing, spacing: 2) {
                         Text(isDebitCard ? "币种" : (card.isSharedLimit ? "共享额度" : "独立额度"))
-                            .font(.system(size: 9, weight: .medium))
-                            .foregroundStyle(.white.opacity(0.55))
-                        Text(isDebitCard ? cleanValue(card.type) : amountText(card.limit, currency: card.type))
-                            .font(.system(.title3, design: .rounded))
-                            .bold()
-                            .foregroundStyle(.white)
+                            .font(.system(size: 8, weight: .semibold))
+                            .foregroundColor(.white.opacity(0.5))
+                        Text(isDebitCard ? (card.type ?? "CNY").uppercased() : amountText(card.limit, currency: card.type))
+                            .font(.system(size: 15, weight: .bold, design: .rounded))
+                            .foregroundColor(.white)
+                            .shadow(color: Color.black.opacity(0.35), radius: 0.5, x: 0, y: 0.5)
                     }
                 }
+                .padding(.horizontal, 22)
+                .padding(.bottom, 22)
             }
-            .padding(22)
         }
         .frame(height: 250)
     }
@@ -940,6 +1150,9 @@ public struct CardGridView: View {
     // 💡 用于追踪各个分组当前是否已折叠收起的集合
     @State private var collapsedGroups: Set<String> = []
     
+    // 💡 性能优化：缓存分组和排序后的结果，避免每次渲染 body 时都在主线程重复进行高开销的日期和分组计算
+    @State private var processedGroups: [CardGroup] = []
+    
     // 双栏网格自适应配置
     private let columns = [
         GridItem(.adaptive(minimum: 300, maximum: 450), spacing: 20)
@@ -961,10 +1174,18 @@ public struct CardGridView: View {
         self.onViewDetails = onViewDetails
         self.onDelete = onDelete
         self.onUpdateStatus = onUpdateStatus
+        
+        // 💡 首次构建时进行单次预处理计算，防止第一帧出现白屏或闪烁
+        let initialGroups = CardGridView.calculateGroups(cards: cards, groupBy: groupBy, sortBy: sortBy)
+        self._processedGroups = State(initialValue: initialGroups)
     }
     
-    /// 根据分组和排序条件，对数据进行重组的计算属性
-    private var groupedAndSortedCards: [CardGroup] {
+    private func performGroupingAndSorting() {
+        processedGroups = CardGridView.calculateGroups(cards: cards, groupBy: groupBy, sortBy: sortBy)
+    }
+    
+    /// 静态辅助方法：只在核心依赖发生变化时运行，对数据进行重组和排序
+    private static func calculateGroups(cards: [SharedCard], groupBy: GroupOption, sortBy: SortOption) -> [CardGroup] {
         // 1. 数据分组
         let rawGroups: [String: [SharedCard]]
         let iconName: String
@@ -990,7 +1211,7 @@ public struct CardGridView: View {
         }
         
         // 2. 组内排序
-        return rawGroups.map { name, groupCards in
+        let groups = rawGroups.map { name, groupCards -> CardGroup in
             let sorted = groupCards.sorted { c1, c2 in
                 switch sortBy {
                 case .limitDesc:
@@ -1054,8 +1275,9 @@ public struct CardGridView: View {
             }()
             return CardGroup(name: name, iconName: iconName, cards: sorted, totalLimit: totalLimit)
         }
+        
         // 3. 组外排序：非 none 模式下，按卡片张数降序，相同按组名升序
-        .sorted { g1, g2 in
+        return groups.sorted { g1, g2 in
             if groupBy == .none { return true }
             if g1.cards.count != g2.cards.count {
                 return g1.cards.count > g2.cards.count
@@ -1063,13 +1285,14 @@ public struct CardGridView: View {
             return g1.name.localizedCompare(g2.name) == .orderedAscending
         }
     }
+
     
     public var body: some View {
         ScrollView {
             if groupBy == .none {
                 // 无分组状态下：直接网格平铺以保持极其纯粹高效率的主视图
                 LazyVGrid(columns: columns, spacing: 20) {
-                    ForEach(groupedAndSortedCards.first?.cards ?? []) { card in
+                    ForEach(processedGroups.first?.cards ?? []) { card in
                         CreditCardView(
                             card: card,
                             onEdit: { onEdit(card) },
@@ -1084,7 +1307,7 @@ public struct CardGridView: View {
                 // 有分组状态下：使用 VStack 排布，提供一流的交互式透底质感，并确保完美无抖动且极其平滑的收折体验
                 VStack(spacing: 16) {
                     // 💡 一键展开/收起控制按钮栏（有超过1个分组时自动浮现，保持界面灵活性）
-                    if groupedAndSortedCards.count > 1 {
+                    if processedGroups.count > 1 {
                         HStack {
                             Spacer()
                             Button {
@@ -1107,7 +1330,7 @@ public struct CardGridView: View {
                             
                             Button {
                                 withAnimation(.easeInOut(duration: 0.2)) {
-                                    let allNames = groupedAndSortedCards.map { $0.name }
+                                    let allNames = processedGroups.map { $0.name }
                                     collapsedGroups = Set(allNames)
                                 }
                             } label: {
@@ -1129,7 +1352,7 @@ public struct CardGridView: View {
                         .padding(.bottom, -4)
                     }
                     
-                    ForEach(groupedAndSortedCards) { group in
+                    ForEach(processedGroups) { group in
                         let isCollapsed = collapsedGroups.contains(group.name)
                         
                         VStack(spacing: 0) {
@@ -1173,6 +1396,18 @@ public struct CardGridView: View {
                 }
                 .padding(.vertical, 10)
             }
+        }
+        .onAppear {
+            performGroupingAndSorting()
+        }
+        .onChange(of: cards) { _, _ in
+            performGroupingAndSorting()
+        }
+        .onChange(of: groupBy) { _, _ in
+            performGroupingAndSorting()
+        }
+        .onChange(of: sortBy) { _, _ in
+            performGroupingAndSorting()
         }
     }
 }
