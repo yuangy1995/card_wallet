@@ -17,7 +17,7 @@ public enum CardBrand: String, Codable, CaseIterable, Sendable {
             if levelStr.contains("银联") || levelStr.lowercased().contains("unionpay") { return .unionpay }
             if levelStr.contains("Discover") || levelStr.contains("发现") { return .discover }
             if levelStr.lowercased().contains("visa") { return .visa }
-            if levelStr.lowercased().contains("mastercard") { return .mastercard }
+            if levelStr.lowercased().contains("mastercard") || levelStr.contains("万事达") { return .mastercard }
             if levelStr.lowercased().contains("jcb") { return .jcb }
             if levelStr.lowercased().contains("ae") || levelStr.contains("运通") { return .amex }
         }
