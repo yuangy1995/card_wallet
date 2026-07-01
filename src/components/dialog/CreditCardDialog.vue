@@ -103,19 +103,18 @@
 
         <el-descriptions-item label="等级">
           <el-form-item prop="level">
-            <el-select
-              v-model="formData.level"
-              placeholder="请选择等级"
-              filterable
-              clearable
-            >
-              <el-option
-                v-for="item in options.cardLevel"
-                :key="item.name"
-                :label="item.name"
-                :value="item.chineseName"
+            <div class="card-level-picker">
+              <el-cascader
+                v-model="formData.level"
+                :options="options.cardLevelGroups"
+                :props="{ emitPath: false }"
+                placeholder="请选择卡组织和等级"
+                clearable
               />
-            </el-select>
+              <span class="card-level-preview">
+                {{ formData.level ? `预览：${formData.level}` : '预览：—' }}
+              </span>
+            </div>
           </el-form-item>
         </el-descriptions-item>
 
@@ -357,6 +356,7 @@ import { QuestionFilled } from '@element-plus/icons-vue'
 import { useAutoLock } from '@/composables/useAutoLock'
 import { formatTimestampForDateInput, timestampFromDateInput } from '@/utils/cardTimestamp'
 import { bankNamesReferToSameBank } from '@/utils/bankName'
+import { normalizeCardLevel } from '@/config/referenceData'
 
 // 信用卡类型识别
 const CARD_TYPES = {
@@ -642,6 +642,7 @@ export default {
           data.limit = data.limit === '' || data.limit === null || data.limit === undefined ? null : Number(data.limit)
           data.annualFee = data.annualFee === '' || data.annualFee === null || data.annualFee === undefined ? null : Number(data.annualFee)
           data.type = data.type || ''
+          data.level = normalizeCardLevel(data.level)
           data.cardCategory = data.cardCategory === 'debit' ? 'debit' : 'credit'
           data.isQualified = data.isQualified || ''
           data.nextAnnualFeeCollectionTime = formatTimestampForDateInput(data.nextAnnualFeeCollectionTime)
@@ -786,6 +787,7 @@ export default {
       countryData: creditCardOptions.countryData,
       bankList: creditCardOptions.bankList,
       cardLevel: creditCardOptions.cardLevel,
+      cardLevelGroups: creditCardOptions.cardLevelGroups,
       currencyList: creditCardOptions.currencyList
     }
 
@@ -959,6 +961,25 @@ export default {
   .el-input-number,
   .el-date-picker {
     width: 100%;
+  }
+
+  .card-level-picker {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+
+    .el-cascader {
+      flex: 1;
+      min-width: 0;
+    }
+  }
+
+  .card-level-preview {
+    flex: none;
+    color: var(--el-text-color-secondary);
+    font-size: 12px;
+    white-space: nowrap;
   }
 
   :deep(.el-input-group__append) {

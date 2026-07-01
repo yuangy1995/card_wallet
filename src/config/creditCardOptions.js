@@ -2,6 +2,7 @@ import {
   countryData as sharedCountryData,
   bankList as sharedBankList,
   cardLevelData as sharedCardLevelData,
+  cardLevelGroups as sharedCardLevelGroups,
   currencyData as sharedCurrencyData,
   qualificationStatusData as sharedQualificationStatusData,
 } from '@/config/referenceData'
@@ -29,6 +30,15 @@ const mapCardLevel = sharedCardLevelData.map(item => ({
   aliases: item.aliases || [],
 }))
 
+const mapCardLevelGroups = sharedCardLevelGroups.map(group => ({
+  value: group.value,
+  label: group.value,
+  children: group.levels.map(level => ({
+    value: `${group.value}-${level.value}`,
+    label: level.value,
+  })),
+}))
+
 const mapCurrencyList = sharedCurrencyData.map(item => ({
   name: item.chineseName,
   chineseName: item.value,
@@ -50,6 +60,7 @@ export const creditCardOptions = {
   countryData: mapCountryData,
   bankList: mapBankList,
   cardLevel: mapCardLevel,
+  cardLevelGroups: mapCardLevelGroups,
   currencyList: mapCurrencyList,
   cardType: [
     {
