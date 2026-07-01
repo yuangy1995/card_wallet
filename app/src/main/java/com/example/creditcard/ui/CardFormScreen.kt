@@ -390,6 +390,11 @@ fun CardFormScreen(
 
     // 监听卡号前缀判定卡组织品牌
     val detectedBrand = remember(cardNumber) { getCardBrand(cardNumber) }
+    val levelSelection = CardReferenceData.levelSelection(level)
+    val selectedLevelOptions = CardReferenceData.levelGroups
+        .firstOrNull { it.brand == levelSelection?.brand }
+        ?.levels
+        .orEmpty()
 
     // ==========================================
     // 共享额度智能联动逻辑
@@ -736,13 +741,43 @@ fun CardFormScreen(
 
                         Spacer(modifier = Modifier.height(10.dp))
 
-                        ReferenceDropdownField(
-                            value = level,
-                            onValueChange = { level = it },
-                            label = "卡片等级",
-                            options = CardReferenceData.levels,
-                            isDark = isDark,
+                        Row(
                             modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            ReferenceDropdownField(
+                                value = levelSelection?.brand.orEmpty(),
+                                onValueChange = { level = CardReferenceData.selectLevelBrand(it, level) },
+                                label = "卡组织",
+                                options = CardReferenceData.levelGroups.map { it.brand },
+                                isDark = isDark,
+                                modifier = Modifier.weight(1f),
+                                allowCustomValue = false,
+                                readOnly = true,
+                            )
+
+                            ReferenceDropdownField(
+                                value = levelSelection?.level.orEmpty(),
+                                onValueChange = {
+                                    level = CardReferenceData.selectLevel(levelSelection?.brand.orEmpty(), it)
+                                },
+                                label = "等级",
+                                options = selectedLevelOptions,
+                                isDark = isDark,
+                                modifier = Modifier.weight(1f),
+                                allowCustomValue = false,
+                                readOnly = true,
+                            )
+                        }
+
+                        Text(
+                            text = if (level.isEmpty()) "预览：—" else "预览：$level",
+                            fontSize = 12.sp,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 4.dp),
+                            textAlign = TextAlign.End
                         )
 
                         if (isDebitCard) {
@@ -1361,7 +1396,9 @@ fun ReferenceDropdownField(
     label: String,
     options: List<String>,
     isDark: Boolean,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    allowCustomValue: Boolean = true,
+    readOnly: Boolean = false,
 ) {
     var expanded by remember { mutableStateOf(false) }
     var pendingAutoMatch by remember { mutableStateOf(false) }
@@ -1374,7 +1411,9 @@ fun ReferenceDropdownField(
             options.filter { it.contains(keyword, ignoreCase = true) }
         }
     }
-    val canUseCustomValue = value.trim().isNotEmpty() && options.none { it == value.trim() }
+    val canUseCustomValue = allowCustomValue &&
+        value.trim().isNotEmpty() &&
+        options.none { it == value.trim() }
 
     LaunchedEffect(value, pendingAutoMatch) {
         if (!pendingAutoMatch) return@LaunchedEffect
@@ -1402,6 +1441,7 @@ fun ReferenceDropdownField(
                 pendingAutoMatch = true
             },
             label = { Text(label) },
+            readOnly = readOnly,
             singleLine = true,
             trailingIcon = {
                 IconButton(onClick = {
