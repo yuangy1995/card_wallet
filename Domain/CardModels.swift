@@ -24,7 +24,7 @@ public enum CardBrand: String, Codable, CaseIterable {
             if levelStr.lowercased().contains("visa") {
                 return .visa
             }
-            if levelStr.lowercased().contains("mastercard") {
+            if levelStr.lowercased().contains("mastercard") || levelStr.contains("万事达") {
                 return .mastercard
             }
             if levelStr.lowercased().contains("jcb") {

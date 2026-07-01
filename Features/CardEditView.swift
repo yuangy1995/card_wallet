@@ -60,24 +60,49 @@ public struct CardEditView: View {
         "以色列", "埃及", "新西兰"
     ]
     let banks = [
-        "工商银行", "建设银行", "农业银行", "中国银行", "交通银行", "邮储银行", "招商银行",
-        "中信银行", "光大银行", "华夏银行", "民生银行", "平安银行", "兴业银行", "浦发银行",
-        "广发银行", "北京银行", "宁波银行", "江苏银行", "汇丰银行", "渣打银行", "花旗银行",
-        "东亚银行", "恒生银行", "星展银行", "美国银行", "摩根大通银行", "德意志银行",
-        "华侨银行", "众安银行", "招商永隆银行"
+        "工商银行", "建设银行", "农业银行", "中国银行", "交通银行", "邮储银行",
+        "招商银行", "中信银行", "光大银行", "华夏银行", "民生银行", "平安银行",
+        "兴业银行", "浦发银行", "广发银行", "北京银行", "上海银行", "江苏银行",
+        "宁波银行", "南京银行", "杭州银行", "成都银行", "重庆银行", "徽商银行",
+        "浙商银行", "渤海银行", "上海农商银行", "重庆农商银行", "微众银行", "网商银行",
+        "汇丰银行", "恒生银行", "中银香港", "渣打银行", "东亚银行", "花旗银行",
+        "星展银行", "华侨银行", "众安银行", "招商永隆银行", "Mox Bank", "大西洋银行",
+        "澳门商业银行", "大丰银行", "澳门国际银行", "中国信托银行", "国泰世华银行", "兆丰国际商业银行",
+        "台北富邦银行", "玉山银行", "台新银行", "台湾银行", "第一银行", "华南银行",
+        "合作金库银行", "摩根大通银行", "美国银行", "富国银行", "U.S. Bank", "Capital One",
+        "PNC Bank", "Truist Bank", "美国运通", "Discover Bank", "加拿大皇家银行", "TD Bank",
+        "加拿大丰业银行", "蒙特利尔银行", "加拿大帝国商业银行", "加拿大国民银行", "Desjardins", "巴克莱银行",
+        "Lloyds Bank", "NatWest", "Santander UK", "Nationwide Building Society", "Halifax", "Monzo Bank",
+        "Starling Bank", "德意志银行", "德国商业银行", "Sparkasse", "ING Germany", "Deutsche Kreditbank",
+        "HypoVereinsbank", "N26 Bank", "法国巴黎银行", "法国农业信贷银行", "法国兴业银行", "Groupe BPCE",
+        "Crédit Mutuel", "La Banque Postale", "裕信银行", "联合圣保罗银行", "Banco BPM", "Banca Monte dei Paschi di Siena",
+        "桑坦德银行", "西班牙对外银行", "CaixaBank", "Banco Sabadell", "Bankinter", "ING Bank",
+        "荷兰合作银行", "荷兰银行", "bunq", "瑞银", "Raiffeisen Switzerland", "Zürcher Kantonalbank",
+        "PostFinance", "瑞士宝盛银行", "三菱日联银行", "三井住友银行", "瑞穗银行", "日本邮政银行",
+        "Resona Bank", "Rakuten Bank", "SBI Sumishin Net Bank", "Sony Bank", "KB国民银行", "新韩银行",
+        "韩亚银行", "友利银行", "NH NongHyup Bank", "IBK Industrial Bank of Korea", "KakaoBank", "Toss Bank",
+        "澳大利亚联邦银行", "西太平洋银行", "澳大利亚国民银行", "澳新银行", "麦格理银行", "Bendigo and Adelaide Bank",
+        "Bank of New Zealand", "Kiwibank", "ASB Bank", "TSB New Zealand", "大华银行", "马来亚银行",
+        "联昌国际银行", "大众银行", "兴业银行（马来西亚）", "丰隆银行", "Alliance Bank Malaysia", "盘谷银行",
+        "开泰银行", "Siam Commercial Bank", "Krungthai Bank", "Krungsri", "ttb bank", "Bank Mandiri",
+        "Bank Rakyat Indonesia", "Bank Central Asia", "Bank Negara Indonesia", "Bank Syariah Indonesia", "Bank Tabungan Negara", "BDO Unibank",
+        "Bank of the Philippine Islands", "Metrobank", "Land Bank of the Philippines", "Philippine National Bank", "UnionBank of the Philippines", "Security Bank",
+        "Vietcombank", "BIDV", "VietinBank", "Agribank", "Techcombank", "MB Bank",
+        "VPBank", "Asia Commercial Bank", "State Bank of India", "HDFC Bank", "ICICI Bank", "Axis Bank",
+        "Kotak Mahindra Bank", "Punjab National Bank", "Bank of Baroda", "Canara Bank", "Itaú Unibanco", "Banco do Brasil",
+        "Bradesco", "Caixa Econômica Federal", "Santander Brasil", "Nubank", "BTG Pactual", "Banco Nación",
+        "Banco Galicia", "Santander Argentina", "BBVA Argentina", "Banco Macro", "BBVA México", "Banorte",
+        "Santander México", "Banamex", "HSBC México", "Scotiabank México", "Banco Inbursa", "Sberbank",
+        "VTB Bank", "Gazprombank", "Alfa-Bank", "Rosselkhozbank", "T-Bank", "Sovcombank",
+        "Standard Bank", "FirstRand Bank", "Absa Bank", "Nedbank", "Capitec Bank", "Investec Bank",
+        "Ziraat Bank", "Türkiye İş Bankası", "Garanti BBVA", "Akbank", "Halkbank", "VakıfBank",
+        "Yapı Kredi", "Saudi National Bank", "Al Rajhi Bank", "Riyad Bank", "Saudi Awwal Bank", "Saudi Investment Bank",
+        "Banque Saudi Fransi", "First Abu Dhabi Bank", "Emirates NBD", "Abu Dhabi Commercial Bank", "Mashreq", "Dubai Islamic Bank",
+        "Abu Dhabi Islamic Bank", "RAKBANK", "Bank Hapoalim", "Bank Leumi", "Mizrahi-Tefahot Bank", "Israel Discount Bank",
+        "First International Bank of Israel", "National Bank of Egypt", "Banque Misr", "Commercial International Bank", "QNB Alahli", "Banque du Caire",
+        "Arab African International Bank"
     ]
-    let levels = [
-        "银联-普卡", "银联-金卡", "银联-白金卡", "银联-钻石卡", "银联-黑钻卡",
-        "银联 + VISA", "银联 + MasterCard", "银联 + JCB", "银联 + AE",
-        "VISA-普卡", "VISA-金卡", "VISA-白金卡", "VISA-御玺卡", "VISA-无限卡",
-        "MasterCard-普卡", "MasterCard-金卡", "MasterCard-白金卡", "MasterCard-钛金卡",
-        "MasterCard-世界卡", "MasterCard-世界之极卡",
-        "JCB-普卡", "JCB-金卡", "JCB-白金卡", "JCB-御尊卡",
-        "AE-经典-绿卡", "AE-经典-红卡", "AE-经典-金卡", "AE-经典-蓝卡",
-        "AE-经典-新贵白金卡", "AE-经典-clear卡", "AE-经典-Explorer卡",
-        "AE-经典-Cash Magnet卡", "AE-经典-百夫长白金卡", "AE-经典-百夫长黑金卡",
-        "AE-蓝盒子-MEMBER卡", "AE-蓝盒子-SELECT卡", "AE-蓝盒子-MAX卡", "AE-蓝盒子-ICON卡"
-    ]
+    let levels = CardLevelGroup.allValues
     let currencies = [
         "CNY", "CNH", "USD", "EUR", "GBP", "JPY", "HKD", "MOP", "TWD", "SGD",
         "AUD", "CAD", "CHF", "SEK", "DKK", "NOK", "NZD", "KRW", "THB", "MYR",
@@ -172,11 +197,7 @@ public struct CardEditView: View {
                                     self.cvv = String(newValue.replacingOccurrences(of: "\\D", with: "", options: .regularExpression).prefix(4))
                                 }
                             
-                            EditableOptionField(
-                                title: "卡片等级",
-                                text: $level,
-                                options: levels
-                            )
+                            CardLevelPickerField(level: $level)
                             
                             if isDebitCard {
                                 EditableOptionField(
@@ -421,7 +442,7 @@ public struct CardEditView: View {
         bank = card.bank
         cardNumber = card.cardNumber
         alias = card.alias ?? ""
-        level = card.level ?? ""
+        level = CardLevelGroup.normalize(card.level ?? "")
         type = card.type ?? ""
         limitText = formatEditableAmount(card.limit)
         cvv = card.cvv ?? ""
@@ -650,6 +671,130 @@ public struct CardEditView: View {
         let base64 = asset.data.components(separatedBy: "base64,").last ?? asset.data
         guard let data = Data(base64Encoded: base64) else { return nil }
         return NSImage(data: data)
+    }
+}
+
+private struct CardLevelGroup {
+    let brand: String
+    let levels: [String]
+
+    static let all = [
+        CardLevelGroup(brand: "银联", levels: ["普卡", "金卡", "白金卡", "钻石卡", "黑钻卡"]),
+        CardLevelGroup(brand: "Visa", levels: ["普卡", "金卡", "白金卡", "御玺卡", "无限卡"]),
+        CardLevelGroup(brand: "万事达", levels: ["普卡", "金卡", "白金卡", "钛金卡", "世界卡", "世界之极卡"]),
+        CardLevelGroup(brand: "JCB", levels: ["普卡", "金卡", "白金卡", "御尊卡"]),
+        CardLevelGroup(brand: "美国运通", levels: ["绿卡", "金卡", "白金卡", "黑金卡"])
+    ]
+
+    static let allValues = all.flatMap { group in
+        group.levels.map { "\(group.brand)-\($0)" }
+    }
+
+    static func normalize(_ value: String) -> String {
+        let cleaned = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleaned.isEmpty else { return "" }
+        if allValues.contains(cleaned) { return cleaned }
+        if cleaned.hasPrefix("MasterCard-") || cleaned.hasPrefix("Mastercard-") {
+            return cleaned.replacingOccurrences(
+                of: "^Master[Cc]ard-",
+                with: "万事达-",
+                options: .regularExpression
+            )
+        }
+        if cleaned.hasPrefix("VISA-") {
+            return cleaned.replacingOccurrences(of: "^VISA-", with: "Visa-", options: .regularExpression)
+        }
+        let legacyAmericanExpressLevels = [
+            "AE-经典-绿卡": "美国运通-绿卡",
+            "AE-经典-金卡": "美国运通-金卡",
+            "AE-经典-新贵白金卡": "美国运通-白金卡",
+            "AE-经典-百夫长白金卡": "美国运通-白金卡",
+            "AE-经典-百夫长黑金卡": "美国运通-黑金卡"
+        ]
+        return legacyAmericanExpressLevels[cleaned] ?? cleaned
+    }
+
+    static func selection(for value: String) -> (brand: String, level: String)? {
+        let normalized = normalize(value)
+        for group in all {
+            let prefix = "\(group.brand)-"
+            guard normalized.hasPrefix(prefix) else { continue }
+            let level = String(normalized.dropFirst(prefix.count))
+            if group.levels.contains(level) {
+                return (group.brand, level)
+            }
+        }
+        return nil
+    }
+}
+
+private struct CardLevelPickerField: View {
+    @Binding var level: String
+
+    private var selection: (brand: String, level: String)? {
+        CardLevelGroup.selection(for: level)
+    }
+
+    private var selectedGroup: CardLevelGroup? {
+        CardLevelGroup.all.first { $0.brand == selection?.brand }
+    }
+
+    private var brandBinding: Binding<String> {
+        Binding(
+            get: { selection?.brand ?? "" },
+            set: { brand in
+                guard let group = CardLevelGroup.all.first(where: { $0.brand == brand }) else {
+                    level = ""
+                    return
+                }
+                let selectedLevel = selection?.level
+                let nextLevel = selectedLevel.flatMap { group.levels.contains($0) ? $0 : nil }
+                    ?? group.levels.first
+                    ?? ""
+                level = nextLevel.isEmpty ? "" : "\(brand)-\(nextLevel)"
+            }
+        )
+    }
+
+    private var levelBinding: Binding<String> {
+        Binding(
+            get: { selection?.level ?? "" },
+            set: { selectedLevel in
+                guard let brand = selection?.brand, !selectedLevel.isEmpty else { return }
+                level = "\(brand)-\(selectedLevel)"
+            }
+        )
+    }
+
+    var body: some View {
+        HStack(spacing: 10) {
+            Text("卡片等级")
+            Spacer()
+            Picker("卡组织", selection: brandBinding) {
+                Text("请选择卡组织").tag("")
+                ForEach(CardLevelGroup.all, id: \.brand) { group in
+                    Text(group.brand).tag(group.brand)
+                }
+            }
+            .labelsHidden()
+            .frame(width: 120)
+
+            Picker("等级", selection: levelBinding) {
+                Text("请选择等级").tag("")
+                ForEach(selectedGroup?.levels ?? [], id: \.self) { option in
+                    Text(option).tag(option)
+                }
+            }
+            .labelsHidden()
+            .frame(width: 120)
+            .disabled(selectedGroup == nil)
+
+            Text(level.isEmpty ? "预览：—" : "预览：\(level)")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .frame(width: 150, alignment: .leading)
+                .lineLimit(1)
+        }
     }
 }
 
