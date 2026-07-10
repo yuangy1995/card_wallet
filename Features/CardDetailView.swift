@@ -526,24 +526,43 @@ struct CardDetailView: View {
     private var mediaSection: some View {
         VStack(alignment: .leading, spacing: 0) {
             sectionHeader(title: "卡片图片", icon: "photo.on.rectangle.angled", color: .blue)
+            Text("共 \(card.cardImages.count) 张图片 · 附件总大小 \(formatFileSize(card.cardImages.reduce(0) { $0 + imageByteSize($1) }))")
+                .font(.footnote)
+                .foregroundColor(.secondary)
+                .padding(.horizontal, 4)
+                .padding(.top, 8)
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 12) {
                     ForEach(card.cardImages) { asset in
                         if let uiImage = uiImage(from: asset) {
-                            Button {
-                                selectedPreviewImage = asset
-                            } label: {
-                                Image(uiImage: uiImage)
-                                    .resizable()
-                                    .scaledToFill()
-                                    .frame(width: 150, height: 96)
-                                    .clipShape(RoundedRectangle(cornerRadius: 10))
-                                    .overlay {
-                                        RoundedRectangle(cornerRadius: 10)
-                                            .stroke(Color.secondary.opacity(0.25), lineWidth: 1)
-                                    }
+                            VStack(alignment: .leading, spacing: 4) {
+                                Button {
+                                    selectedPreviewImage = asset
+                                } label: {
+                                    Image(uiImage: uiImage)
+                                        .resizable()
+                                        .scaledToFill()
+                                        .frame(width: 150, height: 96)
+                                        .clipShape(RoundedRectangle(cornerRadius: 10))
+                                        .overlay {
+                                            RoundedRectangle(cornerRadius: 10)
+                                                .stroke(Color.secondary.opacity(0.25), lineWidth: 1)
+                                        }
+                                }
+                                .buttonStyle(.plain)
+                                Text(asset.name.isEmpty ? asset.source : asset.name)
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                    .lineLimit(1)
+                                Text("上传时间 \(formatImageUploadTime(asset.createdAt))")
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                                    .lineLimit(1)
+                                Text("文件大小 \(formatFileSize(imageByteSize(asset)))")
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
                             }
-                            .buttonStyle(.plain)
+                            .frame(width: 150, alignment: .leading)
                         }
                     }
                 }
@@ -557,6 +576,24 @@ struct CardDetailView: View {
         let base64 = asset.data.components(separatedBy: "base64,").last ?? asset.data
         guard let data = Data(base64Encoded: base64) else { return nil }
         return UIImage(data: data)
+    }
+
+    private func imageByteSize(_ asset: CardImageAsset) -> Int64 {
+        let base64 = asset.data.components(separatedBy: "base64,").last ?? asset.data
+        return Int64(Data(base64Encoded: base64, options: .ignoreUnknownCharacters)?.count ?? 0)
+    }
+
+    private func formatFileSize(_ bytes: Int64) -> String {
+        ByteCountFormatter.string(fromByteCount: max(0, bytes), countStyle: .file)
+    }
+
+    private func formatImageUploadTime(_ timestamp: Double) -> String {
+        guard timestamp > 0 else { return "未知" }
+        let seconds = timestamp < 1_000_000_000_000 ? timestamp : timestamp / 1000
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.dateFormat = "yyyy-MM-dd HH:mm"
+        return formatter.string(from: Date(timeIntervalSince1970: seconds))
     }
 }
 
