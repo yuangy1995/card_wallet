@@ -676,6 +676,55 @@ object SyncCoordinator {
     }
 
     /**
+     * 批量提交卡片修改或删除，只刷新一次数据流并触发一次后台同步。
+     */
+    fun commitCardChanges(
+        context: Context,
+        changedCards: List<SharedCard>,
+        deletedCardIDs: Set<String> = emptySet()
+    ) {
+        if (changedCards.isEmpty() && deletedCardIDs.isEmpty()) return
+        val appContext = context.applicationContext
+        val latestCards = synchronized(dbWriteLock) {
+            DatabaseHelper(appContext).use { db ->
+                changedCards.forEach { card ->
+                    val beforeCard = db.getCardById(card.id)
+                    val record = CardSyncRecord(
+                        cardId = card.id,
+                        changedAt = SyncTime.nowIso(),
+                        state = "active",
+                        card = card
+                    )
+                    db.saveCard(card)
+                    db.saveSyncRecord(record)
+                    recordPendingMutation(
+                        appContext,
+                        buildCardChange(if (beforeCard == null) "added" else "modified", beforeCard, card)
+                    )
+                }
+                deletedCardIDs.forEach { cardID ->
+                    val beforeCard = db.getCardById(cardID)
+                    db.deleteCardById(cardID)
+                    db.saveSyncRecord(
+                        CardSyncRecord(
+                            cardId = cardID,
+                            changedAt = SyncTime.nowIso(),
+                            state = "deleted",
+                            card = null
+                        )
+                    )
+                    recordPendingMutation(appContext, buildCardChange("deleted", beforeCard, null))
+                }
+                bumpMutationRevision(appContext)
+                markPending(appContext, true)
+                db.getAllCards()
+            }
+        }
+        _cardsFlow.value = latestCards
+        requestBackgroundSync(context, publishLocalChanges = true)
+    }
+
+    /**
      * 核心双向同步机制（协程挂起函数）
      * @param publishLocalChanges 是否强制发布当前本机数据；后台本地变更同步也会使用此参数
      * @param manualRequest 是否由用户主动发起，用于移动数据确认策略

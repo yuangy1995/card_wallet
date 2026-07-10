@@ -31,6 +31,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.FactCheck
 import androidx.compose.material.icons.automirrored.filled.EventNote
 import androidx.compose.material.icons.automirrored.filled.HelpOutline
+import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -60,6 +61,7 @@ import androidx.compose.ui.unit.sp
 import androidx.compose.ui.zIndex
 import androidx.navigation3.runtime.NavKey
 import java.time.LocalDate
+import java.time.ZoneId
 import java.time.temporal.ChronoUnit
 import kotlin.math.min
 import com.example.creditcard.CardDetail
@@ -104,6 +106,41 @@ private enum class ToolsMode {
 private const val TOOL_MENU_PREFS = "tool_menu_preferences"
 private const val TOOL_MENU_ORDER_KEY = "tool_menu_order"
 private const val TOOL_MENU_HIDDEN_KEY = "tool_menu_hidden"
+private const val CARD_LIST_PREFS = "card_list_preferences"
+private const val CARD_LIST_GROUP_KEY = "card_list_group"
+private const val CARD_LIST_SORT_KEY = "card_list_sort"
+
+private enum class CardListGroupOption(val storedValue: String, val label: String) {
+    NONE("none", "不分组"),
+    BANK("bank", "按银行"),
+    BRAND("brand", "按卡组织"),
+    LEVEL("level", "按卡级别"),
+    COUNTRY("country", "按国家/地区");
+
+    companion object {
+        fun from(value: String?): CardListGroupOption = entries.firstOrNull { it.storedValue == value } ?: BANK
+    }
+}
+
+private enum class CardListSortOption(val storedValue: String, val label: String) {
+    LIMIT_DESC("limit_desc", "额度从高到低"),
+    LIMIT_ASC("limit_asc", "额度从低到高"),
+    INTEREST_DESC("interest_desc", "当前免息期从长到短"),
+    MODIFIED_DESC("modified_desc", "最近修改"),
+    BANK_ASC("bank_asc", "银行名称");
+
+    companion object {
+        fun from(value: String?): CardListSortOption = entries.firstOrNull { it.storedValue == value } ?: MODIFIED_DESC
+    }
+}
+
+private data class AndroidBatchUpdate(
+    val category: String? = null,
+    val status: String? = null,
+    val annualFee: Double? = null,
+    val nextAnnualFeeTime: Long? = null,
+    val valid: String? = null
+)
 
 private val defaultToolMenuIds = listOf("stats", "verify", "best_usage", "data_diagnostics", "sync_log")
 
@@ -173,6 +210,31 @@ fun MainScreen(
     var searchQuery by remember { mutableStateOf("") }
     var cardCategoryFilter by remember { mutableStateOf("all") }
     var showAddMenu by remember { mutableStateOf(false) }
+    val cardListPrefs = remember(context) {
+        context.getSharedPreferences(CARD_LIST_PREFS, Context.MODE_PRIVATE)
+    }
+    var groupOption by remember {
+        mutableStateOf(CardListGroupOption.from(cardListPrefs.getString(CARD_LIST_GROUP_KEY, null)))
+    }
+    var sortOption by remember {
+        mutableStateOf(CardListSortOption.from(cardListPrefs.getString(CARD_LIST_SORT_KEY, null)))
+    }
+    var showGroupMenu by remember { mutableStateOf(false) }
+    var showSortMenu by remember { mutableStateOf(false) }
+    var selectionMode by remember { mutableStateOf(false) }
+    var selectedCardIDs by remember { mutableStateOf(setOf<String>()) }
+    var showBatchEditor by remember { mutableStateOf(false) }
+    var showBatchDeleteConfirmation by remember { mutableStateOf(false) }
+
+    LaunchedEffect(groupOption) {
+        cardListPrefs.edit().putString(CARD_LIST_GROUP_KEY, groupOption.storedValue).apply()
+    }
+    LaunchedEffect(sortOption) {
+        cardListPrefs.edit().putString(CARD_LIST_SORT_KEY, sortOption.storedValue).apply()
+    }
+    LaunchedEffect(cards) {
+        selectedCardIDs = selectedCardIDs.intersect(cards.map { it.id }.toSet())
+    }
 
     val searchFilteredCards = remember(cards, searchQuery) {
         if (searchQuery.isBlank()) {
@@ -217,6 +279,33 @@ fun MainScreen(
             else -> searchFilteredCards
         }
     }
+    val allVisibleCardsSelected = filteredCards.isNotEmpty() && filteredCards.all { it.id in selectedCardIDs }
+
+    val groupedCards = remember(filteredCards, groupOption, sortOption) {
+        val sortedCards = when (sortOption) {
+            CardListSortOption.LIMIT_DESC -> filteredCards.sortedByDescending { if (it.cardCategory == "debit") 0.0 else it.limit }
+            CardListSortOption.LIMIT_ASC -> filteredCards.sortedBy { if (it.cardCategory == "debit") 0.0 else it.limit }
+            CardListSortOption.INTEREST_DESC -> filteredCards.sortedByDescending { calculateInterestFreeDays(it) }
+            CardListSortOption.MODIFIED_DESC -> filteredCards.sortedByDescending { it.lastModifyTime }
+            CardListSortOption.BANK_ASC -> filteredCards.sortedWith(compareBy({ it.bank }, { it.alias }))
+        }
+        if (groupOption == CardListGroupOption.NONE) {
+            listOf("" to sortedCards)
+        } else {
+            val grouped = sortedCards.groupBy { card ->
+                when (groupOption) {
+                    CardListGroupOption.BANK -> card.bank.ifBlank { "未设置银行" }
+                    CardListGroupOption.BRAND -> getCardBrand(card.cardNumber)
+                    CardListGroupOption.LEVEL -> card.level.ifBlank { "未设置级别" }
+                    CardListGroupOption.COUNTRY -> card.country.ifBlank { "未设置国家/地区" }
+                    CardListGroupOption.NONE -> ""
+                }
+            }
+            grouped.entries
+                .sortedWith(compareByDescending<Map.Entry<String, List<SharedCard>>> { it.value.size }.thenBy { it.key })
+                .map { it.key to it.value }
+        }
+    }
 
     val isSubPage = (selectedTab == 1 && toolsMode != ToolsMode.HOME) ||
                     (selectedTab == 2 && settingsMode != SettingsMode.MAIN)
@@ -235,6 +324,57 @@ fun MainScreen(
                 TextButton(onClick = SyncCoordinator::cancelCellularSyncConfirmation) {
                     Text("取消")
                 }
+            }
+        )
+    }
+
+    if (showBatchEditor) {
+        AndroidBatchEditDialog(
+            selectedCount = selectedCardIDs.size,
+            onDismiss = { showBatchEditor = false },
+            onApply = { update ->
+                val changedCards = cards.filter { it.id in selectedCardIDs }.map { card ->
+                    val nextCategory = update.category ?: card.cardCategory
+                    card.copy(
+                        cardCategory = nextCategory,
+                        isQualified = if (nextCategory != "debit") update.status ?: card.isQualified else card.isQualified,
+                        annualFee = if (nextCategory != "debit") update.annualFee ?: card.annualFee else card.annualFee,
+                        nextAnnualFeeCollectionTime = if (nextCategory != "debit") {
+                            when {
+                                update.status == "3" -> null
+                                update.nextAnnualFeeTime != null -> update.nextAnnualFeeTime
+                                else -> card.nextAnnualFeeCollectionTime
+                            }
+                        } else card.nextAnnualFeeCollectionTime,
+                        valid = update.valid ?: card.valid,
+                        lastModifyTime = System.currentTimeMillis()
+                    )
+                }
+                SyncCoordinator.commitCardChanges(context, changedCards)
+                selectedCardIDs = emptySet()
+                selectionMode = false
+                showBatchEditor = false
+            }
+        )
+    }
+
+    if (showBatchDeleteConfirmation) {
+        AlertDialog(
+            onDismissRequest = { showBatchDeleteConfirmation = false },
+            title = { Text("批量删除确认") },
+            text = { Text("将删除已选择的 ${selectedCardIDs.size} 张卡片，并把删除记录同步到其他设备。") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        SyncCoordinator.commitCardChanges(context, emptyList(), selectedCardIDs)
+                        selectedCardIDs = emptySet()
+                        selectionMode = false
+                        showBatchDeleteConfirmation = false
+                    }
+                ) { Text("删除", color = MaterialTheme.colorScheme.error) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showBatchDeleteConfirmation = false }) { Text("取消") }
             }
         )
     }
@@ -293,7 +433,7 @@ fun MainScreen(
             }
         },
         floatingActionButton = {
-            if (selectedTab == 0) {
+            if (selectedTab == 0 && !selectionMode) {
                 Box(
                     modifier = Modifier.padding(bottom = 16.dp, end = 8.dp),
                     contentAlignment = Alignment.BottomEnd
@@ -393,6 +533,107 @@ fun MainScreen(
                                         modifier = Modifier.size(20.dp)
                                     )
                                 }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.height(8.dp))
+
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Box(modifier = Modifier.weight(1f)) {
+                                OutlinedButton(onClick = { showGroupMenu = true }, modifier = Modifier.fillMaxWidth()) {
+                                    Icon(Icons.Filled.ViewAgenda, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(5.dp))
+                                    Text(groupOption.label, fontSize = 11.sp, maxLines = 1)
+                                }
+                                DropdownMenu(expanded = showGroupMenu, onDismissRequest = { showGroupMenu = false }) {
+                                    CardListGroupOption.entries.forEach { option ->
+                                        DropdownMenuItem(
+                                            text = { Text(option.label) },
+                                            trailingIcon = {
+                                                if (groupOption == option) Icon(Icons.Filled.Check, contentDescription = null)
+                                            },
+                                            onClick = {
+                                                groupOption = option
+                                                showGroupMenu = false
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                            Box(modifier = Modifier.weight(1f)) {
+                                OutlinedButton(onClick = { showSortMenu = true }, modifier = Modifier.fillMaxWidth()) {
+                                    Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = null, modifier = Modifier.size(16.dp))
+                                    Spacer(modifier = Modifier.width(5.dp))
+                                    Text(sortOption.label, fontSize = 11.sp, maxLines = 1)
+                                }
+                                DropdownMenu(expanded = showSortMenu, onDismissRequest = { showSortMenu = false }) {
+                                    CardListSortOption.entries.forEach { option ->
+                                        DropdownMenuItem(
+                                            text = { Text(option.label) },
+                                            trailingIcon = {
+                                                if (sortOption == option) Icon(Icons.Filled.Check, contentDescription = null)
+                                            },
+                                            onClick = {
+                                                sortOption = option
+                                                showSortMenu = false
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                            OutlinedButton(
+                                onClick = {
+                                    selectionMode = !selectionMode
+                                    if (!selectionMode) selectedCardIDs = emptySet()
+                                }
+                            ) {
+                                Icon(
+                                    if (selectionMode) Icons.Filled.Close else Icons.Filled.Checklist,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(if (selectionMode) "退出" else "批量", fontSize = 11.sp)
+                            }
+                        }
+
+                        if (selectionMode) {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 12.dp, vertical = 8.dp)
+                                    .clip(RoundedCornerShape(12.dp))
+                                    .background((if (isDark) NeonCyan else GoldPrimary).copy(alpha = 0.08f))
+                                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text("已选 ${selectedCardIDs.size} 张", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                                TextButton(onClick = {
+                                    val visibleIDs = filteredCards.map { it.id }.toSet()
+                                    selectedCardIDs = if (allVisibleCardsSelected) {
+                                        selectedCardIDs - visibleIDs
+                                    } else {
+                                        selectedCardIDs + visibleIDs
+                                    }
+                                }) {
+                                    Text(if (allVisibleCardsSelected) "取消全选" else "全选")
+                                }
+                                Spacer(modifier = Modifier.weight(1f))
+                                Button(
+                                    onClick = { showBatchEditor = true },
+                                    enabled = selectedCardIDs.isNotEmpty()
+                                ) { Text("修改", fontSize = 11.sp) }
+                                OutlinedButton(
+                                    onClick = { showBatchDeleteConfirmation = true },
+                                    enabled = selectedCardIDs.isNotEmpty()
+                                ) { Text("删除", fontSize = 11.sp, color = MaterialTheme.colorScheme.error) }
                             }
                         }
 
@@ -509,12 +750,42 @@ fun MainScreen(
                                 contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
                                 verticalArrangement = Arrangement.spacedBy(14.dp)
                             ) {
-                                items(filteredCards, key = { it.id }) { card ->
-                                    CreditCardTile(
-                                        card = card,
-                                        isDark = isDark,
-                                        onClick = { onItemClick(CardDetail(card.id)) }
-                                    )
+                                groupedCards.forEach { (groupName, groupCards) ->
+                                    if (groupOption != CardListGroupOption.NONE) {
+                                        item(key = "group-$groupName") {
+                                            Row(
+                                                modifier = Modifier
+                                                    .fillMaxWidth()
+                                                    .padding(horizontal = 4.dp, vertical = 4.dp),
+                                                verticalAlignment = Alignment.CenterVertically
+                                            ) {
+                                                Icon(Icons.Filled.Folder, contentDescription = null, tint = if (isDark) NeonCyan else GoldPrimary)
+                                                Spacer(modifier = Modifier.width(8.dp))
+                                                Text(groupName, fontWeight = FontWeight.Bold)
+                                                Spacer(modifier = Modifier.weight(1f))
+                                                Text("${groupCards.size} 张", fontSize = 11.sp, color = if (isDark) TextGray else TextMuted)
+                                            }
+                                        }
+                                    }
+                                    items(groupCards, key = { it.id }) { card ->
+                                        CreditCardTile(
+                                            card = card,
+                                            isDark = isDark,
+                                            selectionMode = selectionMode,
+                                            selected = card.id in selectedCardIDs,
+                                            onClick = {
+                                                if (selectionMode) {
+                                                    selectedCardIDs = if (card.id in selectedCardIDs) {
+                                                        selectedCardIDs - card.id
+                                                    } else {
+                                                        selectedCardIDs + card.id
+                                                    }
+                                                } else {
+                                                    onItemClick(CardDetail(card.id))
+                                                }
+                                            }
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -1020,6 +1291,8 @@ fun DynamicSyncBadge(
 fun CreditCardTile(
     card: SharedCard,
     isDark: Boolean,
+    selectionMode: Boolean = false,
+    selected: Boolean = false,
     onClick: () -> Unit
 ) {
     val brand = getCardBrand(card.cardNumber)
@@ -1163,7 +1436,168 @@ fun CreditCardTile(
                 }
             }
         }
+
+        if (selectionMode) {
+            Icon(
+                imageVector = if (selected) Icons.Filled.CheckCircle else Icons.Filled.RadioButtonUnchecked,
+                contentDescription = if (selected) "已选择" else "未选择",
+                tint = if (selected) NeonCyan else Color.White,
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .size(24.dp)
+                    .shadow(3.dp, CircleShape)
+            )
+        }
     }
+}
+
+@Composable
+private fun AndroidBatchEditDialog(
+    selectedCount: Int,
+    onDismiss: () -> Unit,
+    onApply: (AndroidBatchUpdate) -> Unit
+) {
+    var updateCategory by remember { mutableStateOf(false) }
+    var category by remember { mutableStateOf("credit") }
+    var updateStatus by remember { mutableStateOf(false) }
+    var status by remember { mutableStateOf("1") }
+    var updateAnnualFee by remember { mutableStateOf(false) }
+    var annualFeeText by remember { mutableStateOf("") }
+    var updateAnnualDate by remember { mutableStateOf(false) }
+    var annualDateText by remember { mutableStateOf("") }
+    var updateValid by remember { mutableStateOf(false) }
+    var validText by remember { mutableStateOf("") }
+    var errorText by remember { mutableStateOf("") }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("批量修改 $selectedCount 张卡片") },
+        text = {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
+                Text("仅启用的字段会被更新。", fontSize = 12.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(updateCategory, onCheckedChange = { updateCategory = it })
+                    Text("更新卡类别")
+                }
+                if (updateCategory) {
+                    SingleChoiceSegmentedButtonRow(modifier = Modifier.fillMaxWidth()) {
+                        listOf("credit" to "信用卡", "debit" to "储蓄卡").forEachIndexed { index, item ->
+                            SegmentedButton(
+                                selected = category == item.first,
+                                onClick = { category = item.first },
+                                shape = SegmentedButtonDefaults.itemShape(index, 2)
+                            ) { Text(item.second) }
+                        }
+                    }
+                }
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(updateStatus, onCheckedChange = { updateStatus = it })
+                    Text("更新年费状态")
+                }
+                if (updateStatus) {
+                    listOf("1" to "已达标", "2" to "未达标", "3" to "终免年费").forEach { item ->
+                        Row(
+                            modifier = Modifier.fillMaxWidth().clickable { status = item.first },
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(selected = status == item.first, onClick = { status = item.first })
+                            Text(item.second)
+                        }
+                    }
+                }
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(updateAnnualFee, onCheckedChange = { updateAnnualFee = it })
+                    Text("更新年费金额")
+                }
+                if (updateAnnualFee) {
+                    OutlinedTextField(
+                        value = annualFeeText,
+                        onValueChange = { annualFeeText = it.filter { ch -> ch.isDigit() || ch == '.' } },
+                        label = { Text("年费金额") },
+                        singleLine = true
+                    )
+                }
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(
+                        checked = updateAnnualDate,
+                        onCheckedChange = { updateAnnualDate = it },
+                        enabled = !(updateStatus && status == "3")
+                    )
+                    Text("更新下次年费日期")
+                }
+                if (updateAnnualDate && !(updateStatus && status == "3")) {
+                    OutlinedTextField(
+                        value = annualDateText,
+                        onValueChange = { annualDateText = it },
+                        label = { Text("YYYY-MM-DD") },
+                        singleLine = true
+                    )
+                }
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Checkbox(updateValid, onCheckedChange = { updateValid = it })
+                    Text("更新有效期")
+                }
+                if (updateValid) {
+                    OutlinedTextField(
+                        value = validText,
+                        onValueChange = { validText = it },
+                        label = { Text("MM/YY") },
+                        singleLine = true
+                    )
+                }
+
+                if (errorText.isNotBlank()) {
+                    Text(errorText, color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                enabled = updateCategory || updateStatus || updateAnnualFee || updateAnnualDate || updateValid,
+                onClick = {
+                    val annualFee = if (updateAnnualFee) annualFeeText.toDoubleOrNull() else null
+                    if (updateAnnualFee && annualFee == null) {
+                        errorText = "请输入正确的年费金额"
+                        return@TextButton
+                    }
+                    val annualTime = if (updateAnnualDate && !(updateStatus && status == "3")) {
+                        runCatching {
+                            LocalDate.parse(annualDateText).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli()
+                        }.getOrNull()
+                    } else null
+                    if (updateAnnualDate && status != "3" && annualTime == null) {
+                        errorText = "下次年费日期格式应为 YYYY-MM-DD"
+                        return@TextButton
+                    }
+                    val normalizedValid = validText.trim()
+                    if (updateValid && !Regex("^(0[1-9]|1[0-2])/\\d{2}$").matches(normalizedValid)) {
+                        errorText = "有效期格式应为 MM/YY"
+                        return@TextButton
+                    }
+                    onApply(
+                        AndroidBatchUpdate(
+                            category = if (updateCategory) category else null,
+                            status = if (updateStatus) status else null,
+                            annualFee = annualFee,
+                            nextAnnualFeeTime = annualTime,
+                            valid = if (updateValid) normalizedValid else null
+                        )
+                    )
+                }
+            ) { Text("应用修改") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text("取消") }
+        }
+    )
 }
 
 // =============================================================================
