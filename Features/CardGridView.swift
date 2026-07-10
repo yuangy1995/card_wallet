@@ -1172,6 +1172,9 @@ public struct CardGridView: View {
     public var cards: [SharedCard]
     public var groupBy: GroupOption
     public var sortBy: SortOption
+    public var selectionEnabled: Bool
+    public var selectedCardIDs: Set<String>
+    public var onToggleSelection: (SharedCard) -> Void
     
     public var onEdit: (SharedCard) -> Void
     public var onViewDetails: (SharedCard) -> Void
@@ -1193,6 +1196,9 @@ public struct CardGridView: View {
         cards: [SharedCard],
         groupBy: GroupOption = .none,
         sortBy: SortOption = .limitDesc,
+        selectionEnabled: Bool = false,
+        selectedCardIDs: Set<String> = [],
+        onToggleSelection: @escaping (SharedCard) -> Void = { _ in },
         onEdit: @escaping (SharedCard) -> Void,
         onViewDetails: @escaping (SharedCard) -> Void,
         onDelete: @escaping (SharedCard) -> Void,
@@ -1201,6 +1207,9 @@ public struct CardGridView: View {
         self.cards = cards
         self.groupBy = groupBy
         self.sortBy = sortBy
+        self.selectionEnabled = selectionEnabled
+        self.selectedCardIDs = selectedCardIDs
+        self.onToggleSelection = onToggleSelection
         self.onEdit = onEdit
         self.onViewDetails = onViewDetails
         self.onDelete = onDelete
@@ -1324,13 +1333,7 @@ public struct CardGridView: View {
                 // 无分组状态下：直接网格平铺以保持极其纯粹高效率的主视图
                 LazyVGrid(columns: columns, spacing: 20) {
                     ForEach(processedGroups.first?.cards ?? []) { card in
-                        CreditCardView(
-                            card: card,
-                            onEdit: { onEdit(card) },
-                            onViewDetails: { onViewDetails(card) },
-                            onDelete: { onDelete(card) },
-                            onUpdateStatus: { status in onUpdateStatus(card, status) }
-                        )
+                        selectableCardView(card)
                     }
                 }
                 .padding(20)
@@ -1408,13 +1411,7 @@ public struct CardGridView: View {
                             if !isCollapsed {
                                 LazyVGrid(columns: columns, spacing: 20) {
                                     ForEach(group.cards) { card in
-                                        CreditCardView(
-                                            card: card,
-                                            onEdit: { onEdit(card) },
-                                            onViewDetails: { onViewDetails(card) },
-                                            onDelete: { onDelete(card) },
-                                            onUpdateStatus: { status in onUpdateStatus(card, status) }
-                                        )
+                                        selectableCardView(card)
                                     }
                                 }
                                 .padding(.horizontal, 20)
@@ -1439,6 +1436,33 @@ public struct CardGridView: View {
         }
         .onChange(of: sortBy) { _, _ in
             performGroupingAndSorting()
+        }
+    }
+
+    @ViewBuilder
+    private func selectableCardView(_ card: SharedCard) -> some View {
+        ZStack(alignment: .topLeading) {
+            CreditCardView(
+                card: card,
+                onEdit: { onEdit(card) },
+                onViewDetails: { onViewDetails(card) },
+                onDelete: { onDelete(card) },
+                onUpdateStatus: { status in onUpdateStatus(card, status) }
+            )
+            .opacity(selectionEnabled && !selectedCardIDs.contains(card.id) ? 0.78 : 1)
+
+            if selectionEnabled {
+                Button {
+                    onToggleSelection(card)
+                } label: {
+                    Image(systemName: selectedCardIDs.contains(card.id) ? "checkmark.circle.fill" : "circle")
+                        .font(.system(size: 22, weight: .bold))
+                        .foregroundColor(selectedCardIDs.contains(card.id) ? .cyan : .white)
+                        .shadow(color: .black.opacity(0.35), radius: 3)
+                        .padding(12)
+                }
+                .buttonStyle(.plain)
+            }
         }
     }
 }

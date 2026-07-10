@@ -15,6 +15,8 @@ public struct SettingsView: View {
     @State private var lockPassword = ""
     @State private var isLockEnabled = false
     @State private var passwordStatusText = ""
+    @State private var showingHelp = false
+    @State private var showingStorageManagement = false
     
     // WebDAV 同步配置
     @State private var webdavUrl = ""
@@ -547,6 +549,24 @@ public struct SettingsView: View {
                         .foregroundColor(.secondary)
                 }
             }
+
+            Section(header: HStack(spacing: 6) {
+                Image(systemName: "wrench.and.screwdriver.fill")
+                    .foregroundColor(.purple)
+                Text("应用工具")
+            }) {
+                Button {
+                    showingStorageManagement = true
+                } label: {
+                    Label("存储管理", systemImage: "internaldrive.fill")
+                }
+
+                Button {
+                    showingHelp = true
+                } label: {
+                    Label("使用帮助", systemImage: "questionmark.circle.fill")
+                }
+            }
         }
         .formStyle(.grouped)
         .onAppear {
@@ -555,6 +575,12 @@ public struct SettingsView: View {
             if isLockEnabled {
                 lockPassword = "••••••"
             }
+        }
+        .sheet(isPresented: $showingStorageManagement) {
+            MacStorageManagementView()
+        }
+        .sheet(isPresented: $showingHelp) {
+            MacHelpView()
         }
     }
     
@@ -659,6 +685,247 @@ public struct SettingsView: View {
         let formatter = ByteCountFormatter()
         formatter.allowedUnits = [.useKB, .useMB, .useGB]
         formatter.countStyle = .file
+        return formatter.string(fromByteCount: bytes)
+    }
+}
+
+private struct MacHelpView: View {
+    @Environment(\.dismiss) private var dismiss
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Label("使用帮助", systemImage: "questionmark.circle.fill")
+                    .font(.title2)
+                    .bold()
+                Spacer()
+                Button("完成") { dismiss() }
+                    .keyboardShortcut(.cancelAction)
+            }
+            .padding(20)
+
+            Divider()
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 18) {
+                    helpSection(
+                        "卡包管理",
+                        icon: "creditcard.fill",
+                        lines: [
+                            "使用右上角“新增卡片”录入信用卡或储蓄卡。",
+                            "搜索支持银行、别名、卡号和卡类别；分组与排序设置位于卡包顶部。",
+                            "点击“批量操作”可批量更新年费、有效期、卡类别或删除卡片。"
+                        ]
+                    )
+                    helpSection(
+                        "优惠用卡与提醒",
+                        icon: "sparkles",
+                        lines: [
+                            "工具中的“优惠用卡”会按今天的日期计算实际可用免息期。",
+                            "卡片提醒涵盖账单日、还款日、年费和有效期。",
+                            "允许系统通知后，提醒会提前排程；即使应用退出，macOS 仍可按计划投递。"
+                        ]
+                    )
+                    helpSection(
+                        "云同步",
+                        icon: "icloud.fill",
+                        lines: [
+                            "WebDAV 使用同步密钥加密，四端可共享同一份同步账本。",
+                            "iCloud 私有同步仅在具备 CloudKit 权限的正式构建中可用。",
+                            "同步历史与字段变更详情位于“工具 → 同步历史与详情”。"
+                        ]
+                    )
+                    helpSection(
+                        "安全与快捷键",
+                        icon: "lock.shield.fill",
+                        lines: [
+                            "可开启密码和 Touch ID，并在忘记密码时通过本机卡片信息验证。",
+                            "卡片详情中按 ⌘E 编辑，Esc 关闭弹窗。",
+                            "请勿将同步密钥、完整卡号或 CVV 分享给他人。"
+                        ]
+                    )
+                }
+                .padding(24)
+            }
+        }
+        .frame(width: 680, height: 620)
+    }
+
+    private func helpSection(_ title: String, icon: String, lines: [String]) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label(title, systemImage: icon)
+                .font(.headline)
+                .foregroundColor(.cyan)
+            ForEach(lines, id: \.self) { line in
+                HStack(alignment: .top, spacing: 8) {
+                    Text("•")
+                    Text(line)
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                }
+            }
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.primary.opacity(0.035))
+        .cornerRadius(12)
+    }
+}
+
+private struct MacStorageManagementView: View {
+    @Environment(\.dismiss) private var dismiss
+    @State private var localDataSize: Int64 = 0
+    @State private var cacheSize: Int64 = 0
+    @State private var cloudSize: Int64 = 0
+    @State private var cloudFileCount = 0
+    @State private var cloudStatus = "正在读取云端空间..."
+    @State private var isLoading = false
+    @State private var cleanupMessage = ""
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack {
+                Label("存储管理", systemImage: "internaldrive.fill")
+                    .font(.title2)
+                    .bold()
+                Spacer()
+                Button("完成") { dismiss() }
+                    .keyboardShortcut(.cancelAction)
+            }
+            .padding(20)
+
+            Divider()
+
+            VStack(spacing: 16) {
+                HStack(spacing: 14) {
+                    storageCard("本机卡片与账本", value: formatBytes(localDataSize), icon: "externaldrive.fill", color: .cyan)
+                    storageCard("缓存与临时文件", value: formatBytes(cacheSize), icon: "archivebox.fill", color: .orange)
+                    storageCard("WebDAV 云端", value: formatBytes(cloudSize), icon: "icloud.fill", color: .purple)
+                }
+
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("云端备份")
+                        .font(.headline)
+                    Text(cloudStatus)
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+                    if cloudFileCount > 0 {
+                        Text("共 \(cloudFileCount) 个备份文件")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                .padding(16)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.primary.opacity(0.035))
+                .cornerRadius(12)
+
+                HStack {
+                    Button("重新检测") { refresh() }
+                        .disabled(isLoading)
+                    Button("清理缓存", role: .destructive) { clearCaches() }
+                        .disabled(isLoading || cacheSize == 0)
+                    if isLoading { ProgressView().controlSize(.small) }
+                    Spacer()
+                    Text(cleanupMessage)
+                        .font(.caption)
+                        .foregroundColor(.green)
+                }
+
+                Text("清理缓存不会删除卡片、同步账本、WebDAV 配置或安全密码。")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding(24)
+        }
+        .frame(width: 720, height: 430)
+        .onAppear(perform: refresh)
+    }
+
+    private func storageCard(_ title: String, value: String, icon: String, color: Color) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Image(systemName: icon)
+                .font(.title2)
+                .foregroundColor(color)
+            Text(title)
+                .font(.caption)
+                .foregroundColor(.secondary)
+            Text(value)
+                .font(.headline)
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.primary.opacity(0.04))
+        .cornerRadius(12)
+    }
+
+    private func refresh() {
+        isLoading = true
+        cleanupMessage = ""
+        let manager = FileManager.default
+        if let appSupport = manager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first {
+            localDataSize = directorySize(appSupport.appendingPathComponent("CardWallet", isDirectory: true))
+        }
+        if let caches = manager.urls(for: .cachesDirectory, in: .userDomainMask).first {
+            cacheSize = directorySize(caches)
+        }
+
+        guard WebDAVClient.shared.loadConfig() != nil else {
+            cloudSize = 0
+            cloudFileCount = 0
+            cloudStatus = "尚未配置 WebDAV 云同步"
+            isLoading = false
+            return
+        }
+
+        WebDAVClient.shared.getBackupList { result in
+            DispatchQueue.main.async {
+                switch result {
+                case .success(let files):
+                    cloudSize = files.reduce(0) { $0 + $1.size }
+                    cloudFileCount = files.count
+                    cloudStatus = files.isEmpty ? "云端暂无备份文件" : "已读取云端备份占用"
+                case .failure(let error):
+                    cloudSize = 0
+                    cloudFileCount = 0
+                    cloudStatus = "读取失败：\(error.localizedDescription)"
+                }
+                isLoading = false
+            }
+        }
+    }
+
+    private func clearCaches() {
+        guard let caches = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first else { return }
+        let manager = FileManager.default
+        for item in (try? manager.contentsOfDirectory(at: caches, includingPropertiesForKeys: nil)) ?? [] {
+            try? manager.removeItem(at: item)
+        }
+        refresh()
+        cleanupMessage = "缓存已清理"
+    }
+
+    private func directorySize(_ url: URL) -> Int64 {
+        let keys: Set<URLResourceKey> = [.isRegularFileKey, .fileSizeKey]
+        guard let enumerator = FileManager.default.enumerator(
+            at: url,
+            includingPropertiesForKeys: Array(keys),
+            options: [.skipsHiddenFiles]
+        ) else { return 0 }
+
+        var total: Int64 = 0
+        for case let fileURL as URL in enumerator {
+            guard let values = try? fileURL.resourceValues(forKeys: keys), values.isRegularFile == true else { continue }
+            total += Int64(values.fileSize ?? 0)
+        }
+        return total
+    }
+
+    private func formatBytes(_ bytes: Int64) -> String {
+        let formatter = ByteCountFormatter()
+        formatter.countStyle = .file
+        formatter.allowedUnits = [.useKB, .useMB, .useGB]
         return formatter.string(fromByteCount: bytes)
     }
 }

@@ -209,6 +209,45 @@ public class DateCalculator {
         
         return maxDays
     }
+
+    /// 按“今天消费”计算当前可用免息天数，用于优惠用卡实时推荐。
+    public static func calculateInterestFreeDays(card: SharedCard, today: Date = Date()) -> Int {
+        guard card.cardCategory != "debit",
+              let billDay = Int((card.accountBillDate ?? "").trimmingCharacters(in: .whitespacesAndNewlines)),
+              let dueDay = Int((card.dueDate ?? "").trimmingCharacters(in: .whitespacesAndNewlines)),
+              (1...31).contains(billDay),
+              (1...31).contains(dueDay) else {
+            return -1
+        }
+
+        let calendar = Calendar.current
+        let spendDay = calendar.component(.day, from: today)
+        let movesToNextBill = card.billingDaySpendingToNextBill ? spendDay >= billDay : spendDay > billDay
+
+        guard let targetBillMonth = calendar.date(byAdding: .month, value: movesToNextBill ? 1 : 0, to: today),
+              let billMonthRange = calendar.range(of: .day, in: .month, for: targetBillMonth) else {
+            return -1
+        }
+
+        var billComponents = calendar.dateComponents([.year, .month], from: targetBillMonth)
+        billComponents.day = min(billDay, billMonthRange.count)
+        guard let targetBillDate = calendar.date(from: billComponents),
+              let targetDueMonth = calendar.date(byAdding: .month, value: dueDay <= billDay ? 1 : 0, to: targetBillDate),
+              let dueMonthRange = calendar.range(of: .day, in: .month, for: targetDueMonth) else {
+            return -1
+        }
+
+        var dueComponents = calendar.dateComponents([.year, .month], from: targetDueMonth)
+        dueComponents.day = min(dueDay, dueMonthRange.count)
+        guard let targetDueDate = calendar.date(from: dueComponents) else { return -1 }
+
+        let days = calendar.dateComponents(
+            [.day],
+            from: calendar.startOfDay(for: today),
+            to: calendar.startOfDay(for: targetDueDate)
+        ).day ?? 0
+        return max(0, days)
+    }
     
     /// 计算上期账单还款剩余天数 (对应 Web 端 calculateRemainingDaysForPreviousBill)
     public static func calculateRemainingDaysForPreviousBill(accountBillDate: String, dueDate: String) -> Int {

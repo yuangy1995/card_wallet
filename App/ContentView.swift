@@ -14,6 +14,14 @@ private struct CardEditRequest: Identifiable {
     }
 }
 
+fileprivate struct BatchUpdateRequest {
+    var status: String?
+    var annualFee: Double?
+    var nextAnnualFeeDate: Double?
+    var valid: String?
+    var cardCategory: String?
+}
+
 private enum CardCategoryFilter: String, CaseIterable, Identifiable {
     case all = "全部"
     case credit = "信用卡"
@@ -23,6 +31,7 @@ private enum CardCategoryFilter: String, CaseIterable, Identifiable {
 }
 
 fileprivate enum ToolSubView: String, CaseIterable, Identifiable {
+    case bestUsage = "优惠用卡"
     case dataQualityIssues = "数据异常检测"
     case statistics = "数据与统计分析"
     case syncDetail = "同步历史与详情"
@@ -114,7 +123,13 @@ struct ContentView: View {
                                 cardEditRequest: $cardEditRequest,
                                 detailCard: $detailCard,
                                 onDelete: { card in deleteCard(card) },
-                                onUpdateStatus: { card, newStatus in updateCardStatus(card, status: newStatus) }
+                                onUpdateStatus: { card, newStatus in updateCardStatus(card, status: newStatus) },
+                                onBatchUpdate: { ids, request in
+                                    applyBatchUpdate(cardIDs: ids, request: request)
+                                },
+                                onBatchDelete: { ids in
+                                    deleteCards(cardIDs: ids)
+                                }
                             )
                         case .annualFeeAlert:
                             CardReminderView(
@@ -266,6 +281,18 @@ struct ContentView: View {
         Group {
             if let subView = activeToolSubView {
                 switch subView {
+                case .bestUsage:
+                    MacBestUsageView(
+                        cards: cards,
+                        onBack: {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                activeToolSubView = nil
+                            }
+                        },
+                        onEdit: { card in
+                            cardEditRequest = CardEditRequest(mode: "edit", card: card)
+                        }
+                    )
                 case .dataQualityIssues:
                     dataQualityIssuesDetailView
                 case .statistics:
@@ -308,6 +335,20 @@ struct ContentView: View {
                     .padding(.vertical, 8)
                 
                 VStack(spacing: 16) {
+                    ToolMenuButton(
+                        iconName: "sparkles",
+                        iconColor: SoftColors.purple,
+                        title: "优惠用卡",
+                        description: "根据今天的消费日期实时计算可用免息期，推荐当前首选信用卡",
+                        badgeText: nil,
+                        badgeColor: nil,
+                        action: {
+                            withAnimation(.easeInOut(duration: 0.2)) {
+                                activeToolSubView = .bestUsage
+                            }
+                        }
+                    )
+
                     ToolMenuButton(
                         iconName: "exclamationmark.triangle.fill",
                         iconColor: issues.isEmpty ? SoftColors.green : SoftColors.orange,
@@ -590,7 +631,6 @@ struct ContentView: View {
     }
 
     private func refreshSystemNotifications(for cards: [SharedCard]) {
-        guard !lockManager.isLocked else { return }
         Task {
             await CardSystemNotificationCenter.shared.refresh(cards: cards, locked: lockManager.isLocked)
         }
@@ -648,6 +688,174 @@ struct ContentView: View {
             cards = syncCoordinator.commit(cards: cards)
         }
     }
+
+    private func applyBatchUpdate(cardIDs: Set<String>, request: BatchUpdateRequest) {
+        guard !cardIDs.isEmpty else { return }
+        for index in cards.indices where cardIDs.contains(cards[index].id) {
+            if let category = request.cardCategory {
+                cards[index].cardCategory = category == "debit" ? "debit" : "credit"
+            }
+            if cards[index].cardCategory != "debit" {
+                if let status = request.status {
+                    cards[index].isQualified = status
+                    if status == "3" {
+                        cards[index].nextAnnualFeeCollectionTime = nil
+                    }
+                }
+                if let annualFee = request.annualFee {
+                    cards[index].annualFee = annualFee
+                }
+                if let nextDate = request.nextAnnualFeeDate, request.status != "3" {
+                    cards[index].nextAnnualFeeCollectionTime = nextDate
+                }
+            }
+            if let valid = request.valid {
+                cards[index].valid = valid
+            }
+            cards[index].lastModifyTime = DateCalculator.timestamp(from: Date())
+        }
+        cards = syncCoordinator.commit(cards: cards)
+    }
+
+    private func deleteCards(cardIDs: Set<String>) {
+        guard !cardIDs.isEmpty else { return }
+        cards.removeAll { cardIDs.contains($0.id) }
+        cards = syncCoordinator.commit(cards: cards, deletedCardIDs: cardIDs)
+    }
+}
+
+fileprivate struct MacBestUsageView: View {
+    let cards: [SharedCard]
+    let onBack: () -> Void
+    let onEdit: (SharedCard) -> Void
+
+    private var creditCards: [SharedCard] {
+        cards.filter { $0.cardCategory != "debit" }
+    }
+
+    private var rankedCards: [(card: SharedCard, days: Int)] {
+        creditCards
+            .map { ($0, DateCalculator.calculateInterestFreeDays(card: $0)) }
+            .filter { $0.1 >= 0 }
+            .sorted { $0.1 > $1.1 }
+    }
+
+    private var invalidCards: [SharedCard] {
+        creditCards.filter { DateCalculator.calculateInterestFreeDays(card: $0) < 0 }
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 14) {
+                Button(action: onBack) {
+                    Label("返回工具", systemImage: "chevron.left")
+                        .font(.system(size: 13, weight: .bold))
+                }
+                .buttonStyle(.plain)
+
+                Image(systemName: "sparkles")
+                    .foregroundColor(.purple)
+                Text("优惠用卡")
+                    .font(.title3)
+                    .bold()
+                Spacer()
+                Text("按今天实时计算")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+            .padding(24)
+
+            Divider()
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 14) {
+                    Text("根据账单日、还款日及账单日消费归属规则，按当前日期计算每张卡的实际可用免息期。")
+                        .font(.subheadline)
+                        .foregroundColor(.secondary)
+
+                    if rankedCards.isEmpty {
+                        ContentUnavailableView(
+                            "暂无可推荐的信用卡",
+                            systemImage: "creditcard.trianglebadge.exclamationmark",
+                            description: Text("请先为信用卡配置账单日和还款日。")
+                        )
+                        .frame(maxWidth: .infinity, minHeight: 260)
+                    } else {
+                        ForEach(Array(rankedCards.enumerated()), id: \.element.card.id) { index, item in
+                            HStack(spacing: 16) {
+                                Text(rankText(index))
+                                    .font(.title2)
+                                    .frame(width: 44)
+
+                                VStack(alignment: .leading, spacing: 5) {
+                                    Text(displayName(item.card))
+                                        .font(.headline)
+                                    Text("账单日 \(item.card.accountBillDate ?? "-") 日 · 还款日 \(item.card.dueDate ?? "-") 日")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                }
+
+                                Spacer()
+
+                                VStack(spacing: 2) {
+                                    Text("\(item.days)")
+                                        .font(.system(size: 28, weight: .bold, design: .rounded))
+                                        .foregroundColor(index == 0 ? .orange : .cyan)
+                                    Text("天免息期")
+                                        .font(.caption2)
+                                        .foregroundColor(.secondary)
+                                }
+
+                                Button("配置") { onEdit(item.card) }
+                                    .buttonStyle(.bordered)
+                            }
+                            .padding(16)
+                            .background(index == 0 ? Color.orange.opacity(0.08) : Color.primary.opacity(0.035))
+                            .cornerRadius(14)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 14)
+                                    .stroke(index == 0 ? Color.orange.opacity(0.25) : Color.primary.opacity(0.08), lineWidth: 1)
+                            )
+                        }
+                    }
+
+                    if !invalidCards.isEmpty {
+                        DisclosureGroup("\(invalidCards.count) 张信用卡尚未配置完整账单信息") {
+                            VStack(spacing: 8) {
+                                ForEach(invalidCards) { card in
+                                    HStack {
+                                        Text(displayName(card))
+                                        Spacer()
+                                        Button("去配置") { onEdit(card) }
+                                            .buttonStyle(.link)
+                                    }
+                                }
+                            }
+                            .padding(.top, 8)
+                        }
+                        .padding(14)
+                        .background(Color.primary.opacity(0.03))
+                        .cornerRadius(12)
+                    }
+                }
+                .padding(24)
+                .frame(maxWidth: 820)
+            }
+        }
+    }
+
+    private func displayName(_ card: SharedCard) -> String {
+        [card.bank, card.alias ?? ""].filter { !$0.isEmpty }.joined(separator: " · ")
+    }
+
+    private func rankText(_ index: Int) -> String {
+        switch index {
+        case 0: return "🥇"
+        case 1: return "🥈"
+        case 2: return "🥉"
+        default: return "#\(index + 1)"
+        }
+    }
 }
 
 @MainActor
@@ -656,11 +864,42 @@ private final class CardSystemNotificationCenter {
 
     private let center = UNUserNotificationCenter.current()
     private let defaultsKey = "card_system_notification_daily_v1"
+    private let scheduledPrefix = "card_scheduled_"
+    private var pendingRefresh: (cards: [SharedCard], locked: Bool)?
+    private var isRefreshing = false
+
+    private struct PlannedNotification {
+        let identifier: String
+        let fireDate: Date
+        let title: String
+        let body: String
+        let cardID: String
+    }
 
     private init() {}
 
     func refresh(cards: [SharedCard], locked: Bool) async {
-        guard !locked, !cards.isEmpty else { return }
+        pendingRefresh = (cards, locked)
+        guard !isRefreshing else { return }
+
+        isRefreshing = true
+        defer { isRefreshing = false }
+        while let request = pendingRefresh {
+            pendingRefresh = nil
+            await performRefresh(cards: request.cards, locked: request.locked)
+        }
+    }
+
+    private func performRefresh(cards: [SharedCard], locked: Bool) async {
+        if cards.isEmpty {
+            await replaceScheduledNotifications(cards: [])
+            return
+        }
+        guard await requestAuthorizationIfNeeded() else { return }
+
+        await replaceScheduledNotifications(cards: cards)
+        if pendingRefresh != nil { return }
+        guard !locked else { return }
 
         let billingCount = DateCalculator.billingCycleReminderItems(for: cards).count
         let annualCount = cards.filter { DateCalculator.annualFeeDetection(for: $0) != nil }.count
@@ -674,8 +913,6 @@ private final class CardSystemNotificationCenter {
         let todayKey = DateCalculator.formatDate(Date())
         let fingerprint = "\(todayKey)|\(billingCount)|\(annualCount)|\(expiryCount)"
         guard UserDefaults.standard.string(forKey: defaultsKey) != fingerprint else { return }
-        guard await requestAuthorizationIfNeeded() else { return }
-
         var parts: [String] = []
         if billingCount > 0 { parts.append("还款/账单 \(billingCount) 项") }
         if annualCount > 0 { parts.append("年费 \(annualCount) 项") }
@@ -699,6 +936,162 @@ private final class CardSystemNotificationCenter {
         } catch {
             print("发送系统通知失败: \(error.localizedDescription)")
         }
+    }
+
+    private func replaceScheduledNotifications(cards: [SharedCard]) async {
+        let pending = await center.pendingNotificationRequests()
+        let staleIDs = pending.map(\.identifier).filter { $0.hasPrefix(scheduledPrefix) }
+        if !staleIDs.isEmpty {
+            center.removePendingNotificationRequests(withIdentifiers: staleIDs)
+        }
+
+        let now = Date()
+        let plans = buildPlans(cards: cards, now: now)
+            .filter { $0.fireDate.timeIntervalSince(now) > 30 }
+            .sorted { $0.fireDate < $1.fireDate }
+
+        // 控制排程数量，优先保证最近一年的最早提醒。
+        for plan in plans.prefix(60) {
+            let content = UNMutableNotificationContent()
+            content.title = plan.title
+            content.body = plan.body
+            content.sound = .default
+            content.userInfo = ["cardID": plan.cardID]
+
+            let components = Calendar.current.dateComponents(
+                [.year, .month, .day, .hour, .minute],
+                from: plan.fireDate
+            )
+            let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
+            let request = UNNotificationRequest(identifier: plan.identifier, content: content, trigger: trigger)
+            do {
+                try await center.add(request)
+            } catch {
+                print("排程系统通知失败: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    private func buildPlans(cards: [SharedCard], now: Date) -> [PlannedNotification] {
+        var plans: [PlannedNotification] = []
+        let calendar = Calendar.current
+
+        for card in cards where card.cardCategory != "debit" {
+            if let billDay = dayNumber(card.accountBillDate) {
+                for monthOffset in 0..<13 {
+                    guard let target = monthlyDate(day: billDay, monthOffset: monthOffset, from: now),
+                          let fireDate = calendar.date(byAdding: .day, value: -DateCalculator.billWarningDays, to: target) else { continue }
+                    plans.append(
+                        plan(
+                            card: card,
+                            kind: "bill",
+                            target: target,
+                            fireDate: notificationTime(fireDate),
+                            title: "信用卡账单日提醒",
+                            body: "\(DateCalculator.billWarningDays) 天后是账单日，请留意本期账单。"
+                        )
+                    )
+                }
+            }
+
+            if let dueDay = dayNumber(card.dueDate) {
+                for monthOffset in 0..<13 {
+                    guard let target = monthlyDate(day: dueDay, monthOffset: monthOffset, from: now),
+                          let fireDate = calendar.date(byAdding: .day, value: -DateCalculator.repaymentWarningDays, to: target) else { continue }
+                    plans.append(
+                        plan(
+                            card: card,
+                            kind: "repayment",
+                            target: target,
+                            fireDate: notificationTime(fireDate),
+                            title: "信用卡还款提醒",
+                            body: "\(DateCalculator.repaymentWarningDays) 天后是还款日，请及时核对并安排还款。"
+                        )
+                    )
+                }
+            }
+
+            if card.isQualified != "3",
+               let annualTarget = DateCalculator.date(fromTimestamp: card.nextAnnualFeeCollectionTime),
+               let fireDate = calendar.date(byAdding: .day, value: -60, to: annualTarget) {
+                plans.append(
+                    plan(
+                        card: card,
+                        kind: "annual",
+                        target: annualTarget,
+                        fireDate: notificationTime(fireDate),
+                        title: "信用卡年费提醒",
+                        body: "距离下次年费收取约 60 天，请确认本周期达标情况。"
+                    )
+                )
+            }
+
+            if let expiryTarget = expiryDate(card.valid),
+               let fireDate = calendar.date(byAdding: .month, value: -6, to: expiryTarget) {
+                plans.append(
+                    plan(
+                        card: card,
+                        kind: "expiry",
+                        target: expiryTarget,
+                        fireDate: notificationTime(fireDate),
+                        title: "银行卡有效期提醒",
+                        body: "卡片将在约 6 个月后到期，请提前联系发卡行换卡。"
+                    )
+                )
+            }
+        }
+        return plans
+    }
+
+    private func plan(
+        card: SharedCard,
+        kind: String,
+        target: Date,
+        fireDate: Date,
+        title: String,
+        body: String
+    ) -> PlannedNotification {
+        let dateKey = ISO8601DateFormatter().string(from: target).prefix(10)
+        return PlannedNotification(
+            identifier: "\(scheduledPrefix)\(kind)_\(card.id)_\(dateKey)",
+            fireDate: fireDate,
+            title: title,
+            body: body,
+            cardID: card.id
+        )
+    }
+
+    private func monthlyDate(day: Int, monthOffset: Int, from now: Date) -> Date? {
+        let calendar = Calendar.current
+        guard let month = calendar.date(byAdding: .month, value: monthOffset, to: now),
+              let range = calendar.range(of: .day, in: .month, for: month) else { return nil }
+        var components = calendar.dateComponents([.year, .month], from: month)
+        components.day = min(day, range.count)
+        components.hour = 9
+        return calendar.date(from: components)
+    }
+
+    private func notificationTime(_ date: Date) -> Date {
+        var components = Calendar.current.dateComponents([.year, .month, .day], from: date)
+        components.hour = 9
+        components.minute = 0
+        return Calendar.current.date(from: components) ?? date
+    }
+
+    private func expiryDate(_ value: String?) -> Date? {
+        let parts = (value ?? "").split(separator: "/")
+        guard parts.count == 2,
+              let month = Int(parts[0]),
+              let year = Int(parts[1]),
+              (1...12).contains(month) else { return nil }
+        return Calendar.current.date(from: DateComponents(year: 2000 + year, month: month, day: 1, hour: 9))
+    }
+
+    private func dayNumber(_ value: String?) -> Int? {
+        guard let value,
+              let day = Int(value.trimmingCharacters(in: .whitespacesAndNewlines)),
+              (1...31).contains(day) else { return nil }
+        return day
     }
 
     private func requestAuthorizationIfNeeded() async -> Bool {
@@ -1480,6 +1873,12 @@ fileprivate struct AllCardsView: View {
     @Binding var detailCard: SharedCard?
     let onDelete: (SharedCard) -> Void
     let onUpdateStatus: (SharedCard, String) -> Void
+    let onBatchUpdate: (Set<String>, BatchUpdateRequest) -> Void
+    let onBatchDelete: (Set<String>) -> Void
+    @State private var isSelectionMode = false
+    @State private var selectedCardIDs: Set<String> = []
+    @State private var showingBatchEditor = false
+    @State private var showingBatchDeleteConfirmation = false
 
     // 局部计算属性：最终显示的列表，切断 ContentView 对其频繁重绘
     private var filteredCards: [SharedCard] {
@@ -1656,6 +2055,16 @@ fileprivate struct AllCardsView: View {
                 
                 // 新增按钮
                 Button {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        isSelectionMode.toggle()
+                        if !isSelectionMode { selectedCardIDs.removeAll() }
+                    }
+                } label: {
+                    Label(isSelectionMode ? "退出批量" : "批量操作", systemImage: isSelectionMode ? "xmark.circle" : "checklist")
+                }
+                .buttonStyle(.bordered)
+
+                Button {
                     cardEditRequest = CardEditRequest(mode: "add", card: nil, cardCategory: "credit")
                 } label: {
                     Label("新增卡片", systemImage: "plus")
@@ -1669,6 +2078,32 @@ fileprivate struct AllCardsView: View {
             
             Divider()
                 .background(Color.white.opacity(0.1))
+
+            if isSelectionMode {
+                HStack(spacing: 12) {
+                    Text("已选择 \(selectedCardIDs.count) 张")
+                        .font(.system(size: 12, weight: .semibold))
+                    Button(selectedCardIDs.count == filteredCards.count ? "取消全选" : "全选当前结果") {
+                        if selectedCardIDs.count == filteredCards.count {
+                            selectedCardIDs.removeAll()
+                        } else {
+                            selectedCardIDs = Set(filteredCards.map(\.id))
+                        }
+                    }
+                    .buttonStyle(.link)
+                    Spacer()
+                    Button("批量修改") { showingBatchEditor = true }
+                        .buttonStyle(.borderedProminent)
+                        .disabled(selectedCardIDs.isEmpty)
+                    Button("批量删除", role: .destructive) { showingBatchDeleteConfirmation = true }
+                        .buttonStyle(.bordered)
+                        .disabled(selectedCardIDs.isEmpty)
+                }
+                .padding(.horizontal, 20)
+                .padding(.vertical, 10)
+                .background(Color.cyan.opacity(0.06))
+                .transition(.move(edge: .top).combined(with: .opacity))
+            }
             
             if filteredCards.isEmpty {
                 VStack(spacing: 12) {
@@ -1685,6 +2120,15 @@ fileprivate struct AllCardsView: View {
                     cards: filteredCards,
                     groupBy: groupBy,
                     sortBy: sortBy,
+                    selectionEnabled: isSelectionMode,
+                    selectedCardIDs: selectedCardIDs,
+                    onToggleSelection: { card in
+                        if selectedCardIDs.contains(card.id) {
+                            selectedCardIDs.remove(card.id)
+                        } else {
+                            selectedCardIDs.insert(card.id)
+                        }
+                    },
                     onEdit: { card in
                         cardEditRequest = CardEditRequest(mode: "edit", card: card)
                     },
@@ -1701,6 +2145,119 @@ fileprivate struct AllCardsView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
+        .sheet(isPresented: $showingBatchEditor) {
+            MacBatchEditView(selectedCount: selectedCardIDs.count) { request in
+                onBatchUpdate(selectedCardIDs, request)
+                selectedCardIDs.removeAll()
+                isSelectionMode = false
+            }
+        }
+        .alert("批量删除确认", isPresented: $showingBatchDeleteConfirmation) {
+            Button("取消", role: .cancel) {}
+            Button("删除 \(selectedCardIDs.count) 张卡片", role: .destructive) {
+                onBatchDelete(selectedCardIDs)
+                selectedCardIDs.removeAll()
+                isSelectionMode = false
+            }
+        } message: {
+            Text("删除后会通过同步账本传播到其他设备，此操作无法撤销。")
+        }
+    }
+}
+
+fileprivate struct MacBatchEditView: View {
+    let selectedCount: Int
+    let onApply: (BatchUpdateRequest) -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var updateStatus = false
+    @State private var status = "1"
+    @State private var updateAnnualFee = false
+    @State private var annualFee = 0.0
+    @State private var updateAnnualDate = false
+    @State private var annualDate = Date()
+    @State private var updateValid = false
+    @State private var validDate = Date()
+    @State private var updateCategory = false
+    @State private var category = "credit"
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            Text("批量修改 \(selectedCount) 张卡片")
+                .font(.title2)
+                .bold()
+            Text("仅勾选的字段会被更新，未勾选字段保持原值。")
+                .font(.caption)
+                .foregroundColor(.secondary)
+
+            Form {
+                Toggle("更新卡类别", isOn: $updateCategory)
+                if updateCategory {
+                    Picker("卡类别", selection: $category) {
+                        Text("信用卡").tag("credit")
+                        Text("储蓄卡").tag("debit")
+                    }
+                    .pickerStyle(.segmented)
+                }
+
+                Toggle("更新年费状态", isOn: $updateStatus)
+                if updateStatus {
+                    Picker("年费状态", selection: $status) {
+                        Text("已达标").tag("1")
+                        Text("未达标").tag("2")
+                        Text("终免年费").tag("3")
+                    }
+                }
+
+                Toggle("更新年费金额", isOn: $updateAnnualFee)
+                if updateAnnualFee {
+                    TextField("年费金额", value: $annualFee, format: .number)
+                }
+
+                Toggle("更新下次年费日期", isOn: $updateAnnualDate)
+                    .disabled(updateStatus && status == "3")
+                if updateAnnualDate && !(updateStatus && status == "3") {
+                    DatePicker("下次年费日期", selection: $annualDate, displayedComponents: .date)
+                }
+
+                Toggle("更新有效期", isOn: $updateValid)
+                if updateValid {
+                    DatePicker("有效期月份", selection: $validDate, displayedComponents: .date)
+                }
+            }
+            .formStyle(.grouped)
+
+            HStack {
+                Spacer()
+                Button("取消") { dismiss() }
+                Button("应用修改") {
+                    onApply(
+                        BatchUpdateRequest(
+                            status: updateStatus ? status : nil,
+                            annualFee: updateAnnualFee ? annualFee : nil,
+                            nextAnnualFeeDate: updateAnnualDate && status != "3" ? DateCalculator.timestamp(from: annualDate) : nil,
+                            valid: updateValid ? validText : nil,
+                            cardCategory: updateCategory ? category : nil
+                        )
+                    )
+                    dismiss()
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(!hasChanges)
+            }
+        }
+        .padding(24)
+        .frame(width: 520, height: 620)
+    }
+
+    private var hasChanges: Bool {
+        updateStatus || updateAnnualFee || updateAnnualDate || updateValid || updateCategory
+    }
+
+    private var validText: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MM/yy"
+        return formatter.string(from: validDate)
     }
 }
 
