@@ -169,9 +169,9 @@
           <el-icon><View /></el-icon>
           <span>查看完整卡详情</span>
         </el-menu-item>
-        <el-menu-item index="qualified" @click="handleContextMenuAction('qualified')" v-if="contextMenuRow && contextMenuRow.isQualified !== '3'">
+        <el-menu-item index="qualified" @click="handleContextMenuAction('qualified')" v-if="contextMenuRow && contextMenuRow.cardCategory !== 'debit' && contextMenuRow.isQualified !== '3'">
           <el-icon><Check /></el-icon>
-          <span>标记为年费已达标</span>
+          <span>确认本周期年费已达标</span>
         </el-menu-item>
       </el-menu>
     </div>

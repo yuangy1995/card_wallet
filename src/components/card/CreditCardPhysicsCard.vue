@@ -177,7 +177,7 @@
           <div v-if="!isDebitCard" class="annual-fee-status">
             <span class="status-label">年费达标：</span>
             <el-tag v-if="card.isQualified === '1'" type="success" size="small">已达标</el-tag>
-            <el-tag v-else-if="card.isQualified === '2'" type="danger" size="small" class="clickable-tag" @click.stop="setAnnualFeeQualified">未达标 (快捷达标)</el-tag>
+            <el-tag v-else-if="card.isQualified === '2'" type="danger" size="small" class="clickable-tag" @click.stop="setAnnualFeeQualified">未达标（点击确认达标）</el-tag>
             <el-tag v-else-if="card.isQualified === '3'" type="info" size="small">终免年费</el-tag>
 
             <div class="days-remaining" v-if="card.nextAnnualFeeCollectionTime && card.isQualified !== '3'">
@@ -293,10 +293,9 @@ const toggleCvv = () => {
   emit('cvv-visibility', { id: props.card.id, isVisible: cvvVisible.value })
 }
 
-// 快捷设置年费已达标
+// 快捷确认当前年费周期已达标
 const setAnnualFeeQualified = () => {
   emit('annual-fee-qualified', props.card.id)
-  ElMessage.success(`已将 "${props.card.alias}" 标记为年费已达标`)
 }
 
 // 3D 倾斜数学计算

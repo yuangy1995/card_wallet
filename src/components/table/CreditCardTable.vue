@@ -108,7 +108,7 @@
       <el-menu>
         <el-menu-item index="annual-fee-qualified" v-if="showAnnualFeeOption" @click="handleSetAnnualFeeQualified">
           <el-icon><Check /></el-icon>
-          <span>设置年费已达标</span>
+          <span>确认本周期年费已达标</span>
         </el-menu-item>
         <el-menu-item index="edit" @click="handleContextMenuAction('edit')">
           <el-icon><Edit /></el-icon>
@@ -456,8 +456,7 @@ export default {
 
     const showAnnualFeeOption = computed(() => {
       if (!selectedRow.value) return false
-      // 只在未达标的情况下显示
-      return selectedRow.value.cardCategory !== 'debit' && selectedRow.value.isQualified === '2'
+      return selectedRow.value.cardCategory !== 'debit' && selectedRow.value.isQualified !== '3'
     })
 
     // 处理双击行事件
@@ -544,13 +543,7 @@ export default {
     }
 
     const handleSetAnnualFeeQualified = () => {
-      // 更新年费达标状态和下次收取时间
-      selectedRow.value.isQualified = '1'
-      if (selectedRow.value.nextAnnualFeeCollectionTime) {
-        const nextDate = new Date(selectedRow.value.nextAnnualFeeCollectionTime)
-        nextDate.setFullYear(nextDate.getFullYear() + 1)
-        selectedRow.value.nextAnnualFeeCollectionTime = nextDate.getTime()
-      }
+      // 数据更新集中交给父组件，避免多个入口重复顺延年费日期。
       emit('annual-fee-qualified', selectedRow.value.id)
       contextMenuVisible.value = false
     }

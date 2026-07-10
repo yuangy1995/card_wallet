@@ -28,7 +28,7 @@
             <el-dropdown-menu>
               <el-dropdown-item command="mark-qualified">
                 <el-icon><CircleCheck /></el-icon>
-                标记为达标
+                确认本周期达标
               </el-dropdown-item>
               <el-dropdown-item command="mark-unqualified">
                 <el-icon><CircleClose /></el-icon>
@@ -151,8 +151,8 @@ export default {
         case 'mark-qualified':
           try {
             await ElMessageBox.confirm(
-              `确定要将选中的 ${count} 张信用卡标记为达标吗？`,
-              '批量标记达标',
+              `确定选中的 ${count} 张信用卡本周期均已达标吗？确认后年费日期将分别顺延一年。`,
+              '批量确认本周期达标',
               { type: 'info' }
             )
             emit('batch-update-status', { rows: props.selectedRows, status: '1' })

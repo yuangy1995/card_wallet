@@ -806,6 +806,30 @@ const disablePastMonths = (time) => {
   return time.getTime() < firstDayOfCurrentMonth.getTime()
 }
 
+// 以卡片中保存的年费日期为基准增加一个日历年，并统一处理闰日。
+const timestampByAddingOneYear = (value) => {
+  if (!value) return value
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+
+  const targetYear = date.getFullYear() + 1
+  const month = date.getMonth()
+  const day = date.getDate()
+  const lastDay = new Date(targetYear, month + 1, 0).getDate()
+  date.setDate(1)
+  date.setFullYear(targetYear)
+  date.setMonth(month)
+  date.setDate(Math.min(day, lastDay))
+  return date.getTime()
+}
+
+// 确认当前年费周期达标，状态与下一次年费日期必须作为一次操作更新。
+const confirmAnnualFeeQualifiedForCard = (card) => {
+  card.isQualified = '1'
+  card.nextAnnualFeeCollectionTime = timestampByAddingOneYear(card.nextAnnualFeeCollectionTime)
+  card.lastModifyTime = getCurrentTimestamp()
+}
+
 const resetBatchAnnualFeeForm = () => {
   batchAnnualFeeForm.value = {
     updateAnnualFee: true,
@@ -1203,7 +1227,8 @@ const checkAnnualFeeQualified = async () => {
   const now = new Date()
   const warningCards = cardData.value.filter(card => {
     const reminder = getAnnualFeeDetection(card, BACKUP_CONSTANTS.ANNUAL_FEE_CHECK_DAYS, now)
-    return reminder?.kind === AnnualFeeReminderKind.WARNING
+    return reminder?.kind === AnnualFeeReminderKind.WARNING ||
+      reminder?.kind === AnnualFeeReminderKind.UNQUALIFIED
   })
 
   if (warningCards.length > 0) {
@@ -1211,11 +1236,11 @@ const checkAnnualFeeQualified = async () => {
       const message = `
         <div style="display: flex; min-height: 200px; max-height: 500px;">
           <div style="flex: 1; padding: 16px; display: flex; flex-direction: column; justify-content: center;">
-            <h3 style="margin: 0 0 16px 0; color: #E6A23C;">年费达标状态检测</h3>
+            <h3 style="margin: 0 0 16px 0; color: #E6A23C;">年费周期达标确认</h3>
             <p style="margin: 0 0 12px 0; line-height: 1.6;">检测到以下卡片临近年费收取时间不足${BACKUP_CONSTANTS.ANNUAL_FEE_CHECK_DAYS}天。</p>
-            <p style="margin: 0 0 12px 0; line-height: 1.6;">建议将这些卡片修改为未达标状态，以协助您处理年费收取问题。</p>
+            <p style="margin: 0 0 12px 0; line-height: 1.6;">如果这些卡片本周期已经达标，可一次确认并将各自的年费日期顺延一年。</p>
             <p class="annual-fee-desc" style="margin: 0; line-height: 1.6;">
-              提示：如果您在去年将卡片设为已达标，但今年忘记修改状态且消费未达标，可能会遗漏年费情况。为避免年费损失，建议点击"是"来更新状态。
+              尚未达标的卡片请暂不确认，系统会继续按照当前年费日期提醒。
             </p>
           </div>
           <div class="annual-fee-divider" style="width: 1px; margin: 16px 0;"></div>
@@ -1245,8 +1270,8 @@ const checkAnnualFeeQualified = async () => {
         message,
         '',
         {
-          confirmButtonText: '是',
-          cancelButtonText: '取消',
+          confirmButtonText: '全部确认本周期已达标',
+          cancelButtonText: '稍后处理',
           dangerouslyUseHTMLString: true,
           customClass: 'annual-fee-check-dialog',
           center: false
@@ -1254,16 +1279,15 @@ const checkAnnualFeeQualified = async () => {
       )
 
       if (result === 'confirm') {
-        // 更新卡片状态为未达标
+        // 批量完成当前周期，并以每张卡片保存的年费日期为基准顺延一年。
         warningCards.forEach(card => {
           const index = cardData.value.findIndex(c => c.id === card.id)
           if (index !== -1) {
-            cardData.value[index].isQualified = '2'
+            confirmAnnualFeeQualifiedForCard(cardData.value[index])
           }
         })
-        // 保存更新后的数据
         await persistSyncedMutation()
-        ElMessage.success('已将符合条件的卡片更新为未达标状态')
+        ElMessage.success('已确认本周期达标，并将下次年费日期顺延一年')
       }
     } catch (e) {
       // 用户点击取消，不做任何操作
@@ -1344,6 +1368,11 @@ const confirmAdd = async (data) => {
     const previousCard = status.value === 'edit'
       ? cardData.value.find(item => item.id === data.id)
       : null
+
+    // 编辑时首次切换为已达标，需要同时完成当前周期并顺延年费日期。
+    if (previousCard && previousCard.isQualified !== '1' && data.isQualified === '1') {
+      data.nextAnnualFeeCollectionTime = timestampByAddingOneYear(data.nextAnnualFeeCollectionTime)
+    }
 
     if (status.value === 'add') {
       cardData.value.push(data)
@@ -1701,14 +1730,18 @@ const handleBatchUpdateStatus = async ({ rows, status }) => {
     }
     cardData.value.forEach(card => {
       if (idsToUpdate.includes(card.id)) {
-        card.isQualified = status
-        card.lastModifyTime = getCurrentTimestamp()
+        if (status === '1') {
+          confirmAnnualFeeQualifiedForCard(card)
+        } else {
+          card.isQualified = status
+          card.lastModifyTime = getCurrentTimestamp()
+        }
       }
     })
     await persistSyncedMutation()
     clearSelection()
-    const statusText = status === '1' ? '达标' : '未达标'
-    ElMessage.success(`成功将 ${idsToUpdate.length} 张信用卡标记为${statusText}`)
+    const statusText = status === '1' ? '确认本周期达标' : '标记为未达标'
+    ElMessage.success(`已将 ${idsToUpdate.length} 张信用卡${statusText}`)
   } catch (error) {
     ElMessage.error('批量更新状态失败')
   }
@@ -1799,7 +1832,11 @@ const confirmBatchAnnualFeeUpdate = async () => {
         card.annualFee = Number(form.annualFee)
       }
       if (form.updateStatus) {
-        card.isQualified = form.isQualified
+        if (form.isQualified === '1' && !shouldUpdateNextAnnualFee) {
+          confirmAnnualFeeQualifiedForCard(card)
+        } else {
+          card.isQualified = form.isQualified
+        }
         if (form.isQualified === '3') {
           card.nextAnnualFeeCollectionTime = null
         }
@@ -1896,20 +1933,9 @@ const handleCvvVisibility = ({ id, isVisible }) => {
 const setAnnualFeeQualified = async (cardId) => {
   const card = cardData.value.find(c => c.id === cardId)
   if (card && isCreditCard(card)) {
-    card.isQualified = '1'
-
-    // 若有下次年费收取时间，则顺延一年
-    if (card.nextAnnualFeeCollectionTime) {
-      const nextDate = new Date(card.nextAnnualFeeCollectionTime)
-      if (!isNaN(nextDate.getTime())) {
-        nextDate.setFullYear(nextDate.getFullYear() + 1)
-        card.nextAnnualFeeCollectionTime = nextDate.getTime()
-      }
-    }
-
-    // 添加最后修改时间并保存
-    card.lastModifyTime = getCurrentTimestamp()
+    confirmAnnualFeeQualifiedForCard(card)
     await persistSyncedMutation()
+    ElMessage.success(`已确认本周期达标，下次年费日期为 ${formatCardTimestamp(card.nextAnnualFeeCollectionTime)}`)
   }
 }
 

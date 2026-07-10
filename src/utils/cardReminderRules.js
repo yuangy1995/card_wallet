@@ -73,7 +73,7 @@ export const getAnnualFeeDetection = (card, warningDays = 60, now = new Date()) 
   const diffDays = getAnnualFeeRemainingDays(card?.nextAnnualFeeCollectionTime, now)
   if (diffDays === null) return null
 
-  if (card?.isQualified === '2' && diffDays > 0) {
+  if (card?.isQualified === '2' && diffDays <= warningDays && diffDays > 0) {
     return { kind: AnnualFeeReminderKind.UNQUALIFIED, days: diffDays, diffDays }
   }
 
