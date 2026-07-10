@@ -18,6 +18,7 @@ struct SettingsView: View {
     @State private var hasStoredSyncPassword = false
 
     @State private var showStorageManagement = false
+    @State private var showHelp = false
     @State private var showIconSelection = false
     @State private var currentIconName: String? = nil
     @State private var showAppearanceDialog = false
@@ -56,6 +57,9 @@ struct SettingsView: View {
                 // 存储管理
                 storageSection
 
+                // 帮助
+                helpSection
+
                 // 关于
                 aboutSection
             }
@@ -67,6 +71,9 @@ struct SettingsView: View {
 
             .navigationDestination(isPresented: $showStorageManagement) {
                 StorageManagementView()
+            }
+            .navigationDestination(isPresented: $showHelp) {
+                IOSHelpView()
             }
             .navigationDestination(isPresented: $showIconSelection) {
                 AppIconSelectionView(currentIconName: $currentIconName)
@@ -365,6 +372,27 @@ struct SettingsView: View {
             .buttonStyle(.plain)
         } header: {
             Label("存储与空间", systemImage: "folder.badge.gearshape.fill")
+        }
+    }
+
+    // MARK: - 帮助
+    private var helpSection: some View {
+        Section {
+            Button {
+                showHelp = true
+            } label: {
+                HStack {
+                    Label("使用帮助", systemImage: "questionmark.circle.fill")
+                        .foregroundStyle(.primary)
+                    Spacer()
+                    Image(systemName: "chevron.right")
+                        .font(.footnote.weight(.semibold))
+                        .foregroundStyle(.tertiary)
+                }
+            }
+            .buttonStyle(.plain)
+        } header: {
+            Label("帮助与说明", systemImage: "lifepreserver.fill")
         }
     }
 
@@ -786,5 +814,86 @@ struct KeyboardButtonStyle: ButtonStyle {
             .scaleEffect(isPressed ? 0.84 : 1.0)
             // 弹簧动画略微收紧，增加“弹润”的回弹张力
             .animation(.spring(response: 0.16, dampingFraction: 0.52), value: isPressed)
+    }
+}
+
+private struct IOSHelpView: View {
+    var body: some View {
+        List {
+            Section("快速开始") {
+                HelpRow(
+                    icon: "plus.circle.fill",
+                    title: "添加卡片",
+                    detail: "在卡包页点击右下角“+”，选择信用卡或储蓄卡后填写资料。"
+                )
+                HelpRow(
+                    icon: "line.3.horizontal.decrease.circle.fill",
+                    title: "分组与排序",
+                    detail: "使用卡包右上角筛选按钮，可按银行、卡组织、级别或国家分组，并切换额度、免息期等排序。"
+                )
+                HelpRow(
+                    icon: "checklist",
+                    title: "批量管理",
+                    detail: "点击卡包右上角批量操作按钮，勾选多张卡后可统一修改类别、年费和有效期，或批量删除。"
+                )
+            }
+
+            Section("提醒与通知") {
+                HelpRow(
+                    icon: "bell.badge.fill",
+                    title: "系统提醒",
+                    detail: "允许通知后，应用会提前排程账单日、还款日、年费和有效期提醒；即使应用退到后台或未运行，iOS 也能按排程投递。"
+                )
+                HelpRow(
+                    icon: "moon.zzz.fill",
+                    title: "没有收到通知",
+                    detail: "请在系统设置中确认已允许通知，并检查专注模式、定时摘要和通知声音设置。"
+                )
+            }
+
+            Section("数据与安全") {
+                HelpRow(
+                    icon: "icloud.fill",
+                    title: "跨设备同步",
+                    detail: "在云端同步中配置 WebDAV 和同步密钥。各设备需使用相同密钥，数据才可正常解密合并。"
+                )
+                HelpRow(
+                    icon: "lock.shield.fill",
+                    title: "本机保护",
+                    detail: "卡片数据在本机加密保存。启用应用锁后，可使用密码或生物识别解锁；忘记密码时可通过本机卡片信息验证。"
+                )
+                HelpRow(
+                    icon: "externaldrive.fill.badge.checkmark",
+                    title: "存储管理",
+                    detail: "设置中的存储管理可查看本机数据、图片和缓存占用，并清理可安全重建的缓存。"
+                )
+            }
+        }
+        .navigationTitle("使用帮助")
+        .navigationBarTitleDisplayMode(.large)
+    }
+
+    private struct HelpRow: View {
+        let icon: String
+        let title: String
+        let detail: String
+
+        var body: some View {
+            HStack(alignment: .top, spacing: 12) {
+                Image(systemName: icon)
+                    .font(.system(size: 18, weight: .semibold))
+                    .foregroundStyle(.blue)
+                    .frame(width: 26)
+                VStack(alignment: .leading, spacing: 4) {
+                    Text(title)
+                        .font(.system(.body, weight: .semibold))
+                    Text(detail)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .padding(.vertical, 4)
+        }
     }
 }

@@ -172,16 +172,48 @@ private struct WindowTapObserver: UIViewRepresentable {
 private final class CardSystemNotificationCenter {
     static let shared = CardSystemNotificationCenter()
 
-    private let notificationKey = "card_system_notification_daily_v1"
     private let center = UNUserNotificationCenter.current()
+    private let notificationKey = "card_system_notification_daily_v1"
+    private let scheduledPrefix = "card_scheduled_"
+    private var pendingRefresh: (cards: [SharedCard], locked: Bool)?
+    private var isRefreshing = false
+
+    private struct PlannedNotification {
+        let identifier: String
+        let fireDate: Date
+        let title: String
+        let body: String
+        let cardID: String
+    }
 
     private init() {}
 
     func refresh(cards: [SharedCard], locked: Bool) async {
+        pendingRefresh = (cards, locked)
+        guard !isRefreshing else { return }
+
+        isRefreshing = true
+        defer { isRefreshing = false }
+        while let request = pendingRefresh {
+            pendingRefresh = nil
+            await performRefresh(cards: request.cards, locked: request.locked)
+        }
+    }
+
+    private func performRefresh(cards: [SharedCard], locked: Bool) async {
+        if cards.isEmpty {
+            await replaceScheduledNotifications(cards: [])
+            return
+        }
+        guard await requestAuthorizationIfNeeded() else { return }
+
+        // 日历通知由系统持久化；排程完成后，即使应用进入后台或被终止也可投递。
+        await replaceScheduledNotifications(cards: cards)
+        if pendingRefresh != nil { return }
         guard !locked else { return }
+
         let summary = reminderSummary(cards: cards)
         guard summary.total > 0 else { return }
-        guard await requestAuthorizationIfNeeded() else { return }
 
         let today = ISO8601DateFormatter().string(from: Date()).prefix(10)
         let fingerprint = "\(today)|\(summary.repayment)|\(summary.bill)|\(summary.annual)|\(summary.expiry)"
@@ -202,8 +234,172 @@ private final class CardSystemNotificationCenter {
             content: content,
             trigger: UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false)
         )
-        try? await center.add(request)
-        UserDefaults.standard.set(fingerprint, forKey: notificationKey)
+        do {
+            try await center.add(request)
+            UserDefaults.standard.set(fingerprint, forKey: notificationKey)
+        } catch {
+            print("发送系统通知失败: \(error.localizedDescription)")
+        }
+    }
+
+    private func replaceScheduledNotifications(cards: [SharedCard]) async {
+        let pending = await center.pendingNotificationRequests()
+        let staleIDs = pending.map(\.identifier).filter { $0.hasPrefix(scheduledPrefix) }
+        if !staleIDs.isEmpty {
+            center.removePendingNotificationRequests(withIdentifiers: staleIDs)
+        }
+
+        let now = Date()
+        let plans = buildPlans(cards: cards, now: now)
+            .filter { $0.fireDate.timeIntervalSince(now) > 30 }
+            .sorted { $0.fireDate < $1.fireDate }
+
+        // iOS 对单个应用的待处理本地通知数量有限，优先保留最近的 60 条。
+        for plan in plans.prefix(60) {
+            let content = UNMutableNotificationContent()
+            content.title = plan.title
+            content.body = plan.body
+            content.sound = .default
+            content.userInfo = ["cardID": plan.cardID]
+
+            let components = Calendar.current.dateComponents(
+                [.year, .month, .day, .hour, .minute],
+                from: plan.fireDate
+            )
+            let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
+            let request = UNNotificationRequest(identifier: plan.identifier, content: content, trigger: trigger)
+            do {
+                try await center.add(request)
+            } catch {
+                print("排程系统通知失败: \(error.localizedDescription)")
+            }
+        }
+    }
+
+    private func buildPlans(cards: [SharedCard], now: Date) -> [PlannedNotification] {
+        var plans: [PlannedNotification] = []
+        let calendar = Calendar.current
+        let billWarningDays = 3
+        let repaymentWarningDays = 7
+
+        for card in cards where card.cardCategory != "debit" {
+            if let billDay = dayNumber(card.accountBillDate) {
+                for monthOffset in 0..<13 {
+                    guard let target = monthlyDate(day: billDay, monthOffset: monthOffset, from: now),
+                          let fireDate = calendar.date(byAdding: .day, value: -billWarningDays, to: target) else { continue }
+                    plans.append(
+                        plan(
+                            card: card,
+                            kind: "bill",
+                            target: target,
+                            fireDate: notificationTime(fireDate),
+                            title: "信用卡账单日提醒",
+                            body: "\(billWarningDays) 天后是账单日，请留意本期账单。"
+                        )
+                    )
+                }
+            }
+
+            if let dueDay = dayNumber(card.dueDate) {
+                for monthOffset in 0..<13 {
+                    guard let target = monthlyDate(day: dueDay, monthOffset: monthOffset, from: now),
+                          let fireDate = calendar.date(byAdding: .day, value: -repaymentWarningDays, to: target) else { continue }
+                    plans.append(
+                        plan(
+                            card: card,
+                            kind: "repayment",
+                            target: target,
+                            fireDate: notificationTime(fireDate),
+                            title: "信用卡还款提醒",
+                            body: "\(repaymentWarningDays) 天后是还款日，请及时核对并安排还款。"
+                        )
+                    )
+                }
+            }
+
+            if card.isQualified != "3",
+               let annualTarget = DateCalculator.date(fromTimestamp: card.nextAnnualFeeCollectionTime),
+               let fireDate = calendar.date(byAdding: .day, value: -60, to: annualTarget) {
+                plans.append(
+                    plan(
+                        card: card,
+                        kind: "annual",
+                        target: annualTarget,
+                        fireDate: notificationTime(fireDate),
+                        title: "信用卡年费提醒",
+                        body: "距离下次年费收取约 60 天，请确认本周期达标情况。"
+                    )
+                )
+            }
+
+            if let expiryTarget = expiryDate(card.valid),
+               let fireDate = calendar.date(byAdding: .month, value: -6, to: expiryTarget) {
+                plans.append(
+                    plan(
+                        card: card,
+                        kind: "expiry",
+                        target: expiryTarget,
+                        fireDate: notificationTime(fireDate),
+                        title: "银行卡有效期提醒",
+                        body: "卡片将在约 6 个月后到期，请提前联系发卡行换卡。"
+                    )
+                )
+            }
+        }
+        return plans
+    }
+
+    private func plan(
+        card: SharedCard,
+        kind: String,
+        target: Date,
+        fireDate: Date,
+        title: String,
+        body: String
+    ) -> PlannedNotification {
+        let dateKey = ISO8601DateFormatter().string(from: target).prefix(10)
+        return PlannedNotification(
+            identifier: "\(scheduledPrefix)\(kind)_\(card.id)_\(dateKey)",
+            fireDate: fireDate,
+            title: title,
+            body: body,
+            cardID: card.id
+        )
+    }
+
+    private func monthlyDate(day: Int, monthOffset: Int, from now: Date) -> Date? {
+        let calendar = Calendar.current
+        guard let month = calendar.date(byAdding: .month, value: monthOffset, to: now),
+              let range = calendar.range(of: .day, in: .month, for: month) else { return nil }
+        var components = calendar.dateComponents([.year, .month], from: month)
+        components.day = min(day, range.count)
+        components.hour = 9
+        components.minute = 0
+        return calendar.date(from: components)
+    }
+
+    private func notificationTime(_ date: Date) -> Date {
+        var components = Calendar.current.dateComponents([.year, .month, .day], from: date)
+        components.hour = 9
+        components.minute = 0
+        return Calendar.current.date(from: components) ?? date
+    }
+
+    private func expiryDate(_ value: String?) -> Date? {
+        let normalized = DataMigrationManager.convertValidToMMYY(value)
+        let parts = normalized.split(separator: "/")
+        guard parts.count == 2,
+              let month = Int(parts[0]),
+              let year = Int(parts[1]),
+              (1...12).contains(month) else { return nil }
+        return Calendar.current.date(from: DateComponents(year: 2000 + year, month: month, day: 1, hour: 9))
+    }
+
+    private func dayNumber(_ value: String?) -> Int? {
+        guard let value,
+              let day = Int(value.trimmingCharacters(in: .whitespacesAndNewlines)),
+              (1...31).contains(day) else { return nil }
+        return day
     }
 
     private func requestAuthorizationIfNeeded() async -> Bool {

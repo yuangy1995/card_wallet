@@ -17,6 +17,10 @@ struct HomeView: View {
     @State private var syncFeedbackText: String?
     @State private var currentCardIndex = 0
     @State private var showReminderPage = false
+    @State private var isSelectionMode = false
+    @State private var selectedCardIDs: Set<String> = []
+    @State private var showBatchEditor = false
+    @State private var showBatchDeleteConfirmation = false
 
     enum CardCategoryFilter: String, CaseIterable {
         case all = "全部"
@@ -149,6 +153,21 @@ struct HomeView: View {
                     .presentationDetents([.medium])
                     .presentationDragIndicator(.visible)
             }
+            .sheet(isPresented: $showBatchEditor) {
+                IOSBatchEditView(selectedCount: selectedCardIDs.count) { request in
+                    applyBatchUpdate(request)
+                    exitSelectionMode()
+                }
+            }
+            .alert("批量删除确认", isPresented: $showBatchDeleteConfirmation) {
+                Button("取消", role: .cancel) {}
+                Button("删除 \(selectedCardIDs.count) 张卡片", role: .destructive) {
+                    deleteSelectedCards()
+                    exitSelectionMode()
+                }
+            } message: {
+                Text("删除后会通过同步账本传播到其他设备，此操作无法撤销。")
+            }
             .navigationDestination(isPresented: $showReminderPage) {
                 CardReminderPage(
                     cards: syncCoordinator.cards,
@@ -232,8 +251,15 @@ struct HomeView: View {
                 .padding(.bottom, 100)
             }
         }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if isSelectionMode {
+                batchSelectionBar
+            }
+        }
         .overlay(alignment: .bottomTrailing) {
-            addFAB
+            if !isSelectionMode {
+                addFAB
+            }
         }
     }
 
@@ -317,27 +343,85 @@ struct HomeView: View {
     // MARK: - 卡片行
     private func cardRow(_ card: SharedCard) -> some View {
         Button {
-            selectedCard = card
+            if isSelectionMode {
+                toggleSelection(card)
+            } else {
+                selectedCard = card
+            }
         } label: {
-            CreditCardMiniView(card: card)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 4)
-                .background(Color(.secondarySystemGroupedBackground))
+            ZStack(alignment: .topTrailing) {
+                CreditCardMiniView(card: card)
+                    .padding(.horizontal, 16)
+                    .padding(.vertical, 4)
+                    .background(Color(.secondarySystemGroupedBackground))
+
+                if isSelectionMode {
+                    Image(systemName: selectedCardIDs.contains(card.id) ? "checkmark.circle.fill" : "circle")
+                        .font(.system(size: 24, weight: .semibold))
+                        .foregroundStyle(selectedCardIDs.contains(card.id) ? Color.accentColor : Color.secondary)
+                        .background(.regularMaterial, in: Circle())
+                        .padding(.top, 14)
+                        .padding(.trailing, 26)
+                }
+            }
         }
         .buttonStyle(.plain)
         .contextMenu {
-            Button { cardToEdit = card } label: { Label("编辑", systemImage: "pencil") }
-            if card.cardCategory != "debit" {
-                Button { updateAnnualFeeStatus(card, status: "1") } label: {
-                    Label("确认本周期年费已达标", systemImage: "checkmark.seal.fill")
+            if !isSelectionMode {
+                Button { cardToEdit = card } label: { Label("编辑", systemImage: "pencil") }
+                if card.cardCategory != "debit" {
+                    Button { updateAnnualFeeStatus(card, status: "1") } label: {
+                        Label("确认本周期年费已达标", systemImage: "checkmark.seal.fill")
+                    }
+                    Button { updateAnnualFeeStatus(card, status: "2") } label: {
+                        Label("标记年费未达标", systemImage: "exclamationmark.triangle.fill")
+                    }
                 }
-                Button { updateAnnualFeeStatus(card, status: "2") } label: {
-                    Label("标记年费未达标", systemImage: "exclamationmark.triangle.fill")
-                }
+                Divider()
+                Button(role: .destructive) { deleteCard(card) } label: { Label("删除", systemImage: "trash") }
             }
-            Divider()
-            Button(role: .destructive) { deleteCard(card) } label: { Label("删除", systemImage: "trash") }
         }
+    }
+
+    private var batchSelectionBar: some View {
+        HStack(spacing: 14) {
+            VStack(alignment: .leading, spacing: 2) {
+                Text("已选择 \(selectedCardIDs.count) 张")
+                    .font(.system(size: 14, weight: .semibold))
+                Button(allVisibleCardsSelected ? "取消全选" : "全选当前结果") {
+                    if allVisibleCardsSelected {
+                        selectedCardIDs.subtract(filteredCards.map(\.id))
+                    } else {
+                        selectedCardIDs.formUnion(filteredCards.map(\.id))
+                    }
+                }
+                .font(.system(size: 12, weight: .medium))
+            }
+            Spacer()
+            Button {
+                showBatchEditor = true
+            } label: {
+                Label("修改", systemImage: "square.and.pencil")
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(selectedCardIDs.isEmpty)
+
+            Button(role: .destructive) {
+                showBatchDeleteConfirmation = true
+            } label: {
+                Image(systemName: "trash")
+            }
+            .buttonStyle(.bordered)
+            .disabled(selectedCardIDs.isEmpty)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
+        .background(.regularMaterial)
+        .overlay(alignment: .top) { Divider() }
+    }
+
+    private var allVisibleCardsSelected: Bool {
+        !filteredCards.isEmpty && Set(filteredCards.map(\.id)).isSubset(of: selectedCardIDs)
     }
 
     // MARK: - 空状态
@@ -444,6 +528,19 @@ struct HomeView: View {
                     Image(systemName: "line.3.horizontal.decrease.circle")
                         .font(.system(size: 16))
                 }
+                Button {
+                    withAnimation(.easeInOut(duration: 0.2)) {
+                        if isSelectionMode {
+                            exitSelectionMode()
+                        } else {
+                            isSelectionMode = true
+                        }
+                    }
+                } label: {
+                    Image(systemName: isSelectionMode ? "xmark.circle.fill" : "checklist")
+                        .font(.system(size: 16))
+                }
+                .accessibilityLabel(isSelectionMode ? "退出批量操作" : "进入批量操作")
             }
         }
     }
@@ -540,6 +637,56 @@ struct HomeView: View {
         syncCoordinator.commit(cards: remaining, deletedCardIDs: [card.id])
     }
 
+    private func toggleSelection(_ card: SharedCard) {
+        if selectedCardIDs.contains(card.id) {
+            selectedCardIDs.remove(card.id)
+        } else {
+            selectedCardIDs.insert(card.id)
+        }
+    }
+
+    private func exitSelectionMode() {
+        isSelectionMode = false
+        selectedCardIDs.removeAll()
+    }
+
+    private func applyBatchUpdate(_ request: IOSBatchUpdateRequest) {
+        guard !selectedCardIDs.isEmpty else { return }
+        var allCards = syncCoordinator.cards
+        let now = DataMigrationManager.currentTimestampMilliseconds()
+
+        for index in allCards.indices where selectedCardIDs.contains(allCards[index].id) {
+            if let category = request.cardCategory {
+                allCards[index].cardCategory = category == "debit" ? "debit" : "credit"
+            }
+            if allCards[index].cardCategory != "debit" {
+                if let status = request.status {
+                    allCards[index].isQualified = status
+                    if status == "3" {
+                        allCards[index].nextAnnualFeeCollectionTime = nil
+                    }
+                }
+                if let annualFee = request.annualFee {
+                    allCards[index].annualFee = annualFee
+                }
+                if let nextDate = request.nextAnnualFeeDate, request.status != "3" {
+                    allCards[index].nextAnnualFeeCollectionTime = nextDate
+                }
+            }
+            if let valid = request.valid {
+                allCards[index].valid = valid
+            }
+            allCards[index].lastModifyTime = now
+        }
+        syncCoordinator.commit(cards: allCards)
+    }
+
+    private func deleteSelectedCards() {
+        guard !selectedCardIDs.isEmpty else { return }
+        let remaining = syncCoordinator.cards.filter { !selectedCardIDs.contains($0.id) }
+        syncCoordinator.commit(cards: remaining, deletedCardIDs: selectedCardIDs)
+    }
+
     private func updateAnnualFeeStatus(_ card: SharedCard, status: String) {
         guard card.cardCategory != "debit" else { return }
         var allCards = syncCoordinator.cards
@@ -598,6 +745,116 @@ struct HomeView: View {
         }
 
         syncCoordinator.commit(cards: allCards)
+    }
+}
+
+private struct IOSBatchUpdateRequest {
+    var status: String?
+    var annualFee: Double?
+    var nextAnnualFeeDate: Double?
+    var valid: String?
+    var cardCategory: String?
+}
+
+private struct IOSBatchEditView: View {
+    let selectedCount: Int
+    let onApply: (IOSBatchUpdateRequest) -> Void
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var updateCategory = false
+    @State private var category = "credit"
+    @State private var updateStatus = false
+    @State private var status = "1"
+    @State private var updateAnnualFee = false
+    @State private var annualFee = 0.0
+    @State private var updateAnnualDate = false
+    @State private var annualDate = Date()
+    @State private var updateValid = false
+    @State private var validDate = Date()
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section {
+                    Text("仅开启的字段会被更新，其他信息保持原值。")
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
+
+                Section("卡片类别") {
+                    Toggle("更新卡类别", isOn: $updateCategory)
+                    if updateCategory {
+                        Picker("卡类别", selection: $category) {
+                            Text("信用卡").tag("credit")
+                            Text("储蓄卡").tag("debit")
+                        }
+                        .pickerStyle(.segmented)
+                    }
+                }
+
+                Section("年费信息") {
+                    Toggle("更新年费状态", isOn: $updateStatus)
+                    if updateStatus {
+                        Picker("年费状态", selection: $status) {
+                            Text("已达标").tag("1")
+                            Text("未达标").tag("2")
+                            Text("终免年费").tag("3")
+                        }
+                    }
+
+                    Toggle("更新年费金额", isOn: $updateAnnualFee)
+                    if updateAnnualFee {
+                        TextField("年费金额", value: $annualFee, format: .number)
+                            .keyboardType(.decimalPad)
+                    }
+
+                    Toggle("更新下次年费日期", isOn: $updateAnnualDate)
+                        .disabled(updateStatus && status == "3")
+                    if updateAnnualDate && !(updateStatus && status == "3") {
+                        DatePicker("下次年费日期", selection: $annualDate, displayedComponents: .date)
+                    }
+                }
+
+                Section("有效期") {
+                    Toggle("更新有效期", isOn: $updateValid)
+                    if updateValid {
+                        DatePicker("有效期月份", selection: $validDate, displayedComponents: .date)
+                    }
+                }
+            }
+            .navigationTitle("批量修改 \(selectedCount) 张")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("取消") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("应用") {
+                        onApply(
+                            IOSBatchUpdateRequest(
+                                status: updateStatus ? status : nil,
+                                annualFee: updateAnnualFee ? annualFee : nil,
+                                nextAnnualFeeDate: updateAnnualDate && status != "3" ? annualDate.timeIntervalSince1970 * 1000 : nil,
+                                valid: updateValid ? validText : nil,
+                                cardCategory: updateCategory ? category : nil
+                            )
+                        )
+                        dismiss()
+                    }
+                    .disabled(!hasChanges)
+                }
+            }
+        }
+    }
+
+    private var hasChanges: Bool {
+        updateCategory || updateStatus || updateAnnualFee || updateAnnualDate || updateValid
+    }
+
+    private var validText: String {
+        let formatter = DateFormatter()
+        formatter.dateFormat = "MM/yy"
+        return formatter.string(from: validDate)
     }
 }
 
