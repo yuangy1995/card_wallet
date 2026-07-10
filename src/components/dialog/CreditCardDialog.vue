@@ -320,6 +320,9 @@
               <el-button type="primary" plain @click="triggerImagePicker">上传图片</el-button>
               <span class="field-helper">上传后，其他设备也可以查看这些图片。</span>
             </div>
+            <div v-if="formData.cardImages?.length" class="card-media-summary">
+              共 {{ formData.cardImages.length }} 张图片 · 附件总大小 {{ formatFileSize(cardImagesTotalSize) }}
+            </div>
             <div v-if="formData.cardImages?.length" class="card-media-grid">
               <div
                 v-for="image in formData.cardImages"
@@ -328,7 +331,11 @@
               >
                 <img :src="image.data" :alt="image.name || '卡片图片'" />
                 <div class="card-media-meta">
-                  <span>{{ image.name || image.source || '卡片图片' }}</span>
+                  <div class="card-media-meta-text">
+                    <span>{{ image.name || image.source || '卡片图片' }}</span>
+                    <small>上传时间 {{ formatImageUploadTime(image.createdAt) }}</small>
+                    <small>文件大小 {{ formatFileSize(dataUrlByteSize(image.data)) }}</small>
+                  </div>
                   <el-button text type="danger" size="small" @click="removeCardImage(image.id)">删除</el-button>
                 </div>
               </div>
@@ -828,6 +835,35 @@ export default {
       imageInputRef.value?.click()
     }
 
+    const dataUrlByteSize = (value) => {
+      const encoded = String(value || '').split('base64,').pop().replace(/\s/g, '')
+      if (!encoded) return 0
+      const padding = encoded.endsWith('==') ? 2 : encoded.endsWith('=') ? 1 : 0
+      return Math.max(0, Math.floor(encoded.length * 3 / 4) - padding)
+    }
+
+    const formatFileSize = (bytes) => {
+      const value = Math.max(0, Number(bytes) || 0)
+      if (value < 1024) return `${value} B`
+      if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`
+      if (value < 1024 * 1024 * 1024) return `${(value / 1024 / 1024).toFixed(1)} MB`
+      return `${(value / 1024 / 1024 / 1024).toFixed(1)} GB`
+    }
+
+    const formatImageUploadTime = (timestamp) => {
+      const value = Number(timestamp)
+      if (!Number.isFinite(value) || value <= 0) return '未知'
+      const date = new Date(value < 1e12 ? value * 1000 : value)
+      if (Number.isNaN(date.getTime())) return '未知'
+      return date.toLocaleString('zh-CN', {
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', hour12: false
+      })
+    }
+
+    const cardImagesTotalSize = computed(() => normalizeCardImages(formData.value.cardImages)
+      .reduce((total, image) => total + dataUrlByteSize(image.data), 0))
+
     const fileToCardImage = (file) => new Promise((resolve, reject) => {
       const reader = new FileReader()
       reader.onload = () => {
@@ -904,6 +940,10 @@ export default {
       triggerImagePicker,
       handleCardImageInput,
       removeCardImage,
+      dataUrlByteSize,
+      formatFileSize,
+      formatImageUploadTime,
+      cardImagesTotalSize,
       handleLimitSharingChange,
       existingSharedLimitCard,
       cardNumberReadOnly,
@@ -1022,6 +1062,12 @@ export default {
     margin-bottom: 12px;
   }
 
+  .card-media-summary {
+    margin: -2px 0 12px;
+    color: var(--el-text-color-secondary);
+    font-size: 12px;
+  }
+
   .card-media-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
@@ -1053,10 +1099,22 @@ export default {
     color: var(--el-text-color-secondary);
   }
 
-  .card-media-meta span {
+  .card-media-meta-text {
+    display: grid;
+    min-width: 0;
+    gap: 2px;
+  }
+
+  .card-media-meta-text span {
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .card-media-meta-text small {
+    color: var(--el-text-color-placeholder);
+    font-size: 11px;
     white-space: nowrap;
   }
 

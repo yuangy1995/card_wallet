@@ -81,6 +81,9 @@
       </el-tab-pane>
 
       <el-tab-pane label="卡片媒体">
+        <div v-if="normalizedCardImages.length" class="card-media-summary">
+          共 {{ normalizedCardImages.length }} 张图片 · 附件总大小 {{ formatFileSize(cardImagesTotalSize) }}
+        </div>
         <div v-if="normalizedCardImages.length" class="card-media-grid">
           <div
             v-for="image in normalizedCardImages"
@@ -93,7 +96,11 @@
               :preview-src-list="normalizedCardImages.map(item => item.data)"
               preview-teleported
             />
-            <div class="card-media-meta">{{ image.name || image.source || '卡片图片' }}</div>
+            <div class="card-media-meta">
+              <strong>{{ image.name || image.source || '卡片图片' }}</strong>
+              <span>上传时间 {{ formatImageUploadTime(image.createdAt) }}</span>
+              <span>文件大小 {{ formatFileSize(dataUrlByteSize(image.data)) }}</span>
+            </div>
           </div>
         </div>
         <el-empty v-else description="暂无卡片图片" />
@@ -210,6 +217,7 @@ export default {
             return {
               id: `legacy-${index}`,
               data: item,
+              createdAt: 0,
               source: 'legacy',
               name: `card_image_${index + 1}.jpg`
             }
@@ -217,11 +225,15 @@ export default {
           return {
             id: item.id || `image-${index}`,
             data: item.data || '',
+            createdAt: Number(item.createdAt) || 0,
             source: item.source || '',
             name: item.name || ''
           }
         })
         .filter(item => item.data)
+    },
+    cardImagesTotalSize() {
+      return this.normalizedCardImages.reduce((total, image) => total + this.dataUrlByteSize(image.data), 0)
     }
   },
 
@@ -233,6 +245,29 @@ export default {
       if (!cardNumber) return ''
       // 每4个字符添加一个空格
       return cardNumber.replace(/(.{4})/g, '$1 ').trim()
+    },
+    dataUrlByteSize(value) {
+      const encoded = String(value || '').split('base64,').pop().replace(/\s/g, '')
+      if (!encoded) return 0
+      const padding = encoded.endsWith('==') ? 2 : encoded.endsWith('=') ? 1 : 0
+      return Math.max(0, Math.floor(encoded.length * 3 / 4) - padding)
+    },
+    formatFileSize(bytes) {
+      const value = Math.max(0, Number(bytes) || 0)
+      if (value < 1024) return `${value} B`
+      if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`
+      if (value < 1024 * 1024 * 1024) return `${(value / 1024 / 1024).toFixed(1)} MB`
+      return `${(value / 1024 / 1024 / 1024).toFixed(1)} GB`
+    },
+    formatImageUploadTime(timestamp) {
+      const value = Number(timestamp)
+      if (!Number.isFinite(value) || value <= 0) return '未知'
+      const date = new Date(value < 1e12 ? value * 1000 : value)
+      if (Number.isNaN(date.getTime())) return '未知'
+      return date.toLocaleString('zh-CN', {
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', hour12: false
+      })
     }
   }
 }
@@ -254,6 +289,12 @@ export default {
     gap: 14px;
   }
 
+  .card-media-summary {
+    margin-bottom: 12px;
+    color: var(--el-text-color-secondary);
+    font-size: 12px;
+  }
+
   .card-media-item {
     overflow: hidden;
     border: 1px solid var(--el-border-color);
@@ -269,9 +310,23 @@ export default {
   }
 
   .card-media-meta {
+    display: grid;
+    gap: 3px;
     padding: 8px;
     color: var(--el-text-color-secondary);
     font-size: 12px;
+  }
+
+  .card-media-meta strong {
+    overflow: hidden;
+    color: var(--el-text-color-regular);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .card-media-meta span {
+    color: var(--el-text-color-placeholder);
+    font-size: 11px;
   }
 }
 
