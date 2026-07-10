@@ -1551,6 +1551,11 @@ fun CardMediaSection(
                 lineHeight = 17.sp
             )
         } else {
+            Text(
+                text = "共 ${images.size} 张图片 · 附件总大小 ${formatFileSize(images.sumOf { CardImageCodec.dataByteSize(it) })}",
+                color = if (isDark) TextGray else TextMuted,
+                fontSize = 12.sp
+            )
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -1558,9 +1563,13 @@ fun CardMediaSection(
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 images.forEachIndexed { index, image ->
-                    Box(
-                        modifier = Modifier
-                            .width(160.dp)
+                    Column(
+                        modifier = Modifier.width(160.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        Box(
+                            modifier = Modifier
+                            .fillMaxWidth()
                             .aspectRatio(1.586f)
                             .clip(RoundedCornerShape(10.dp))
                             .background(if (isDark) DarkBg else Color.White)
@@ -1570,7 +1579,7 @@ fun CardMediaSection(
                                 shape = RoundedCornerShape(10.dp)
                             )
                             .clickable { onImageClick(image) }
-                    ) {
+                        ) {
                         val bitmap = remember(image.id, image.data) {
                             CardImageCodec.decodeBitmap(image)
                         }
@@ -1617,10 +1626,47 @@ fun CardMediaSection(
                                 .background(Color.Black.copy(alpha = 0.55f), RoundedCornerShape(topEnd = 6.dp))
                                 .padding(horizontal = 6.dp, vertical = 3.dp)
                         )
+                        }
+                        Text(
+                            text = image.name.ifBlank { image.source.ifBlank { "图片 ${index + 1}" } },
+                            color = MaterialTheme.colorScheme.onSurface,
+                            fontSize = 11.sp,
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+                        )
+                        Text(
+                            text = "上传时间 ${formatImageUploadTime(image.createdAt)}",
+                            color = if (isDark) TextGray else TextMuted,
+                            fontSize = 10.sp,
+                            maxLines = 1
+                        )
+                        Text(
+                            text = "文件大小 ${formatFileSize(CardImageCodec.dataByteSize(image))}",
+                            color = if (isDark) TextGray else TextMuted,
+                            fontSize = 10.sp,
+                            maxLines = 1
+                        )
                     }
                 }
             }
         }
+    }
+}
+
+private fun formatImageUploadTime(timestamp: Long): String {
+    if (timestamp <= 0) return "未知"
+    val normalizedTimestamp = if (timestamp < 1_000_000_000_000L) timestamp * 1000 else timestamp
+    return java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.CHINA)
+        .format(java.util.Date(normalizedTimestamp))
+}
+
+private fun formatFileSize(bytes: Long): String {
+    val value = bytes.coerceAtLeast(0L)
+    return when {
+        value < 1024 -> "$value B"
+        value < 1024L * 1024 -> String.format(java.util.Locale.CHINA, "%.1f KB", value / 1024.0)
+        value < 1024L * 1024 * 1024 -> String.format(java.util.Locale.CHINA, "%.1f MB", value / 1024.0 / 1024.0)
+        else -> String.format(java.util.Locale.CHINA, "%.1f GB", value / 1024.0 / 1024.0 / 1024.0)
     }
 }
 

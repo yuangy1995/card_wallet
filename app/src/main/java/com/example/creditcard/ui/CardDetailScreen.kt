@@ -314,7 +314,7 @@ fun CardDetailScreen(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "${previewList.size} 张图片",
+                            text = "${previewList.size} 张图片 · 总大小 ${formatFileSize(previewList.sumOf { previewByteSize(it) })}",
                             color = if (isDark) TextGray else TextMuted,
                             fontSize = 12.sp
                         )
@@ -829,42 +829,66 @@ private fun MediaThumbnail(
 ) {
     val bitmap = remember(preview) { decodePreviewBitmap(preview) }
 
-    Box(
-        modifier = Modifier
-            .width(104.dp)
-            .height(138.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .background(if (isDark) DarkBg else Color(0xFFF8FAFC))
-            .border(
-                width = 1.dp,
-                color = (if (isDark) NeonCyan else GoldPrimary).copy(alpha = 0.22f),
-                shape = RoundedCornerShape(12.dp)
-            )
-            .clickable(onClick = onClick)
-            .padding(5.dp),
-        contentAlignment = Alignment.Center
+    Column(
+        modifier = Modifier.width(170.dp),
+        verticalArrangement = Arrangement.spacedBy(4.dp)
     ) {
-        if (bitmap != null) {
-            Image(
-                bitmap = bitmap.asImageBitmap(),
-                contentDescription = "卡片图片 ${index + 1}",
-                modifier = Modifier
-                    .fillMaxSize()
-                    .clip(RoundedCornerShape(9.dp)),
-                contentScale = androidx.compose.ui.layout.ContentScale.Fit
-            )
-        } else {
-            Text("无法预览", color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
-        }
-
         Box(
             modifier = Modifier
-                .align(Alignment.BottomEnd)
-                .background(Color.Black.copy(alpha = 0.62f), shape = RoundedCornerShape(8.dp))
-                .padding(horizontal = 7.dp, vertical = 3.dp)
+                .fillMaxWidth()
+                .aspectRatio(1.586f)
+                .clip(RoundedCornerShape(12.dp))
+                .background(if (isDark) DarkBg else Color(0xFFF8FAFC))
+                .border(
+                    width = 1.dp,
+                    color = (if (isDark) NeonCyan else GoldPrimary).copy(alpha = 0.22f),
+                    shape = RoundedCornerShape(12.dp)
+                )
+                .clickable(onClick = onClick)
+                .padding(5.dp),
+            contentAlignment = Alignment.Center
         ) {
-            Text("${index + 1}/$total", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+            if (bitmap != null) {
+                Image(
+                    bitmap = bitmap.asImageBitmap(),
+                    contentDescription = "卡片图片 ${index + 1}",
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .clip(RoundedCornerShape(9.dp)),
+                    contentScale = androidx.compose.ui.layout.ContentScale.Fit
+                )
+            } else {
+                Text("无法预览", color = MaterialTheme.colorScheme.error, fontSize = 12.sp)
+            }
+
+            Box(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .background(Color.Black.copy(alpha = 0.62f), shape = RoundedCornerShape(8.dp))
+                    .padding(horizontal = 7.dp, vertical = 3.dp)
+            ) {
+                Text("${index + 1}/$total", color = Color.White, fontSize = 10.sp, fontWeight = FontWeight.Bold)
+            }
         }
+        Text(
+            text = previewName(preview, index),
+            color = MaterialTheme.colorScheme.onSurface,
+            fontSize = 11.sp,
+            maxLines = 1,
+            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
+        )
+        Text(
+            text = "上传时间 ${formatPreviewUploadTime(preview)}",
+            color = if (isDark) TextGray else TextMuted,
+            fontSize = 10.sp,
+            maxLines = 1
+        )
+        Text(
+            text = "文件大小 ${formatFileSize(previewByteSize(preview))}",
+            color = if (isDark) TextGray else TextMuted,
+            fontSize = 10.sp,
+            maxLines = 1
+        )
     }
 }
 
@@ -1080,6 +1104,39 @@ private fun getExpiryWarningMessage(card: SharedCard): String? {
 sealed class PreviewImage {
     data class Asset(val asset: CardImageAsset) : PreviewImage()
     data class LocalFile(val file: java.io.File) : PreviewImage()
+}
+
+private fun previewByteSize(preview: PreviewImage): Long = when (preview) {
+    is PreviewImage.Asset -> CardImageCodec.dataByteSize(preview.asset)
+    is PreviewImage.LocalFile -> preview.file.length().coerceAtLeast(0L)
+}
+
+private fun previewName(preview: PreviewImage, index: Int): String = when (preview) {
+    is PreviewImage.Asset -> preview.asset.name.ifBlank { preview.asset.source.ifBlank { "图片 ${index + 1}" } }
+    is PreviewImage.LocalFile -> preview.file.name.ifBlank { "图片 ${index + 1}" }
+}
+
+private fun formatPreviewUploadTime(preview: PreviewImage): String {
+    val rawTimestamp = when (preview) {
+        is PreviewImage.Asset -> preview.asset.createdAt
+        is PreviewImage.LocalFile -> preview.file.lastModified()
+    }
+    val timestamp = if (preview is PreviewImage.Asset && rawTimestamp in 1 until 1_000_000_000_000L) {
+        rawTimestamp * 1000
+    } else {
+        rawTimestamp
+    }
+    return if (timestamp > 0) formatDateTime(timestamp) else "未知"
+}
+
+private fun formatFileSize(bytes: Long): String {
+    val value = bytes.coerceAtLeast(0L)
+    return when {
+        value < 1024 -> "$value B"
+        value < 1024L * 1024 -> String.format(java.util.Locale.CHINA, "%.1f KB", value / 1024.0)
+        value < 1024L * 1024 * 1024 -> String.format(java.util.Locale.CHINA, "%.1f MB", value / 1024.0 / 1024.0)
+        else -> String.format(java.util.Locale.CHINA, "%.1f GB", value / 1024.0 / 1024.0 / 1024.0)
+    }
 }
 
 /**

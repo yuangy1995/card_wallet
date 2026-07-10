@@ -69,6 +69,18 @@ object CardImageCodec {
         }
     }
 
+    fun dataByteSize(asset: CardImageAsset): Long {
+        val encoded = asset.data.substringAfter("base64,", asset.data)
+            .filterNot { it.isWhitespace() }
+        if (encoded.isEmpty()) return 0
+        val padding = when {
+            encoded.endsWith("==") -> 2
+            encoded.endsWith("=") -> 1
+            else -> 0
+        }
+        return ((encoded.length.toLong() * 3L / 4L) - padding).coerceAtLeast(0L)
+    }
+
     private fun resizeIfNeeded(bitmap: Bitmap): Bitmap {
         val largestEdge = max(bitmap.width, bitmap.height)
         if (largestEdge <= MAX_EDGE) return bitmap
