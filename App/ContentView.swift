@@ -205,7 +205,17 @@ struct ContentView: View {
                 cardToEdit: request.card,
                 initialCardCategory: request.card?.cardCategory ?? request.cardCategory,
                 existingCards: cards,
-                onSubmit: { finalCard in
+                onSubmit: { submittedCard in
+                    var finalCard = submittedCard
+
+                    // 编辑时首次切换为已达标，需要同时完成当前年费周期并顺延日期。
+                    if request.mode != "add",
+                       request.card?.isQualified != "1",
+                       finalCard.isQualified == "1" {
+                        finalCard.nextAnnualFeeCollectionTime = DateCalculator.timestampByAddingOneYear(
+                            finalCard.nextAnnualFeeCollectionTime
+                        )
+                    }
 
                     if request.mode == "add" {
                         cards.append(finalCard)
@@ -554,7 +564,6 @@ struct ContentView: View {
         let annualFeeReminders = cards.filter { card in
             guard card.cardCategory != "debit",
                   card.isQualified != "3",
-                  card.isQualified != "2",
                   let diffDays = DateCalculator.annualFeeRemainingDays(card.nextAnnualFeeCollectionTime) else {
                 return false
             }
@@ -1719,7 +1728,6 @@ fileprivate struct CardReminderView: View {
         cards.filter { card in
             guard card.cardCategory != "debit",
                   card.isQualified != "3",
-                  card.isQualified != "2",
                   let diffDays = DateCalculator.annualFeeRemainingDays(card.nextAnnualFeeCollectionTime) else {
                 return false
             }
@@ -1749,6 +1757,19 @@ fileprivate struct CardReminderView: View {
             return nil
         }
         return status
+    }
+
+    // 确认当前年费周期达标，并以卡片中保存的年费日期为基准顺延一年。
+    private func confirmAnnualFeeQualified(cardIDs: Set<String>) {
+        let nowTimestamp = DateCalculator.timestamp(from: Date())
+        for index in cardsBinding.indices where cardIDs.contains(cardsBinding[index].id) {
+            cardsBinding[index].isQualified = "1"
+            cardsBinding[index].nextAnnualFeeCollectionTime = DateCalculator.timestampByAddingOneYear(
+                cardsBinding[index].nextAnnualFeeCollectionTime
+            )
+            cardsBinding[index].lastModifyTime = nowTimestamp
+        }
+        cardsBinding = syncCoordinator.commit(cards: cardsBinding)
     }
     
     var body: some View {
@@ -1860,17 +1881,11 @@ fileprivate struct CardReminderView: View {
                                             .foregroundColor(SoftColors.orange)
                                     }
                                     Spacer()
-                                    // 提供全部标为未达标的便捷动作
+                                    // 批量确认当前周期达标，统一顺延下一次年费日期。
                                     Button(action: {
-                                        let warningIDs = Set(annualFeeReminders.map(\.id))
-                                        let nowTimestamp = DateCalculator.timestamp(from: Date())
-                                        for idx in cardsBinding.indices where warningIDs.contains(cardsBinding[idx].id) {
-                                            cardsBinding[idx].isQualified = "2"
-                                            cardsBinding[idx].lastModifyTime = nowTimestamp
-                                        }
-                                        cardsBinding = syncCoordinator.commit(cards: cardsBinding)
+                                        confirmAnnualFeeQualified(cardIDs: Set(annualFeeReminders.map(\.id)))
                                     }) {
-                                        Text("全部更新为未达标")
+                                        Text("全部确认本周期已达标")
                                             .font(.system(size: 11, weight: .medium))
                                             .foregroundColor(SoftColors.orange)
                                             .padding(.horizontal, 10)
@@ -1889,17 +1904,13 @@ fileprivate struct CardReminderView: View {
                                         let days = DateCalculator.annualFeeRemainingDays(card.nextAnnualFeeCollectionTime) ?? 0
                                         ReminderDashboardItem(
                                             card: card,
-                                            title: "年费达标临界",
-                                            detail: "收取日：\(dateText)，距离产生年费仅剩 \(days) 天。若未达标，请及时跟进。",
+                                            title: card.isQualified == "2" ? "本周期尚未达标" : "新周期达标确认",
+                                            detail: "收取日：\(dateText)，距离产生年费仅剩 \(days) 天。请确认本周期是否已经达标。",
                                             tag: "剩 \(days) 天",
                                             themeColor: SoftColors.orange,
-                                            actionLabel: "设为未达标",
+                                            actionLabel: "确认本周期已达标",
                                             onAction: {
-                                                if let idx = cardsBinding.firstIndex(where: { $0.id == card.id }) {
-                                                    cardsBinding[idx].isQualified = "2"
-                                                    cardsBinding[idx].lastModifyTime = DateCalculator.timestamp(from: Date())
-                                                    cardsBinding = syncCoordinator.commit(cards: cardsBinding)
-                                                }
+                                                confirmAnnualFeeQualified(cardIDs: [card.id])
                                             }
                                         )
                                     }

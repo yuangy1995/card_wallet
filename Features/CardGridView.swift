@@ -350,7 +350,7 @@ public struct CreditCardView: View {
             if !isDebitCard {
                 Section(header: Text("年费达标快捷标记")) {
                     Button { onUpdateStatus("1") } label: {
-                        Label("已达标", systemImage: "checkmark.circle.fill")
+                        Label("确认本周期已达标", systemImage: "checkmark.circle.fill")
                     }
                     Button { onUpdateStatus("2") } label: {
                         Label("未达标", systemImage: "exclamationmark.circle.fill")

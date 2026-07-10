@@ -267,7 +267,7 @@ public class DateCalculator {
             return nil
         }
         
-        if isQualified == "2", diffDays > 0 {
+        if isQualified == "2", diffDays <= warningDays, diffDays > 0 {
             return AnnualFeeDetectionResult(kind: .unqualified, days: diffDays)
         }
         
