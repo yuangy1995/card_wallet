@@ -754,6 +754,10 @@ struct CardDetailView: View {
             let images = card.cardImages
             let currentIndex = min(selectedImageIndex, max(images.count - 1, 0))
             let asset = images[currentIndex]
+
+            Text("共 \(images.count) 张图片 · 附件总大小 \(formatFileSize(images.reduce(0) { $0 + imageByteSize($1) }))")
+                .font(.footnote)
+                .foregroundStyle(.secondary)
             
             ZStack(alignment: .topTrailing) {
                 if let image = nsImage(from: asset) {
@@ -790,11 +794,15 @@ struct CardDetailView: View {
                 
                 Spacer()
                 
-                Text(asset.name.isEmpty ? "图片 \(currentIndex + 1)" : asset.name)
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
+                VStack(spacing: 2) {
+                    Text(asset.name.isEmpty ? "图片 \(currentIndex + 1)" : asset.name)
+                        .font(.footnote)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                    Text("上传时间 \(formatImageUploadTime(asset.createdAt)) · 文件大小 \(formatFileSize(imageByteSize(asset)))")
+                        .font(.caption2)
+                }
+                .foregroundStyle(.secondary)
                 
                 Spacer()
                 
@@ -809,32 +817,55 @@ struct CardDetailView: View {
             ScrollView(.horizontal, showsIndicators: false) {
                 HStack(spacing: 10) {
                     ForEach(images.indices, id: \.self) { index in
-                        Button {
-                            selectedImageIndex = index
-                        } label: {
-                            if let thumbnail = nsImage(from: images[index]) {
-                                Image(nsImage: thumbnail)
-                                    .resizable()
-                                    .scaledToFill()
-                                    .frame(width: 88, height: 58)
-                                    .clipShape(RoundedRectangle(cornerRadius: 7))
-                            } else {
-                                RoundedRectangle(cornerRadius: 7)
-                                    .fill(Color.primary.opacity(0.08))
-                                    .frame(width: 88, height: 58)
-                                    .overlay(Image(systemName: "photo"))
+                        VStack(spacing: 3) {
+                            Button {
+                                selectedImageIndex = index
+                            } label: {
+                                if let thumbnail = nsImage(from: images[index]) {
+                                    Image(nsImage: thumbnail)
+                                        .resizable()
+                                        .scaledToFill()
+                                        .frame(width: 88, height: 58)
+                                        .clipShape(RoundedRectangle(cornerRadius: 7))
+                                } else {
+                                    RoundedRectangle(cornerRadius: 7)
+                                        .fill(Color.primary.opacity(0.08))
+                                        .frame(width: 88, height: 58)
+                                        .overlay(Image(systemName: "photo"))
+                                }
                             }
+                            .buttonStyle(.plain)
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 7)
+                                    .stroke(selectedImageIndex == index ? Color.accentColor : Color.clear, lineWidth: 2)
+                            )
+                            Text(formatFileSize(imageByteSize(images[index])))
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
                         }
-                        .buttonStyle(.plain)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 7)
-                                .stroke(selectedImageIndex == index ? Color.accentColor : Color.clear, lineWidth: 2)
-                        )
                     }
                 }
                 .padding(.vertical, 4)
             }
         }
+    }
+
+    private func imageByteSize(_ asset: CardImageAsset) -> Int64 {
+        let base64 = asset.data.components(separatedBy: "base64,").last ?? asset.data
+        return Int64(Data(base64Encoded: base64, options: .ignoreUnknownCharacters)?.count ?? 0)
+    }
+
+    private func formatFileSize(_ bytes: Int64) -> String {
+        ByteCountFormatter.string(fromByteCount: max(0, bytes), countStyle: .file)
+    }
+
+    private func formatImageUploadTime(_ timestamp: Double) -> String {
+        guard timestamp > 0 else { return "未知" }
+        let seconds = timestamp < 1_000_000_000_000 ? timestamp : timestamp / 1000
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.dateFormat = "yyyy-MM-dd HH:mm"
+        return formatter.string(from: Date(timeIntervalSince1970: seconds))
     }
     
     private var interestFreePeriodText: String {

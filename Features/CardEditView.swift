@@ -341,7 +341,7 @@ public struct CardEditView: View {
                                     Label("上传图片", systemImage: "photo.badge.plus")
                                 }
                                 Spacer()
-                                Text("\(cardImages.count) 张")
+                                Text("\(cardImages.count) 张 · 总大小 \(formatFileSize(cardImages.reduce(0) { $0 + imageByteSize($1) }))")
                                     .foregroundStyle(.secondary)
                             }
 
@@ -385,6 +385,14 @@ public struct CardEditView: View {
                                                     .buttonStyle(.borderless)
                                                 }
                                                 .frame(width: 170)
+
+                                                Text("上传时间 \(formatImageUploadTime(image.createdAt))")
+                                                    .font(.caption2)
+                                                    .foregroundStyle(.secondary)
+                                                    .lineLimit(1)
+                                                Text("文件大小 \(formatFileSize(imageByteSize(image)))")
+                                                    .font(.caption2)
+                                                    .foregroundStyle(.secondary)
                                             }
                                         }
                                     }
@@ -671,6 +679,24 @@ public struct CardEditView: View {
         let base64 = asset.data.components(separatedBy: "base64,").last ?? asset.data
         guard let data = Data(base64Encoded: base64) else { return nil }
         return NSImage(data: data)
+    }
+
+    private func imageByteSize(_ asset: CardImageAsset) -> Int64 {
+        let base64 = asset.data.components(separatedBy: "base64,").last ?? asset.data
+        return Int64(Data(base64Encoded: base64, options: .ignoreUnknownCharacters)?.count ?? 0)
+    }
+
+    private func formatFileSize(_ bytes: Int64) -> String {
+        ByteCountFormatter.string(fromByteCount: max(0, bytes), countStyle: .file)
+    }
+
+    private func formatImageUploadTime(_ timestamp: Double) -> String {
+        guard timestamp > 0 else { return "未知" }
+        let seconds = timestamp < 1_000_000_000_000 ? timestamp : timestamp / 1000
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "zh_CN")
+        formatter.dateFormat = "yyyy-MM-dd HH:mm"
+        return formatter.string(from: Date(timeIntervalSince1970: seconds))
     }
 }
 
