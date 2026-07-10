@@ -359,13 +359,14 @@ fun MainScreen(
                             // 右侧并排：云同步动态呼吸微标 与 深浅主题切换按钮
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 // 1. 云同步四态指示动态微标
+                                val syncConfig = SyncCoordinator.loadConfig(context)
                                 DynamicSyncBadge(
                                     isSyncing = syncStatus.isSyncing,
+                                    isSyncAvailable = syncConfig.isReadyForSync,
                                     statusType = syncStatus.type,
                                     isDark = isDark,
                                     onSyncClick = {
-                                        val config = SyncCoordinator.loadConfig(context)
-                                        val syncUnavailableMessage = config.syncUnavailableMessage()
+                                        val syncUnavailableMessage = syncConfig.syncUnavailableMessage()
                                         if (syncUnavailableMessage != null) {
                                             Toast.makeText(context, syncUnavailableMessage, Toast.LENGTH_SHORT).show()
                                         } else {
@@ -926,6 +927,7 @@ private fun ReminderDetailRow(
 @Composable
 fun DynamicSyncBadge(
     isSyncing: Boolean,
+    isSyncAvailable: Boolean,
     statusType: String,
     isDark: Boolean,
     onSyncClick: () -> Unit,
@@ -960,7 +962,9 @@ fun DynamicSyncBadge(
             .background(badgeBgColor)
             .border(1.dp, iconColor.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
             .clickable {
-                if (isSyncing) {
+                if (!isSyncAvailable) {
+                    onSyncClick()
+                } else if (isSyncing) {
                     onSyncingClick()
                 } else {
                     onSyncClick()

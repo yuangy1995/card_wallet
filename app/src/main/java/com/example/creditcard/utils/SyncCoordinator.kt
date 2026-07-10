@@ -691,6 +691,7 @@ object SyncCoordinator {
             val config = loadConfig(appContext)
             val syncUnavailableMessage = config.syncUnavailableMessage()
             if (syncUnavailableMessage != null) {
+                stopSyncElapsedTicker(0L)
                 withContext(Dispatchers.Main) {
                     updateStatus(syncUnavailableMessage, if (config.isEnabled) "warning" else "info", isPending(appContext))
                     updateProgress("等待配置", 0, 0, syncUnavailableMessage)
@@ -1209,10 +1210,11 @@ object SyncCoordinator {
     fun requestManualSync(context: Context) {
         val appContext = context.applicationContext
         val config = loadConfig(appContext)
-        if (config.syncUnavailableMessage() != null) {
-            syncScope.launch {
-                synchronize(appContext, publishLocalChanges = true, manualRequest = true)
-            }
+        val syncUnavailableMessage = config.syncUnavailableMessage()
+        if (syncUnavailableMessage != null) {
+            stopSyncElapsedTicker(0L)
+            updateStatus(syncUnavailableMessage, if (config.isEnabled) "warning" else "info", isPending(appContext))
+            updateProgress("等待配置", 0, 0, syncUnavailableMessage)
             return
         }
         if (isUsingCellular(appContext)) {
