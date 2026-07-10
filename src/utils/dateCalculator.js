@@ -126,6 +126,50 @@ export function calculateInterestFreePeriod(accountBillDate, dueDate) {
 }
 
 /**
+ * 按“今天消费”计算当前可用免息天数，用于优惠用卡实时推荐。
+ * @param {object} card - 卡片数据
+ * @param {Date} today - 计算基准日期
+ * @returns {number} 免息天数；账单配置无效时返回 -1
+ */
+export function calculateCurrentInterestFreeDays(card, today = new Date()) {
+  if (!card || card.cardCategory === 'debit') return -1
+  const billDay = Number.parseInt(card.accountBillDate, 10)
+  const dueDay = Number.parseInt(card.dueDate, 10)
+  if (!Number.isInteger(billDay) || billDay < 1 || billDay > 31 ||
+      !Number.isInteger(dueDay) || dueDay < 1 || dueDay > 31) {
+    return -1
+  }
+
+  const base = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 12)
+  const spendDay = base.getDate()
+  const movesToNextBill = card.billingDaySpendingToNextBill !== false
+    ? spendDay >= billDay
+    : spendDay > billDay
+
+  const billMonth = base.getMonth() + (movesToNextBill ? 1 : 0)
+  const billMonthStart = new Date(base.getFullYear(), billMonth, 1, 12)
+  const billMonthLastDay = new Date(billMonthStart.getFullYear(), billMonthStart.getMonth() + 1, 0).getDate()
+  const billDate = new Date(
+    billMonthStart.getFullYear(),
+    billMonthStart.getMonth(),
+    Math.min(billDay, billMonthLastDay),
+    12
+  )
+
+  const dueMonthOffset = dueDay <= billDay ? 1 : 0
+  const dueMonthStart = new Date(billDate.getFullYear(), billDate.getMonth() + dueMonthOffset, 1, 12)
+  const dueMonthLastDay = new Date(dueMonthStart.getFullYear(), dueMonthStart.getMonth() + 1, 0).getDate()
+  const targetDueDate = new Date(
+    dueMonthStart.getFullYear(),
+    dueMonthStart.getMonth(),
+    Math.min(dueDay, dueMonthLastDay),
+    12
+  )
+
+  return Math.max(0, Math.round((targetDueDate - base) / (24 * 60 * 60 * 1000)))
+}
+
+/**
  * 计算上期账单还款剩余天数
  * @param {string|number} accountBillDate - 账单日
  * @param {string|number} dueDate - 还款日

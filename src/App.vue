@@ -152,6 +152,12 @@
                   <el-dropdown-item command="dataDiagnostics">
                     <el-icon><WarningFilled /></el-icon>数据异常检测
                   </el-dropdown-item>
+                  <el-dropdown-item command="bestUsage">
+                    <el-icon><Star /></el-icon>优惠用卡
+                  </el-dropdown-item>
+                  <el-dropdown-item command="storageManagement">
+                    <el-icon><Wallet /></el-icon>存储管理
+                  </el-dropdown-item>
                   <el-dropdown-item command="help">
                     <el-icon><QuestionFilled /></el-icon>使用帮助
                   </el-dropdown-item>
@@ -257,6 +263,15 @@
 
       </el-dialog>
       <HelpPage ref="helpPage" />
+      <BestUsageDialog
+        v-model="bestUsageVisible"
+        :cards="cardData"
+        @edit-card="editCreditCard"
+      />
+      <StorageManagementDialog
+        v-model="storageManagementVisible"
+        :cards="cardData"
+      />
       <WebDAVConfigDialog ref="webDAVConfig" @saved="handleWebDAVConfigSaved" />
       <SyncHistoryDialog
         v-model:visible="showSyncHistoryDialog"
@@ -458,6 +473,8 @@ const Statistics = defineAsyncComponent(() => import('@/components/Statistics.vu
 const HelpPage = defineAsyncComponent(() => import('@/components/help/HelpPage.vue'))
 const WebDAVConfigDialog = defineAsyncComponent(() => import('@/components/dialog/WebDAVConfigDialog.vue'))
 const SyncHistoryDialog = defineAsyncComponent(() => import('@/components/dialog/SyncHistoryDialog.vue'))
+const BestUsageDialog = defineAsyncComponent(() => import('@/components/tools/BestUsageDialog.vue'))
+const StorageManagementDialog = defineAsyncComponent(() => import('@/components/tools/StorageManagementDialog.vue'))
 
 // 安全功能组件导入
 import PasswordSetup from '@/components/security/PasswordSetup.vue'
@@ -754,6 +771,8 @@ const currentCard = ref({
   remark: ''
 })
 const statisticsVisible = ref(false)
+const bestUsageVisible = ref(false)
+const storageManagementVisible = ref(false)
 const creditCardData = ref({
   dialogFormVisible: false,
   data: {},
@@ -1449,6 +1468,12 @@ const handleMoreAction = async (command) => {
       break
     case 'dataDiagnostics':
       await showDataDiagnostics()
+      break
+    case 'bestUsage':
+      bestUsageVisible.value = true
+      break
+    case 'storageManagement':
+      storageManagementVisible.value = true
       break
     case 'help':
       showHelp()
