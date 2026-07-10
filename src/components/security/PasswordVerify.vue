@@ -46,7 +46,7 @@
               size="large"
             >
               <el-icon><Unlock /></el-icon>
-              {{ platformUnlockAvailable ? '使用 Touch ID / Windows Hello 解锁' : '系统解锁不可用' }}
+              {{ platformUnlockAvailable ? platformUnlockLabel : '系统解锁不可用' }}
             </el-button>
           </el-form-item>
         </el-form>
@@ -96,6 +96,14 @@ const passwordInput = ref(null)
 const show = computed({
   get: () => props.modelValue,
   set: (value) => emit('update:modelValue', value)
+})
+
+// 根据浏览器 UserAgent 检测当前操作系统，返回对应平台解锁文案
+const platformUnlockLabel = computed(() => {
+  const ua = navigator.userAgent
+  if (/Mac|iPhone|iPad|iPod/i.test(ua)) return '使用 Touch ID 解锁'
+  if (/Windows/i.test(ua)) return '使用 Windows Hello 解锁'
+  return '使用系统生物识别解锁'
 })
 
 const failedAttempts = computed(() => PasswordManager.getFailedAttempts())
