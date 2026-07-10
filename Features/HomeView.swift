@@ -153,7 +153,8 @@ struct HomeView: View {
                 CardReminderPage(
                     cards: syncCoordinator.cards,
                     onEditCard: { cardToEdit = $0 },
-                    onDeleteCard: { deleteCard($0) }
+                    onDeleteCard: { deleteCard($0) },
+                    onConfirmAnnualFeeQualified: { updateAnnualFeeStatus($0, status: "1") }
                 )
             }
             .navigationDestination(item: $selectedCard) { card in
@@ -328,7 +329,7 @@ struct HomeView: View {
             Button { cardToEdit = card } label: { Label("编辑", systemImage: "pencil") }
             if card.cardCategory != "debit" {
                 Button { updateAnnualFeeStatus(card, status: "1") } label: {
-                    Label("标记年费已达标", systemImage: "checkmark.seal.fill")
+                    Label("确认本周期年费已达标", systemImage: "checkmark.seal.fill")
                 }
                 Button { updateAnnualFeeStatus(card, status: "2") } label: {
                     Label("标记年费未达标", systemImage: "exclamationmark.triangle.fill")
@@ -556,6 +557,14 @@ struct HomeView: View {
     private func commitSubmittedCard(_ submittedCard: SharedCard, previousCard: SharedCard?) {
         var allCards = syncCoordinator.cards
         var finalCard = submittedCard
+
+        // 编辑时首次切换为已达标，需要同时完成当前周期并顺延年费日期。
+        if let previousCard, previousCard.isQualified != "1", finalCard.isQualified == "1" {
+            finalCard.nextAnnualFeeCollectionTime = DateCalculator.timestampByAddingOneYear(
+                finalCard.nextAnnualFeeCollectionTime
+            )
+        }
+
         let now = DataMigrationManager.currentTimestampMilliseconds()
         finalCard.lastModifyTime = now
 
@@ -677,6 +686,7 @@ private struct CardReminderPage: View {
     let cards: [SharedCard]
     let onEditCard: (SharedCard) -> Void
     let onDeleteCard: (SharedCard) -> Void
+    let onConfirmAnnualFeeQualified: (SharedCard) -> Void
 
     private var annualItems: [AnnualReminderItem] {
         cards.compactMap { card in
@@ -741,16 +751,27 @@ private struct CardReminderPage: View {
             if !annualItems.isEmpty {
                 Section("年费提醒") {
                     ForEach(annualItems) { item in
-                        NavigationLink {
-                            cardDetail(for: item.card)
-                        } label: {
-                            ReminderRow(
-                                icon: item.result.iconName,
-                                color: item.result.tintColor,
-                                title: item.card.bank,
-                                subtitle: item.card.alias ?? "未命名卡片",
-                                trailing: item.result.displayText
-                            )
+                        VStack(alignment: .leading, spacing: 8) {
+                            NavigationLink {
+                                cardDetail(for: item.card)
+                            } label: {
+                                ReminderRow(
+                                    icon: item.result.iconName,
+                                    color: item.result.tintColor,
+                                    title: item.card.bank,
+                                    subtitle: item.card.alias ?? "未命名卡片",
+                                    trailing: item.result.displayText
+                                )
+                            }
+                            Button {
+                                onConfirmAnnualFeeQualified(item.card)
+                            } label: {
+                                Label("确认本周期已达标", systemImage: "checkmark.seal.fill")
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .frame(maxWidth: .infinity)
+                            }
+                            .buttonStyle(.borderedProminent)
+                            .tint(item.result.tintColor)
                         }
                     }
                 }
@@ -871,8 +892,8 @@ private extension DateCalculator.AnnualFeeDetectionResult {
     var displayText: String {
         switch kind {
         case .overdue: return "已过 \(days) 天"
-        case .unqualified: return "剩 \(days) 天"
-        case .warning: return "\(days) 天后"
+        case .unqualified: return "未达标 · \(days) 天"
+        case .warning: return "待确认 · \(days) 天"
         }
     }
 }

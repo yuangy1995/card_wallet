@@ -176,7 +176,9 @@ public class DateCalculator {
     ) -> AnnualFeeDetectionResult? {
         guard isQualified != "3",
               let diffDays = annualFeeRemainingDays(nextAnnualFeeDate, now: now) else { return nil }
-        if isQualified == "2", diffDays > 0 { return AnnualFeeDetectionResult(kind: .unqualified, days: diffDays) }
+        if isQualified == "2", diffDays <= warningDays, diffDays > 0 {
+            return AnnualFeeDetectionResult(kind: .unqualified, days: diffDays)
+        }
         if diffDays <= warningDays, diffDays > 0, isQualified != "2" { return AnnualFeeDetectionResult(kind: .warning, days: diffDays) }
         if diffDays <= 0, diffDays > -warningDays { return AnnualFeeDetectionResult(kind: .overdue, days: abs(diffDays)) }
         return nil
