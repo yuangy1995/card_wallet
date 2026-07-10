@@ -21,7 +21,9 @@ const maskCardNumber = (value = '') => {
 const cardDisplayName = (card = {}) => {
   const bank = normalizeDisplayValue(card.bank)
   const alias = normalizeDisplayValue(card.alias)
-  return alias === '空' ? `${bank} / ${maskCardNumber(card.cardNumber)}` : `${bank} / ${alias}`
+  return [bank, alias, maskCardNumber(card.cardNumber)]
+    .filter(value => value !== '空')
+    .join(' / ')
 }
 
 const amountText = (value) => {
@@ -33,6 +35,33 @@ const amountText = (value) => {
 
 const categoryText = (value) => value === 'debit' ? '储蓄卡' : '信用卡'
 
+const currencyAmountText = (value, currency) => {
+  const amount = amountText(value)
+  if (amount === '空') return amount
+  const currencyText = normalizeDisplayValue(currency)
+  return currencyText === '空' ? amount : `${currencyText} ${amount}`
+}
+
+const qualificationText = (value) => {
+  if (value === '1') return '已达标'
+  if (value === '3') return '终免年费'
+  return '未达标'
+}
+
+const dateText = (value) => {
+  if (value === undefined || value === null || value === '') return '未设置'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return '未设置'
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
+const imageCountText = (images) => Array.isArray(images) && images.length > 0
+  ? `${images.length} 张`
+  : '未设置'
+
 const appendFieldChange = (fields, label, oldValue, newValue) => {
   const oldText = normalizeDisplayValue(oldValue)
   const newText = normalizeDisplayValue(newValue)
@@ -41,20 +70,68 @@ const appendFieldChange = (fields, label, oldValue, newValue) => {
   }
 }
 
+// 新增或本机待同步记录使用完整字段快照，确保历史详情可追溯。
+const snapshotFields = (card = {}, isNew = true) => {
+  const values = [
+    ['卡类别', categoryText(card.cardCategory)],
+    ['国家 / 地区', normalizeDisplayValue(card.country)],
+    ['发卡银行', normalizeDisplayValue(card.bank)],
+    ['卡片别名', normalizeDisplayValue(card.alias)],
+    ['卡片等级', normalizeDisplayValue(card.level)],
+    ['卡号', maskCardNumber(card.cardNumber)],
+    ['有效期', normalizeDisplayValue(card.valid)],
+    ['额度', currencyAmountText(card.limit, card.type)],
+    ['结算币种', normalizeDisplayValue(card.type)],
+    ['共享额度', card.isSharedLimit ? '是' : '否'],
+    ['账单日', normalizeDisplayValue(card.accountBillDate)],
+    ['还款日', normalizeDisplayValue(card.dueDate)],
+    ['账单日消费计入', card.billingDaySpendingToNextBill ? '下期账单' : '当期账单'],
+    ['年费金额', currencyAmountText(card.annualFee, card.type)],
+    ['年费状态', qualificationText(card.isQualified)],
+    ['下次年费收取日', dateText(card.nextAnnualFeeCollectionTime)],
+    ['上次提额时间', dateText(card.lastTime)],
+    ['权益', normalizeDisplayValue(card.equity)],
+    ['备注', normalizeDisplayValue(card.remark)],
+    ['卡片图片', imageCountText(card.cardImages)]
+  ]
+
+  return values
+    .filter(([, value]) => value !== '空' && value !== '未设置')
+    .map(([label, value]) => ({
+      label,
+      oldValue: isNew ? '空' : value,
+      newValue: isNew ? value : '空'
+    }))
+}
+
 const fieldChanges = (before = {}, after = {}) => {
   const fields = []
-  appendFieldChange(fields, '发卡行', before.bank, after.bank)
-  appendFieldChange(fields, '别名', before.alias, after.alias)
   appendFieldChange(fields, '卡类别', categoryText(before.cardCategory), categoryText(after.cardCategory))
-  appendFieldChange(fields, '国家', before.country, after.country)
+  appendFieldChange(fields, '国家 / 地区', before.country, after.country)
+  appendFieldChange(fields, '发卡银行', before.bank, after.bank)
+  appendFieldChange(fields, '卡片别名', before.alias, after.alias)
+  appendFieldChange(fields, '卡片等级', before.level, after.level)
   appendFieldChange(fields, '卡号', maskCardNumber(before.cardNumber), maskCardNumber(after.cardNumber))
-  appendFieldChange(fields, '卡级别', before.level, after.level)
-  appendFieldChange(fields, '币种', before.type, after.type)
-  appendFieldChange(fields, '额度', amountText(before.limit), amountText(after.limit))
   appendFieldChange(fields, '有效期', before.valid, after.valid)
-  appendFieldChange(fields, '年费', amountText(before.annualFee), amountText(after.annualFee))
+  appendFieldChange(fields, '额度', currencyAmountText(before.limit, before.type), currencyAmountText(after.limit, after.type))
+  appendFieldChange(fields, '结算币种', before.type, after.type)
   appendFieldChange(fields, '共享额度', before.isSharedLimit ? '是' : '否', after.isSharedLimit ? '是' : '否')
-  return fields.slice(0, 10)
+  appendFieldChange(fields, '账单日', before.accountBillDate, after.accountBillDate)
+  appendFieldChange(fields, '还款日', before.dueDate, after.dueDate)
+  appendFieldChange(
+    fields,
+    '账单日消费计入',
+    before.billingDaySpendingToNextBill ? '下期账单' : '当期账单',
+    after.billingDaySpendingToNextBill ? '下期账单' : '当期账单'
+  )
+  appendFieldChange(fields, '年费金额', currencyAmountText(before.annualFee, before.type), currencyAmountText(after.annualFee, after.type))
+  appendFieldChange(fields, '年费状态', qualificationText(before.isQualified), qualificationText(after.isQualified))
+  appendFieldChange(fields, '下次年费收取日', dateText(before.nextAnnualFeeCollectionTime), dateText(after.nextAnnualFeeCollectionTime))
+  appendFieldChange(fields, '上次提额时间', dateText(before.lastTime), dateText(after.lastTime))
+  appendFieldChange(fields, '权益', before.equity, after.equity)
+  appendFieldChange(fields, '备注', before.remark, after.remark)
+  appendFieldChange(fields, '卡片图片', imageCountText(before.cardImages), imageCountText(after.cardImages))
+  return fields.slice(0, 20)
 }
 
 const buildCardChange = (kind, before, after) => {
@@ -65,11 +142,7 @@ const buildCardChange = (kind, before, after) => {
       kind,
       cardId: card.id,
       cardName: cardDisplayName(card),
-      fields: [
-        { label: '状态', oldValue: '无', newValue: '新增' },
-        { label: '发卡行', oldValue: '空', newValue: normalizeDisplayValue(card.bank) },
-        { label: '卡号', oldValue: '空', newValue: maskCardNumber(card.cardNumber) }
-      ]
+      fields: snapshotFields(card, true)
     }
   }
   if (kind === 'deleted') {
@@ -77,7 +150,7 @@ const buildCardChange = (kind, before, after) => {
       kind,
       cardId: card.id,
       cardName: cardDisplayName(card),
-      fields: [{ label: '状态', oldValue: '已存在', newValue: '已删除' }]
+      fields: snapshotFields(card, false)
     }
   }
   const fields = fieldChanges(before, after)
@@ -128,7 +201,12 @@ const recentLocalChanges = (records = [], sinceMs = 0) => {
         fields: [{ label: '状态', oldValue: '已存在', newValue: '已删除' }]
       }
     }
-    return buildCardChange('modified', {}, record.card)
+    return {
+      kind: 'modified',
+      cardId: record.cardId,
+      cardName: cardDisplayName(record.card),
+      fields: snapshotFields(record.card, true)
+    }
   }).filter(Boolean).sort((left, right) => left.cardName.localeCompare(right.cardName, 'zh-CN'))
 }
 

@@ -151,7 +151,7 @@ body.dark,
       justify-content: space-between;
       align-items: center;
       flex-wrap: wrap;
-      gap: 12px;
+      gap: 8px 10px;
       width: 100%;
     }
 
@@ -160,11 +160,12 @@ body.dark,
     .toolbar-right {
       display: flex;
       align-items: center;
-      gap: 12px;
+      gap: 10px;
     }
 
     .toolbar-left {
-      flex: 1 1 auto;
+      flex: 1 1 0;
+      min-width: 0;
 
       .panel-title {
         font-size: 14px;
@@ -297,7 +298,9 @@ body.dark,
       .omni-search-box {
         display: inline-flex;
         align-items: center;
-        width: 250px; /* 舒展优雅的主流宽度 */
+        width: clamp(150px, 17vw, 220px);
+        min-width: 150px;
+        flex: 0 1 220px;
         transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
         vertical-align: middle;
 
@@ -361,6 +364,10 @@ body.dark,
 
     .toolbar-center {
       flex: 0 0 auto;
+      flex-wrap: nowrap;
+      gap: 8px;
+      margin-left: auto;
+      white-space: nowrap;
 
       .sync-status-pill {
         display: inline-flex;
@@ -374,6 +381,7 @@ body.dark,
         border: 1px solid transparent;
         cursor: pointer;
         user-select: none;
+        white-space: nowrap;
 
         &:hover {
           transform: translateY(-0.5px);
@@ -947,6 +955,35 @@ body.dark,
   }
 }
 
+@media (min-width: 1261px) and (max-width: 1500px) {
+  .control-center-panel {
+    .toolbar-left,
+    .toolbar-center,
+    .toolbar-right {
+      gap: 8px;
+    }
+
+    .toolbar-left .omni-search-box {
+      width: 150px;
+      min-width: 130px;
+      flex-basis: 150px;
+    }
+
+    .toolbar-center {
+      .sync-status-pill {
+        padding-left: 8px;
+        padding-right: 8px;
+      }
+
+      .sync-now-button,
+      .sync-history-button {
+        padding-left: 7px;
+        padding-right: 7px;
+      }
+    }
+  }
+}
+
 /* 强制云同步 Tooltip 自定义气泡的高清晰度与超高对比度文字设定，彻底消除外部暗色污染的看不清问题 */
 :global(.el-popper.sync-status-tooltip-popper) {
   background: rgba(13, 20, 41, 0.96) !important;
@@ -994,4 +1031,3 @@ body.dark,
   color: #007780 !important;
   box-shadow: -1px 0 0 0 rgba(0, 168, 180, 0.35) !important;
 }
-

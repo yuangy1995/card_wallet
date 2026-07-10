@@ -3,6 +3,8 @@
     :model-value="visible"
     title="云同步记录"
     width="760px"
+    top="4vh"
+    modal-class="sync-history-overlay"
     class="sync-history-dialog"
     @update:model-value="$emit('update:visible', $event)"
   >
@@ -190,8 +192,10 @@ export default {
             <div class="change-card-title">
               <span class="change-kind">{{ kindText(change.kind) }}</span>
               <strong>{{ change.cardName }}</strong>
+              <span class="change-field-count">{{ change.fields?.length || 0 }} 项明细</span>
             </div>
-            <div v-for="field in change.fields" :key="field.label + field.oldValue + field.newValue" class="field-row">
+            <div v-if="!change.fields?.length" class="empty-change">该旧记录未保存字段明细</div>
+            <div v-for="field in change.fields || []" :key="field.label + field.oldValue + field.newValue" class="field-row">
               <span class="field-label">{{ field.label }}</span>
               <span class="field-value">{{ field.oldValue || '空' }}</span>
               <span class="field-arrow">→</span>
@@ -219,6 +223,9 @@ export default {
   display: flex;
   flex-direction: column;
   gap: 14px;
+  height: 100%;
+  min-height: 0;
+  overflow: hidden;
 }
 
 .sync-current-card {
@@ -230,6 +237,7 @@ export default {
   border: 1px solid rgba(0, 188, 212, 0.22);
   border-radius: 10px;
   background: rgba(0, 188, 212, 0.08);
+  flex: 0 0 auto;
 }
 
 .sync-current-title {
@@ -263,6 +271,7 @@ export default {
   align-items: center;
   gap: 10px;
   flex-shrink: 0;
+  white-space: nowrap;
 }
 
 .history-title {
@@ -370,6 +379,13 @@ export default {
   background: var(--el-color-primary);
 }
 
+.change-field-count {
+  margin-left: auto;
+  color: var(--el-text-color-placeholder);
+  font-size: 11px;
+  font-weight: 500;
+}
+
 .field-row {
   grid-template-columns: 70px minmax(0, 1fr) 16px minmax(0, 1fr);
   margin-top: 4px;
@@ -396,12 +412,63 @@ export default {
 }
 
 .sync-history-list {
-  max-height: calc(85vh - 240px);
+  flex: 1 1 auto;
+  min-height: 0;
+  max-height: none;
   overflow-y: auto;
   padding-right: 6px;
   /* 兼容 Firefox 极简滚动条 */
   scrollbar-width: thin !important;
   scrollbar-color: rgba(255, 255, 255, 0.15) transparent !important;
+}
+
+/* 弹窗固定在视口上方并限制总高度，外层不滚动，仅历史列表内部滚动。 */
+:global(.sync-history-overlay .el-overlay-dialog) {
+  overflow: hidden !important;
+}
+
+:global(.el-dialog.sync-history-dialog) {
+  display: flex;
+  flex-direction: column;
+  height: min(720px, 84vh);
+  max-height: 84vh;
+  margin: 4vh auto 0 !important;
+  overflow: hidden;
+}
+
+:global(.el-dialog.sync-history-dialog .el-dialog__header) {
+  flex: 0 0 auto;
+  padding: 18px 24px 12px;
+}
+
+:global(.el-dialog.sync-history-dialog .el-dialog__body) {
+  flex: 1 1 auto;
+  min-height: 0;
+  padding: 12px 24px 18px;
+  overflow: hidden;
+}
+
+@media (max-height: 760px) {
+  :global(.el-dialog.sync-history-dialog) {
+    height: 88vh;
+    max-height: 88vh;
+    margin-top: 2vh !important;
+  }
+
+  :global(.el-dialog.sync-history-dialog .el-dialog__header) {
+    padding-top: 14px;
+    padding-bottom: 10px;
+  }
+
+  :global(.el-dialog.sync-history-dialog .el-dialog__body) {
+    padding-top: 8px;
+    padding-bottom: 12px;
+  }
+
+  .sync-current-card {
+    padding-top: 10px;
+    padding-bottom: 10px;
+  }
 }
 
 /* 兼容现代浏览器极简滚动条 */
