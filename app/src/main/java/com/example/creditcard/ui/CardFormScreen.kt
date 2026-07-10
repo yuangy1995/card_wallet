@@ -88,6 +88,7 @@ import com.example.creditcard.utils.ThemeManager
 import com.example.creditcard.utils.NfcScannerManager
 import com.example.creditcard.utils.CardScanProgressManager
 import com.example.creditcard.utils.CardImageCodec
+import com.example.creditcard.utils.CardReminderRules
 import com.example.creditcard.utils.VibrationUtils
 import com.example.creditcard.utils.bankNamesReferToSameBank
 import com.example.creditcard.utils.displayBankName
@@ -1671,6 +1672,18 @@ fun executeSaveCard(
     remark: String,
     cardImages: List<CardImageAsset>
 ) {
+    // 编辑时首次切换为已达标，需要同时完成当前周期并顺延年费日期。
+    val finalNextAnnualFeeTime = if (
+        cardCategory != "debit" &&
+        originalCard != null &&
+        originalCard.isQualified != "1" &&
+        isQualified == "1"
+    ) {
+        CardReminderRules.timestampByAddingOneYear(nextAnnualFeeCollectionTime)
+    } else {
+        nextAnnualFeeCollectionTime
+    }
+
     val finalCard = SharedCard(
         id = cardId ?: UUID.randomUUID().toString(),
         cardCategory = if (cardCategory == "debit") "debit" else "credit",
@@ -1689,7 +1702,7 @@ fun executeSaveCard(
         billingDaySpendingToNextBill = billingDaySpendingToNextBill,
         annualFee = if (cardCategory == "debit") 0.0 else annualFee,
         isQualified = if (cardCategory == "debit") "" else isQualified,
-        nextAnnualFeeCollectionTime = if (cardCategory == "debit") null else nextAnnualFeeCollectionTime,
+        nextAnnualFeeCollectionTime = if (cardCategory == "debit") null else finalNextAnnualFeeTime,
         lastTime = if (cardCategory == "debit") null else lastTime,
         equity = equity.trim(),
         remark = remark.trim(),

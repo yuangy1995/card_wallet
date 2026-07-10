@@ -3,6 +3,7 @@ package com.example.creditcard.utils
 import com.example.creditcard.data.SharedCard
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
+import java.util.Calendar
 import kotlin.math.abs
 import kotlin.math.ceil
 
@@ -62,6 +63,21 @@ object CardReminderRules {
         return ceil((targetMillis - nowMillis) / DAY_MS).toInt()
     }
 
+    /** 以卡片中保存的年费日期为基准增加一个日历年。 */
+    fun timestampByAddingOneYear(timestamp: Long?): Long? {
+        val value = timestamp ?: return null
+        return Calendar.getInstance().apply {
+            timeInMillis = value
+            add(Calendar.YEAR, 1)
+        }.timeInMillis
+    }
+
+    /** 确认当前年费周期达标，并同步顺延下一次年费日期。 */
+    fun confirmAnnualFeeQualified(card: SharedCard): SharedCard = card.copy(
+        isQualified = "1",
+        nextAnnualFeeCollectionTime = timestampByAddingOneYear(card.nextAnnualFeeCollectionTime)
+    )
+
     fun annualFeeDetection(
         card: SharedCard,
         warningDays: Int = ANNUAL_FEE_WARNING_DAYS,
@@ -70,7 +86,7 @@ object CardReminderRules {
         if (card.cardCategory == "debit" || card.isQualified == "3") return null
         val diffDays = annualFeeRemainingDays(card.nextAnnualFeeCollectionTime, nowMillis) ?: return null
 
-        if (card.isQualified == "2" && diffDays > 0) {
+        if (card.isQualified == "2" && diffDays <= warningDays && diffDays > 0) {
             return AnnualFeeDetectionResult(AnnualFeeDetectionKind.UNQUALIFIED, diffDays, diffDays)
         }
 

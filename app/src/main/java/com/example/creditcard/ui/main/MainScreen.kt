@@ -655,7 +655,8 @@ fun ReminderDetailsPanel(
     cards: List<SharedCard>,
     isDark: Boolean,
     onBack: () -> Unit,
-    onCardClick: (String) -> Unit
+    onCardClick: (String) -> Unit,
+    onConfirmAnnualFeeQualified: (SharedCard) -> Unit
 ) {
     val billingItems = remember(cards) { CardReminderRules.billingCycleAlerts(cards) }
     val annualItems = remember(cards) { CardReminderRules.annualFeeAlerts(cards) }
@@ -748,17 +749,31 @@ fun ReminderDetailsPanel(
                             val trailing = when (result.kind) {
                                 AnnualFeeDetectionKind.OVERDUE -> "已过 ${result.days} 天"
                                 AnnualFeeDetectionKind.UNQUALIFIED -> "未达标 · 剩 ${result.days} 天"
-                                AnnualFeeDetectionKind.WARNING -> "${result.days} 天后扣收"
+                                AnnualFeeDetectionKind.WARNING -> "待确认 · 剩 ${result.days} 天"
                             }
-                            ReminderDetailRow(
-                                icon = Icons.Filled.PriceCheck,
-                                color = color,
-                                title = card.bank,
-                                subtitle = card.alias.ifBlank { "未命名卡片" },
-                                detail = "年费 ${card.type} ${card.annualFee}",
-                                trailing = trailing,
-                                onClick = { onCardClick(card.id) }
-                            )
+                            Column {
+                                ReminderDetailRow(
+                                    icon = Icons.Filled.PriceCheck,
+                                    color = color,
+                                    title = card.bank,
+                                    subtitle = card.alias.ifBlank { "未命名卡片" },
+                                    detail = "年费 ${card.type} ${card.annualFee}",
+                                    trailing = trailing,
+                                    onClick = { onCardClick(card.id) }
+                                )
+                                TextButton(
+                                    onClick = { onConfirmAnnualFeeQualified(card) },
+                                    modifier = Modifier.align(Alignment.End)
+                                ) {
+                                    Icon(
+                                        Icons.Filled.CheckCircle,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("确认本周期已达标")
+                                }
+                            }
                         }
                     }
                 }

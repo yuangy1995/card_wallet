@@ -4,6 +4,7 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.platform.LocalContext
 import androidx.navigation3.runtime.entryProvider
 import androidx.navigation3.runtime.rememberNavBackStack
 import androidx.navigation3.ui.NavDisplay
@@ -11,6 +12,7 @@ import com.example.creditcard.ui.CardDetailScreen
 import com.example.creditcard.ui.CardFormScreen
 import com.example.creditcard.ui.main.MainScreen
 import com.example.creditcard.ui.main.ReminderDetailsPanel
+import com.example.creditcard.utils.CardReminderRules
 import com.example.creditcard.utils.SyncCoordinator
 import com.example.creditcard.utils.ThemeManager
 
@@ -48,11 +50,16 @@ fun MainNavigation() {
             entry<CardReminders> {
                 val cards by SyncCoordinator.cardsFlow.collectAsState()
                 val isDark by ThemeManager.isDarkTheme.collectAsState()
+                val context = LocalContext.current
                 ReminderDetailsPanel(
                     cards = cards,
                     isDark = isDark,
                     onBack = popBackStack,
-                    onCardClick = { id -> backStack.add(CardDetail(id)) }
+                    onCardClick = { id -> backStack.add(CardDetail(id)) },
+                    onConfirmAnnualFeeQualified = { card ->
+                        val updatedCard = CardReminderRules.confirmAnnualFeeQualified(card)
+                        SyncCoordinator.commitCardChange(context, updatedCard)
+                    }
                 )
             }
             
