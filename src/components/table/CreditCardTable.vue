@@ -48,6 +48,7 @@
           </template>
           <template v-else-if="column.value === 'cvv'" #default="scope">
             <SecureField 
+              v-if="scope.row.cvv"
               :id="`cvv-${scope.$index}`"
               :value="scope.row.cvv"
               :mask-all="true"
