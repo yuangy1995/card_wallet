@@ -108,7 +108,7 @@ fun SettingsSecurityPanel(
             )
             Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text("安全设置", fontSize = 22.sp, fontWeight = FontWeight.Black)
+                Text("安全设置", style = MaterialTheme.typography.headlineSmall)
                 Text(
                     text = "数字密码、生物识别解锁与找回密码",
                     fontSize = 12.sp,

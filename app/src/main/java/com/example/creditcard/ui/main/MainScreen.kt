@@ -23,6 +23,9 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PageSize
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -86,6 +89,7 @@ import com.example.creditcard.utils.SyncNetworkPreference
 import com.example.creditcard.utils.SyncTime
 import com.example.creditcard.utils.NfcScannerManager
 import com.example.creditcard.utils.ThemeManager
+import com.example.creditcard.utils.AppThemeMode
 import com.example.creditcard.utils.WebDAVClient
 import com.example.creditcard.utils.WebDAVConfig
 import com.example.creditcard.utils.VibrationUtils
@@ -208,6 +212,7 @@ fun MainScreen(
     
     // 卡包搜索状态
     var searchQuery by remember { mutableStateOf("") }
+    var showCardManagement by remember { mutableStateOf(false) }
     var cardCategoryFilter by remember { mutableStateOf("all") }
     var showAddMenu by remember { mutableStateOf(false) }
     val cardListPrefs = remember(context) {
@@ -218,6 +223,9 @@ fun MainScreen(
     }
     var sortOption by remember {
         mutableStateOf(CardListSortOption.from(cardListPrefs.getString(CARD_LIST_SORT_KEY, null)))
+    }
+    var isCompactView by remember {
+        mutableStateOf(cardListPrefs.getBoolean("card_is_compact_view", false))
     }
     var showGroupMenu by remember { mutableStateOf(false) }
     var showSortMenu by remember { mutableStateOf(false) }
@@ -231,6 +239,9 @@ fun MainScreen(
     }
     LaunchedEffect(sortOption) {
         cardListPrefs.edit().putString(CARD_LIST_SORT_KEY, sortOption.storedValue).apply()
+    }
+    LaunchedEffect(isCompactView) {
+        cardListPrefs.edit().putBoolean("card_is_compact_view", isCompactView).apply()
     }
     LaunchedEffect(cards) {
         selectedCardIDs = selectedCardIDs.intersect(cards.map { it.id }.toSet())
@@ -383,11 +394,9 @@ fun MainScreen(
         bottomBar = {
             if (!isSubPage) {
                 NavigationBar(
-                    modifier = Modifier.height(60.dp),
                     containerColor = MaterialTheme.colorScheme.surface,
-                    tonalElevation = 8.dp
+                    tonalElevation = 0.dp
                 ) {
-                    // 1. 卡包 Tab - 去文字纯图标
                     NavigationBarItem(
                         selected = selectedTab == 0,
                         onClick = {
@@ -396,12 +405,12 @@ fun MainScreen(
                             settingsMode = SettingsMode.MAIN
                         },
                         icon = { Icon(Icons.Filled.Wallet, contentDescription = "卡包") },
+                        label = { Text("卡包") },
                         colors = NavigationBarItemDefaults.colors(
                             selectedIconColor = if (isDark) NeonCyan else GoldPrimary,
                             indicatorColor = (if (isDark) NeonCyan else GoldPrimary).copy(alpha = 0.15f)
                         )
                     )
-                    // 2. 统计 Tab - 去文字纯图标
                     NavigationBarItem(
                         selected = selectedTab == 1,
                         onClick = {
@@ -410,12 +419,12 @@ fun MainScreen(
                             settingsMode = SettingsMode.MAIN
                         },
                         icon = { Icon(Icons.Filled.Handyman, contentDescription = "工具") },
+                        label = { Text("工具") },
                         colors = NavigationBarItemDefaults.colors(
                             selectedIconColor = if (isDark) NeonCyan else GoldPrimary,
                             indicatorColor = (if (isDark) NeonCyan else GoldPrimary).copy(alpha = 0.15f)
                         )
                     )
-                    // 3. 设置 Tab - 去文字纯图标
                     NavigationBarItem(
                         selected = selectedTab == 2,
                         onClick = {
@@ -424,6 +433,7 @@ fun MainScreen(
                             settingsMode = SettingsMode.MAIN
                         },
                         icon = { Icon(Icons.Filled.Settings, contentDescription = "设置") },
+                        label = { Text("设置") },
                         colors = NavigationBarItemDefaults.colors(
                             selectedIconColor = if (isDark) NeonCyan else GoldPrimary,
                             indicatorColor = (if (isDark) NeonCyan else GoldPrimary).copy(alpha = 0.15f)
@@ -479,312 +489,268 @@ fun MainScreen(
                 .padding(innerPadding)
         ) {
             when (selectedTab) {
-                // =====================================================================
-                // 📂 Tab 0: 零顶栏极简视觉、动态四态云同步微标与单行高度搜索框
-                // =====================================================================
                 0 -> {
-                    Column(modifier = Modifier.fillMaxSize()) {
-                        
-                        // A. 顶部极简操作状态行 (彻底去除大标题与多余留白)
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 16.dp, vertical = 6.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            // 左侧完全清空，极致高雅
-                            Spacer(modifier = Modifier.weight(1f))
+                    val syncConfig = remember(context) { SyncCoordinator.loadConfig(context) }
 
-                            // 右侧并排：云同步动态呼吸微标 与 深浅主题切换按钮
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                // 1. 云同步四态指示动态微标
-                                val syncConfig = SyncCoordinator.loadConfig(context)
-                                DynamicSyncBadge(
-                                    isSyncing = syncStatus.isSyncing,
-                                    isSyncAvailable = syncConfig.isReadyForSync,
-                                    statusType = syncStatus.type,
-                                    isDark = isDark,
-                                    onSyncClick = {
-                                        val syncUnavailableMessage = syncConfig.syncUnavailableMessage()
-                                        if (syncUnavailableMessage != null) {
-                                            Toast.makeText(context, syncUnavailableMessage, Toast.LENGTH_SHORT).show()
-                                        } else {
-                                            SyncCoordinator.requestManualSync(context)
-                                        }
-                                    },
-                                    onSyncingClick = {
-                                        selectedTab = 1
-                                        toolsMode = ToolsMode.SYNC_LOG
-                                    }
-                                )
-                                
-                                Spacer(modifier = Modifier.width(8.dp))
-
-                                // 2. 主题热切换图标
-                                IconButton(
-                                    onClick = { ThemeManager.toggleTheme(context) },
-                                    modifier = Modifier.size(36.dp)
-                                ) {
-                                    Icon(
-                                        imageVector = if (isDark) Icons.Filled.LightMode else Icons.Filled.NightlightRound,
-                                        contentDescription = "切换主题",
-                                        tint = if (isDark) NeonCyan else GoldPrimary,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 12.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Box(modifier = Modifier.weight(1f)) {
-                                OutlinedButton(onClick = { showGroupMenu = true }, modifier = Modifier.fillMaxWidth()) {
-                                    Icon(Icons.Filled.ViewAgenda, contentDescription = null, modifier = Modifier.size(16.dp))
-                                    Spacer(modifier = Modifier.width(5.dp))
-                                    Text(groupOption.label, fontSize = 11.sp, maxLines = 1)
-                                }
-                                DropdownMenu(expanded = showGroupMenu, onDismissRequest = { showGroupMenu = false }) {
-                                    CardListGroupOption.entries.forEach { option ->
-                                        DropdownMenuItem(
-                                            text = { Text(option.label) },
-                                            trailingIcon = {
-                                                if (groupOption == option) Icon(Icons.Filled.Check, contentDescription = null)
-                                            },
-                                            onClick = {
-                                                groupOption = option
-                                                showGroupMenu = false
-                                            }
-                                        )
-                                    }
-                                }
-                            }
-                            Box(modifier = Modifier.weight(1f)) {
-                                OutlinedButton(onClick = { showSortMenu = true }, modifier = Modifier.fillMaxWidth()) {
-                                    Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = null, modifier = Modifier.size(16.dp))
-                                    Spacer(modifier = Modifier.width(5.dp))
-                                    Text(sortOption.label, fontSize = 11.sp, maxLines = 1)
-                                }
-                                DropdownMenu(expanded = showSortMenu, onDismissRequest = { showSortMenu = false }) {
-                                    CardListSortOption.entries.forEach { option ->
-                                        DropdownMenuItem(
-                                            text = { Text(option.label) },
-                                            trailingIcon = {
-                                                if (sortOption == option) Icon(Icons.Filled.Check, contentDescription = null)
-                                            },
-                                            onClick = {
-                                                sortOption = option
-                                                showSortMenu = false
-                                            }
-                                        )
-                                    }
-                                }
-                            }
-                            OutlinedButton(
-                                onClick = {
-                                    selectionMode = !selectionMode
-                                    if (!selectionMode) selectedCardIDs = emptySet()
-                                }
-                            ) {
-                                Icon(
-                                    if (selectionMode) Icons.Filled.Close else Icons.Filled.Checklist,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(if (selectionMode) "退出" else "批量", fontSize = 11.sp)
-                            }
-                        }
-
-                        if (selectionMode) {
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxSize(),
+                        contentPadding = PaddingValues(bottom = 80.dp),
+                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                    ) {
+                        // 1. 极简顶栏（包含样式切换按键、同步按钮、搜索管理按钮）
+                        item(key = "clean_header") {
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(horizontal = 12.dp, vertical = 8.dp)
-                                    .clip(RoundedCornerShape(12.dp))
-                                    .background((if (isDark) NeonCyan else GoldPrimary).copy(alpha = 0.08f))
-                                    .padding(horizontal = 12.dp, vertical = 8.dp),
-                                verticalAlignment = Alignment.CenterVertically,
+                                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "我的卡包",
+                                    fontSize = 24.sp,
+                                    fontWeight = FontWeight.ExtraBold,
+                                    color = MaterialTheme.colorScheme.onBackground
+                                )
+
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    // 模式切换按钮 (简洁/丰富)
+                                    IconButton(
+                                        onClick = { isCompactView = !isCompactView },
+                                        modifier = Modifier.size(40.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = if (isCompactView) Icons.Filled.ViewAgenda else Icons.Filled.ViewStream,
+                                            contentDescription = if (isCompactView) "切换为卡片模式" else "切换为列表模式",
+                                            tint = if (isDark) NeonCyan else GoldPrimary,
+                                            modifier = Modifier.size(22.dp)
+                                        )
+                                    }
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    // 云同步按钮
+                                    DynamicSyncBadge(
+                                        isSyncing = syncStatus.isSyncing,
+                                        isSyncAvailable = syncConfig.isReadyForSync,
+                                        statusType = syncStatus.type,
+                                        isDark = isDark,
+                                        onSyncClick = {
+                                            val syncUnavailableMessage = syncConfig.syncUnavailableMessage()
+                                            if (syncUnavailableMessage != null) {
+                                                Toast.makeText(context, syncUnavailableMessage, Toast.LENGTH_SHORT).show()
+                                            } else {
+                                                SyncCoordinator.requestManualSync(context)
+                                            }
+                                        },
+                                        onSyncingClick = {
+                                            selectedTab = 1
+                                            toolsMode = ToolsMode.SYNC_LOG
+                                        }
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    // 搜索与管理入口
+                                    IconButton(
+                                        onClick = { showCardManagement = !showCardManagement },
+                                        modifier = Modifier.size(40.dp)
+                                    ) {
+                                        Icon(
+                                            imageVector = if (showCardManagement) Icons.Filled.Close else Icons.Filled.Search,
+                                            contentDescription = if (showCardManagement) "关闭搜索" else "搜索与管理",
+                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                            modifier = Modifier.size(22.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        // 2. 搜寻与管理扩展面板
+                        item(key = "card_management_panel") {
+                            AnimatedVisibility(visible = showCardManagement || selectionMode) {
+                                CardManagementPanel(
+                                    searchQuery = searchQuery,
+                                    onSearchQueryChange = { searchQuery = it },
+                                    groupOption = groupOption,
+                                    sortOption = sortOption,
+                                    showGroupMenu = showGroupMenu,
+                                    showSortMenu = showSortMenu,
+                                    onShowGroupMenuChange = { showGroupMenu = it },
+                                    onShowSortMenuChange = { showSortMenu = it },
+                                    onGroupOptionChange = { groupOption = it },
+                                    onSortOptionChange = { sortOption = it },
+                                    selectionMode = selectionMode,
+                                    onSelectionModeChange = {
+                                        selectionMode = it
+                                        if (!it) selectedCardIDs = emptySet()
+                                    },
+                                    selectedCount = selectedCardIDs.size,
+                                    allVisibleSelected = allVisibleCardsSelected,
+                                    onToggleSelectAll = {
+                                        val visibleIDs = filteredCards.map { it.id }.toSet()
+                                        selectedCardIDs = if (allVisibleCardsSelected) selectedCardIDs - visibleIDs else selectedCardIDs + visibleIDs
+                                    },
+                                    onBatchEdit = { showBatchEditor = true },
+                                    onBatchDelete = { showBatchDeleteConfirmation = true }
+                                )
+                            }
+                        }
+
+                        // 3. 分类控制 Switcher
+                        item(key = "category_filter") {
+                            Row(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp),
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                Text("已选 ${selectedCardIDs.size} 张", fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                                TextButton(onClick = {
-                                    val visibleIDs = filteredCards.map { it.id }.toSet()
-                                    selectedCardIDs = if (allVisibleCardsSelected) {
-                                        selectedCardIDs - visibleIDs
-                                    } else {
-                                        selectedCardIDs + visibleIDs
-                                    }
-                                }) {
-                                    Text(if (allVisibleCardsSelected) "取消全选" else "全选")
-                                }
-                                Spacer(modifier = Modifier.weight(1f))
-                                Button(
-                                    onClick = { showBatchEditor = true },
-                                    enabled = selectedCardIDs.isNotEmpty()
-                                ) { Text("修改", fontSize = 11.sp) }
-                                OutlinedButton(
-                                    onClick = { showBatchDeleteConfirmation = true },
-                                    enabled = selectedCardIDs.isNotEmpty()
-                                ) { Text("删除", fontSize = 11.sp, color = MaterialTheme.colorScheme.error) }
-                            }
-                        }
-
-                        // B. 精致单行高度搜索框 (精准收窄至48.dp，垂直完美居中，不占两行)
-                        OutlinedTextField(
-                            value = searchQuery,
-                            onValueChange = { searchQuery = it },
-                            placeholder = {
-                                Text(
-                                    text = "搜索银行、卡号、别名、备注、卡组织或卡类别...",
-                                    color = if (isDark) TextGray.copy(alpha = 0.5f) else TextMuted.copy(alpha = 0.5f),
-                                    fontSize = 12.sp
-                                )
-                            },
-                            leadingIcon = {
-                                Icon(
-                                    imageVector = Icons.Filled.Search,
-                                    contentDescription = "搜索",
-                                    tint = if (isDark) NeonCyan else GoldPrimary,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            },
-                            trailingIcon = {
-                                if (searchQuery.isNotEmpty()) {
-                                    IconButton(
-                                        onClick = { searchQuery = "" },
-                                        modifier = Modifier.size(32.dp)
-                                    ) {
-                                        Icon(imageVector = Icons.Filled.Clear, contentDescription = "清除", modifier = Modifier.size(16.dp))
-                                    }
-                                }
-                            },
-                            singleLine = true,
-                            shape = RoundedCornerShape(24.dp),
-                            textStyle = TextStyle(
-                                fontSize = 13.sp,
-                                color = MaterialTheme.colorScheme.onBackground
-                            ),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(52.dp) // 调整高度为 52.dp，确保文字在 OutlinedTextField 默认内部 padding 下能够完美垂直居中并显示全
-                                .padding(horizontal = 12.dp)
-                                .shadow(
-                                    elevation = if (isDark) 3.dp else 1.5.dp,
-                                    shape = RoundedCornerShape(24.dp),
-                                    spotColor = if (isDark) NeonCyan else GoldPrimary
-                                ),
-                            colors = OutlinedTextFieldDefaults.colors(
-                                focusedBorderColor = if (isDark) NeonCyan else GoldPrimary,
-                                unfocusedBorderColor = (if (isDark) TextGray else TextMuted).copy(alpha = 0.3f),
-                                focusedContainerColor = if (isDark) DarkCardBg else Color.White,
-                                unfocusedContainerColor = if (isDark) DarkCardBg else Color.White
-                            )
-                        )
-
-                        Spacer(modifier = Modifier.height(12.dp))
-
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(horizontal = 12.dp),
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            listOf(
-                                Triple("all", "全部", cards.size),
-                                Triple("credit", "信用卡", creditCardCount),
-                                Triple("debit", "储蓄卡", debitCardCount)
-                            ).forEach { (code, label, count) ->
-                                FilterChip(
-                                    selected = cardCategoryFilter == code,
-                                    onClick = { cardCategoryFilter = code },
-                                    label = { Text("$label $count", fontSize = 12.sp) },
-                                    modifier = Modifier.weight(1f),
-                                    colors = FilterChipDefaults.filterChipColors(
-                                        selectedContainerColor = if (isDark) NeonCyan.copy(alpha = 0.2f) else GoldPrimary.copy(alpha = 0.15f),
-                                        selectedLabelColor = if (isDark) NeonCyan else GoldPrimary
+                                listOf(
+                                    Triple("all", "全部", cards.size),
+                                    Triple("credit", "信用卡", creditCardCount),
+                                    Triple("debit", "储蓄卡", debitCardCount)
+                                ).forEach { (code, label, count) ->
+                                    FilterChip(
+                                        selected = cardCategoryFilter == code,
+                                        onClick = { cardCategoryFilter = code },
+                                        label = {
+                                            Text(
+                                                text = "$label $count",
+                                                fontWeight = if (cardCategoryFilter == code) FontWeight.Bold else FontWeight.Normal
+                                            )
+                                        },
+                                        modifier = Modifier.weight(1f),
+                                        colors = FilterChipDefaults.filterChipColors(
+                                            selectedContainerColor = if (isDark) NeonCyan.copy(alpha = 0.22f) else GoldPrimary.copy(alpha = 0.18f),
+                                            selectedLabelColor = if (isDark) NeonCyan else GoldPrimary,
+                                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+                                        ),
+                                        shape = RoundedCornerShape(12.dp)
                                     )
-                                )
+                                }
                             }
                         }
 
+                        // 4. 提醒汇总预警条
                         if (billingReminderCount + annualReminderCount + expiryReminderCount > 0) {
-                            Spacer(modifier = Modifier.height(8.dp))
-                            ReminderSummaryStrip(
-                                billingCount = billingReminderCount,
-                                annualCount = annualReminderCount,
-                                expiryCount = expiryReminderCount,
-                                isDark = isDark,
-                                onClick = { onItemClick(CardReminders) }
-                            )
-                        }
-
-                        Spacer(modifier = Modifier.height(10.dp))
-
-                        // C. 过滤渲染卡片列表
-                        if (filteredCards.isEmpty()) {
-                            Box(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .weight(1f),
-                                contentAlignment = Alignment.Center
-                            ) {
-                                Text(
-                                    text = if (searchQuery.isEmpty()) "暂无卡片，点击右下角新增银行卡" else "未匹配到符合条件的卡片",
-                                    color = if (isDark) TextGray else TextMuted,
-                                    fontSize = 14.sp
+                            item(key = "reminder_strip") {
+                                ReminderSummaryStrip(
+                                    billingCount = billingReminderCount,
+                                    annualCount = annualReminderCount,
+                                    expiryCount = expiryReminderCount,
+                                    isDark = isDark,
+                                    onClick = { onItemClick(CardReminders) }
                                 )
                             }
-                        } else {
-                            LazyColumn(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .weight(1f),
-                                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                                verticalArrangement = Arrangement.spacedBy(14.dp)
-                            ) {
-                                groupedCards.forEach { (groupName, groupCards) ->
-                                    if (groupOption != CardListGroupOption.NONE) {
-                                        item(key = "group-$groupName") {
-                                            Row(
-                                                modifier = Modifier
-                                                    .fillMaxWidth()
-                                                    .padding(horizontal = 4.dp, vertical = 4.dp),
-                                                verticalAlignment = Alignment.CenterVertically
+                        }
+
+                        // 5. 空状态与展示
+                        if (filteredCards.isEmpty()) {
+                            item(key = "empty_state") {
+                                Box(
+                                    modifier = Modifier
+                                        .fillMaxWidth()
+                                        .padding(top = 40.dp, bottom = 40.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Text(
+                                            text = if (searchQuery.isEmpty()) "暂无卡片，随时添加您的第一张银行卡" else "未匹配到符合条件的卡片",
+                                            color = if (isDark) TextGray else TextMuted,
+                                            fontSize = 14.sp
+                                        )
+                                        if (searchQuery.isEmpty()) {
+                                            Spacer(modifier = Modifier.height(16.dp))
+                                            Button(
+                                                onClick = { onItemClick(CardForm(cardId = null, cardCategory = "credit")) },
+                                                colors = ButtonDefaults.buttonColors(
+                                                    containerColor = if (isDark) NeonCyan else GoldPrimary,
+                                                    contentColor = if (isDark) DarkBg else Color.White
+                                                ),
+                                                shape = RoundedCornerShape(12.dp)
                                             ) {
-                                                Icon(Icons.Filled.Folder, contentDescription = null, tint = if (isDark) NeonCyan else GoldPrimary)
-                                                Spacer(modifier = Modifier.width(8.dp))
-                                                Text(groupName, fontWeight = FontWeight.Bold)
-                                                Spacer(modifier = Modifier.weight(1f))
-                                                Text("${groupCards.size} 张", fontSize = 11.sp, color = if (isDark) TextGray else TextMuted)
+                                                Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                                                Spacer(modifier = Modifier.width(6.dp))
+                                                Text("新增信用卡")
                                             }
                                         }
                                     }
-                                    items(groupCards, key = { it.id }) { card ->
-                                        CreditCardTile(
-                                            card = card,
-                                            isDark = isDark,
-                                            selectionMode = selectionMode,
-                                            selected = card.id in selectedCardIDs,
-                                            onClick = {
-                                                if (selectionMode) {
-                                                    selectedCardIDs = if (card.id in selectedCardIDs) {
-                                                        selectedCardIDs - card.id
+                                }
+                            }
+                        } else {
+                            groupedCards.forEach { (groupName, groupCards) ->
+                                if (groupOption != CardListGroupOption.NONE) {
+                                    item(key = "group-$groupName") {
+                                        Row(
+                                            modifier = Modifier
+                                                .fillMaxWidth()
+                                                .padding(horizontal = 16.dp, vertical = 6.dp),
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Box(
+                                                modifier = Modifier
+                                                    .width(4.dp)
+                                                    .height(14.dp)
+                                                    .background(if (isDark) NeonCyan else GoldPrimary, RoundedCornerShape(2.dp))
+                                            )
+                                            Spacer(modifier = Modifier.width(8.dp))
+                                            Text(
+                                                text = groupName,
+                                                style = MaterialTheme.typography.titleSmall,
+                                                fontWeight = FontWeight.Bold
+                                            )
+                                            Spacer(modifier = Modifier.weight(1f))
+                                            Text(
+                                                text = "${groupCards.size} 张",
+                                                style = MaterialTheme.typography.labelMedium,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                    }
+                                }
+
+                                items(groupCards, key = { it.id }) { card ->
+                                    Box(
+                                        modifier = Modifier
+                                            .fillMaxWidth()
+                                            .padding(horizontal = 16.dp, vertical = if (isCompactView) 0.dp else 4.dp)
+                                    ) {
+                                        if (isCompactView) {
+                                            // 简洁模式 (Compact List Mode)
+                                            CompactCardRow(
+                                                card = card,
+                                                selectionMode = selectionMode,
+                                                selected = card.id in selectedCardIDs,
+                                                onClick = {
+                                                    if (selectionMode) {
+                                                        selectedCardIDs = if (card.id in selectedCardIDs) {
+                                                            selectedCardIDs - card.id
+                                                        } else {
+                                                            selectedCardIDs + card.id
+                                                        }
                                                     } else {
-                                                        selectedCardIDs + card.id
+                                                        onItemClick(CardDetail(card.id))
                                                     }
-                                                } else {
-                                                    onItemClick(CardDetail(card.id))
                                                 }
-                                            }
-                                        )
+                                            )
+                                        } else {
+                                            // 丰富模式 (Detailed Card Mode)
+                                            CreditCardTile(
+                                                card = card,
+                                                isDark = isDark,
+                                                selectionMode = selectionMode,
+                                                selected = card.id in selectedCardIDs,
+                                                onClick = {
+                                                    if (selectionMode) {
+                                                        selectedCardIDs = if (card.id in selectedCardIDs) {
+                                                            selectedCardIDs - card.id
+                                                        } else {
+                                                            selectedCardIDs + card.id
+                                                        }
+                                                    } else {
+                                                        onItemClick(CardDetail(card.id))
+                                                    }
+                                                }
+                                            )
+                                        }
                                     }
                                 }
                             }
@@ -867,9 +833,245 @@ fun MainScreen(
     }
 }
 
-// =============================================================================
-// 📂 Tab 0 子组件: 动态云同步徽标、拟真卡片与金芯片手绘
-// =============================================================================
+@Composable
+private fun CardManagementPanel(
+    searchQuery: String,
+    onSearchQueryChange: (String) -> Unit,
+    groupOption: CardListGroupOption,
+    sortOption: CardListSortOption,
+    showGroupMenu: Boolean,
+    showSortMenu: Boolean,
+    onShowGroupMenuChange: (Boolean) -> Unit,
+    onShowSortMenuChange: (Boolean) -> Unit,
+    onGroupOptionChange: (CardListGroupOption) -> Unit,
+    onSortOptionChange: (CardListSortOption) -> Unit,
+    selectionMode: Boolean,
+    onSelectionModeChange: (Boolean) -> Unit,
+    selectedCount: Int,
+    allVisibleSelected: Boolean,
+    onToggleSelectAll: () -> Unit,
+    onBatchEdit: () -> Unit,
+    onBatchDelete: () -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 4.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        OutlinedTextField(
+            value = searchQuery,
+            onValueChange = onSearchQueryChange,
+            placeholder = { Text("搜索银行、卡名或尾号") },
+            leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
+            trailingIcon = {
+                if (searchQuery.isNotEmpty()) {
+                    IconButton(onClick = { onSearchQueryChange("") }) {
+                        Icon(Icons.Filled.Clear, contentDescription = "清除搜索")
+                    }
+                }
+            },
+            singleLine = true,
+            shape = MaterialTheme.shapes.medium,
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(modifier = Modifier.weight(1f)) {
+                OutlinedButton(
+                    onClick = { onShowGroupMenuChange(true) },
+                    modifier = Modifier.fillMaxWidth(),
+                    contentPadding = PaddingValues(horizontal = 10.dp)
+                ) {
+                    Icon(Icons.Filled.ViewAgenda, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(groupOption.label, maxLines = 1)
+                }
+                DropdownMenu(expanded = showGroupMenu, onDismissRequest = { onShowGroupMenuChange(false) }) {
+                    CardListGroupOption.entries.forEach { option ->
+                        DropdownMenuItem(
+                            text = { Text(option.label) },
+                            trailingIcon = { if (groupOption == option) Icon(Icons.Filled.Check, contentDescription = null) },
+                            onClick = {
+                                onGroupOptionChange(option)
+                                onShowGroupMenuChange(false)
+                            }
+                        )
+                    }
+                }
+            }
+            Box(modifier = Modifier.weight(1f)) {
+                OutlinedButton(
+                    onClick = { onShowSortMenuChange(true) },
+                    modifier = Modifier.fillMaxWidth(),
+                    contentPadding = PaddingValues(horizontal = 10.dp)
+                ) {
+                    Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(6.dp))
+                    Text(sortOption.label, maxLines = 1)
+                }
+                DropdownMenu(expanded = showSortMenu, onDismissRequest = { onShowSortMenuChange(false) }) {
+                    CardListSortOption.entries.forEach { option ->
+                        DropdownMenuItem(
+                            text = { Text(option.label) },
+                            trailingIcon = { if (sortOption == option) Icon(Icons.Filled.Check, contentDescription = null) },
+                            onClick = {
+                                onSortOptionChange(option)
+                                onShowSortMenuChange(false)
+                            }
+                        )
+                    }
+                }
+            }
+            OutlinedButton(onClick = { onSelectionModeChange(!selectionMode) }) {
+                Icon(
+                    if (selectionMode) Icons.Filled.Close else Icons.Filled.Checklist,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(6.dp))
+                Text(if (selectionMode) "退出" else "批量")
+            }
+        }
+
+        if (selectionMode) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .background(MaterialTheme.colorScheme.primaryContainer, MaterialTheme.shapes.small)
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Text("已选 $selectedCount 张", style = MaterialTheme.typography.labelLarge)
+                TextButton(onClick = onToggleSelectAll) {
+                    Text(if (allVisibleSelected) "取消全选" else "全选")
+                }
+                Spacer(modifier = Modifier.weight(1f))
+                TextButton(onClick = onBatchEdit, enabled = selectedCount > 0) { Text("修改") }
+                TextButton(onClick = onBatchDelete, enabled = selectedCount > 0) {
+                    Text("删除", color = MaterialTheme.colorScheme.error)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SelectedCardSummary(
+    card: SharedCard,
+    currentPage: Int,
+    pageCount: Int,
+    modifier: Modifier = Modifier
+) {
+    val isDebitCard = card.cardCategory == "debit"
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = if (isDebitCard) {
+                    "币种 ${card.type.ifBlank { "未设置" }}"
+                } else {
+                    "账单日 ${card.accountBillDate.ifBlank { "--" }} · 还款日 ${card.dueDate.ifBlank { "--" }}"
+                },
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            if (!isDebitCard) {
+                Text(
+                    text = "${card.type.ifBlank { "--" }} ${String.format("%,.0f", card.limit)}",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        Text(
+            text = "$currentPage / $pageCount",
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+}
+
+@Composable
+private fun CompactCardRow(
+    card: SharedCard,
+    selectionMode: Boolean,
+    selected: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val brand = getCardBrand(card.cardNumber)
+    val lastFour = card.cardNumber.filter(Char::isDigit).takeLast(4).ifBlank { "----" }
+    val colors = remember(card.bank) { bankCardColors(card.bank) }
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 12.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(width = 44.dp, height = 30.dp)
+                .clip(RoundedCornerShape(6.dp))
+                .background(Brush.linearGradient(colors))
+                .border(0.5.dp, Color.White.copy(alpha = 0.25f), RoundedCornerShape(6.dp)),
+            contentAlignment = Alignment.Center
+        ) {
+            Text(
+                text = when (brand) {
+                    "UnionPay" -> "银联"
+                    "Mastercard" -> "MC"
+                    "Visa" -> "VISA"
+                    "JCB" -> "JCB"
+                    "American Express" -> "AMEX"
+                    else -> if (brand != "Unknown") brand.take(4).uppercase() else "CARD"
+                },
+                color = Color.White,
+                fontWeight = FontWeight.Bold,
+                fontSize = 10.sp
+            )
+        }
+        Spacer(modifier = Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = card.alias.ifBlank { card.bank.ifBlank { "未命名卡片" } },
+                style = MaterialTheme.typography.titleMedium,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+            Text(
+                text = "${card.bank.ifBlank { "未设置银行" }} · $brand · •••• $lastFour",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        if (selectionMode) {
+            Icon(
+                imageVector = if (selected) Icons.Filled.CheckCircle else Icons.Filled.RadioButtonUnchecked,
+                contentDescription = if (selected) "已选择" else "未选择",
+                tint = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        } else {
+            Icon(
+                Icons.Filled.ChevronRight,
+                contentDescription = "查看详情",
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+// 首页银行卡和列表的共用视觉组件。
 
 @Composable
 fun ReminderSummaryStrip(
@@ -1243,10 +1445,9 @@ fun DynamicSyncBadge(
 
     Box(
         modifier = Modifier
-            .size(width = 44.dp, height = 36.dp)
-            .clip(RoundedCornerShape(8.dp))
+            .size(48.dp)
+            .clip(CircleShape)
             .background(badgeBgColor)
-            .border(1.dp, iconColor.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
             .clickable {
                 if (!isSyncAvailable) {
                     onSyncClick()
@@ -1265,7 +1466,7 @@ fun DynamicSyncBadge(
                 contentDescription = "正在同步",
                 tint = iconColor,
                 modifier = Modifier
-                    .size(20.dp)
+                    .size(22.dp)
                     .rotate(rotationAngle)
             )
         } else {
@@ -1278,14 +1479,190 @@ fun DynamicSyncBadge(
                 },
                 contentDescription = "同步状态",
                 tint = iconColor,
-                modifier = Modifier.size(20.dp)
+                modifier = Modifier.size(22.dp)
             )
         }
     }
 }
 
+private fun bankCardColors(bank: String): List<Color> {
+    val palettes = listOf(
+        listOf(Color(0xFF23364A), Color(0xFF31506D)),
+        listOf(Color(0xFF343A40), Color(0xFF505861)),
+        listOf(Color(0xFF23483E), Color(0xFF326353)),
+        listOf(Color(0xFF58383D), Color(0xFF754A52)),
+        listOf(Color(0xFF29465F), Color(0xFF3B6280)),
+        listOf(Color(0xFF4A443D), Color(0xFF675E53))
+    )
+    val index = (bank.hashCode() and Int.MAX_VALUE) % palettes.size
+    return palettes[index]
+}
+
+@Composable
+private fun HomeDashboardHeader(
+    totalLimit: Double,
+    totalCardCount: Int,
+    creditCount: Int,
+    debitCount: Int,
+    reminderCount: Int,
+    isDark: Boolean,
+    isSyncing: Boolean,
+    isSyncAvailable: Boolean,
+    syncStatusType: String,
+    showCardManagement: Boolean,
+    onSyncClick: () -> Unit,
+    onSyncingClick: () -> Unit,
+    onToggleManagement: () -> Unit
+) {
+    val accent = if (isDark) NeonCyan else GoldPrimary
+    val backgroundBrush = if (isDark) {
+        Brush.linearGradient(
+            colors = listOf(
+                Color(0xFF1E2638),
+                Color(0xFF121824)
+            )
+        )
+    } else {
+        Brush.linearGradient(
+            colors = listOf(
+                Color(0xFF1F2937),
+                Color(0xFF111827)
+            )
+        )
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 6.dp)
+            .shadow(
+                elevation = if (isDark) 2.dp else 4.dp,
+                shape = RoundedCornerShape(20.dp),
+                ambientColor = accent.copy(alpha = 0.2f),
+                spotColor = accent.copy(alpha = 0.2f)
+            )
+            .clip(RoundedCornerShape(20.dp))
+            .background(backgroundBrush)
+            .border(1.dp, Color.White.copy(alpha = 0.12f), RoundedCornerShape(20.dp))
+            .padding(20.dp)
+    ) {
+        Column(
+            modifier = Modifier.fillMaxWidth(),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = "我的卡包",
+                            fontSize = 20.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = Color.White
+                        )
+                        if (reminderCount > 0) {
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Box(
+                                modifier = Modifier
+                                    .clip(CircleShape)
+                                    .background(NeonRed.copy(alpha = 0.85f))
+                                    .padding(horizontal = 6.dp, vertical = 2.dp)
+                            ) {
+                                Text(
+                                    text = "$reminderCount 待处理",
+                                    color = Color.White,
+                                    fontSize = 10.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    }
+                    Text(
+                        text = "共 $totalCardCount 张卡 · $creditCount 信用卡 · $debitCount 储蓄卡",
+                        fontSize = 12.sp,
+                        color = Color.White.copy(alpha = 0.7f)
+                    )
+                }
+
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    DynamicSyncBadge(
+                        isSyncing = isSyncing,
+                        isSyncAvailable = isSyncAvailable,
+                        statusType = syncStatusType,
+                        isDark = true,
+                        onSyncClick = onSyncClick,
+                        onSyncingClick = onSyncingClick
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    IconButton(
+                        onClick = onToggleManagement,
+                        modifier = Modifier.size(40.dp)
+                    ) {
+                        Icon(
+                            imageVector = if (showCardManagement) Icons.Filled.Close else Icons.Filled.Search,
+                            contentDescription = if (showCardManagement) "关闭搜索" else "搜索管理",
+                            tint = Color.White.copy(alpha = 0.85f),
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
+            }
+
+            HorizontalDivider(color = Color.White.copy(alpha = 0.1f))
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(
+                        text = "信用卡可用/总额度",
+                        fontSize = 11.sp,
+                        color = Color.White.copy(alpha = 0.65f)
+                    )
+                    Spacer(modifier = Modifier.height(2.dp))
+                    Text(
+                        text = "¥ ${String.format("%,.0f", totalLimit)}",
+                        fontSize = 24.sp,
+                        fontWeight = FontWeight.ExtraBold,
+                        color = accent
+                    )
+                }
+
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(12.dp))
+                        .background(Color.White.copy(alpha = 0.08f))
+                        .border(1.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(12.dp))
+                        .padding(horizontal = 12.dp, vertical = 8.dp)
+                ) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Icon(
+                            imageVector = Icons.Filled.Shield,
+                            contentDescription = null,
+                            tint = accent,
+                            modifier = Modifier.size(16.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                        Text(
+                            text = "安全加密存储",
+                            fontSize = 11.sp,
+                            color = Color.White.copy(alpha = 0.85f),
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
 /**
- * 1:1.586 实体卡比例的高质感拟真银行卡磁贴
+ * 接近实体卡比例的银行卡视觉。非详情场景始终隐藏完整卡号。
  */
 @Composable
 fun CreditCardTile(
@@ -1293,6 +1670,7 @@ fun CreditCardTile(
     isDark: Boolean,
     selectionMode: Boolean = false,
     selected: Boolean = false,
+    modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
     val brand = getCardBrand(card.cardNumber)
@@ -1300,41 +1678,36 @@ fun CreditCardTile(
     val hasAnnualReminder = CardReminderRules.annualFeeDetection(card) != null
     val expiryStatus = CardReminderRules.cardExpiryStatus(card.valid)
     val reminderColor = when {
-        expiryStatus == CardExpiryStatus.EXPIRED -> NeonRed
-        expiryStatus == CardExpiryStatus.SOON_EXPIRING -> Color(0xFFFF9100)
-        hasAnnualReminder -> Color(0xFFFF9100)
+        expiryStatus == CardExpiryStatus.EXPIRED -> Color(0xFFFFA09B)
+        expiryStatus == CardExpiryStatus.SOON_EXPIRING -> Color(0xFFFFD08A)
+        hasAnnualReminder -> Color(0xFFFFD08A)
         else -> null
     }
-    
-    // 自定义卡片背景渐变
-    val gradientBrush = when (brand) {
-        "Visa" -> Brush.linearGradient(listOf(Color(0xFF0F2027), Color(0xFF203A43), Color(0xFF2C5364)))
-        "Mastercard" -> Brush.linearGradient(listOf(Color(0xFF373B44), Color(0xFF4286f4)))
-        "Amex" -> Brush.linearGradient(listOf(Color(0xFF11998e), Color(0xFF38ef7d)))
-        "UnionPay" -> Brush.linearGradient(listOf(Color(0xFF8A2387), Color(0xFFE94057), Color(0xFFF27121)))
-        "JCB" -> Brush.linearGradient(listOf(Color(0xFF1F1C2C), Color(0xFF928DAB)))
-        "Discover" -> Brush.linearGradient(listOf(Color(0xFFF000FF), Color(0xFF7B00FF)))
-        else -> Brush.linearGradient(listOf(Color(0xFF1F1C2C), Color(0xFF928DAB)))
-    }
-
-    val cardModifier = if (isDark) {
-        Modifier
-            .fillMaxWidth()
-            .aspectRatio(1.586f)
-            .shadow(8.dp, shape = RoundedCornerShape(16.dp), spotColor = Color.Black)
-            .clip(RoundedCornerShape(16.dp))
-            .background(gradientBrush)
+    val cardColors = remember(card.bank) { bankCardColors(card.bank) }
+    val gradientBrush = Brush.linearGradient(cardColors)
+    val cardTitle = card.alias.ifBlank { card.bank.ifBlank { "未命名卡片" } }
+    val bankLabel = if (card.alias.isBlank()) {
+        if (isDebitCard) "储蓄卡" else "信用卡"
     } else {
-        Modifier
-            .fillMaxWidth()
-            .aspectRatio(1.586f)
-            .shadow(6.dp, shape = RoundedCornerShape(16.dp), spotColor = NavySecondary)
-            .clip(RoundedCornerShape(16.dp))
-            .background(gradientBrush)
+        card.bank.ifBlank { if (isDebitCard) "储蓄卡" else "信用卡" }
+    }
+    val interestFreeDays = remember(card) {
+        if (!isDebitCard) calculateInterestFreeDays(card) else -1
     }
 
     Box(
-        modifier = cardModifier
+        modifier = modifier
+            .fillMaxWidth()
+            .aspectRatio(1.68f)
+            .shadow(
+                elevation = if (isDark) 2.dp else 5.dp,
+                shape = RoundedCornerShape(18.dp),
+                ambientColor = Color.Black.copy(alpha = 0.2f),
+                spotColor = Color.Black.copy(alpha = 0.2f)
+            )
+            .clip(RoundedCornerShape(18.dp))
+            .background(gradientBrush)
+            .border(1.dp, Color.White.copy(alpha = 0.18f), RoundedCornerShape(18.dp))
             .clickable { onClick() }
             .padding(18.dp)
     ) {
@@ -1342,7 +1715,6 @@ fun CreditCardTile(
             modifier = Modifier.fillMaxSize(),
             verticalArrangement = Arrangement.SpaceBetween
         ) {
-            // 第一行：银行名与卡组织 Logo
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -1350,58 +1722,46 @@ fun CreditCardTile(
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = card.bank.ifEmpty { "发卡银行" },
+                        text = cardTitle,
                         color = Color.White,
                         fontWeight = FontWeight.Bold,
-                        fontSize = 16.sp,
+                        fontSize = 18.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                     Text(
-                        text = card.alias.ifEmpty { "未命名别名" },
-                        color = Color.White.copy(alpha = 0.7f),
-                        fontSize = 11.sp,
-                        fontWeight = FontWeight.Light,
+                        text = bankLabel,
+                        color = Color.White.copy(alpha = 0.78f),
+                        fontSize = 12.sp,
+                        fontWeight = FontWeight.Normal,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                 }
 
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (reminderColor != null) {
-                        Icon(
-                            imageVector = Icons.Filled.ReportProblem,
-                            contentDescription = "卡片提醒",
-                            tint = reminderColor,
-                            modifier = Modifier.size(18.dp)
-                        )
-                    }
-                    // 全套高保真卡组织徽标
                     CardBrandBadge(brand = brand)
                 }
             }
 
-            // 第二行：智能安全金属金芯片 (EMV Chip) 的高保真绘制
             Row(
                 modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 EMVChip()
+                Text(
+                    text = formatMaskedCardNumber(card.cardNumber),
+                    color = Color.White,
+                    fontSize = 16.sp,
+                    fontFamily = FontFamily.Monospace,
+                    fontWeight = FontWeight.SemiBold,
+                    letterSpacing = 1.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
             }
 
-            // 第三行：分段完整卡号
-            Text(
-                text = formatSpacingCardNumber(card.cardNumber),
-                color = Color.White,
-                fontSize = 15.sp,
-                fontFamily = FontFamily.Monospace,
-                fontWeight = FontWeight.SemiBold,
-                letterSpacing = 1.sp,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-
-            // 第四行：额度与还款信息
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -1409,30 +1769,66 @@ fun CreditCardTile(
             ) {
                 Column {
                     Text(
-                        text = if (isDebitCard) "币种" else "信用额度",
-                        color = Color.White.copy(alpha = 0.6f),
-                        fontSize = 9.sp
+                        text = if (isDebitCard) "储蓄卡" else "信用额度",
+                        color = Color.White.copy(alpha = 0.65f),
+                        fontSize = 10.sp
                     )
                     Text(
-                        text = if (isDebitCard) card.type.ifBlank { "未设置" } else "${card.type} $${String.format("%,.0f", card.limit)}",
+                        text = if (isDebitCard) "DEBIT" else "${card.type.ifBlank { "¥" }} ${String.format("%,.0f", card.limit)}",
                         color = Color.White,
-                        fontSize = 16.sp,
-                        fontWeight = FontWeight.Bold
+                        fontSize = 17.sp,
+                        fontWeight = FontWeight.ExtraBold
                     )
                 }
 
-                Column(horizontalAlignment = Alignment.End) {
-                    Text(
-                        text = "有效期",
-                        color = Color.White.copy(alpha = 0.6f),
-                        fontSize = 9.sp
-                    )
-                    Text(
-                        text = card.valid.ifEmpty { "MM/YY" },
-                        color = Color.White,
-                        fontSize = 12.sp,
-                        fontFamily = FontFamily.Monospace
-                    )
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (reminderColor != null) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(reminderColor.copy(alpha = 0.25f))
+                                .border(1.dp, reminderColor.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Icon(
+                                    imageVector = Icons.Filled.ReportProblem,
+                                    contentDescription = "提醒",
+                                    tint = reminderColor,
+                                    modifier = Modifier.size(13.dp)
+                                )
+                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(
+                                    text = "待处理事项",
+                                    color = reminderColor,
+                                    fontSize = 11.sp,
+                                    fontWeight = FontWeight.Bold
+                                )
+                            }
+                        }
+                    } else if (!isDebitCard && interestFreeDays >= 0) {
+                        Box(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(Color.White.copy(alpha = 0.15f))
+                                .border(1.dp, Color.White.copy(alpha = 0.25f), RoundedCornerShape(8.dp))
+                                .padding(horizontal = 8.dp, vertical = 4.dp)
+                        ) {
+                            Text(
+                                text = "免息期 $interestFreeDays 天",
+                                color = Color.White,
+                                fontSize = 11.sp,
+                                fontWeight = FontWeight.Medium
+                            )
+                        }
+                    } else {
+                        Text(
+                            text = card.level.ifBlank { if (isDebitCard) "储蓄卡" else "标准卡" },
+                            color = Color.White.copy(alpha = 0.75f),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Medium
+                        )
+                    }
                 }
             }
         }
@@ -1441,7 +1837,7 @@ fun CreditCardTile(
             Icon(
                 imageVector = if (selected) Icons.Filled.CheckCircle else Icons.Filled.RadioButtonUnchecked,
                 contentDescription = if (selected) "已选择" else "未选择",
-                tint = if (selected) NeonCyan else Color.White,
+                tint = if (selected) Color.White else Color.White.copy(alpha = 0.75f),
                 modifier = Modifier
                     .align(Alignment.TopStart)
                     .size(24.dp)
@@ -1689,8 +2085,7 @@ fun ToolsPanel(
         ) {
             Text(
                 text = "工具",
-                fontSize = 26.sp,
-                fontWeight = FontWeight.Black,
+                style = MaterialTheme.typography.headlineSmall,
                 color = MaterialTheme.colorScheme.onBackground
             )
 
@@ -1776,6 +2171,7 @@ fun ToolsPanel(
                             )
                         }
                 )
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             }
         }
 
@@ -1953,27 +2349,25 @@ fun ToolActionTile(
     Row(
         modifier = modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .background(MaterialTheme.colorScheme.surface)
-            .border(1.dp, accent.copy(alpha = 0.22f), RoundedCornerShape(14.dp))
+            .clip(MaterialTheme.shapes.medium)
             .clickable { onClick() }
-            .padding(16.dp),
+            .padding(vertical = 12.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
             modifier = Modifier
-                .size(48.dp)
-                .clip(RoundedCornerShape(12.dp))
+                .size(44.dp)
+                .clip(CircleShape)
                 .background(accent.copy(alpha = 0.16f)),
             contentAlignment = Alignment.Center
         ) {
-            Icon(icon, contentDescription = title, tint = accent, modifier = Modifier.size(26.dp))
+            Icon(icon, contentDescription = title, tint = accent, modifier = Modifier.size(22.dp))
         }
         Spacer(modifier = Modifier.width(14.dp))
         Column(modifier = Modifier.weight(1f)) {
-            Text(title, fontSize = 16.sp, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.onBackground)
-            Spacer(modifier = Modifier.height(3.dp))
-            Text(subtitle, fontSize = 12.sp, lineHeight = 17.sp, color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.64f))
+            Text(title, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onBackground)
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(subtitle, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
         Icon(Icons.Filled.ChevronRight, contentDescription = "进入", tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.45f))
     }
@@ -2170,7 +2564,7 @@ fun ToolsSyncHistoryPanel(
             }
         }
 
-        DetailSection(title = "📡 当前同步状态与进度") {
+        DetailSection(title = "当前同步状态与进度") {
             SyncProgressBlock(
                 statusMessage = syncStatus.message,
                 isSyncing = syncStatus.isSyncing,
@@ -2194,7 +2588,7 @@ fun ToolsSyncHistoryPanel(
             )
         }
 
-        DetailSection(title = "📜 同步历史日志") {
+        DetailSection(title = "同步历史日志") {
             if (syncHistory.isEmpty()) {
                 Text(
                     text = "暂无同步记录。完成一次 WebDAV 同步后，这里会显示上传、下载和卡片变化详情。",
@@ -2518,7 +2912,7 @@ fun QuickVerifyPanel(
                 uiState = verifyUiState
             )
 
-            DetailSection(title = "🎯 当前验卡结果") {
+            DetailSection(title = "当前验卡结果") {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
                         imageVector = when (verifyUiState) {
@@ -2594,7 +2988,7 @@ fun QuickVerifyPanel(
                 }
             }
 
-            DetailSection(title = "📈 实时验卡统计") {
+            DetailSection(title = "实时验卡统计") {
                 Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
                     SmallMetric("已验", "${verifiedRecords.size}", "张", isDark, Modifier.weight(1f))
                     SmallMetric("本地存在", "$existedCount", "张", isDark, Modifier.weight(1f))
@@ -2920,7 +3314,7 @@ fun AnalyticsPanel(cards: List<SharedCard>, isDark: Boolean) {
     ) {
         Spacer(modifier = Modifier.height(6.dp))
 
-        DetailSection(title = "📌 卡包概览", isCollapsible = true) {
+        DetailSection(title = "卡包概览", isCollapsible = true) {
             Row(horizontalArrangement = Arrangement.spacedBy(10.dp), modifier = Modifier.fillMaxWidth()) {
                 SmallMetric("全部", "${cards.size}", "张", isDark, Modifier.weight(1f))
                 SmallMetric("信用卡", "${creditCards.size}", "张", isDark, Modifier.weight(1f))
@@ -2945,7 +3339,7 @@ fun AnalyticsPanel(cards: List<SharedCard>, isDark: Boolean) {
         }
 
         if (creditCards.isEmpty()) {
-            DetailSection(title = "💳 信用卡统计", isCollapsible = true) {
+            DetailSection(title = "信用卡统计", isCollapsible = true) {
                 Text(
                     text = "当前卡包仅包含储蓄卡，信用额度、年费和免息期统计不适用。",
                     fontSize = 13.sp,
@@ -2957,7 +3351,7 @@ fun AnalyticsPanel(cards: List<SharedCard>, isDark: Boolean) {
         } else {
 
         // 1. Canvas 手工绘制的拟真资产额度占比 Donut 环形图 (按去重额度比例展示)
-        DetailSection(title = "📊 信用额度占比图", isCollapsible = true) {
+        DetailSection(title = "信用额度占比", isCollapsible = true) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -3099,7 +3493,7 @@ fun AnalyticsPanel(cards: List<SharedCard>, isDark: Boolean) {
 
         // 3. 年费到达预警橙红色警报雷达
         if (feeAlerts.isNotEmpty()) {
-            DetailSection(title = "🚨 年费扣缴雷达警报", isCollapsible = true) {
+            DetailSection(title = "年费扣缴提醒", isCollapsible = true) {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     feeAlerts.forEach { (card, result) ->
                         val alertColor = when (result.kind) {
@@ -3214,7 +3608,7 @@ fun AnalyticsPanel(cards: List<SharedCard>, isDark: Boolean) {
 
         // 3. 共享额度组看版 - 精美折叠支持，收放自如 (第 6 点)
         if (sharedLimitGroups.isNotEmpty()) {
-            DetailSection(title = "🤝 共享额度组看版 (点击行展开)", isCollapsible = true) {
+            DetailSection(title = "共享额度组（点击行展开）", isCollapsible = true) {
                 Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                     sharedLimitGroups.forEach { (bank, groupCards) ->
                         val representative = groupCards.first()
@@ -3240,7 +3634,7 @@ fun AnalyticsPanel(cards: List<SharedCard>, isDark: Boolean) {
                                     modifier = Modifier.weight(1f)
                                 ) {
                                     Text(
-                                        text = "🏢 $bank",
+                                        text = bank,
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 13.sp,
                                         maxLines = 2,
@@ -3330,7 +3724,7 @@ fun AnalyticsPanel(cards: List<SharedCard>, isDark: Boolean) {
         }
 
         // 4. 多币种信用资产看板 (已应用共享去重算法，100%精准财务资产)
-        DetailSection(title = "💳 多币种真实总信用资产", isCollapsible = true) {
+        DetailSection(title = "多币种信用额度", isCollapsible = true) {
             Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
                 currencySummary.forEach { (currency, triple) ->
                     val (totalLimit, totalFee, cardCount) = triple
@@ -3344,7 +3738,7 @@ fun AnalyticsPanel(cards: List<SharedCard>, isDark: Boolean) {
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(text = "🪙 币种: $currency", fontWeight = FontWeight.Bold, fontSize = 14.sp)
+                            Text(text = "币种：$currency", fontWeight = FontWeight.Medium, fontSize = 14.sp)
                             Text(
                                 text = "共绑定 $cardCount 张卡片，已去除共享额度重复计算",
                                 fontSize = 11.sp,
@@ -3456,6 +3850,13 @@ private fun SettingsPanel(
     }
 }
 
+private data class WebDAVStatusUI(
+    val icon: androidx.compose.ui.graphics.vector.ImageVector,
+    val tint: Color,
+    val bg: Color,
+    val text: String
+)
+
 @Composable
 fun SettingsMainPanel(
     isDark: Boolean,
@@ -3468,11 +3869,48 @@ fun SettingsMainPanel(
 ) {
     val context = LocalContext.current
     val loadedConfig = remember { SyncCoordinator.loadConfig(context) }
-    val isConfigured = remember(loadedConfig) { loadedConfig.url.isNotEmpty() && loadedConfig.user.isNotEmpty() }
+    val syncStatus by SyncCoordinator.syncStatus.collectAsState()
+    val isReady = loadedConfig.isReadyForSync
     val securityState by SecurityLockManager.state.collectAsState()
     val biometricLabel = remember(securityState.enabled, securityState.biometricEnabled) {
         BiometricAuthHelper.modalityLabel(context)
     }
+
+    // 动态计算 WebDAV 的连接与配置状态 UI 属性
+    val statusUI = remember(isReady, syncStatus, isDark) {
+        when {
+            !isReady -> {
+                val text = if (!loadedConfig.isEnabled) "未启用，点击进入配置并开启" else "配置不完整，点击填齐 WebDAV 参数"
+                val tint = if (isDark) Color(0xFF888888) else Color(0xFF757575)
+                WebDAVStatusUI(Icons.Filled.CloudOff, tint, tint.copy(alpha = 0.14f), text)
+            }
+            syncStatus.isSyncing -> {
+                val tint = if (isDark) NeonCyan else Color(0xFF0066FF)
+                val text = syncStatus.message.ifBlank { "正在连接 WebDAV 服务器同步数据..." }
+                WebDAVStatusUI(Icons.Filled.Sync, tint, tint.copy(alpha = 0.16f), text)
+            }
+            syncStatus.type == "error" -> {
+                val tint = Color(0xFFFF5252)
+                val text = "连接异常: ${syncStatus.message.ifBlank { "无法连接服务器" }}"
+                WebDAVStatusUI(Icons.Filled.CloudOff, tint, tint.copy(alpha = 0.16f), text)
+            }
+            else -> {
+                val tint = if (isDark) Color(0xFF00E676) else Color(0xFF2E7D32)
+                WebDAVStatusUI(Icons.Filled.CloudDone, tint, tint.copy(alpha = 0.16f), "服务正常连接，加密云同步已开启")
+            }
+        }
+    }
+
+    val infiniteTransition = rememberInfiniteTransition(label = "webdavSyncRotation")
+    val syncingAngle by infiniteTransition.animateFloat(
+        initialValue = 0f,
+        targetValue = 360f,
+        animationSpec = infiniteRepeatable(
+            animation = tween(1200, easing = LinearEasing),
+            repeatMode = RepeatMode.Restart
+        ),
+        label = "webdavSyncRotationAngle"
+    )
 
     Column(
         modifier = Modifier
@@ -3484,8 +3922,7 @@ fun SettingsMainPanel(
         Spacer(modifier = Modifier.height(6.dp))
         Text(
             text = "设置",
-            fontSize = 26.sp,
-            fontWeight = FontWeight.Black,
+            style = MaterialTheme.typography.headlineSmall,
             color = MaterialTheme.colorScheme.onBackground
         )
         Text(
@@ -3494,7 +3931,7 @@ fun SettingsMainPanel(
             color = if (isDark) TextGray else TextMuted
         )
 
-        // 1. WebDAV 云同步二级菜单入口卡片
+        // 1. WebDAV 云同步二级菜单入口卡片（包含自适应状态 Logo 与动画）
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -3502,7 +3939,7 @@ fun SettingsMainPanel(
                 .background(MaterialTheme.colorScheme.surface)
                 .border(
                     width = 1.dp,
-                    color = (if (isDark) NeonCyan else GoldPrimary).copy(alpha = 0.22f),
+                    color = statusUI.tint.copy(alpha = 0.35f),
                     shape = RoundedCornerShape(14.dp)
                 )
                 .clickable { onOpenWebDAV() }
@@ -3513,14 +3950,16 @@ fun SettingsMainPanel(
                 modifier = Modifier
                     .size(48.dp)
                     .clip(RoundedCornerShape(12.dp))
-                    .background((if (isDark) NeonCyan else GoldPrimary).copy(alpha = 0.16f)),
+                    .background(statusUI.bg),
                 contentAlignment = Alignment.Center
             ) {
                 Icon(
-                    imageVector = Icons.Filled.CloudQueue,
-                    contentDescription = "WebDAV 云同步",
-                    tint = if (isDark) NeonCyan else GoldPrimary,
-                    modifier = Modifier.size(26.dp)
+                    imageVector = statusUI.icon,
+                    contentDescription = "WebDAV 云同步状态",
+                    tint = statusUI.tint,
+                    modifier = Modifier
+                        .size(26.dp)
+                        .graphicsLayer(rotationZ = if (syncStatus.isSyncing) syncingAngle else 0f)
                 )
             }
             Spacer(modifier = Modifier.width(14.dp))
@@ -3533,9 +3972,11 @@ fun SettingsMainPanel(
                 )
                 Spacer(modifier = Modifier.height(3.dp))
                 Text(
-                    text = if (isConfigured) "服务正常连接，加密云同步已开启" else "未配置，点击开启加密云同步",
+                    text = statusUI.text,
                     fontSize = 12.sp,
-                    color = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.64f)
+                    color = statusUI.tint,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
             }
             Icon(
@@ -3546,41 +3987,8 @@ fun SettingsMainPanel(
         }
 
         // 2. 个性外观 Section
-        DetailSection(title = "🎨 个性外观") {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(if (isDark) DarkBg else LightBg)
-                    .clickable { ThemeManager.toggleTheme(context) }
-                    .padding(horizontal = 14.dp, vertical = 14.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Icon(
-                        imageVector = if (isDark) Icons.Filled.LightMode else Icons.Filled.NightlightRound,
-                        contentDescription = "外观主题",
-                        tint = if (isDark) NeonCyan else GoldPrimary,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Text(
-                        text = "外观主题",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 14.sp
-                    )
-                }
-                Text(
-                    text = if (isDark) "深色模式" else "浅色模式",
-                    fontSize = 12.sp,
-                    fontWeight = FontWeight.SemiBold,
-                    color = if (isDark) NeonCyan else GoldPrimary
-                )
-            }
+        DetailSection(title = "外观") {
+            ModernThemeSelector(isDark = isDark)
         }
 
         DetailSection(title = "安全") {
@@ -3677,7 +4085,7 @@ fun SettingsMainPanel(
             }
         }
 
-        DetailSection(title = "📖 帮助与支持") {
+        DetailSection(title = "帮助与支持") {
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -3800,6 +4208,235 @@ fun SettingsMainPanel(
         }
 
         Spacer(modifier = Modifier.height(40.dp))
+    }
+}
+
+@Composable
+fun ModernThemeSelector(isDark: Boolean) {
+    val context = LocalContext.current
+    val currentMode by ThemeManager.themeMode.collectAsState()
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(14.dp))
+            .background(if (isDark) DarkBg else LightBg)
+            .padding(14.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween,
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                val rotationAngle by animateFloatAsState(
+                    targetValue = when (currentMode) {
+                        AppThemeMode.DARK -> 360f
+                        AppThemeMode.LIGHT -> 180f
+                        AppThemeMode.SYSTEM -> 0f
+                    },
+                    animationSpec = spring(stiffness = Spring.StiffnessLow, dampingRatio = Spring.DampingRatioLowBouncy),
+                    label = "themeIconRotation"
+                )
+
+                Icon(
+                    imageVector = when (currentMode) {
+                        AppThemeMode.DARK -> Icons.Filled.NightlightRound
+                        AppThemeMode.LIGHT -> Icons.Filled.LightMode
+                        AppThemeMode.SYSTEM -> Icons.Filled.PhoneAndroid
+                    },
+                    contentDescription = "主题模式",
+                    tint = if (isDark) NeonCyan else GoldPrimary,
+                    modifier = Modifier
+                        .size(20.dp)
+                        .graphicsLayer(rotationZ = rotationAngle)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "主题风格",
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+            }
+
+            Text(
+                text = when (currentMode) {
+                    AppThemeMode.DARK -> "极夜深色"
+                    AppThemeMode.LIGHT -> "晨曦浅色"
+                    AppThemeMode.SYSTEM -> "跟随系统"
+                },
+                fontSize = 12.sp,
+                fontWeight = FontWeight.SemiBold,
+                color = if (isDark) NeonCyan else GoldPrimary
+            )
+        }
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(10.dp)
+        ) {
+            ThemeOptionCard(
+                mode = AppThemeMode.SYSTEM,
+                title = "跟随系统",
+                isSelected = currentMode == AppThemeMode.SYSTEM,
+                isDark = isDark,
+                onClick = { ThemeManager.setThemeMode(context, AppThemeMode.SYSTEM) },
+                modifier = Modifier.weight(1f)
+            )
+            ThemeOptionCard(
+                mode = AppThemeMode.LIGHT,
+                title = "浅色模式",
+                isSelected = currentMode == AppThemeMode.LIGHT,
+                isDark = isDark,
+                onClick = { ThemeManager.setThemeMode(context, AppThemeMode.LIGHT) },
+                modifier = Modifier.weight(1f)
+            )
+            ThemeOptionCard(
+                mode = AppThemeMode.DARK,
+                title = "深色模式",
+                isSelected = currentMode == AppThemeMode.DARK,
+                isDark = isDark,
+                onClick = { ThemeManager.setThemeMode(context, AppThemeMode.DARK) },
+                modifier = Modifier.weight(1f)
+            )
+        }
+    }
+}
+
+@Composable
+private fun ThemeOptionCard(
+    mode: AppThemeMode,
+    title: String,
+    isSelected: Boolean,
+    isDark: Boolean,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val scale by animateFloatAsState(
+        targetValue = if (isSelected) 1.02f else 0.98f,
+        animationSpec = spring(stiffness = Spring.StiffnessMediumLow, dampingRatio = Spring.DampingRatioMediumBouncy),
+        label = "cardScale"
+    )
+    val activeBorderColor = if (isDark) NeonCyan else GoldPrimary
+
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = modifier
+            .graphicsLayer(scaleX = scale, scaleY = scale)
+            .clip(RoundedCornerShape(12.dp))
+            .background(
+                if (isDark) Color(0xFF1E222B) else Color(0xFFF3F4F6)
+            )
+            .border(
+                width = if (isSelected) 2.dp else 1.dp,
+                color = if (isSelected) activeBorderColor else Color.Transparent,
+                shape = RoundedCornerShape(12.dp)
+            )
+            .clickable(onClick = onClick)
+            .padding(8.dp)
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(64.dp)
+                .clip(RoundedCornerShape(8.dp))
+                .background(
+                    when (mode) {
+                        AppThemeMode.DARK -> Color(0xFF12141A)
+                        AppThemeMode.LIGHT -> Color(0xFFFFFFFF)
+                        AppThemeMode.SYSTEM -> Color(0xFF1C1E24)
+                    }
+                )
+                .border(0.5.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(8.dp))
+        ) {
+            if (mode == AppThemeMode.SYSTEM) {
+                Row(modifier = Modifier.fillMaxSize()) {
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .background(Color(0xFFFAFAFA))
+                    ) {
+                        Column(modifier = Modifier.padding(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Box(modifier = Modifier.size(width = 20.dp, height = 4.dp).clip(RoundedCornerShape(2.dp)).background(Color(0xFF333333)))
+                            Box(modifier = Modifier.size(width = 28.dp, height = 14.dp).clip(RoundedCornerShape(3.dp)).background(Color(0xFF0066FF).copy(alpha = 0.7f)))
+                        }
+                    }
+                    Box(
+                        modifier = Modifier
+                            .weight(1f)
+                            .fillMaxHeight()
+                            .background(Color(0xFF12141A))
+                    ) {
+                        Column(modifier = Modifier.padding(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                            Box(modifier = Modifier.size(width = 20.dp, height = 4.dp).clip(RoundedCornerShape(2.dp)).background(Color(0xFFEEEEEE)))
+                            Box(modifier = Modifier.size(width = 28.dp, height = 14.dp).clip(RoundedCornerShape(3.dp)).background(Color(0xFF00E5FF).copy(alpha = 0.7f)))
+                        }
+                    }
+                }
+            } else {
+                val mockBg = if (mode == AppThemeMode.DARK) Color(0xFF181B22) else Color(0xFFF7F8FA)
+                val mockCardBg = if (mode == AppThemeMode.DARK) Color(0xFF00E5FF).copy(alpha = 0.8f) else Color(0xFF1A1F71)
+                val textColor = if (mode == AppThemeMode.DARK) Color.White else Color(0xFF1A1A1A)
+
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .background(mockBg)
+                        .padding(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(modifier = Modifier.size(width = 24.dp, height = 4.dp).clip(RoundedCornerShape(2.dp)).background(textColor.copy(alpha = 0.7f)))
+                        Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(activeBorderColor))
+                    }
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(28.dp)
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(mockCardBg)
+                            .padding(4.dp)
+                    ) {
+                        Box(modifier = Modifier.size(width = 10.dp, height = 6.dp).clip(RoundedCornerShape(1.dp)).background(Color(0xFFFFD700)))
+                    }
+                }
+            }
+
+            if (isSelected) {
+                Box(
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(4.dp)
+                        .size(16.dp)
+                        .clip(CircleShape)
+                        .background(activeBorderColor),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        imageVector = Icons.Filled.Check,
+                        contentDescription = "已选择",
+                        tint = if (isDark && mode == AppThemeMode.DARK) Color.Black else Color.White,
+                        modifier = Modifier.size(10.dp)
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(6.dp))
+
+        Text(
+            text = title,
+            fontSize = 11.sp,
+            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
+            color = if (isSelected) activeBorderColor else MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }
 
@@ -4651,7 +5288,7 @@ fun SettingsWebDAVPanel(
         }
 
         if (isConfigured && !isEditingConfig) {
-            DetailSection(title = "🛡️ 云端防护已连接") {
+            DetailSection(title = "云端防护已连接") {
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -5290,9 +5927,7 @@ fun formatSyncDuration(durationMs: Long): String {
     }
 }
 
-// =============================================================================
-// 🎨 公用卡片 Section 容器与配置
-// =============================================================================
+// 公用分区通过标题、间距和分隔线建立层级，避免嵌套卡片。
 
 @Composable
 fun DetailSection(
@@ -5301,20 +5936,12 @@ fun DetailSection(
     initialExpanded: Boolean = true,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    val isDark by ThemeManager.isDarkTheme.collectAsState()
     var expanded by remember { mutableStateOf(initialExpanded) }
     
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .shadow(
-                elevation = if (isDark) 4.dp else 1.5.dp,
-                shape = RoundedCornerShape(14.dp),
-                spotColor = if (isDark) Color.Black else NavySecondary.copy(alpha = 0.15f)
-            )
-            .clip(RoundedCornerShape(14.dp))
-            .background(if (isDark) DarkCardBg else Color.White)
-            .padding(14.dp)
+            .padding(vertical = 4.dp)
     ) {
         Row(
             modifier = Modifier
@@ -5325,29 +5952,31 @@ fun DetailSection(
                     } else {
                         Modifier
                     }
-                ),
+                )
+                .padding(vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Text(
                 text = title,
-                fontSize = 13.sp,
-                fontWeight = FontWeight.Bold,
-                color = if (isDark) NeonCyan else GoldPrimary,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.weight(1f)
             )
             if (isCollapsible) {
                 Icon(
                     imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
                     contentDescription = if (expanded) "折叠" else "展开",
-                    modifier = Modifier.size(18.dp),
-                    tint = (if (isDark) NeonCyan else GoldPrimary).copy(alpha = 0.7f)
+                    modifier = Modifier.size(20.dp),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         }
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
         if (!isCollapsible || expanded) {
-            Spacer(modifier = Modifier.height(12.dp))
-            content()
+            Column(modifier = Modifier.padding(vertical = 8.dp)) {
+                content()
+            }
         }
     }
 }
@@ -5455,18 +6084,30 @@ fun EMVChip(modifier: Modifier = Modifier) {
 }
 
 /**
- * 顶级像素级精美高保真卡组织徽标渲染器
+ * 卡组织标识使用统一的低对比文字徽标，避免伪造官方标识的视觉误差。
  */
 @Composable
 fun CardBrandBadge(brand: String, modifier: Modifier = Modifier) {
-    when (brand) {
-        "Visa" -> VisaLogo(modifier)
-        "Mastercard" -> MastercardLogo(modifier)
-        "UnionPay" -> UnionPayLogo(modifier)
-        "Amex" -> AmexLogo(modifier)
-        "JCB" -> JcbLogo(modifier)
-        "Discover" -> DiscoverLogo(modifier)
-        else -> UnknownLogo(modifier)
+    Box(
+        modifier = modifier
+            .clip(RoundedCornerShape(6.dp))
+            .background(Color.White.copy(alpha = 0.12f))
+            .border(1.dp, Color.White.copy(alpha = 0.16f), RoundedCornerShape(6.dp))
+            .padding(horizontal = 8.dp, vertical = 5.dp),
+        contentAlignment = Alignment.Center
+    ) {
+        Text(
+            text = when (brand) {
+                "UnionPay" -> "UNIONPAY"
+                "Mastercard" -> "MASTERCARD"
+                "Unknown" -> "CARD"
+                else -> brand.uppercase()
+            },
+            color = Color.White,
+            fontWeight = FontWeight.Medium,
+            fontSize = 9.sp,
+            letterSpacing = 0.4.sp
+        )
     }
 }
 
@@ -5885,6 +6526,7 @@ fun BestUsageCardTile(
             modifier = Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            // 1. 推荐顺位徽章与免息期天数 Header
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
@@ -5928,7 +6570,7 @@ fun BestUsageCardTile(
                     horizontalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
                     Text(
-                        text = "免息期",
+                        text = "最长享",
                         fontSize = 11.sp,
                         color = if (isDark) TextGray else TextMuted,
                         modifier = Modifier.padding(bottom = 2.dp)
@@ -5945,7 +6587,7 @@ fun BestUsageCardTile(
                         }
                     )
                     Text(
-                        text = "天",
+                        text = "天免息",
                         fontSize = 11.sp,
                         color = if (isDark) TextGray else TextMuted,
                         modifier = Modifier.padding(bottom = 2.dp)
@@ -5953,45 +6595,48 @@ fun BestUsageCardTile(
                 }
             }
 
+            // 2. 高质感物理卡片视觉区 (取消硬编码 84.dp，自适应高度，解决截断)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(84.dp)
-                    .clip(RoundedCornerShape(12.dp))
+                    .defaultMinSize(minHeight = 100.dp)
+                    .clip(RoundedCornerShape(14.dp))
                     .background(gradientBrush)
-                    .padding(12.dp),
+                    .padding(14.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column(
                     modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.SpaceBetween
+                    verticalArrangement = Arrangement.Center
                 ) {
-                    Column {
+                    Text(
+                        text = card.bank.ifEmpty { "信用银行" },
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 15.sp,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    if (card.alias.isNotEmpty()) {
                         Text(
-                            text = card.bank.ifEmpty { "信用银行" },
-                            color = Color.White,
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 13.sp,
+                            text = card.alias,
+                            color = Color.White.copy(alpha = 0.75f),
+                            fontSize = 11.sp,
+                            fontWeight = FontWeight.Normal,
                             maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
-                        )
-                        Text(
-                            text = card.alias.ifEmpty { "未命名别名" },
-                            color = Color.White.copy(alpha = 0.7f),
-                            fontSize = 9.sp,
-                            fontWeight = FontWeight.Light,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(top = 2.dp)
                         )
                     }
+                    Spacer(modifier = Modifier.height(10.dp))
                     Text(
                         text = formatSpacingCardNumber(card.cardNumber),
                         color = Color.White,
-                        fontSize = 12.sp,
+                        fontSize = 13.sp,
                         fontFamily = FontFamily.Monospace,
                         fontWeight = FontWeight.SemiBold,
-                        letterSpacing = 0.8.sp,
+                        letterSpacing = 1.sp,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
@@ -5999,48 +6644,87 @@ fun BestUsageCardTile(
                 
                 Column(
                     horizontalAlignment = Alignment.End,
-                    verticalArrangement = Arrangement.SpaceBetween
+                    verticalArrangement = Arrangement.SpaceBetween,
+                    modifier = Modifier.padding(start = 12.dp)
                 ) {
                     CardBrandBadge(brand = brand)
-                    Spacer(modifier = Modifier.height(6.dp))
+                    Spacer(modifier = Modifier.height(10.dp))
                     EMVChip()
                 }
             }
 
+            // 3. 账单与还款决策数据小看板
+            val billDateInt = card.accountBillDate.toIntOrNull() ?: 0
+            val dueDateInt = card.dueDate.toIntOrNull() ?: 0
+            
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .clip(RoundedCornerShape(8.dp))
-                    .background(if (isDark) Color.White.copy(alpha = 0.04f) else Color.Black.copy(alpha = 0.02f))
-                    .padding(8.dp),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Column(horizontalAlignment = Alignment.Start) {
-                    Text("账单日", fontSize = 10.sp, color = if (isDark) TextGray else TextMuted)
-                    Text("每月 ${card.accountBillDate} 号", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (isDark) TextWhite else TextDark)
-                }
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text("还款日", fontSize = 10.sp, color = if (isDark) TextGray else TextMuted)
-                    Text("每月 ${card.dueDate} 号", fontSize = 12.sp, fontWeight = FontWeight.Bold, color = if (isDark) TextWhite else TextDark)
-                }
-                Column(horizontalAlignment = Alignment.End) {
-                    Text("入账规则", fontSize = 10.sp, color = if (isDark) TextGray else TextMuted)
-                    Text(
-                        text = if (card.billingDaySpendingToNextBill) "账单日消费计入下期" else "账单日消费计入本期",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Medium,
-                        color = if (isDark) NeonCyan else GoldPrimary
+                    .clip(RoundedCornerShape(10.dp))
+                    .background(if (isDark) Color.White.copy(alpha = 0.04f) else Color.Black.copy(alpha = 0.03f))
+                    .border(
+                        1.dp,
+                        if (isDark) Color.White.copy(alpha = 0.08f) else Color.Black.copy(alpha = 0.06f),
+                        RoundedCornerShape(10.dp)
                     )
+                    .padding(horizontal = 12.dp, vertical = 8.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
+                    Column {
+                        Text(
+                            text = "账单日",
+                            fontSize = 10.sp,
+                            color = if (isDark) TextGray else TextMuted
+                        )
+                        Text(
+                            text = if (billDateInt > 0) "每月 $billDateInt 日" else "未配置",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (isDark) TextWhite else TextDark
+                        )
+                    }
+                    Column {
+                        Text(
+                            text = "到期还款日",
+                            fontSize = 10.sp,
+                            color = if (isDark) TextGray else TextMuted
+                        )
+                        Text(
+                            text = if (dueDateInt > 0) "每月 $dueDateInt 日" else "未配置",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (isDark) TextWhite else TextDark
+                        )
+                    }
+                }
+
+                if (card.limit > 0) {
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text(
+                            text = "信用额度",
+                            fontSize = 10.sp,
+                            color = if (isDark) TextGray else TextMuted
+                        )
+                        Text(
+                            text = "¥ ${card.limit.toInt()}",
+                            fontSize = 12.sp,
+                            fontWeight = FontWeight.Bold,
+                            color = if (isDark) NeonCyan else GoldPrimary
+                        )
+                    }
                 }
             }
 
+            // 4. 首选卡片的“黄金智能用卡分析”专属提示框
             if (rank == 1) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(8.dp))
+                        .clip(RoundedCornerShape(10.dp))
                         .background((if (isDark) NeonCyan else GoldPrimary).copy(alpha = 0.08f))
-                        .border(0.5.dp, (if (isDark) NeonCyan else GoldPrimary).copy(alpha = 0.25f), RoundedCornerShape(8.dp))
+                        .border(0.5.dp, (if (isDark) NeonCyan else GoldPrimary).copy(alpha = 0.25f), RoundedCornerShape(10.dp))
                         .padding(10.dp)
                 ) {
                     Row(
@@ -6055,16 +6739,16 @@ fun BestUsageCardTile(
                         )
                         Column {
                             Text(
-                                text = "💡 用卡黄金提示",
+                                text = "智能精算建议",
                                 fontSize = 11.sp,
                                 fontWeight = FontWeight.Bold,
                                 color = if (isDark) NeonCyan else GoldPrimary
                             )
                             Spacer(modifier = Modifier.height(2.dp))
                             Text(
-                                text = "今日刷卡处于最拉长周转账单期！本次消费款项将享受长达 $days 天的免息缓冲。建议优先在此卡额度内大额支出，最大化周转您的闲置资金。",
+                                text = "今日刷卡处于最长周转期！本次消费款项将享受长达 $days 天的免息缓冲期，建议优先在此卡额度内大额支出。",
                                 fontSize = 10.sp,
-                                color = if (isDark) TextGray else TextMuted,
+                                color = if (isDark) TextWhite.copy(alpha = 0.85f) else TextDark.copy(alpha = 0.85f),
                                 lineHeight = 14.sp
                             )
                         }
@@ -6499,7 +7183,7 @@ fun SettingsAboutPanel(
             }
 
             // 软件简介
-            DetailSection(title = "📝 软件简介") {
+            DetailSection(title = "软件简介") {
                 Text(
                     text = "卡包是一款专注安全、精细拟真的银行卡管理助手。应用通过完全离线的本地沙盒数据库以及高规格的本地 NFC 读卡、相机识别技术，让您能够轻松归集信用卡和储蓄卡。信用卡支持共享额度、年费和免息期推算，储蓄卡保留国家/地区、银行、币种、权益、备注与卡片媒体，并通过端到端加密的 WebDAV 私人同步通道保护数据。",
                     fontSize = 12.sp,
@@ -6510,7 +7194,7 @@ fun SettingsAboutPanel(
             }
 
             // 隐私与权限说明
-            DetailSection(title = "🛡️ 权限与隐私声明") {
+            DetailSection(title = "权限与隐私声明") {
                 Column(
                     modifier = Modifier.padding(horizontal = 4.dp),
                     verticalArrangement = Arrangement.spacedBy(10.dp)

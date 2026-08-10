@@ -14,9 +14,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.zIndex
 import androidx.core.content.IntentCompat
+import androidx.core.view.WindowCompat
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.lifecycleScope
 import com.example.creditcard.theme.CreditCardTheme
@@ -74,6 +76,14 @@ class MainActivity : FragmentActivity() {
             // 监听全局主题状态，动态响应热切换
             val isDark by ThemeManager.isDarkTheme.collectAsState()
             val securityState by SecurityLockManager.state.collectAsState()
+
+            // 系统栏图标跟随应用主题，确保深浅色模式均清晰可见。
+            SideEffect {
+                WindowCompat.getInsetsController(window, window.decorView).apply {
+                    isAppearanceLightStatusBars = !isDark
+                    isAppearanceLightNavigationBars = !isDark
+                }
+            }
             
             CreditCardTheme(darkTheme = isDark) { 
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) { 

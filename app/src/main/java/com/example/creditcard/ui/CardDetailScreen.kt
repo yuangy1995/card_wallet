@@ -5,6 +5,7 @@ import androidx.compose.animation.AnimatedVisibility
 import java.text.SimpleDateFormat
 import java.util.Date
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -167,7 +168,7 @@ fun CardDetailScreen(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("${cardCategoryText}详情", fontWeight = FontWeight.Bold) },
+                title = { Text(card.alias.ifBlank { "${cardCategoryText}详情" }) },
                 navigationIcon = {
                     AppBackButton(
                         onClick = onBack,
@@ -183,14 +184,6 @@ fun CardDetailScreen(
                             imageVector = Icons.Filled.Edit,
                             contentDescription = "编辑卡片",
                             tint = if (isDark) NeonCyan else GoldPrimary
-                        )
-                    }
-                    // 删除按钮
-                    IconButton(onClick = { showDeleteDialog = true }) {
-                        Icon(
-                            imageVector = Icons.Filled.Delete,
-                            contentDescription = "删除卡片",
-                            tint = MaterialTheme.colorScheme.error
                         )
                     }
                 },
@@ -218,7 +211,7 @@ fun CardDetailScreen(
 
             // 2. 核心信息区：对齐新建/编辑页的字段组织，优先展示卡号和有效期
             CollapsibleDetailSection(
-                title = "核心信息",
+                title = "基本信息",
                 expanded = coreSectionExpanded,
                 onExpandedChange = { coreSectionExpanded = it }
             ) {
@@ -304,7 +297,7 @@ fun CardDetailScreen(
             // 如果卡片数据中有媒体文件，动态呈现跨端同步图片预览；旧版本沙盒图片作为兼容兜底。
             if (hasCardImage) {
                 CollapsibleDetailSection(
-                    title = "卡片媒体文件",
+                    title = "图片与附件",
                     expanded = mediaSectionExpanded,
                     onExpandedChange = { mediaSectionExpanded = it }
                 ) {
@@ -355,7 +348,7 @@ fun CardDetailScreen(
             // 4. 额度年费区块仅适用于信用卡
             if (!isDebitCard) {
                 CollapsibleDetailSection(
-                    title = "额度与年费",
+                    title = "账单与还款",
                     expanded = limitFeeSectionExpanded,
                     onExpandedChange = { limitFeeSectionExpanded = it }
                 ) {
@@ -403,7 +396,7 @@ fun CardDetailScreen(
 
             // 5. 附加权益与备注区块
             CollapsibleDetailSection(
-                title = "权益与备注",
+                title = "卡片属性与备注",
                 expanded = benefitSectionExpanded,
                 onExpandedChange = { benefitSectionExpanded = it }
             ) {
@@ -433,7 +426,22 @@ fun CardDetailScreen(
                 }
             }
 
-            Spacer(modifier = Modifier.height(40.dp))
+            Spacer(modifier = Modifier.height(24.dp))
+
+            DetailSection(title = "安全与管理") {
+                OutlinedButton(
+                    onClick = { showDeleteDialog = true },
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.error.copy(alpha = 0.55f))
+                ) {
+                    Icon(Icons.Filled.Delete, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("删除这张卡")
+                }
+            }
+
+            Spacer(modifier = Modifier.height(32.dp))
         }
     }
 
@@ -900,34 +908,22 @@ fun DetailSection(
     title: String,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    val isDark by ThemeManager.isDarkTheme.collectAsState()
-    
-    val bgModifier = if (isDark) {
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(DarkCardBg)
-            .padding(16.dp)
-    } else {
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(LightCardBg)
-            .shadow(1.dp, shape = RoundedCornerShape(12.dp))
-            .padding(16.dp)
-    }
-
     Column(modifier = Modifier.fillMaxWidth()) {
         if (title.isNotBlank()) {
             Text(
                 text = title,
-                fontWeight = FontWeight.Bold,
-                fontSize = 14.sp,
-                color = if (isDark) NeonCyan else GoldPrimary,
-                modifier = Modifier.padding(start = 4.dp, bottom = 6.dp)
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(vertical = 12.dp)
             )
         }
-        Column(modifier = bgModifier, content = content)
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 4.dp),
+            content = content
+        )
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
     }
 }
 
@@ -938,33 +934,31 @@ fun CollapsibleDetailSection(
     onExpandedChange: (Boolean) -> Unit,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    val isDark by ThemeManager.isDarkTheme.collectAsState()
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
-                .background(if (isDark) DarkCardBg else LightCardBg)
                 .clickable { onExpandedChange(!expanded) }
-                .padding(horizontal = 14.dp, vertical = 12.dp),
+                .padding(horizontal = 4.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
                 text = title,
-                fontWeight = FontWeight.Bold,
-                fontSize = 14.sp,
-                color = if (isDark) NeonCyan else GoldPrimary,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.weight(1f)
             )
             Icon(
                 imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
                 contentDescription = if (expanded) "收起" else "展开",
-                tint = if (isDark) NeonCyan else GoldPrimary
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
 
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+
         AnimatedVisibility(visible = expanded) {
-            DetailSection(title = "") {
+            Column(modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)) {
                 content()
             }
         }

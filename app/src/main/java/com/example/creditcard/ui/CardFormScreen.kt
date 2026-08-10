@@ -520,8 +520,7 @@ fun CardFormScreen(
                                     )
                                 }
                             }
-                            // 保存 FAB
-                            IconButton(onClick = {
+                            TextButton(onClick = {
                                 val cleanCountry = country.trim()
                                 val cleanBank = bank.trim()
                                 val cleanCardNumber = cardNumber.filter { it.isDigit() }
@@ -532,35 +531,35 @@ fun CardFormScreen(
                                 // 四个核心字段必填，其余字段仅在填写后校验。
                                 if (cleanCountry.isEmpty()) {
                                     Toast.makeText(context, "请选择国家 / 地区", Toast.LENGTH_SHORT).show()
-                                    return@IconButton
+                                    return@TextButton
                                 }
                                 if (cleanBank.isEmpty()) {
                                     Toast.makeText(context, "请选择发卡银行", Toast.LENGTH_SHORT).show()
-                                    return@IconButton
+                                    return@TextButton
                                 }
                                 if (cleanCardNumber.isEmpty()) {
                                     Toast.makeText(context, "请输入卡号", Toast.LENGTH_SHORT).show()
-                                    return@IconButton
+                                    return@TextButton
                                 }
                                 if (cleanCardNumber.length !in 13..20) {
                                     Toast.makeText(context, "卡号长度需为 13-20 位", Toast.LENGTH_SHORT).show()
-                                    return@IconButton
+                                    return@TextButton
                                 }
                                 if (!isValidExpiry(cleanValid)) {
                                     Toast.makeText(context, "请输入有效期，格式为 MM/YY", Toast.LENGTH_SHORT).show()
-                                    return@IconButton
+                                    return@TextButton
                                 }
                                 if (!isDebitCard && limitText.isNotBlank() && parseAmountOrNull(limitText) == null) {
                                     Toast.makeText(context, "请输入正确的额度", Toast.LENGTH_SHORT).show()
-                                    return@IconButton
+                                    return@TextButton
                                 }
                                 if (!isDebitCard && annualFeeText.isNotBlank() && parseAmountOrNull(annualFeeText) == null) {
                                     Toast.makeText(context, "请输入正确的年费金额", Toast.LENGTH_SHORT).show()
-                                    return@IconButton
+                                    return@TextButton
                                 }
                                 if (!isDebitCard && isQualified.isNotBlank() && isQualified !in listOf("1", "2", "3")) {
                                     Toast.makeText(context, "请选择正确的年费减免政策", Toast.LENGTH_SHORT).show()
-                                    return@IconButton
+                                    return@TextButton
                                 }
 
                                 // 检测是否发生了共享额度的“全局修改”
@@ -591,11 +590,7 @@ fun CardFormScreen(
                                     onBack()
                                 }
                             }) {
-                                Icon(
-                                    imageVector = Icons.Filled.Save,
-                                    contentDescription = "保存",
-                                    tint = if (isDark) NeonCyan else GoldPrimary
-                                )
+                                Text("保存", fontWeight = FontWeight.Medium)
                             }
                         },
                         colors = TopAppBarDefaults.topAppBarColors(
@@ -1319,34 +1314,17 @@ fun FormSection(
     title: String,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    val isDark by ThemeManager.isDarkTheme.collectAsState()
-    
-    val bgModifier = if (isDark) {
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(DarkCardBg)
-            .padding(16.dp)
-    } else {
-        Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(12.dp))
-            .background(LightCardBg)
-            .shadow(1.dp, shape = RoundedCornerShape(12.dp))
-            .padding(16.dp)
-    }
-
     Column(modifier = Modifier.fillMaxWidth()) {
         if (title.isNotBlank()) {
             Text(
                 text = title,
-                fontWeight = FontWeight.Bold,
-                fontSize = 13.sp,
-                color = if (isDark) NeonCyan else GoldPrimary,
-                modifier = Modifier.padding(start = 4.dp, bottom = 6.dp)
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface,
+                modifier = Modifier.padding(vertical = 12.dp)
             )
         }
-        Column(modifier = bgModifier, content = content)
+        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp), content = content)
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
     }
 }
 
@@ -1357,33 +1335,31 @@ fun CollapsibleFormSection(
     onExpandedChange: (Boolean) -> Unit,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    val isDark by ThemeManager.isDarkTheme.collectAsState()
     Column(modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(12.dp))
-                .background(if (isDark) DarkCardBg else LightCardBg)
                 .clickable { onExpandedChange(!expanded) }
-                .padding(horizontal = 14.dp, vertical = 12.dp),
+                .padding(horizontal = 4.dp, vertical = 14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
                 text = title,
-                fontWeight = FontWeight.Bold,
-                fontSize = 14.sp,
-                color = if (isDark) NeonCyan else GoldPrimary,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.onSurface,
                 modifier = Modifier.weight(1f)
             )
             Icon(
                 imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
                 contentDescription = if (expanded) "收起" else "展开",
-                tint = if (isDark) NeonCyan else GoldPrimary
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
 
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+
         AnimatedVisibility(visible = expanded) {
-            FormSection(title = "") {
+            Column(modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp)) {
                 content()
             }
         }
@@ -1822,7 +1798,7 @@ enum class NfcUiState {
 }
 
 /**
- * NFC 酷炫感应刷卡全屏渲染层
+ * NFC 读卡页面，使用克制的状态动效和原生操作引导。
  */
 @Composable
 fun NfcScanLayout(
@@ -1887,16 +1863,16 @@ fun NfcScanLayout(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(if (isDark) Color(0xFF0F172A) else Color(0xFFF8FAFC)),
+            .background(MaterialTheme.colorScheme.background),
         contentAlignment = Alignment.Center
     ) {
-        // 科技感雷达扩散脉冲动画驱动
+        // 轻微扩散用于表达正在等待卡片靠近。
         val transition = rememberInfiniteTransition(label = "nfc")
         val isAnimating = uiState == NfcUiState.WAITING || uiState == NfcUiState.READING || uiState == NfcUiState.PARSING
         val duration = when (uiState) {
-            NfcUiState.READING -> 700
-            NfcUiState.PARSING -> 600
-            else -> 2200
+            NfcUiState.READING -> 900
+            NfcUiState.PARSING -> 900
+            else -> 1800
         }
         
         val radiusScale by transition.animateFloat(
@@ -1956,10 +1932,10 @@ fun NfcScanLayout(
             modifier = Modifier.padding(32.dp)
         ) {
             Box(
-                modifier = Modifier.size(240.dp),
+                modifier = Modifier.size(200.dp),
                 contentAlignment = Alignment.Center
             ) {
-                // 绘制 3 层酷炫脉冲圆圈
+                // 只保留一层状态脉冲，避免干扰。
                 Canvas(modifier = Modifier.fillMaxSize()) {
                     val finalAlpha = if (isAnimating) alphaVal else 0f
                     val finalScale = if (isAnimating) radiusScale else 0f
@@ -1969,38 +1945,30 @@ fun NfcScanLayout(
                             radius = size.minDimension / 2 * finalScale,
                             style = Stroke(width = 4.dp.toPx())
                         )
-                        drawCircle(
-                            color = accentColor.copy(alpha = (finalAlpha + 0.3f).coerceAtMost(0.5f) * finalAlpha),
-                            radius = size.minDimension / 2 * (finalScale - 0.25f).coerceAtLeast(0f),
-                            style = Stroke(width = 2.dp.toPx())
-                        )
                     }
                 }
 
-                // NFC 中央呼吸芯片区
+                // NFC 中央状态区。
                 Box(
                     modifier = Modifier
-                        .size(90.dp)
-                        .background(
-                            brush = Brush.radialGradient(
-                                colors = listOf(accentColor.copy(alpha = 0.8f), accentColor.copy(alpha = 0.2f))
-                            ),
-                            shape = CircleShape
-                        ),
+                        .size(80.dp)
+                        .clip(CircleShape)
+                        .background(accentColor.copy(alpha = 0.14f))
+                        .border(1.dp, accentColor.copy(alpha = 0.38f), CircleShape),
                     contentAlignment = Alignment.Center
                 ) {
                     when (uiState) {
                         NfcUiState.READING -> {
                             CircularProgressIndicator(
                                 strokeWidth = 3.dp,
-                                color = Color.White,
+                                color = accentColor,
                                 modifier = Modifier.size(48.dp)
                             )
                         }
                         NfcUiState.PARSING -> {
                             CircularProgressIndicator(
                                 strokeWidth = 3.dp,
-                                color = Color.White,
+                                color = accentColor,
                                 modifier = Modifier.size(48.dp)
                             )
                         }
@@ -2009,7 +1977,7 @@ fun NfcScanLayout(
                                 imageVector = Icons.Filled.Check,
                                 contentDescription = "成功",
                                 modifier = Modifier.size(48.dp),
-                                tint = Color.White
+                                tint = accentColor
                             )
                         }
                         NfcUiState.ERROR -> {
@@ -2017,7 +1985,7 @@ fun NfcScanLayout(
                                 imageVector = Icons.Filled.Close,
                                 contentDescription = "失败",
                                 modifier = Modifier.size(48.dp),
-                                tint = Color.White
+                                tint = accentColor
                             )
                         }
                         else -> {
@@ -2025,7 +1993,7 @@ fun NfcScanLayout(
                                 imageVector = Icons.Default.Nfc,
                                 contentDescription = "NFC芯片",
                                 modifier = Modifier.size(48.dp),
-                                tint = Color.White
+                                tint = accentColor
                             )
                         }
                     }
@@ -2036,9 +2004,9 @@ fun NfcScanLayout(
 
             Text(
                 text = when (uiState) {
-                    NfcUiState.WAITING -> "等待卡片靠近..."
-                    NfcUiState.READING -> "读取中，请勿移动卡片...."
-                    NfcUiState.PARSING -> "读取完成，正在解析数据....."
+                    NfcUiState.WAITING -> "将银行卡靠近手机"
+                    NfcUiState.READING -> "正在读取，请保持卡片稳定"
+                    NfcUiState.PARSING -> "正在整理卡片信息"
                     NfcUiState.SUCCESS -> "解析成功"
                     NfcUiState.ERROR -> "解析失败，该卡不支持读取"
                 },
@@ -2052,9 +2020,9 @@ fun NfcScanLayout(
 
             Text(
                 text = when (uiState) {
-                    NfcUiState.WAITING -> "系统正处于自动感应芯片监听中..."
-                    NfcUiState.READING -> "金融级安全通道已建立，请保持平稳"
-                    NfcUiState.PARSING -> "高保真解密算法执行中，请稍候"
+                    NfcUiState.WAITING -> "将卡片芯片区域对准手机 NFC 感应位置"
+                    NfcUiState.READING -> "读取过程中请不要移动卡片"
+                    NfcUiState.PARSING -> "读取完成后将自动进入表单"
                     NfcUiState.SUCCESS -> "卡号数据提取成功，正在前往录入表单"
                     NfcUiState.ERROR -> "由于该卡片具备金融级防克隆屏蔽或非银行卡，暂不支持读取。建议使用相机扫描或手动录入。"
                 },
@@ -2524,9 +2492,9 @@ fun CameraScanLayout(
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     CircularProgressIndicator(color = NeonGreen)
                     Spacer(modifier = Modifier.height(16.dp))
-                    Text("📷 正在抓取高清卡片...", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                    Text("正在拍摄卡片", color = Color.White, fontSize = 16.sp, fontWeight = FontWeight.Medium)
                     Spacer(modifier = Modifier.height(6.dp))
-                    Text("🔍 正在智能识别并裁剪卡包卡面...", color = Color.LightGray, fontSize = 12.sp)
+                    Text("正在识别卡号并整理图片", color = Color.LightGray, fontSize = 12.sp)
                 }
             }
         }

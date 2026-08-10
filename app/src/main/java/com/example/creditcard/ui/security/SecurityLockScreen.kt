@@ -16,6 +16,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -94,15 +95,7 @@ fun SecurityLockScreen(
     Box(
         modifier = modifier
             .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    colors = if (isDark) {
-                        listOf(DarkBg, Color(0xFF101827), DarkBg)
-                    } else {
-                        listOf(Color(0xFFF7F8FB), Color(0xFFEFF3F8), Color.White)
-                    }
-                )
-            )
+            .background(MaterialTheme.colorScheme.background)
             .statusBarsPadding()
             .navigationBarsPadding()
             .padding(20.dp),
@@ -111,14 +104,8 @@ fun SecurityLockScreen(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .clip(RoundedCornerShape(24.dp))
-                .background(if (isDark) DarkCardBg else Color.White)
-                .border(
-                    width = 1.dp,
-                    color = (if (isDark) NeonCyan else GoldPrimary).copy(alpha = 0.24f),
-                    shape = RoundedCornerShape(24.dp)
-                )
-                .padding(22.dp)
+                .widthIn(max = 420.dp)
+                .padding(horizontal = 4.dp, vertical = 24.dp)
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
@@ -192,7 +179,7 @@ private fun UnlockContent(
         biometricEnabled && BiometricAuthHelper.canAuthenticate(context)
     }
 
-    Text("应用已锁定", fontSize = 24.sp, fontWeight = FontWeight.Black)
+    Text("应用已锁定", style = MaterialTheme.typography.headlineSmall)
     Spacer(modifier = Modifier.height(4.dp))
     Text(
         text = "请输入数字密码，或使用${biometricLabel}解锁",
@@ -328,7 +315,7 @@ private fun RecoveryContent(
         loadQuestions()
     }
 
-    Text("找回密码", fontSize = 22.sp, fontWeight = FontWeight.Black)
+    Text("找回密码", style = MaterialTheme.typography.headlineSmall)
     Spacer(modifier = Modifier.height(4.dp))
     Text(
         text = "请回答 3 个已保存卡片相关问题，全部正确后可设置新密码",
@@ -469,7 +456,7 @@ private fun ResetPasswordContent(
     var password by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
 
-    Text(title, fontSize = 22.sp, fontWeight = FontWeight.Black)
+    Text(title, style = MaterialTheme.typography.headlineSmall)
     Spacer(modifier = Modifier.height(4.dp))
     Text(
         text = subtitle,
