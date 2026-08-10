@@ -1,6 +1,54 @@
 import SwiftUI
 import AppKit
 
+final class CardImagePreviewCache {
+    static let shared = CardImagePreviewCache()
+
+    private let imageCache = NSCache<NSString, NSImage>()
+    private let byteSizeCache = NSCache<NSString, NSNumber>()
+
+    private init() {
+        imageCache.countLimit = 200
+        byteSizeCache.countLimit = 500
+    }
+
+    func image(from asset: CardImageAsset) -> NSImage? {
+        let key = cacheKey(for: asset)
+        if let cachedImage = imageCache.object(forKey: key) {
+            return cachedImage
+        }
+
+        guard let data = data(from: asset),
+              let image = NSImage(data: data) else {
+            return nil
+        }
+
+        imageCache.setObject(image, forKey: key)
+        byteSizeCache.setObject(NSNumber(value: data.count), forKey: key)
+        return image
+    }
+
+    func byteSize(for asset: CardImageAsset) -> Int64 {
+        let key = cacheKey(for: asset)
+        if let cachedSize = byteSizeCache.object(forKey: key) {
+            return cachedSize.int64Value
+        }
+
+        guard let data = data(from: asset) else { return 0 }
+        byteSizeCache.setObject(NSNumber(value: data.count), forKey: key)
+        return Int64(data.count)
+    }
+
+    private func data(from asset: CardImageAsset) -> Data? {
+        let base64 = asset.data.components(separatedBy: "base64,").last ?? asset.data
+        return Data(base64Encoded: base64, options: .ignoreUnknownCharacters)
+    }
+
+    private func cacheKey(for asset: CardImageAsset) -> NSString {
+        "\(asset.id)-\(asset.data.count)" as NSString
+    }
+}
+
 /// 模拟实体卡金色金属安全芯片的 3D 立体组件
 fileprivate struct CardChipView: View {
     var body: some View {
@@ -61,6 +109,7 @@ public struct CreditCardView: View {
     @State private var remainingShowSeconds = 5.0
     
     @State private var isHovered = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     
     public var onEdit: () -> Void
     public var onViewDetails: () -> Void
@@ -113,7 +162,7 @@ public struct CreditCardView: View {
                 .blendMode(.overlay)
             
             // 3. 极富未来科技感的几何镭射防伪波纹线
-            Canvas { context, size in
+            Canvas(rendersAsynchronously: true) { context, size in
                 context.stroke(
                     Path { path in
                         // 第一条大正弦波线
@@ -151,7 +200,12 @@ public struct CreditCardView: View {
                     ),
                     lineWidth: 1.0
                 )
-                .shadow(color: getShadowColor(brand).opacity(isHovered ? 0.45 : 0.18), radius: isHovered ? 12 : 6, x: 0, y: 4)
+                .shadow(
+                    color: getShadowColor(brand).opacity(isHovered && !reduceMotion ? 0.32 : 0.14),
+                    radius: isHovered && !reduceMotion ? 8 : 4,
+                    x: 0,
+                    y: 3
+                )
             
             // 5. 内容布局
             VStack(alignment: .leading, spacing: 0) {
@@ -333,12 +387,12 @@ public struct CreditCardView: View {
         // 1:1.586 实体卡黄金比例约束
         .aspectRatio(1.586, contentMode: .fit)
         .contentShape(RoundedRectangle(cornerRadius: 16))
-        .scaleEffect(isHovered ? 1.02 : 1.0)
+        .scaleEffect(isHovered && !reduceMotion ? 1.012 : 1.0)
         .rotation3DEffect(
-            .degrees(isHovered ? 2 : 0),
+            .degrees(isHovered && !reduceMotion ? 1.2 : 0),
             axis: (x: -1, y: 1, z: 0)
         )
-        .animation(.spring(response: 0.35, dampingFraction: 0.7), value: isHovered)
+        .animation(reduceMotion ? .easeInOut(duration: 0.12) : .spring(response: 0.28, dampingFraction: 0.82), value: isHovered)
         .onHover { hover in
             isHovered = hover
             if hover {
@@ -615,7 +669,7 @@ struct CardDetailView: View {
                 .blendMode(.overlay)
             
             // 3. 极富未来科技感的几何镭射防伪波纹线
-            Canvas { context, size in
+            Canvas(rendersAsynchronously: true) { context, size in
                 context.stroke(
                     Path { path in
                         // 第一条大正弦波线
@@ -851,8 +905,7 @@ struct CardDetailView: View {
     }
 
     private func imageByteSize(_ asset: CardImageAsset) -> Int64 {
-        let base64 = asset.data.components(separatedBy: "base64,").last ?? asset.data
-        return Int64(Data(base64Encoded: base64, options: .ignoreUnknownCharacters)?.count ?? 0)
+        CardImagePreviewCache.shared.byteSize(for: asset)
     }
 
     private func formatFileSize(_ bytes: Int64) -> String {
@@ -954,9 +1007,7 @@ struct CardDetailView: View {
     }
     
     private func nsImage(from asset: CardImageAsset) -> NSImage? {
-        let base64 = asset.data.components(separatedBy: "base64,").last ?? asset.data
-        guard let data = Data(base64Encoded: base64) else { return nil }
-        return NSImage(data: data)
+        CardImagePreviewCache.shared.image(from: asset)
     }
     
     private func getBrandGradient(_ brand: CardBrand) -> [Color] {
@@ -1047,12 +1098,47 @@ private struct CardDetailInfoRow: View {
 }
 
 /// 用于表示分组银行卡的内部中转结构体
-public struct CardGroup: Identifiable {
-    public let id = UUID()
+public struct CardGroup: Identifiable, Sendable {
+    public var id: String { name }
     public let name: String
     public let iconName: String
     public let cards: [SharedCard]
     public let totalLimit: Double
+}
+
+@MainActor
+private final class CardGridDataSource: ObservableObject {
+    @Published private(set) var processedGroups: [CardGroup] = []
+
+    private var groupingTask: Task<Void, Never>?
+    private var lastRequestKey = ""
+
+    func update(cards: [SharedCard], groupBy: GroupOption, sortBy: SortOption) {
+        let requestKey = Self.requestKey(cards: cards, groupBy: groupBy, sortBy: sortBy)
+        guard requestKey != lastRequestKey else { return }
+        lastRequestKey = requestKey
+
+        groupingTask?.cancel()
+        let cardsSnapshot = cards
+        groupingTask = Task {
+            let groups = await Task.detached(priority: .userInitiated) {
+                CardGridView.calculateGroups(cards: cardsSnapshot, groupBy: groupBy, sortBy: sortBy)
+            }.value
+            guard !Task.isCancelled else { return }
+            processedGroups = groups
+        }
+    }
+
+    deinit {
+        groupingTask?.cancel()
+    }
+
+    private static func requestKey(cards: [SharedCard], groupBy: GroupOption, sortBy: SortOption) -> String {
+        let cardsKey = cards
+            .map { "\($0.id):\($0.lastModifyTime)" }
+            .joined(separator: "|")
+        return "\(groupBy.id)#\(sortBy.id)#\(cards.count)#\(cardsKey)"
+    }
 }
 
 public struct GroupSectionHeader: View {
@@ -1184,8 +1270,8 @@ public struct CardGridView: View {
     // 💡 用于追踪各个分组当前是否已折叠收起的集合
     @State private var collapsedGroups: Set<String> = []
     
-    // 💡 性能优化：缓存分组和排序后的结果，避免每次渲染 body 时都在主线程重复进行高开销的日期和分组计算
-    @State private var processedGroups: [CardGroup] = []
+    // 💡 性能优化：后台准备分组和排序后的结果，避免界面刷新时在主线程做高开销计算
+    @StateObject private var dataSource = CardGridDataSource()
     
     // 双栏网格自适应配置
     private let columns = [
@@ -1215,17 +1301,14 @@ public struct CardGridView: View {
         self.onDelete = onDelete
         self.onUpdateStatus = onUpdateStatus
         
-        // 💡 首次构建时进行单次预处理计算，防止第一帧出现白屏或闪烁
-        let initialGroups = CardGridView.calculateGroups(cards: cards, groupBy: groupBy, sortBy: sortBy)
-        self._processedGroups = State(initialValue: initialGroups)
     }
     
     private func performGroupingAndSorting() {
-        processedGroups = CardGridView.calculateGroups(cards: cards, groupBy: groupBy, sortBy: sortBy)
+        dataSource.update(cards: cards, groupBy: groupBy, sortBy: sortBy)
     }
     
     /// 静态辅助方法：只在核心依赖发生变化时运行，对数据进行重组和排序
-    private static func calculateGroups(cards: [SharedCard], groupBy: GroupOption, sortBy: SortOption) -> [CardGroup] {
+    nonisolated fileprivate static func calculateGroups(cards: [SharedCard], groupBy: GroupOption, sortBy: SortOption) -> [CardGroup] {
         // 1. 数据分组
         let rawGroups: [String: [SharedCard]]
         let iconName: String
@@ -1329,10 +1412,20 @@ public struct CardGridView: View {
     
     public var body: some View {
         ScrollView {
-            if groupBy == .none {
+            if dataSource.processedGroups.isEmpty && !cards.isEmpty {
+                VStack(spacing: 10) {
+                    ProgressView()
+                        .controlSize(.small)
+                    Text("正在整理卡片…")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                .frame(maxWidth: .infinity, minHeight: 260)
+                .padding(20)
+            } else if groupBy == .none {
                 // 无分组状态下：直接网格平铺以保持极其纯粹高效率的主视图
                 LazyVGrid(columns: columns, spacing: 20) {
-                    ForEach(processedGroups.first?.cards ?? []) { card in
+                    ForEach(dataSource.processedGroups.first?.cards ?? []) { card in
                         selectableCardView(card)
                     }
                 }
@@ -1341,7 +1434,7 @@ public struct CardGridView: View {
                 // 有分组状态下：使用 VStack 排布，提供一流的交互式透底质感，并确保完美无抖动且极其平滑的收折体验
                 VStack(spacing: 16) {
                     // 💡 一键展开/收起控制按钮栏（有超过1个分组时自动浮现，保持界面灵活性）
-                    if processedGroups.count > 1 {
+                    if dataSource.processedGroups.count > 1 {
                         HStack {
                             Spacer()
                             Button {
@@ -1364,7 +1457,7 @@ public struct CardGridView: View {
                             
                             Button {
                                 withAnimation(.easeInOut(duration: 0.2)) {
-                                    let allNames = processedGroups.map { $0.name }
+                                    let allNames = dataSource.processedGroups.map { $0.name }
                                     collapsedGroups = Set(allNames)
                                 }
                             } label: {
@@ -1386,7 +1479,7 @@ public struct CardGridView: View {
                         .padding(.bottom, -4)
                     }
                     
-                    ForEach(processedGroups) { group in
+                    ForEach(dataSource.processedGroups) { group in
                         let isCollapsed = collapsedGroups.contains(group.name)
                         
                         VStack(spacing: 0) {

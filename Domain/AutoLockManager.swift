@@ -36,7 +36,7 @@ public class AutoLockManager {
         // 如果当前已经锁屏，不需要在活跃时解锁，由解锁凭证说了算
         if isLocked { return }
         
-        resetInactivityTimer()
+        startInactivityTimerIfNeeded()
     }
     
     /// 强制执行手动锁定 (对应 Web 端 manualLock)
@@ -139,6 +139,11 @@ public class AutoLockManager {
         inactivityTimer = Timer.scheduledTimer(withTimeInterval: 10.0, repeats: true) { [weak self] _ in
             self?.checkInactivity()
         }
+    }
+
+    private func startInactivityTimerIfNeeded() {
+        guard inactivityTimer == nil else { return }
+        resetInactivityTimer()
     }
     
     private func stopInactivityTimer() {

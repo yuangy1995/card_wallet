@@ -10,6 +10,8 @@ public final class SyncCoordinator: ObservableObject {
     private var ledger = SyncLedger()
     private var hasBootstrapped = false
     public var onCardsChanged: (([SharedCard]) -> Void)?
+    private var pendingWebDAVUploadWorkItem: DispatchWorkItem?
+    private let webDAVUploadDebounceInterval: TimeInterval = 0.8
 
     private init() {}
 
@@ -138,7 +140,7 @@ public final class SyncCoordinator: ObservableObject {
         persistActiveView()
         pendingStatus = "正在同步最新修改"
         CloudKitSyncService.shared.queue(records: events)
-        WebDAVBridgeService.shared.synchronize(forceUpload: true)
+        scheduleWebDAVUpload()
         return currentCards
     }
 
@@ -164,5 +166,14 @@ public final class SyncCoordinator: ObservableObject {
         }
         normalized.cardCategory = normalized.cardCategory == "debit" ? "debit" : "credit"
         return normalized
+    }
+
+    private func scheduleWebDAVUpload() {
+        pendingWebDAVUploadWorkItem?.cancel()
+        let workItem = DispatchWorkItem {
+            WebDAVBridgeService.shared.synchronize(forceUpload: true)
+        }
+        pendingWebDAVUploadWorkItem = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + webDAVUploadDebounceInterval, execute: workItem)
     }
 }

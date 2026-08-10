@@ -676,14 +676,11 @@ public struct CardEditView: View {
     }
 
     private func nsImage(from asset: CardImageAsset) -> NSImage? {
-        let base64 = asset.data.components(separatedBy: "base64,").last ?? asset.data
-        guard let data = Data(base64Encoded: base64) else { return nil }
-        return NSImage(data: data)
+        CardImagePreviewCache.shared.image(from: asset)
     }
 
     private func imageByteSize(_ asset: CardImageAsset) -> Int64 {
-        let base64 = asset.data.components(separatedBy: "base64,").last ?? asset.data
-        return Int64(Data(base64Encoded: base64, options: .ignoreUnknownCharacters)?.count ?? 0)
+        CardImagePreviewCache.shared.byteSize(for: asset)
     }
 
     private func formatFileSize(_ bytes: Int64) -> String {
