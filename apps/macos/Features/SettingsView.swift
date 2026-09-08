@@ -6,6 +6,7 @@ enum WalletSettingsSection: String, CaseIterable, Identifiable {
     case security = "安全"
     case sync = "同步"
     case data = "数据与帮助"
+    case updates = "软件更新"
     var id: String { rawValue }
     var icon: String {
         switch self {
@@ -13,6 +14,7 @@ enum WalletSettingsSection: String, CaseIterable, Identifiable {
         case .security: return "lock.shield"
         case .sync: return "arrow.triangle.2.circlepath"
         case .data: return "tray"
+        case .updates: return "arrow.down.circle"
         }
     }
 }
@@ -65,6 +67,7 @@ struct SettingsView: View {
                     case .security: securitySettings
                     case .sync: syncSettings
                     case .data: dataSettings
+                    case .updates: WalletUpdateSettings()
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
