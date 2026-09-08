@@ -1,0 +1,46 @@
+@use './dark-theme.scss' as *;
+@import './base.css';
+
+/* 移动优先的响应式设计 */
+#app {
+  width: 100%;
+  margin: 0 auto;
+  padding: 0.5rem;
+  font-weight: normal;
+  min-height: 100vh;
+}
+
+a,
+.green {
+  text-decoration: none;
+  color: hsla(160, 100%, 37%, 1);
+  transition: 0.4s;
+}
+
+@media (hover: hover) {
+  a:hover {
+    background-color: hsla(160, 100%, 37%, 0.2);
+  }
+}
+
+/* 平板适配 */
+@media (min-width: 768px) {
+  #app {
+    padding: 1rem;
+  }
+}
+
+/* 桌面端适配 */
+@media (min-width: 1024px) {
+  #app {
+    max-width: 1280px;
+    padding: 2rem;
+  }
+}
+
+/* 超大屏幕适配 */
+@media (min-width: 1440px) {
+  #app {
+    max-width: 1400px;
+  }
+}

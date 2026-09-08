@@ -1,0 +1,1033 @@
+.el-loading-mask {
+  background-color: var(--app-loading-mask-bg, rgba(248, 250, 252, 0.72)) !important;
+  backdrop-filter: blur(8px) saturate(110%);
+  -webkit-backdrop-filter: blur(8px) saturate(110%);
+}
+
+.el-loading-spinner .circular .path {
+  stroke: var(--app-loading-spinner-color, #2563eb) !important;
+}
+
+.el-loading-spinner i {
+  color: var(--app-loading-spinner-color, #2563eb) !important;
+}
+
+.el-loading-spinner .el-loading-text {
+  color: var(--app-loading-text-color, #334155) !important;
+}
+
+:root {
+  --app-loading-mask-bg: rgba(248, 250, 252, 0.72);
+  --app-loading-card-bg: rgba(255, 255, 255, 0.94);
+  --app-loading-card-border: rgba(148, 163, 184, 0.24);
+  --app-loading-card-shadow: 0 18px 44px rgba(15, 23, 42, 0.16);
+  --app-loading-spinner-color: #2563eb;
+  --app-loading-text-color: #334155;
+}
+
+html.dark,
+body.dark,
+.dark {
+  --app-loading-mask-bg: rgba(3, 7, 18, 0.78);
+  --app-loading-card-bg: linear-gradient(180deg, rgba(15, 23, 42, 0.96), rgba(8, 13, 30, 0.96));
+  --app-loading-card-border: rgba(0, 242, 254, 0.22);
+  --app-loading-card-shadow: 0 20px 54px rgba(0, 0, 0, 0.55), 0 0 0 1px rgba(0, 242, 254, 0.08);
+  --app-loading-spinner-color: #4ddcff;
+  --app-loading-text-color: rgba(226, 232, 240, 0.9);
+
+  /* 一体式控制中心暗色太空舱霓虹主题变量覆写 */
+  .control-center-panel {
+    --cc-bg: linear-gradient(180deg, rgba(15, 23, 42, 0.95), rgba(8, 13, 30, 0.95));
+    --cc-border: 1px solid rgba(0, 242, 254, 0.18);
+    --cc-shadow: 0 8px 32px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(0, 242, 254, 0.05);
+    --cc-title-color: #ffffff;
+    --cc-divider-color: rgba(255, 255, 255, 0.08);
+    --cc-btn-divider: rgba(0, 242, 254, 0.25);
+    --cc-search-bg: rgba(15, 23, 42, 0.45);
+    --cc-search-border: rgba(0, 242, 254, 0.18);
+    --cc-search-bg-focus: rgba(8, 13, 30, 0.85);
+    --cc-search-border-focus: #00f2fe;
+    --cc-search-shadow-focus: rgba(0, 242, 254, 0.22);
+    --cc-search-icon: rgba(0, 242, 254, 0.45);
+    --cc-search-icon-focus: #00f2fe;
+    --cc-search-placeholder: rgba(226, 232, 240, 0.38);
+
+    .toolbar-left .panel-title .el-icon {
+      color: #00f2fe;
+    }
+
+    .toolbar-center {
+      .sync-status-pill {
+        &.is-success {
+          background-color: rgba(16, 185, 129, 0.12);
+          border-color: rgba(16, 185, 129, 0.35);
+          color: #34d399;
+        }
+        &.is-info {
+          background-color: rgba(0, 242, 254, 0.12);
+          border-color: rgba(0, 242, 254, 0.35);
+          color: #00f2fe;
+        }
+        &.is-warning {
+          background-color: rgba(245, 158, 11, 0.12);
+          border-color: rgba(245, 158, 11, 0.35);
+          color: #fbbf24;
+        }
+        &.is-danger {
+          background-color: rgba(239, 68, 68, 0.12);
+          border-color: rgba(239, 68, 68, 0.35);
+          color: #f87171;
+        }
+      }
+    }
+
+    .toolbar-right {
+      .theme-toggle-container {
+        background: rgba(13, 20, 41, 0.85) !important;
+        border-color: rgba(0, 242, 254, 0.22) !important;
+        box-shadow: 0 4px 12px rgba(0, 242, 254, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.03) !important;
+
+        .theme-toggle-btn .el-icon {
+          color: rgba(255, 255, 255, 0.75);
+
+          &:hover {
+            color: #00f2fe;
+            transform: scale(1.15);
+          }
+        }
+      }
+    }
+  }
+}
+
+.main_body {
+  width: 100vw;
+  height: 100vh;
+  /* 亮色模式下极致通透、温和素雅的浅灰淡蓝渐变，完美承载极简苹果美学 */
+  background: linear-gradient(135deg, #f4f6fa 0%, #e9edf5 100%) !important;
+  padding: 20px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  position: fixed;
+  left: 0;
+  top: 0;
+
+  /* ==========================================================================
+     🌌 全新一体式控制中心 (Unified Control Center) 极其高端极简自适应重构
+     ========================================================================== */
+  .control-center-panel {
+    background: var(--cc-bg, #ffffff) !important;
+    border: var(--cc-border, 1px solid #e2e8f0) !important;
+    box-shadow: var(--cc-shadow, 0 4px 18px rgba(15, 23, 42, 0.04)) !important;
+    padding: 10px 16px;
+    border-radius: 14px !important;
+    margin-bottom: 12px;
+    flex-shrink: 0;
+    transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+
+    /* 亮色模式配置变量 */
+    --cc-bg: #ffffff;
+    --cc-border: 1px solid #e2e8f0;
+    --cc-shadow: 0 4px 18px rgba(15, 23, 42, 0.04);
+    --cc-title-color: #1e293b;
+    --cc-divider-color: #e2e8f0;
+    --cc-btn-divider: rgba(15, 23, 42, 0.12);
+    --cc-search-bg: #f1f5f9;
+    --cc-search-border: #e2e8f0;
+    --cc-search-bg-focus: #ffffff;
+    --cc-search-border-focus: #2563eb;
+    --cc-search-shadow-focus: rgba(37, 99, 235, 0.12);
+    --cc-search-icon: #64748b;
+    --cc-search-icon-focus: #2563eb;
+    --cc-search-placeholder: #94a3b8;
+
+    .toolbar-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 8px 10px;
+      width: 100%;
+    }
+
+    .toolbar-left,
+    .toolbar-center,
+    .toolbar-right {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+
+    .toolbar-left {
+      flex: 1 1 0;
+      min-width: 0;
+
+      .panel-title {
+        font-size: 14px;
+        font-weight: 700;
+        color: var(--cc-title-color);
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        user-select: none;
+
+        .el-icon {
+          font-size: 16px;
+          color: #2563eb;
+        }
+      }
+
+      .divider-line {
+        width: 1px;
+        height: 16px;
+        background-color: var(--cc-divider-color);
+        margin: 0 4px;
+      }
+
+      /* ==========================================
+         ✨ 视图模式选择器 (表格/卡片) 精准垂直居中补丁
+         ========================================== */
+      .view-mode-selector {
+        display: inline-flex;
+        align-items: center;
+        vertical-align: middle;
+
+        .el-radio-button__inner {
+          height: 28px !important;
+          padding: 0 12px !important;
+          display: inline-flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          gap: 6px !important;
+          font-size: 12px !important;
+          line-height: 1 !important;
+          box-sizing: border-box !important;
+          vertical-align: middle !important;
+          /* 核心自愈：彻底根除状态切换与主题过渡时的延迟及瞬时双高亮闪烁 Bug */
+          transition: none !important;
+
+          .el-icon {
+            margin: 0 !important;
+            font-size: 14px !important;
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            transform: none !important;
+            top: auto !important;
+            transition: none !important;
+          }
+
+          /* 确保按钮内的文字也是 inline-flex 并垂直居中 */
+          span {
+            display: inline-flex !important;
+            align-items: center !important;
+            line-height: 1 !important;
+            transition: none !important;
+          }
+        }
+      }
+
+      /* ==========================================
+         ⚡ 筛选与重置按钮组 (Button Group) 极清边界对齐补丁
+         ========================================== */
+      .filter-btn-group {
+        display: inline-flex;
+        align-items: center;
+        height: 28px;
+        vertical-align: middle;
+        line-height: 1;
+
+        .el-button {
+          height: 100% !important;
+          padding: 0 12px !important;
+          display: inline-flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          font-size: 12px !important;
+          line-height: 1 !important;
+          box-sizing: border-box !important;
+          margin: 0 !important;
+          border-width: 1px !important;
+          vertical-align: middle !important;
+          position: relative !important;
+          top: 0 !important;
+
+          > span {
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            gap: 4px !important;
+            height: 14px !important;
+            line-height: 14px !important;
+          }
+
+          .el-icon {
+            width: 14px !important;
+            height: 14px !important;
+            font-size: 14px !important;
+            margin-right: 0 !important;
+            display: inline-flex !important;
+            align-items: center !important;
+            justify-content: center !important;
+            line-height: 14px !important;
+          }
+
+          &:first-child {
+            border-top-right-radius: 0 !important;
+            border-bottom-right-radius: 0 !important;
+            border-right: none !important;
+          }
+
+          &:last-child {
+            border-top-left-radius: 0 !important;
+            border-bottom-left-radius: 0 !important;
+            border-left: 1px solid var(--cc-btn-divider) !important;
+            margin-left: 0 !important;
+          }
+        }
+      }
+
+      /* ==========================================
+         🔍 极速全局万能搜索框 (Omni Search Box) 高端自适应样式
+         ========================================== */
+      .omni-search-box {
+        display: inline-flex;
+        align-items: center;
+        width: clamp(150px, 17vw, 220px);
+        min-width: 150px;
+        flex: 0 1 220px;
+        transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+        vertical-align: middle;
+
+        .omni-search-input {
+          width: 100% !important;
+
+          .el-input__wrapper {
+            background-color: var(--cc-search-bg, #f1f5f9) !important;
+            border: 1px solid var(--cc-search-border, #e2e8f0) !important;
+            border-radius: 20px !important; /* 奢华小胶囊弧度 */
+            box-shadow: none !important;
+            padding: 0 12px !important;
+            height: 28px !important;
+            box-sizing: border-box !important;
+            transition: all 0.25s ease !important;
+
+            &.is-focus {
+              background-color: var(--cc-search-bg-focus, #ffffff) !important;
+              border-color: var(--cc-search-border-focus, #2563eb) !important;
+              box-shadow: 0 0 0 3px var(--cc-search-shadow-focus, rgba(37, 99, 235, 0.12)) !important;
+
+              .search-icon {
+                color: var(--cc-search-icon-focus, #2563eb) !important;
+                transform: scale(1.1) rotate(5deg);
+              }
+            }
+
+            .el-input__inner {
+              color: var(--cc-title-color) !important;
+              font-size: 12px !important;
+              height: 26px !important;
+              line-height: 26px !important;
+
+              &::placeholder {
+                color: var(--cc-search-placeholder, #94a3b8) !important;
+                font-size: 11.5px;
+              }
+            }
+
+            .search-icon {
+              color: var(--cc-search-icon, #64748b) !important;
+              font-size: 13.5px !important;
+              transition: all 0.25s ease;
+              display: inline-flex;
+              align-items: center;
+              justify-content: center;
+            }
+
+            .el-input__clear {
+              font-size: 13px !important;
+              color: var(--cc-search-placeholder, #94a3b8) !important;
+
+              &:hover {
+                color: #ef4444 !important;
+              }
+            }
+          }
+        }
+      }
+    }
+
+    .toolbar-center {
+      flex: 0 0 auto;
+      flex-wrap: nowrap;
+      gap: 8px;
+      margin-left: auto;
+      white-space: nowrap;
+
+      .sync-status-pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 6px;
+        padding: 4px 10px;
+        border-radius: 20px;
+        font-size: 11px;
+        font-weight: 700;
+        transition: all 0.25s ease;
+        border: 1px solid transparent;
+        cursor: pointer;
+        user-select: none;
+        white-space: nowrap;
+
+        &:hover {
+          transform: translateY(-0.5px);
+          filter: brightness(1.1);
+        }
+
+        .sync-status-dot {
+          width: 6px;
+          height: 6px;
+          border-radius: 50%;
+          display: inline-block;
+          background-color: currentColor;
+          box-shadow: 0 0 5px currentColor;
+          flex-shrink: 0;
+        }
+
+        &.is-success {
+          background-color: rgba(16, 185, 129, 0.08);
+          border-color: rgba(16, 185, 129, 0.25);
+          color: #10b981;
+        }
+        &.is-info {
+          background-color: rgba(37, 99, 235, 0.08);
+          border-color: rgba(37, 99, 235, 0.25);
+          color: #2563eb;
+        }
+        &.is-warning {
+          background-color: rgba(245, 158, 11, 0.08);
+          border-color: rgba(245, 158, 11, 0.25);
+          color: #d97706;
+        }
+        &.is-danger {
+          background-color: rgba(239, 68, 68, 0.08);
+          border-color: rgba(239, 68, 68, 0.25);
+          color: #dc2626;
+        }
+      }
+
+      .sync-now-button {
+        height: 24px;
+        padding: 0 8px;
+        font-size: 11px;
+        border-radius: 6px;
+      }
+    }
+
+    .toolbar-right {
+      flex: 0 0 auto;
+
+      .theme-toggle-container {
+        display: inline-flex;
+        align-items: center;
+        gap: 12px; /* 舒展大方的高阶间距 */
+        background: #f1f5f9 !important;
+        border: 1px solid #e2e8f0 !important;
+        padding: 4px 14px !important; /* 适当拓宽以显大气 */
+        border-radius: 30px !important; /* 经典大胶囊外观 */
+        margin-left: 4px;
+        box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.65), 0 1px 3px rgba(0, 0, 0, 0.02) !important;
+        height: 32px;
+        box-sizing: border-box;
+
+        .theme-toggle-btn {
+          border: none !important;
+          background: transparent !important;
+          padding: 0 !important;
+          height: 24px !important;
+          width: 24px !important;
+          min-height: auto !important;
+          box-shadow: none !important;
+          display: inline-flex !important;
+          align-items: center !important;
+          justify-content: center !important;
+          transition: all 0.25s cubic-bezier(0.25, 0.8, 0.25, 1) !important;
+          cursor: pointer;
+
+          .el-icon {
+            font-size: 15px;
+            color: #64748b;
+            transition: all 0.25s ease;
+
+            &:hover {
+              color: #1e293b;
+              transform: scale(1.15);
+            }
+          }
+        }
+      }
+    }
+
+    /* 展开的筛选面板抽屉样式 */
+    .filter-form-drawer {
+      margin-top: 4px;
+      padding-top: 12px;
+      border-top: 1px solid var(--cc-divider-color);
+
+      .search-form-clean {
+        background: transparent !important;
+        border: none !important;
+        box-shadow: none !important;
+        margin: 0 !important;
+        padding: 0 !important;
+
+        .form-grid-layout {
+          display: grid;
+          /* 列宽至少 200px (足够显示完整的占位文字)，并随宽度均分自适应对齐 */
+          grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+          gap: 12px 20px; /* 完美的网格矩阵列/行间距 */
+          width: 100%;
+        }
+
+        :deep(.el-form-item) {
+          margin: 0 !important;
+          display: flex;
+          align-items: center;
+          width: 100%; /* 占满 grid 单元格 */
+
+          .el-form-item__label {
+            color: var(--cc-title-color) !important;
+            font-weight: 700;
+            padding-right: 8px;
+            width: 72px; /* 固化 label 宽度，强制令输入框物理起始边缘绝对齐！ */
+            text-align: right;
+            flex-shrink: 0;
+          }
+
+          .el-form-item__content {
+            margin-left: 0 !important; /* 清除原有左边距 */
+            flex: 1;
+            min-width: 0;
+            display: flex;
+
+            .el-select,
+            .el-input {
+              width: 100% !important;
+            }
+          }
+        }
+      }
+    }
+  }
+
+  /* 表格底层容器去除累赘的白色圆角框与 padding，实现直铺悬浮以提供极致扁平化极简视觉 */
+  .table-container {
+    flex: 1;
+    min-height: 0;
+    overflow: hidden;
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    border-radius: 0 !important;
+    padding: 0 !important;
+
+    :deep(.el-table) {
+      height: 100%;
+      background-color: #ffffff !important;
+    }
+
+    :deep(.el-table__header) {
+      th {
+        background-color: #f5f7fa !important;
+        color: #1e293b !important;
+        font-weight: 700;
+      }
+    }
+
+    :deep(.el-table__body-wrapper) {
+      overflow-y: auto;
+    }
+  }
+}
+
+/* 针对不同分辨率的布局调整 */
+@media screen and (min-width: 3840px) {
+  .main_body {
+    padding: 30px;
+
+    .headers {
+      padding: 20px;
+    }
+
+    .button-container {
+      padding: 15px;
+    }
+  }
+}
+
+@media screen and (max-width: 1920px) {
+  .main_body {
+    padding: 15px;
+
+    .headers {
+      padding: 12px;
+    }
+
+    .button-container {
+      padding: 8px;
+    }
+  }
+}
+
+.dialog-footer {
+  text-align: center;
+}
+
+:deep(.el-descriptions) {
+  padding: 10px;
+
+  .el-descriptions__header {
+    margin-bottom: 15px;
+  }
+
+  .el-descriptions__label {
+    width: 120px;
+    font-weight: bold;
+    color: #606266;
+  }
+
+  .el-descriptions__content {
+    color: #333;
+  }
+
+  .el-tag {
+    font-weight: normal;
+  }
+}
+
+/* 表单验证样式 */
+:deep(.el-form-item.is-error) {
+
+  .el-input__wrapper,
+  .el-textarea__wrapper {
+    box-shadow: 0 0 0 1px #f56c6c;
+  }
+}
+
+/* 对话框底部样式 */
+.dialog-footer {
+  border-top: none;
+  padding: 15px 20px;
+  text-align: right;
+  margin: 0 -20px -20px;
+
+  .el-button {
+    padding: 9px 20px;
+    font-size: 14px;
+    border-radius: 4px;
+    margin-left: 10px;
+  }
+}
+
+/* 新增信用卡对话框样式 */
+:deep(.el-dialog) {
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+
+  .el-dialog__header {
+    margin: 0;
+    padding: 20px;
+    border-bottom: none;
+
+    .el-dialog__title {
+      font-size: 18px;
+      font-weight: 600;
+      color: #303133;
+    }
+  }
+
+  .el-dialog__body {
+    padding: 20px;
+  }
+}
+
+.dialog-footer {
+  text-align: center;
+  padding-top: 10px;
+}
+
+.warning-row {
+  background-color: #fdf6ec !important;
+}
+
+.reminder-row {
+  background-color: #fefce8 !important;
+}
+
+.danger-row {
+  background-color: #fef0f0 !important;
+}
+
+/* 年费提醒弹窗样式 */
+:deep(.annual-fee-dialog) {
+  .el-message-box__content {
+    padding: 20px;
+  }
+
+  .el-message-box__container {
+    max-height: 500px;
+    overflow-y: auto;
+  }
+
+  ul {
+    margin: 0;
+    padding: 0;
+  }
+
+  li {
+    transition: transform 0.25s ease, background-color 0.25s ease, border-color 0.25s ease;
+  }
+
+  li:hover {
+    transform: translateX(4px);
+  }
+
+  :deep(.el-message-box__header) {
+    display: none;
+  }
+
+  :deep(.el-message-box__content) {
+    padding-top: 20px;
+  }
+}
+
+/* 确保样式应用到表格行 */
+:deep(.el-table__row) {
+  &.warning-row > td {
+    --el-table-tr-bg-color: #fdf6ec;
+    background-color: #fdf6ec !important;
+  }
+
+  &.reminder-row > td {
+    --el-table-tr-bg-color: #fefce8;
+    background-color: #fefce8 !important;
+  }
+
+  &.danger-row > td {
+    --el-table-tr-bg-color: #fef0f0;
+    background-color: #fef0f0 !important;
+  }
+}
+
+/* 确保悬停时保持背景色 */
+:deep(.el-table__row) {
+  &.warning-row:hover > td {
+    background-color: #fdf6ec !important;
+  }
+
+  &.reminder-row:hover > td {
+    background-color: #fefce8 !important;
+  }
+
+  &.danger-row:hover > td {
+    background-color: #fef0f0 !important;
+  }
+}
+
+/* 表格行样式 */
+:deep(.el-table) {
+  .warning-row {
+    --el-table-tr-bg-color: #fdf6ec;
+    background-color: #fdf6ec;
+
+    > td {
+      background-color: #fdf6ec !important;
+    }
+  }
+
+  .reminder-row {
+    --el-table-tr-bg-color: #fefce8;
+    background-color: #fefce8;
+
+    > td {
+      background-color: #fefce8 !important;
+    }
+  }
+
+  .danger-row {
+    --el-table-tr-bg-color: #fef0f0;
+    background-color: #fef0f0;
+
+    > td {
+      background-color: #fef0f0 !important;
+    }
+  }
+}
+
+/* 移除 el-message-box 的固定宽度设置 */
+:deep(.el-message-box) {
+  max-width: 95vw !important;
+}
+
+/* 年费尚未达标弹窗亮色样式自适应 */
+.annual-fee-divider {
+  background: #dcdfe6 !important;
+}
+.annual-fee-desc {
+  color: #606266 !important;
+}
+.annual-fee-card-item {
+  background: #f5f7fa !important;
+  border: 1px solid #e4e7ed !important;
+  border-radius: 6px;
+  padding: 12px;
+  margin-bottom: 8px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.02);
+  transition: background-color 0.25s ease, border-color 0.25s ease, transform 0.25s ease, box-shadow 0.25s ease;
+
+  &:hover {
+    border-color: #c0c4cc !important;
+    background: #ebedf0 !important;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.05);
+    transform: translateY(-1px);
+  }
+}
+.annual-fee-card-title {
+  color: #303133 !important;
+  font-weight: bold;
+  margin-bottom: 4px;
+}
+.annual-fee-card-time {
+  color: #606266 !important;
+  font-size: 13px;
+}
+.annual-fee-card-countdown {
+  color: #e6a23c !important;
+  font-size: 13px;
+  margin-top: 4px;
+  font-weight: bold;
+}
+
+/* 年费手动检测列表亮色模式自适应样式 */
+.manual-check-container {
+  .manual-check-section-title {
+    font-size: 16px;
+    font-weight: bold;
+
+    &.unqualified {
+      color: #e6a23c !important;
+    }
+    &.warning {
+      color: #e6a23c !important;
+    }
+    &.overdue {
+      color: #f56c6c !important;
+    }
+  }
+}
+
+.manual-check-card-item {
+  margin: 0;
+  padding: 12px;
+  border-radius: 6px;
+  flex: 0 1 calc(33.33% - 12px);
+  min-width: 200px;
+  box-sizing: border-box;
+  transition: background-color 0.25s ease, border-color 0.25s ease, transform 0.25s ease, box-shadow 0.25s ease;
+  border: 1px solid transparent;
+
+  .manual-check-card-title {
+    font-weight: bold;
+    font-size: 14px;
+    margin-bottom: 4px;
+  }
+
+  .manual-check-card-desc {
+    color: #606266;
+    margin-top: 4px;
+    font-size: 13px;
+  }
+
+  &:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  }
+
+  &.unqualified {
+    background: #fdf6ec !important;
+    border-color: #faecde !important;
+    .manual-check-card-title {
+      color: #e6a23c !important;
+    }
+  }
+
+  &.warning {
+    background: #fefce8 !important;
+    border-color: #faecc5 !important;
+    .manual-check-card-title {
+      color: #e6a23c !important;
+    }
+  }
+
+  &.overdue {
+    background: #fef0f0 !important;
+    border-color: #fde2e2 !important;
+    .manual-check-card-title {
+      color: #f56c6c !important;
+    }
+  }
+}
+
+/* ================= 🌌 极简高端：对话框内部自适应滚动（100% 视口居中且不溢出） ================= */
+.el-dialog.card-details-dialog {
+  max-height: 85vh !important;
+  display: flex !important;
+  flex-direction: column !important;
+  margin: 7.5vh auto !important;
+  overflow: hidden !important;
+  top: 0 !important;
+
+  .el-dialog__body {
+    flex: 1 !important;
+    min-height: 0 !important;
+    overflow-y: auto !important;
+    scrollbar-gutter: stable !important;
+  }
+}
+
+/* ==========================================================================
+   ✨ 极简收纳与单行控制线：小屏及平板模式极轻自适应适配（第九版完美单行收纳）
+   ========================================================================== */
+
+/* 宽屏常态下：下拉菜单内隐藏收纳的移动端专属操作项 */
+.main-more-dropdown .mobile-only-menu-item {
+  display: none !important;
+}
+
+@media (max-width: 1260px) {
+  .control-center-panel {
+    /* 1. 隐藏控制中心标题及它后面的第一根分隔线，瞬间腾出 100px 宽度 */
+    .toolbar-left {
+      .panel-title {
+        display: none !important;
+      }
+      .panel-title + .divider-line {
+        display: none !important;
+      }
+
+      /* 2. 缩窄万能检索框的宽度，从 250px 极致瘦身为 130px，依然支持呼吸灯 */
+      .omni-search-box {
+        width: 130px !important;
+
+        .el-input__wrapper .el-input__inner::placeholder {
+          font-size: 11px !important;
+        }
+      }
+    }
+
+    /* 3. 极速缩容主操作按钮组：仅常驻高频「新增信用卡」，将其余三个按钮（备份、统计、年费）完全隐藏 */
+    .toolbar-right {
+      .button-group {
+        .el-button {
+          &:not(:first-child) {
+            display: none !important;
+          }
+          /* 第一项「新增信用卡」在小屏下依然亮眼，恢复圆角 */
+          &:first-child {
+            border-radius: 8px !important;
+            border-top-right-radius: 8px !important;
+            border-bottom-right-radius: 8px !important;
+          }
+        }
+      }
+    }
+  }
+
+  /* 4. 下拉菜单内释放这三项，使其在下拉菜单中可以随时被唤醒点击 */
+  .main-more-dropdown {
+    .mobile-only-menu-item {
+      display: flex !important;
+    }
+  }
+}
+
+@media (min-width: 1261px) and (max-width: 1500px) {
+  .control-center-panel {
+    .toolbar-left,
+    .toolbar-center,
+    .toolbar-right {
+      gap: 8px;
+    }
+
+    .toolbar-left .omni-search-box {
+      width: 150px;
+      min-width: 130px;
+      flex-basis: 150px;
+    }
+
+    .toolbar-center {
+      .sync-status-pill {
+        padding-left: 8px;
+        padding-right: 8px;
+      }
+
+      .sync-now-button,
+      .sync-history-button {
+        padding-left: 7px;
+        padding-right: 7px;
+      }
+    }
+  }
+}
+
+/* 强制云同步 Tooltip 自定义气泡的高清晰度与超高对比度文字设定，彻底消除外部暗色污染的看不清问题 */
+:global(.el-popper.sync-status-tooltip-popper) {
+  background: rgba(13, 20, 41, 0.96) !important;
+  border: 1px solid rgba(0, 242, 254, 0.4) !important;
+  box-shadow: 0 4px 16px rgba(0, 242, 254, 0.18) !important;
+  padding: 8px 12px !important;
+
+  .el-popper__arrow::before {
+    background: rgba(13, 20, 41, 0.96) !important;
+    border: 1px solid rgba(0, 242, 254, 0.4) !important;
+  }
+
+  .sync-tooltip-content {
+    color: #ffffff !important;
+    font-family: inherit;
+
+    div, span, p {
+      color: #ffffff !important;
+    }
+
+    /* 状态指示小圆点 */
+    .sync-status-dot-tooltip {
+      &.is-success {
+        color: #10b981 !important;
+      }
+      &.is-info {
+        color: #00f2fe !important;
+      }
+      &.is-warning {
+        color: #fbbf24 !important;
+      }
+      &.is-danger {
+        color: #f87171 !important;
+      }
+    }
+  }
+}
+
+/* ==========================================================================
+   ⚡ 胶囊单选按钮高端半透明微光选中态重塑 (Premium Translucent Radio Buttons)
+   ========================================================================== */
+.el-radio-button__original-radio:checked + .el-radio-button__inner {
+  background-color: rgba(0, 168, 180, 0.08) !important;
+  border-color: rgba(0, 168, 180, 0.35) !important;
+  color: #007780 !important;
+  box-shadow: -1px 0 0 0 rgba(0, 168, 180, 0.35) !important;
+}

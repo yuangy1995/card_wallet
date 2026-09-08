@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100%" height="100%">
+  <defs>
+    <!-- 极光青紫科幻渐变 -->
+    <linearGradient id="cyberCardGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#00f2fe" />
+      <stop offset="100%" stop-color="#9b51e0" />
+    </linearGradient>
+    <!-- 芯片微光发光 -->
+    <linearGradient id="chipGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#ffd700" />
+      <stop offset="100%" stop-color="#ffa500" />
+    </linearGradient>
+    <!-- 霓虹发光滤镜 -->
+    <filter id="neonGlow" x="-20%" y="-20%" width="140%" height="140%">
+      <feGaussianBlur stdDeviation="3" result="blur" />
+      <feMerge>
+        <feMergeNode in="blur" />
+        <feMergeNode in="SourceGraphic" />
+      </feMerge>
+    </filter>
+  </defs>
+  <!-- 背景微弱科技环线 -->
+  <circle cx="50" cy="50" r="45" fill="none" stroke="url(#cyberCardGrad)" stroke-width="1" stroke-dasharray="2 3" opacity="0.4" />
+  
+  <!-- 赛博信用卡主体轮廓（带倾角，极富动态） -->
+  <rect x="20" y="32" width="60" height="38" rx="6" fill="none" stroke="url(#cyberCardGrad)" stroke-width="3" filter="url(#neonGlow)" transform="rotate(-6 50 50)" />
+  
+  <!-- 装饰磁条/科技感切线 -->
+  <line x1="20" y1="42" x2="80" y2="42" stroke="url(#cyberCardGrad)" stroke-width="1.5" stroke-dasharray="4 2" transform="rotate(-6 50 50)" opacity="0.8" />
+  
+  <!-- 科技感芯片 (Smart Chip) -->
+  <rect x="30" y="46" width="12" height="10" rx="2" fill="url(#chipGrad)" transform="rotate(-6 50 50)" />
+  <!-- 芯片引脚线条 -->
+  <path d="M36,46 L36,44 M42,46 L42,44 M36,56 L36,58 M42,56 L42,58 M30,51 L28,51 M42,51 L44,51" stroke="url(#chipGrad)" stroke-width="1" stroke-linecap="round" transform="rotate(-6 50 50)" />
+  
+  <!-- 极客数码装饰点阵 -->
+  <circle cx="70" cy="60" r="1.5" fill="#00f2fe" transform="rotate(-6 50 50)" />
+  <circle cx="74" cy="60" r="1.5" fill="#9b51e0" transform="rotate(-6 50 50)" />
+  <circle cx="72" cy="56" r="1.5" fill="#ffffff" transform="rotate(-6 50 50)" />
+</svg>

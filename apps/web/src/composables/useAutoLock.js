@@ -1,0 +1,204 @@
+import { ref, onMounted, onUnmounted } from 'vue'
+import { PasswordManager } from '@/utils/passwordManager'
+
+/**
+ * 自动锁定功能组合式函数
+ */
+export function useAutoLock() {
+  const isLocked = ref(false)
+  const lockTimer = ref(null)
+  const remainingTime = ref(0) // 剩余时间（秒）
+  const countdownTimer = ref(null)
+  const activityEvents = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click']
+  const hasPassword = ref(PasswordManager.hasPassword())
+  const ACTIVITY_THROTTLE_INTERVAL = 1000
+  let lastActivityUpdateTime = 0
+  let activityListenersActive = false
+  let visibilityChangeHandler = null
+  let storageChangeHandler = null
+  
+  // 更新活动时间并重置定时器
+  const updateActivity = (eventOrForce = false) => {
+    if (PasswordManager.hasPassword() && !PasswordManager.isAppLocked()) {
+      const force = eventOrForce === true
+      const now = Date.now()
+      if (!force && now - lastActivityUpdateTime < ACTIVITY_THROTTLE_INTERVAL) {
+        return
+      }
+      lastActivityUpdateTime = now
+      PasswordManager.updateLastActivity()
+      resetLockTimer()
+    }
+  }
+
+  // 开始倒计时
+  const startCountdown = () => {
+    if (countdownTimer.value) {
+      clearInterval(countdownTimer.value)
+    }
+    
+    remainingTime.value = Math.floor(PasswordManager.AUTO_LOCK_TIMEOUT / 1000)
+    
+    countdownTimer.value = setInterval(() => {
+      remainingTime.value -= 1
+      if (remainingTime.value <= 0) {
+        clearInterval(countdownTimer.value)
+        countdownTimer.value = null
+      }
+    }, 1000)
+  }
+
+  // 重置锁定定时器
+  const resetLockTimer = () => {
+    if (lockTimer.value) {
+      clearTimeout(lockTimer.value)
+    }
+    
+    if (countdownTimer.value) {
+      clearInterval(countdownTimer.value)
+    }
+    
+    if (PasswordManager.hasPassword() && !PasswordManager.isAppLocked()) {
+      lockTimer.value = setTimeout(() => {
+        lockApp()
+      }, PasswordManager.AUTO_LOCK_TIMEOUT)
+      
+      // 开始倒计时
+      startCountdown()
+    }
+  }
+
+  // 锁定应用
+  const lockApp = () => {
+    PasswordManager.lockApp()
+    isLocked.value = true
+    clearLockTimer()
+  }
+
+  // 解锁应用
+  const unlockApp = () => {
+    PasswordManager.unlockApp()
+    isLocked.value = false
+    resetLockTimer()
+  }
+
+  // 清除定时器
+  const clearLockTimer = () => {
+    if (lockTimer.value) {
+      clearTimeout(lockTimer.value)
+      lockTimer.value = null
+    }
+    if (countdownTimer.value) {
+      clearInterval(countdownTimer.value)
+      countdownTimer.value = null
+    }
+    remainingTime.value = 0
+  }
+
+  // 检查锁定状态
+  const checkLockStatus = () => {
+    hasPassword.value = PasswordManager.hasPassword()
+    if (PasswordManager.hasPassword()) {
+      const locked = PasswordManager.isAppLocked() || PasswordManager.shouldAutoLock()
+      if (locked && !isLocked.value) {
+        lockApp()
+      }
+      isLocked.value = locked
+    }
+  }
+
+  // 添加活动监听器
+  const addActivityListeners = () => {
+    if (activityListenersActive) return
+    activityListenersActive = true
+    activityEvents.forEach(event => {
+      document.addEventListener(event, updateActivity, { capture: true, passive: true })
+    })
+  }
+
+  // 移除活动监听器
+  const removeActivityListeners = () => {
+    if (!activityListenersActive) return
+    activityListenersActive = false
+    activityEvents.forEach(event => {
+      document.removeEventListener(event, updateActivity, true)
+    })
+  }
+
+  // 初始化
+  const init = () => {
+    checkLockStatus()
+    if (PasswordManager.hasPassword()) {
+      addActivityListeners()
+      if (!isLocked.value) {
+        updateActivity(true)
+      }
+    }
+  }
+
+  // 销毁
+  const destroy = () => {
+    removeActivityListeners()
+    if (visibilityChangeHandler) {
+      document.removeEventListener('visibilitychange', visibilityChangeHandler)
+      visibilityChangeHandler = null
+    }
+    if (storageChangeHandler) {
+      window.removeEventListener('storage', storageChangeHandler)
+      storageChangeHandler = null
+    }
+    clearLockTimer()
+    hasPassword.value = false
+  }
+
+  // 手动锁定
+  const manualLock = () => {
+    if (PasswordManager.hasPassword()) {
+      lockApp()
+    }
+  }
+
+  // 设置密码后初始化
+  const initAfterPasswordSet = () => {
+    hasPassword.value = true
+    addActivityListeners()
+    updateActivity(true)
+    isLocked.value = false
+  }
+
+  onMounted(() => {
+    init()
+    
+    // 监听页面可见性变化
+    visibilityChangeHandler = () => {
+      if (document.visibilityState === 'visible') {
+        checkLockStatus()
+      }
+    }
+    document.addEventListener('visibilitychange', visibilityChangeHandler)
+
+    // 监听存储变化（多标签页同步）
+    storageChangeHandler = (e) => {
+      if (e.key === PasswordManager.LOCK_STATE_KEY) {
+        checkLockStatus()
+      }
+    }
+    window.addEventListener('storage', storageChangeHandler)
+  })
+
+  onUnmounted(() => {
+    destroy()
+  })
+
+  return {
+    isLocked,
+    remainingTime,
+    hasPassword,
+    lockApp: manualLock,
+    unlockApp,
+    checkLockStatus,
+    initAfterPasswordSet,
+    updateActivity,
+    resetLockTimer
+  }
+}
