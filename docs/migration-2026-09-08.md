@@ -32,4 +32,15 @@ GitHub 当前账户为 `yuangy1995`；旧 remote 中的 `qwertyuiop1995` 地址�
 
 ## 验证
 
-合并后记录各端构建、现有测试及 GitHub 推送核对结果；真机操作、真实 WebDAV 同步及正式签名发布不在本次验证范围。
+| 项目 | 结果 |
+| --- | --- |
+| 文件与权限 | 四端共 367 个已跟踪文件；四个子目录 Git tree 与来源 main 完全一致 |
+| 历史 | 四个来源 main 都是总仓库 main 的祖先；`git fsck --full` 通过 |
+| Web | 锁定依赖安装成功；10 个测试文件、54 项测试通过；生产构建通过 |
+| macOS | Debug 构建通过；Release 测试构建成功，61 项测试全部通过 |
+| Android | Debug APK 构建通过；3 个测试类、4 项单元测试全部通过 |
+| iOS | Xcode 可读取工程和 scheme；工程、Info.plist、entitlements 语法检查通过；完整构建受本机缺失 iOS 模拟器运行环境阻塞 |
+
+iOS 已分别尝试 scheme 模拟器构建、直接使用模拟器 SDK 和不签名设备 SDK 构建。当前 Xcode 未安装可用的 iOS Simulator runtime，目的地选择或资源编译报错（`No available simulator runtimes`）。没有为通过检查而删除资源、修改部署目标或变更应用代码；安装对应 Xcode 的 iOS 组件后可重新执行 `make ios-build`。
+
+真机操作、真实 WebDAV 同步及正式签名发布不在本次验证范围。
