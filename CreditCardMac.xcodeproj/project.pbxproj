@@ -22,10 +22,12 @@
 		388ACDA84E2C18829012583D /* CardPresentation.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9F195E78925A22B3986CEF8C /* CardPresentation.swift */; };
 		500F2AEC296566F0521C063C /* CardStatistics.swift in Sources */ = {isa = PBXBuildFile; fileRef = 276AABF2B421826ACA061E12 /* CardStatistics.swift */; };
 		5089130E2CEE1C16639FC38D /* StatisticsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = BD62DCC01D3F9364CDEF6227 /* StatisticsView.swift */; };
+		55B423B346C96B7B4B632FC4 /* SelectiveMergeTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7292B0F647DB883BCB65821A /* SelectiveMergeTests.swift */; };
 		65C044C96DAA5EA28C9CA6B2 /* WalletSheetLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = ED8B35F4BB823471C09AD8FA /* WalletSheetLayout.swift */; };
 		671EBE78C9C86C012ED3A2F6 /* WebDAVBridgeService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 200646141CEE66C6830FEA09 /* WebDAVBridgeService.swift */; };
 		6F24906451BF1EEDBE53E652 /* LocalCredentialStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 916F8214D493FB5E9C681295 /* LocalCredentialStore.swift */; };
 		719D5E60E3CB62B356D99A1D /* WebDAVClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = C077E02FD8418BB708DC23A1 /* WebDAVClient.swift */; };
+		72447B65638866D9330AF281 /* CardSystemNotificationCenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6D7148A5FEBD67BEC81BDB02 /* CardSystemNotificationCenter.swift */; };
 		75FCAAA793B45D0849BF4962 /* CryptoTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B52D59276C9EA2F553833BFF /* CryptoTests.swift */; };
 		761306178F25FE49E1706893 /* CardBrandIcon.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9BBF5A7913BCD1BA08374BBB /* CardBrandIcon.swift */; };
 		76EF1F43E1E836D15227AF7E /* CardCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 3E685970EC231BE035E26E4B /* CardCatalog.swift */; };
@@ -93,8 +95,10 @@
 		580EA1E3A67161B26D4D2D97 /* CreditCardMac.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = CreditCardMac.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		6327E733DE12DD67E6D01419 /* WalletChoiceBar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalletChoiceBar.swift; sourceTree = "<group>"; };
 		67268BA4D55C80DC0A01BA35 /* WalletSettingsComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalletSettingsComponents.swift; sourceTree = "<group>"; };
+		6D7148A5FEBD67BEC81BDB02 /* CardSystemNotificationCenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardSystemNotificationCenter.swift; sourceTree = "<group>"; };
 		6D78F6898B832E20FE139291 /* WalletSyncHistoryList.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalletSyncHistoryList.swift; sourceTree = "<group>"; };
 		6DCB69F819080E42F97B875A /* BankNameNormalizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BankNameNormalizer.swift; sourceTree = "<group>"; };
+		7292B0F647DB883BCB65821A /* SelectiveMergeTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SelectiveMergeTests.swift; sourceTree = "<group>"; };
 		77D4AF75378164F64D7AC168 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		78703BAB79809F69FC1B7206 /* DataMigrationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataMigrationManager.swift; sourceTree = "<group>"; };
 		81059BDA44E164D05336B791 /* WalletTheme.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalletTheme.swift; sourceTree = "<group>"; };
@@ -155,6 +159,7 @@
 				B52D59276C9EA2F553833BFF /* CryptoTests.swift */,
 				3335A637AC44C646EB35A049 /* DateCalculatorTests.swift */,
 				82928716D0CC57C9723C86C7 /* LocalCredentialStoreTests.swift */,
+				7292B0F647DB883BCB65821A /* SelectiveMergeTests.swift */,
 				11DE89E980D44425757FB39C /* SyncMergeTests.swift */,
 				0E9639093BE181A9EE7B9774 /* WalletPresentationTests.swift */,
 			);
@@ -170,6 +175,7 @@
 				0E555810ACB0AA5D9423CBFF /* CardEditing.swift */,
 				F2438DA162090A1129CF9648 /* CardModels.swift */,
 				276AABF2B421826ACA061E12 /* CardStatistics.swift */,
+				6D7148A5FEBD67BEC81BDB02 /* CardSystemNotificationCenter.swift */,
 				F35E676918A1A88234F2037E /* CredentialReadCache.swift */,
 				C315C733366CF89A7169E701 /* CryptoManager.swift */,
 				78703BAB79809F69FC1B7206 /* DataMigrationManager.swift */,
@@ -360,6 +366,7 @@
 				75FCAAA793B45D0849BF4962 /* CryptoTests.swift in Sources */,
 				1F3651DDFEBC3E65FB001C41 /* DateCalculatorTests.swift in Sources */,
 				CC82B4FDCA61F8593ECD5D00 /* LocalCredentialStoreTests.swift in Sources */,
+				55B423B346C96B7B4B632FC4 /* SelectiveMergeTests.swift in Sources */,
 				198DE8DD44A93011E569BCB6 /* SyncMergeTests.swift in Sources */,
 				82BC80D1B76C82EB77B2317A /* WalletPresentationTests.swift in Sources */,
 			);
@@ -380,6 +387,7 @@
 				8ED96BF4A23D6AE89E140F67 /* CardModels.swift in Sources */,
 				388ACDA84E2C18829012583D /* CardPresentation.swift in Sources */,
 				500F2AEC296566F0521C063C /* CardStatistics.swift in Sources */,
+				72447B65638866D9330AF281 /* CardSystemNotificationCenter.swift in Sources */,
 				EBAF354C03FB20594CFB43ED /* ContentView.swift in Sources */,
 				2CD2CC652152FFAA2E7A7457 /* CredentialReadCache.swift in Sources */,
 				993C0ADB9F297F319223F488 /* CreditCardApp.swift in Sources */,

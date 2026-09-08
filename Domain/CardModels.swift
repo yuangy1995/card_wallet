@@ -1,7 +1,7 @@
 import Foundation
 
 /// 7大银行卡组织品牌枚举
-public enum CardBrand: String, Codable, CaseIterable {
+public enum CardBrand: String, Codable, CaseIterable, Sendable {
     case visa
     case mastercard
     case amex
@@ -81,7 +81,7 @@ public enum CardBrand: String, Codable, CaseIterable {
 }
 
 /// 跨端同步、真正进入主数据模型的卡片实体 (对应 Web 端 SharedCard 规范)
-public struct CardImageAsset: Codable, Identifiable, Hashable {
+public struct CardImageAsset: Codable, Identifiable, Hashable, Sendable {
     public var id: String
     public var mimeType: String
     public var data: String
@@ -106,7 +106,7 @@ public struct CardImageAsset: Codable, Identifiable, Hashable {
     }
 }
 
-public struct SharedCard: Codable, Identifiable, Hashable {
+public struct SharedCard: Codable, Identifiable, Hashable, Sendable {
     public var id: String
     public var cardCategory: String
     public var country: String
@@ -369,7 +369,7 @@ public struct CardAppMeta: Codable, Identifiable {
 }
 
 /// 分组方式选项
-public enum GroupOption: String, CaseIterable, Identifiable {
+public enum GroupOption: String, CaseIterable, Identifiable, Sendable {
     case none = "无分组"
     case bank = "按发卡行"
     case brand = "按卡组织"
@@ -390,7 +390,7 @@ public enum GroupOption: String, CaseIterable, Identifiable {
 }
 
 /// 排序方式选项
-public enum SortOption: String, CaseIterable, Identifiable {
+public enum SortOption: String, CaseIterable, Identifiable, Sendable {
     case limitDesc = "额度从高到低"
     case limitAsc = "额度从低到高"
     case daysDesc = "免息期从长到短"

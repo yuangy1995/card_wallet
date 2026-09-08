@@ -1,13 +1,13 @@
 import Foundation
 
-enum CardCategoryFilter: String, CaseIterable, Identifiable {
+enum CardCategoryFilter: String, CaseIterable, Identifiable, Sendable {
     case all = "全部"
     case credit = "信用卡"
     case debit = "储蓄卡"
     var id: String { rawValue }
 }
 
-struct CardCatalogItem: Identifiable {
+struct CardCatalogItem: Identifiable, Sendable {
     var id: String { card.id }
     let card: SharedCard
     let brand: CardBrand
@@ -29,7 +29,7 @@ struct CardCatalogItem: Identifiable {
     }
 }
 
-struct CardCatalogQuery: Equatable {
+struct CardCatalogQuery: Equatable, Sendable {
     var search = ""
     var bank = ""
     var category: CardCategoryFilter = .all
@@ -37,7 +37,7 @@ struct CardCatalogQuery: Equatable {
     var sort: SortOption = .limitDesc
 }
 
-struct CardCatalogGroup: Identifiable {
+struct CardCatalogGroup: Identifiable, Sendable {
     let id: String
     let title: String
     let items: [CardCatalogItem]

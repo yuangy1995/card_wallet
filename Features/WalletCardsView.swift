@@ -23,6 +23,9 @@ struct AllCardsView: View {
     @AppStorage("wallet_card_layout") private var layout = "list"
     @State private var preparedCards: [CardCatalogItem] = []
     @State private var groups: [CardCatalogGroup] = []
+    @State private var catalogTask: Task<Void, Never>?
+    @State private var needsPreparation = true
+    @State private var isPreparingCatalog = true
     @State private var collapsedGroups: Set<String> = []
     @State private var selectedCardIDs: Set<String> = []
     @State private var isSelectionMode = false
@@ -45,7 +48,9 @@ struct AllCardsView: View {
                 searchBar
                 filters
                 if isSelectionMode { batchBar }
-                if groups.isEmpty {
+                if groups.isEmpty && isPreparingCatalog && !cards.isEmpty {
+                    ProgressView("正在整理卡片…").frame(maxWidth: .infinity, maxHeight: .infinity)
+                } else if groups.isEmpty {
                     ContentUnavailableView {
                         Label(cards.isEmpty ? "还没有卡片" : "没有找到卡片", systemImage: "creditcard")
                     } description: {
@@ -92,6 +97,7 @@ struct AllCardsView: View {
         .onChange(of: cards) { _, _ in prepare() }
         .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged)) { _ in prepare() }
         .onChange(of: query) { _, _ in refreshGroups() }
+        .onDisappear { catalogTask?.cancel() }
         .task(id: searchFocusRequest) { if searchFocusRequest > 0 { searchFocused = true } }
         .sheet(isPresented: $showingBatchEditor) {
             MacBatchEditView(selectedCount: selectedCardIDs.count) { request in
@@ -276,14 +282,30 @@ struct AllCardsView: View {
     }
 
     private func prepare() {
-        preparedCards = cards.map(CardCatalogItem.init)
+        needsPreparation = true
         selectedCardIDs.formIntersection(Set(cards.map(\.id)))
         refreshGroups()
     }
     private func refreshGroups() {
-        groups = CardCatalog.groups(items: preparedCards, query: query)
-        collapsedGroups.formIntersection(Set(groups.map(\.id)))
-        if !visibleItems.contains(where: { $0.id == selectedCardID }) { selectedCardID = visibleItems.first?.id }
+        catalogTask?.cancel()
+        isPreparingCatalog = true
+        let cardsSnapshot = cards
+        let cachedItems = preparedCards
+        let querySnapshot = query
+        let rebuildItems = needsPreparation
+        catalogTask = Task { @MainActor in
+            let result = await Task.detached(priority: .userInitiated) {
+                let items = rebuildItems ? cardsSnapshot.map(CardCatalogItem.init) : cachedItems
+                return (items, CardCatalog.groups(items: items, query: querySnapshot))
+            }.value
+            guard !Task.isCancelled else { return }
+            preparedCards = result.0
+            groups = result.1
+            needsPreparation = false
+            isPreparingCatalog = false
+            collapsedGroups.formIntersection(Set(groups.map(\.id)))
+            if !visibleItems.contains(where: { $0.id == selectedCardID }) { selectedCardID = visibleItems.first?.id }
+        }
     }
     private func addCard() { cardEditRequest = CardEditRequest(mode: "add", card: nil, cardCategory: cardCategoryFilter == .debit ? "debit" : "credit") }
     private func edit(_ card: SharedCard) { cardEditRequest = CardEditRequest(mode: "edit", card: card) }

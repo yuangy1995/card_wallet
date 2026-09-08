@@ -3430,6 +3430,16 @@
         }
       }
     },
+    "正在整理卡片…" : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "正在整理卡片…"
+          }
+        }
+      }
+    },
     "正在检查云盘连接与读写权限…" : {
       "localizations" : {
         "zh-Hant" : {

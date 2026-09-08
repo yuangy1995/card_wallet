@@ -22,6 +22,7 @@ SwiftUI 的 macOS 原生卡包客户端，用于本地管理信用卡和储蓄�
 - 首次升级：读取旧钥匙串凭证，完整写入本地后才标记迁移成功。可能需要系统授权；拒绝后不重复自动申请，可在锁屏主动重试。旧钥匙串记录不会被删除，迁移成功后不再访问。旧版本的本地加密文件也可读取。
 - 云同步：`SyncCoordinator` 只协调本地账本和 WebDAV bridge；已移除 Apple 私有云同步及其权限。旧账本中的额外字段会被忽略，卡片和 WebDAV 状态仍可读取。
 - WebDAV：`WebDAVBridgeService` 使用 SyncV4 自动快照，文件名包含 `[SyncV4][Mac][自]`。
+- 性能：连续本地修改在 0.8 秒内合并触发上传，同步快照在后台准备和加密；系统通知刷新延迟 0.4 秒合并、排程在后台计算；卡片分组排序后台执行并丢弃过时结果，保留已有预计算缓存。锁定时取消尚未触发的上传和通知刷新。
 
 ## 关键数据规则
 
@@ -63,11 +64,12 @@ brew install xcodegen
 ```bash
 xcodegen generate
 xcodebuild -project CreditCardMac.xcodeproj -scheme CreditCardMac \
+  -configuration Release ENABLE_TESTABILITY=YES \
   -destination 'platform=macOS,arch=arm64' -parallel-testing-enabled NO \
   test CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_ENTITLEMENTS=''
 ```
 
-回归测试覆盖日期、加密、同步合并，以及共享额度、卡片编辑、年费确认、同步状态脱敏、CSV 导出、皮肤偏好、缓存清理边界、本地凭证加密、旧凭证迁移和授权拒绝后的重试。真实 WebDAV 和 Touch ID 需使用对应账户及设备另行验证。
+回归测试覆盖日期、加密、同步合并，以及共享额度、卡片编辑、年费确认、同步状态脱敏、CSV 导出、皮肤偏好、缓存清理边界、本地凭证加密、旧凭证迁移、授权拒绝后的重试和后台处理结果一致性。完整同步密文测试包含密钥派生运算，建议按上述 Release 配置运行；Debug 未优化构建会明显更慢。真实 WebDAV 和 Touch ID 需使用对应账户及设备另行验证。
 
 ## 调试提示
 

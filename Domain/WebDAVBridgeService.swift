@@ -83,6 +83,13 @@ public final class WebDAVBridgeService: ObservableObject {
     private static let syncHistoryKey = "webdav_bridge_sync_history_v1"
     private static let progressUIUpdateInterval: TimeInterval = 0.25
 
+    private struct PreparedWebDAVUpload {
+        let snapshot: WebDAVSyncSnapshotV4
+        let filename: String
+        let cipherText: String
+        let uploadSize: Int64
+    }
+
     public var isEnabled: Bool {
         UserDefaults.standard.object(forKey: "enable_webdav_bridge") as? Bool ?? true
     }
@@ -369,33 +376,85 @@ public final class WebDAVBridgeService: ObservableObject {
             completeWithError("请先在 WebDAV 设置中填写同步密钥")
             return
         }
-        let snapshot = WebDAVSyncSnapshotV4(source: "macos", records: records)
-        guard let data = try? JSONEncoder().encode(snapshot),
-              let json = String(data: data, encoding: .utf8),
-              let cipherText = try? CryptoManager.encryptSyncEnvelopeV4(plainText: json, password: syncPassword) else {
-            completeWithError("同步数据准备失败")
-            return
+
+        updateProgress(
+            "保存云端",
+            step: 4,
+            total: 5,
+            detail: "正在准备加密同步快照",
+            totalBytes: nil,
+            transferredBytes: 0
+        )
+
+        DispatchQueue.global(qos: .utility).async { [weak self] in
+            let preparedUpload: PreparedWebDAVUpload?
+            do {
+                let snapshot = WebDAVSyncSnapshotV4(source: "macos", records: records)
+                let data = try JSONEncoder().encode(snapshot)
+                guard let json = String(data: data, encoding: .utf8) else {
+                    throw CryptoError.utf8DecodingFailed
+                }
+                let cipherText = try CryptoManager.encryptSyncEnvelopeV4(plainText: json, password: syncPassword)
+                let formatter = DateFormatter()
+                formatter.dateFormat = "yyyy-MM-dd-HH-mm-ss-SSS"
+                let filename = "\(formatter.string(from: Date()))---(\(CardSyncMergeEngine.activeCards(from: records).count))[SyncV4][Mac][自].json"
+                preparedUpload = PreparedWebDAVUpload(
+                    snapshot: snapshot,
+                    filename: filename,
+                    cipherText: cipherText,
+                    uploadSize: Int64(cipherText.data(using: .utf8)?.count ?? 0)
+                )
+            } catch {
+                preparedUpload = nil
+            }
+
+            DispatchQueue.main.async {
+                guard let self else { return }
+                guard let prepared = preparedUpload else {
+                    self.completeWithError("同步数据准备失败")
+                    return
+                }
+                self.uploadPreparedSnapshot(
+                    prepared,
+                    records: records,
+                    downloadedSnapshots: downloadedSnapshots,
+                    listedFiles: listedFiles,
+                    startedAt: syncStarted,
+                    downloadedFiles: downloadedFiles,
+                    localChanges: localChanges,
+                    remoteChanges: remoteChanges
+                )
+            }
         }
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyy-MM-dd-HH-mm-ss-SSS"
-        let filename = "\(formatter.string(from: Date()))---(\(CardSyncMergeEngine.activeCards(from: records).count))[SyncV4][Mac][自].json"
-        let uploadSize = Int64(cipherText.data(using: .utf8)?.count ?? 0)
+    }
+
+    private func uploadPreparedSnapshot(
+        _ prepared: PreparedWebDAVUpload,
+        records: [CardSyncRecord],
+        downloadedSnapshots: [WebDAVSyncSnapshotV4],
+        listedFiles: [WebDAVBackupFile],
+        startedAt syncStarted: Date,
+        downloadedFiles: [String],
+        localChanges: [SyncCardChangeDetail],
+        remoteChanges: [SyncCardChangeDetail]
+    ) {
         updateProgress(
             "保存云端",
             step: 4,
             total: 5,
             detail: "正在上传合并后的加密快照",
-            totalBytes: uploadSize,
+            totalBytes: prepared.uploadSize,
             transferredBytes: 0
         )
+
         let uploadProgressTimeBox = ProgressTimeBox()
         WebDAVClient.shared.uploadBackup(
-            filename: filename,
-            cipherText: cipherText,
+            filename: prepared.filename,
+            cipherText: prepared.cipherText,
             onProgress: { [weak self] bytesSent in
-                let currentBytes = min(uploadSize, max(0, bytesSent))
+                let currentBytes = min(prepared.uploadSize, max(0, bytesSent))
                 let now = Date().timeIntervalSinceReferenceDate
-                guard currentBytes >= uploadSize || now - uploadProgressTimeBox.value >= Self.progressUIUpdateInterval else {
+                guard currentBytes >= prepared.uploadSize || now - uploadProgressTimeBox.value >= Self.progressUIUpdateInterval else {
                     return
                 }
                 uploadProgressTimeBox.value = now
@@ -405,7 +464,7 @@ public final class WebDAVBridgeService: ObservableObject {
                         step: 4,
                         total: 5,
                         detail: "正在上传合并后的加密快照",
-                        totalBytes: uploadSize,
+                        totalBytes: prepared.uploadSize,
                         transferredBytes: currentBytes
                     )
                 }
@@ -421,8 +480,8 @@ public final class WebDAVBridgeService: ObservableObject {
                     let latestRecords = CardSyncMergeEngine.merge([ledger.records, records])
                     ledger.records = latestRecords
                     ledger.processedWebDAVSnapshotIDs.formUnion(downloadedSnapshots.map(\.snapshotId))
-                    ledger.processedWebDAVSnapshotIDs.insert(snapshot.snapshotId)
-                    ledger.lastWebDAVSnapshotFilename = filename
+                    ledger.processedWebDAVSnapshotIDs.insert(prepared.snapshot.snapshotId)
+                    ledger.lastWebDAVSnapshotFilename = prepared.filename
                     ledger.pendingWebDAVUpload = latestRecords != CardSyncMergeEngine.merge([records])
                     SyncLedgerStore.shared.save(ledger)
                     self.lastConvergenceAt = Date()
@@ -433,15 +492,15 @@ public final class WebDAVBridgeService: ObservableObject {
                         step: 5,
                         total: 5,
                         detail: self.statusDescription,
-                        totalBytes: uploadSize,
-                        transferredBytes: uploadSize
+                        totalBytes: prepared.uploadSize,
+                        transferredBytes: prepared.uploadSize
                     )
                     self.isSyncing = false
                     self.appendSyncHistory(
                         status: "success",
                         message: self.statusDescription,
                         startedAt: syncStarted,
-                        uploadedFile: filename,
+                        uploadedFile: prepared.filename,
                         downloadedFiles: downloadedFiles,
                         localChanges: localChanges,
                         remoteChanges: remoteChanges,
@@ -449,7 +508,7 @@ public final class WebDAVBridgeService: ObservableObject {
                     )
                     NotificationCenter.default.post(name: Notification.Name("CloudBackupsDidChange"), object: nil)
                     self.pruneAutomaticSnapshots(from: listedFiles + [
-                        WebDAVBackupFile(filename: filename, size: 0, lastModified: SyncTimestamp.now())
+                        WebDAVBackupFile(filename: prepared.filename, size: 0, lastModified: SyncTimestamp.now())
                     ])
                     self.runQueuedForceUploadIfNeeded()
                 }
