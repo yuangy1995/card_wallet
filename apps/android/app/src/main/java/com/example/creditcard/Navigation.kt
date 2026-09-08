@@ -1,0 +1,88 @@
+package com.example.creditcard
+
+import androidx.activity.compose.BackHandler
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.platform.LocalContext
+import androidx.navigation3.runtime.entryProvider
+import androidx.navigation3.runtime.rememberNavBackStack
+import androidx.navigation3.ui.NavDisplay
+import com.example.creditcard.ui.CardDetailScreen
+import com.example.creditcard.ui.CardFormScreen
+import com.example.creditcard.ui.main.MainScreen
+import com.example.creditcard.ui.main.ReminderDetailsPanel
+import com.example.creditcard.utils.CardReminderRules
+import com.example.creditcard.utils.SyncCoordinator
+import com.example.creditcard.utils.ThemeManager
+
+/**
+ * Android 原生 App 全局路由导航控制器
+ * 基于 Google 官方最新的 AndroidX Navigation3 打造，实现高效的页面解耦与路由跳转
+ */
+@Composable
+fun MainNavigation() {
+    val backStack = rememberNavBackStack(Main)
+    val popBackStack = {
+        if (backStack.size > 1) {
+            backStack.removeLastOrNull()
+        }
+    }
+
+    // 系统全面屏返回手势优先回退应用内导航栈，避免直接结束 Activity。
+    BackHandler(enabled = backStack.size > 1) {
+        popBackStack()
+    }
+
+    NavDisplay(
+        backStack = backStack,
+        onBack = popBackStack,
+        entryProvider = entryProvider {
+            
+            // 1. 卡包主界面路由
+            entry<Main> {
+                MainScreen(
+                    onItemClick = { navKey -> backStack.add(navKey) }
+                )
+            }
+
+            // 2. 卡片提醒独立页面，确保详情返回时回到提醒列表。
+            entry<CardReminders> {
+                val cards by SyncCoordinator.cardsFlow.collectAsState()
+                val isDark by ThemeManager.isDarkTheme.collectAsState()
+                val context = LocalContext.current
+                ReminderDetailsPanel(
+                    cards = cards,
+                    isDark = isDark,
+                    onBack = popBackStack,
+                    onCardClick = { id -> backStack.add(CardDetail(id)) },
+                    onConfirmAnnualFeeQualified = { card ->
+                        val updatedCard = CardReminderRules.confirmAnnualFeeQualified(card)
+                        SyncCoordinator.commitCardChange(context, updatedCard)
+                    }
+                )
+            }
+            
+            // 3. 卡片防窥详情界面路由
+            entry<CardDetail> { key ->
+                CardDetailScreen(
+                    cardId = key.cardId,
+                    onBack = popBackStack,
+                    onEdit = { id -> backStack.add(CardForm(id)) }
+                )
+            }
+            
+            // 4. 新建/修改信用卡表单路由
+            entry<CardForm> { key ->
+                CardFormScreen(
+                    cardId = key.cardId,
+                    prefillCardNumber = key.prefillCardNumber,
+                    prefillValid = key.prefillValid,
+                    initialCardCategory = key.cardCategory,
+                    onBack = popBackStack,
+                    onNavigateToDetail = { id -> backStack.add(CardDetail(id)) }
+                )
+            }
+        }
+    )
+}

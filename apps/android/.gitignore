@@ -1,0 +1,42 @@
+*.iml
+.gradle/
+.kotlin/
+/local.properties
+.idea/
+.vscode/
+.DS_Store
+build/
+**/build/
+/captures
+.externalNativeBuild
+.cxx
+local.properties
+
+# 专有打包产物目录
+/releases/
+
+# Android release artifacts
+*.apk
+*.aab
+*.ap_
+*.idsig
+outputs/
+
+# Local config and signing material
+.env
+.env.*
+!.env.example
+# *.jks
+*.keystore
+*.p12
+*.cer
+*.pem
+*.key
+keystore.properties
+signing.properties
+
+# Logs and temporary files
+*.log
+*.tmp
+*.bak
+*.backup
