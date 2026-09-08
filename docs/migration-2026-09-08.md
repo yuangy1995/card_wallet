@@ -39,8 +39,23 @@ GitHub 当前账户为 `yuangy1995`；旧 remote 中的 `qwertyuiop1995` 地址�
 | Web | 锁定依赖安装成功；10 个测试文件、54 项测试通过；生产构建通过 |
 | macOS | Debug 构建通过；Release 测试构建成功，61 项测试全部通过 |
 | Android | Debug APK 构建通过；3 个测试类、4 项单元测试全部通过 |
-| iOS | Xcode 可读取工程和 scheme；工程、Info.plist、entitlements 语法检查通过；完整构建受本机缺失 iOS 模拟器运行环境阻塞 |
+| iOS | 工程、Info.plist、entitlements 检查通过；安装运行环境后 `make ios-build` 通过；App 已安装到专用 iPhone 17 Pro 模拟器并成功打开卡包首页 |
+| GitHub | 私有仓库 `yuangy1995/credit_card`，默认分支 `main`；总项目及 5 个历史保留分支已推送，远端分支提交与本地核对一致 |
 
-iOS 已分别尝试 scheme 模拟器构建、直接使用模拟器 SDK 和不签名设备 SDK 构建。当前 Xcode 未安装可用的 iOS Simulator runtime，目的地选择或资源编译报错（`No available simulator runtimes`）。没有为通过检查而删除资源、修改部署目标或变更应用代码；安装对应 Xcode 的 iOS 组件后可重新执行 `make ios-build`。
+iOS 首次构建因本机没有模拟器运行环境而失败。经用户授权，已下载并安装 iOS 26.5（23F73，arm64），新建并启动“卡包调试 - iPhone 17 Pro”。在空白模拟器中安装、启动卡包，并确认显示“还没有银行卡”的首页；未导入真实卡片或配置真实云同步账户。原有的其他模拟器保留。
+
+验证机器为 Xcode 26.6（17F113）。其 `iphoneos26.5` SDK 实际版本为 26.5.1（23F81a），默认运行环境映射不能匹配已下载的 23F73。通过 Xcode 自带命令为这个特定 SDK build 设置本地映射后，工程的模拟器目的地和资源编译恢复正常：
+
+```bash
+xcrun simctl runtime match set iphoneos26.5 23F73 --sdkBuild 23F81a
+```
+
+这只是验证机器的配置，不修改项目文件，也不要求其他机器照搬。以后若为该 SDK 安装了默认匹配的运行环境，可恢复默认映射：
+
+```bash
+xcrun simctl runtime match set iphoneos26.5 --default --sdkBuild 23F81a
+```
+
+本次没有为通过构建而删除资源、修改部署目标或变更任何客户端的应用代码。
 
 真机操作、真实 WebDAV 同步及正式签名发布不在本次验证范围。
