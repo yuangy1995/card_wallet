@@ -50,6 +50,8 @@ if [ -f "$ICON_PNG" ]; then
     sips -s format png -z 512 512   "$ICON_PNG" --out "$ICON_SET/icon_256x256@2x.png" > /dev/null 2>&1
     sips -s format png -z 512 512   "$ICON_PNG" --out "$ICON_SET/icon_512x512.png" > /dev/null 2>&1
     sips -s format png -z 1024 1024 "$ICON_PNG" --out "$ICON_SET/icon_512x512@2x.png" > /dev/null 2>&1
+    sips -s format png -z 64 64 "$ICON_PNG" --out "Resources/Assets.xcassets/WalletLogo.imageset/wallet-logo.png" > /dev/null 2>&1
+    sips -s format png -z 128 128 "$ICON_PNG" --out "Resources/Assets.xcassets/WalletLogo.imageset/wallet-logo@2x.png" > /dev/null 2>&1
     echo -e "${GREEN}Asset Catalog 图标刷新完成。${NC}"
 fi
 
@@ -59,12 +61,8 @@ xcodegen generate
 
 # 3. 运行 xcodebuild 编译归档
 rm -rf build/CreditCardMac.xcarchive
-if [ "${CLOUDKIT_SIGNED_BUILD:-0}" = "1" ]; then
-    if [ -z "${DEVELOPMENT_TEAM:-}" ]; then
-        echo -e "${RED}CLOUDKIT_SIGNED_BUILD=1 时必须提供 DEVELOPMENT_TEAM，CloudKit 不能使用 ad-hoc 签名验证。${NC}"
-        exit 1
-    fi
-    echo -e "${YELLOW}正在生成带 CloudKit entitlement 的签名归档...${NC}"
+if [ -n "${DEVELOPMENT_TEAM:-}" ]; then
+    echo -e "${YELLOW}正在生成正式签名归档...${NC}"
     run_xcodebuild_archive xcodebuild archive \
         -project CreditCardMac.xcodeproj \
         -scheme CreditCardMac \
@@ -73,7 +71,7 @@ if [ "${CLOUDKIT_SIGNED_BUILD:-0}" = "1" ]; then
         DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" \
         CODE_SIGN_STYLE=Automatic
 else
-    echo -e "${YELLOW}正在编译离线归档；此产物不具备真实 iCloud/CloudKit 验证能力。${NC}"
+    echo -e "${YELLOW}正在编译本地运行版本...${NC}"
     run_xcodebuild_archive xcodebuild archive \
         -project CreditCardMac.xcodeproj \
         -scheme CreditCardMac \
@@ -94,8 +92,8 @@ if [ -d "$APP_PATH" ]; then
     rm -rf "$DIST_APP_PATH"
     cp -R "$APP_PATH" "$DIST_APP_PATH"
 
-    # 离线构建使用 Ad-Hoc 签名便于本地打开；CloudKit 签名归档不得被覆盖。
-    if [ "${CLOUDKIT_SIGNED_BUILD:-0}" != "1" ] && command -v codesign >/dev/null 2>&1; then
+    # 未提供开发团队时使用本地签名，不覆盖正式签名。
+    if [ -z "${DEVELOPMENT_TEAM:-}" ] && command -v codesign >/dev/null 2>&1; then
         echo -e "${GREEN}正在为可执行程序施加 Ad-Hoc 本地代码签名 (Ad-Hoc Code Signing)...${NC}"
         codesign --force --deep --sign - "$DIST_APP_PATH" > /dev/null 2>&1
         echo -e "${GREEN}本地临时自签名注入成功！${NC}"

@@ -19,14 +19,22 @@ public class AutoLockManager {
     
     private var lastActivityTime: Date = Date()
     private var inactivityTimer: Timer?
+    public private(set) var hasPassword = false
+    public private(set) var credentialAccessFailed = false
     
     private init() {
         // 💡 如果系统已保存防窥解锁密码，冷启动时必须默认处于锁屏状态，强制用户进行解锁
-        if hasPasswordSet() {
+        switch KeychainManager.loadResult(key: "app_lock_password") {
+        case .success(let password): hasPassword = password != nil
+        case .failure:
+            hasPassword = true // 拒绝系统授权不等于没有密码。
+            credentialAccessFailed = true
+        }
+        if hasPassword {
             self.isLocked = true
         }
         setupLifecycleListeners()
-        resetInactivityTimer()
+        if !isLocked { resetInactivityTimer() }
     }
     
     /// 重置用户闲置计时器（鼠标移动、按键点击等任何活跃交互时触发）
@@ -36,7 +44,7 @@ public class AutoLockManager {
         // 如果当前已经锁屏，不需要在活跃时解锁，由解锁凭证说了算
         if isLocked { return }
         
-        resetInactivityTimer()
+        if inactivityTimer == nil && hasPassword { resetInactivityTimer() }
     }
     
     /// 强制执行手动锁定 (对应 Web 端 manualLock)
@@ -50,8 +58,17 @@ public class AutoLockManager {
     
     /// 验证应用解锁密码
     public func unlock(password: String) -> Bool {
-        guard let savedPassword = KeychainManager.load(key: "app_lock_password") else {
+        KeychainManager.retryFailedReads()
+        let result = KeychainManager.loadResult(key: "app_lock_password")
+        guard case .success(let storedPassword) = result else {
+            credentialAccessFailed = true
+            return false
+        }
+        credentialAccessFailed = false
+        guard let savedPassword = storedPassword else {
             // 如果没设置过密码，直接放行
+            hasPassword = false
+            stopInactivityTimer()
             isLocked = false
             resetActivity()
             return true
@@ -68,23 +85,35 @@ public class AutoLockManager {
     }
     
     /// 校验是否已经设置了应用解锁密码
-    public var hasPassword: Bool {
-        return hasPasswordSet()
-    }
-    
     public func hasPasswordSet() -> Bool {
-        return KeychainManager.load(key: "app_lock_password") != nil
+        hasPassword
+    }
+
+    public func retryCredentialAccess() {
+        KeychainManager.retryFailedReads()
+        switch KeychainManager.loadResult(key: "app_lock_password") {
+        case .success(let password):
+            credentialAccessFailed = false
+            hasPassword = password != nil
+            if !hasPassword { isLocked = false; resetActivity() }
+        case .failure:
+            credentialAccessFailed = true
+        }
     }
     
     /// 设定应用解锁密码并保存至系统安全钥匙串
-    public func setPassword(_ password: String) {
-        KeychainManager.save(key: "app_lock_password", value: password)
+    @discardableResult
+    public func setPassword(_ password: String) -> Bool {
+        guard case .success = KeychainManager.save(key: "app_lock_password", value: password) else { return false }
+        hasPassword = true
         resetActivity()
+        return true
     }
     
     /// 一键清除解锁密码，关闭应用锁定功能
     public func removePassword() {
-        KeychainManager.delete(key: "app_lock_password")
+        guard KeychainManager.delete(key: "app_lock_password") else { return }
+        hasPassword = false
         DispatchQueue.main.async {
             self.isLocked = false
             self.stopInactivityTimer()

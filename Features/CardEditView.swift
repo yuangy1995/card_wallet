@@ -3,10 +3,19 @@ import AppKit
 import UniformTypeIdentifiers
 
 public struct CardEditView: View {
+    @Environment(\.walletPalette) private var palette
+    @Environment(\.walletAnimation) private var walletAnimation
+    @State private var didLoad = false
+    @State private var originalDraft: [String] = []
+    @State private var validationMessage = ""
+    @State private var imageImportError = ""
+    @State private var showingDiscardConfirmation = false
+    @State private var isImportingPhotoData = false
+    @State private var importTask: Task<Void, Never>?
     @Environment(\.dismiss) var dismiss
     
     // 监听自动锁定状态
-    @State private var lockManager = AutoLockManager.shared
+    @Environment(\.walletIsLocked) private var isLocked
     
     public var mode: String // "add" 或 "edit"
     public var cardToEdit: SharedCard?
@@ -48,8 +57,6 @@ public struct CardEditView: View {
     
     // 💡 共享额度联动提示
     @State private var existingSharedCard: SharedCard? = nil
-    @State private var isLimitFeeSectionExpanded = false
-    @State private var isBenefitSectionExpanded = false
     
     // 预置选项参考数据 (100% 完美同步 Vue 3 Web 端 referenceData.js 定义)
     let countries = [
@@ -102,7 +109,6 @@ public struct CardEditView: View {
         "First International Bank of Israel", "National Bank of Egypt", "Banque Misr", "Commercial International Bank", "QNB Alahli", "Banque du Caire",
         "Arab African International Bank"
     ]
-    let levels = CardLevelGroup.allValues
     let currencies = [
         "CNY", "CNH", "USD", "EUR", "GBP", "JPY", "HKD", "MOP", "TWD", "SGD",
         "AUD", "CAD", "CHF", "SEK", "DKK", "NOK", "NZD", "KRW", "THB", "MYR",
@@ -127,314 +133,245 @@ public struct CardEditView: View {
         cardCategory == "debit"
     }
     
-    private var cardCategoryTitle: String {
-        isDebitCard ? "储蓄卡" : "信用卡"
-    }
-    
+    @Environment(\.walletSheetSize) private var sheetSize
+
     public var body: some View {
-        ZStack {
-            if lockManager.isLocked {
-                // 💡 超时防窥锁屏罩层 (Sheet 内部屏障，防止 Sheet 浮在主锁屏之上导致数据泄露)
+        Group {
+            if isLocked {
                 LockScreenView()
-                    .transition(.opacity)
             } else {
-                NavigationStack {
-                    Form {
-                        // Section 1: 四个核心字段必填，其余字段可留空
-                        Section(header: Text("核心信息")) {
-                            Picker("卡类别", selection: $cardCategory) {
-                                Text("信用卡").tag("credit")
-                                Text("储蓄卡").tag("debit")
-                            }
-                            .pickerStyle(.segmented)
-                            .onChange(of: cardCategory) { _, _ in
-                                checkExistingSharedLimit()
-                            }
-                            
-                            EditableOptionField(
-                                title: "国家/地区 *",
-                                text: $country,
-                                options: countries
-                            )
-                            .onChange(of: country) { _, _ in
-                                checkExistingSharedLimit()
-                            }
-                            
-                            EditableOptionField(
-                                title: "发卡银行 *",
-                                text: $bank,
-                                options: banks
-                            )
-                            .onChange(of: bank) { _, _ in
-                                checkExistingSharedLimit()
-                            }
-                            
-                            HStack {
-                                TextField("银行卡号 *", text: $cardNumber, prompt: Text("输入 13-19 位银行卡号"))
-                                    .focused($focusedField, equals: .cardNumber)
-                                    .onChange(of: cardNumber) { _, newValue in
-                                        let cleaned = newValue.replacingOccurrences(of: " ", with: "")
-                                        let digitsOnly = String(cleaned.prefix(19)).replacingOccurrences(of: "\\D", with: "", options: .regularExpression)
-                                        self.cardNumber = formatCardNumber(digitsOnly)
-                                        checkExistingSharedLimit()
-                                    }
-                                
-                                CardBrandIcon(brand: CardBrand.detect(from: cardNumber, level: level))
-                                    .frame(width: 48)
-                            }
-                            
-                            TextField("卡片别名", text: $alias, prompt: Text("例如：网购卡/差旅卡"))
-                                .focused($focusedField, equals: .alias)
-                            
-                            TextField("有效期 *", text: $valid, prompt: Text("MM/YY 格式 (例如 08/29)"))
-                                .onChange(of: valid) { _, newValue in
-                                    self.valid = String(newValue.prefix(5))
-                                }
-                            
-                            SecureField("CVV 安全码", text: $cvv, prompt: Text("3-4位数字"))
-                                .focused($focusedField, equals: .cvv)
-                                .onChange(of: cvv) { _, newValue in
-                                    self.cvv = String(newValue.replacingOccurrences(of: "\\D", with: "", options: .regularExpression).prefix(4))
-                                }
-                            
-                            CardLevelPickerField(level: $level)
-                            
-                            if isDebitCard {
-                                EditableOptionField(
-                                    title: "币种",
-                                    text: $type,
-                                    options: currencies
-                                )
-                                .onChange(of: type) { _, _ in
-                                    checkExistingSharedLimit()
-                                }
-                            }
-                        }
-                        
-                        if !isDebitCard {
-                            DisclosureGroup("额度与年费", isExpanded: $isLimitFeeSectionExpanded) {
-                                EditableOptionField(
-                                    title: "币种",
-                                    text: $type,
-                                    options: currencies
-                                )
-                                
-                                Toggle("共享该行额度", isOn: $isSharedLimit)
-                                    .toggleStyle(.checkbox)
-                                    .onChange(of: isSharedLimit) { _, newValue in
-                                        if newValue {
-                                            checkExistingSharedLimit()
-                                        } else {
-                                            existingSharedCard = nil
-                                        }
-                                    }
-                                
-                                HStack {
-                                    Text("额度")
-                                    Spacer()
-                                    TextField("额度", text: $limitText)
-                                        .focused($focusedField, equals: .limit)
-                                        .textFieldStyle(.roundedBorder)
-                                        .frame(width: 140)
-                                        .onChange(of: limitText) { _, newValue in
-                                            limitText = filterAmountInput(newValue)
-                                        }
-                                }
-                                
-                                if isSharedLimit && existingSharedCard != nil {
-                                    Text("共享联动：保存此额度时，同银行共享组中的其他信用卡也会一并自动同步更新该额度。")
-                                        .font(.system(size: 10))
-                                        .foregroundColor(.cyan)
-                                }
-                                
-                                HStack {
-                                    Text("年费金额")
-                                    Spacer()
-                                    TextField("年费", text: $annualFeeText)
-                                        .focused($focusedField, equals: .annualFee)
-                                        .textFieldStyle(.roundedBorder)
-                                        .frame(width: 140)
-                                        .onChange(of: annualFeeText) { _, newValue in
-                                            annualFeeText = filterAmountInput(newValue)
-                                        }
-                                }
-                                
-                                Picker("年费减免政策", selection: $isQualified) {
-                                    Text("未选择").tag("")
-                                    Text("未达标").tag("2")
-                                    Text("已达标").tag("1")
-                                    Text("终免年费").tag("3")
-                                }
-                                .pickerStyle(.segmented)
-                                .onChange(of: isQualified) { _, newValue in
-                                    isUltimateFreeFee = (newValue == "3")
-                                    if newValue == "3" {
-                                        nextAnnualFeeCollectionTime = nil
-                                    }
-                                }
-                                
-                                if !isUltimateFreeFee {
-                                    OptionalDatePickerRow(
-                                        title: "下次年费收取日",
-                                        date: $nextAnnualFeeCollectionTime
-                                    )
-                                }
-                                
-                                OptionalDatePickerRow(
-                                    title: "上次提额时间",
-                                    date: $lastTime
-                                )
-                            }
-                        }
-                        
-                        DisclosureGroup("权益与备注", isExpanded: $isBenefitSectionExpanded) {
+                VStack(spacing: 0) {
+                    WalletSheetHeader(title: mode == "edit" ? "编辑卡片" : "添加卡片",
+                                      subtitle: String(localized: "先填基本信息，其余内容可随时补充。"), icon: "creditcard") {
+                        Button(action: requestDismiss) { Image(systemName: "xmark") }
+                            .buttonStyle(.plain).help("关闭").accessibilityLabel("关闭")
+                    }
+                    ScrollView {
+                        VStack(spacing: 16) {
+                            basicFields
                             if !isDebitCard {
-                                HStack(spacing: 8) {
-                                    Text("账单日")
-                                    TextField("", text: $accountBillDate, prompt: Text("1-31"))
-                                        .focused($focusedField, equals: .billDate)
-                                        .textFieldStyle(.roundedBorder)
-                                        .frame(width: 50)
-                                        .multilineTextAlignment(.center)
-                                        .labelsHidden()
-                                    Text("号")
-                                    
-                                    Spacer()
-                                    
-                                    Text("还款日")
-                                    TextField("", text: $dueDate, prompt: Text("1-31"))
-                                        .focused($focusedField, equals: .dueDate)
-                                        .textFieldStyle(.roundedBorder)
-                                        .frame(width: 50)
-                                        .multilineTextAlignment(.center)
-                                        .labelsHidden()
-                                    Text("号")
-                                }
-                                .onChange(of: accountBillDate) { _, newValue in
-                                    self.accountBillDate = validateDateInput(newValue)
-                                }
-                                .onChange(of: dueDate) { _, newValue in
-                                    self.dueDate = validateDateInput(newValue)
-                                }
-                                
-                                Picker("账单日当天消费计入", selection: $billingDaySpendingToNextBill) {
-                                    Text("下期账单(享受超长免息)").tag(true)
-                                    Text("当期账单(适合尽快还款)").tag(false)
-                                }
-                                .pickerStyle(.radioGroup)
+                                limitFields
+                                billingFields
                             }
-                            
-                            TextField(isDebitCard ? "卡片权益说明" : "核心卡片权益说明", text: $equity, axis: .vertical)
-                                .focused($focusedField, equals: .equity)
-                                .lineLimit(3...5)
-                            
-                            TextField("个人专属备注", text: $remark, axis: .vertical)
-                                .focused($focusedField, equals: .remark)
-                                .lineLimit(2...4)
+                            noteFields
+                            imageFields
                         }
-
-                        Section(header: Text("🖼️ 卡片媒体文件")) {
-                            HStack {
-                                Button {
-                                    isImportingImages = true
-                                } label: {
-                                    Label("上传图片", systemImage: "photo.badge.plus")
-                                }
-                                Spacer()
-                                Text("\(cardImages.count) 张 · 总大小 \(formatFileSize(cardImages.reduce(0) { $0 + imageByteSize($1) }))")
-                                    .foregroundStyle(.secondary)
-                            }
-
-                            if cardImages.isEmpty {
-                                Text("暂无卡片图片。上传后，其他设备也可以查看这些图片。")
-                                    .font(.footnote)
-                                    .foregroundStyle(.secondary)
-                            } else {
-                                ScrollView(.horizontal, showsIndicators: false) {
-                                    HStack(spacing: 12) {
-                                        ForEach(cardImages) { image in
-                                            VStack(alignment: .leading, spacing: 6) {
-                                                if let nsImage = nsImage(from: image) {
-                                                    Image(nsImage: nsImage)
-                                                        .resizable()
-                                                        .scaledToFill()
-                                                        .frame(width: 170, height: 108)
-                                                        .clipShape(RoundedRectangle(cornerRadius: 8))
-                                                        .overlay(
-                                                            RoundedRectangle(cornerRadius: 8)
-                                                                .stroke(.secondary.opacity(0.25), lineWidth: 1)
-                                                        )
-                                                } else {
-                                                    RoundedRectangle(cornerRadius: 8)
-                                                        .fill(.secondary.opacity(0.15))
-                                                        .frame(width: 170, height: 108)
-                                                        .overlay(Text("无法预览").font(.footnote).foregroundStyle(.secondary))
-                                                }
-
-                                                HStack {
-                                                    Text(image.name.isEmpty ? image.source : image.name)
-                                                        .font(.caption)
-                                                        .lineLimit(1)
-                                                        .truncationMode(.middle)
-                                                    Spacer()
-                                                    Button(role: .destructive) {
-                                                        cardImages.removeAll { $0.id == image.id }
-                                                    } label: {
-                                                        Image(systemName: "trash")
-                                                    }
-                                                    .buttonStyle(.borderless)
-                                                }
-                                                .frame(width: 170)
-
-                                                Text("上传时间 \(formatImageUploadTime(image.createdAt))")
-                                                    .font(.caption2)
-                                                    .foregroundStyle(.secondary)
-                                                    .lineLimit(1)
-                                                Text("文件大小 \(formatFileSize(imageByteSize(image)))")
-                                                    .font(.caption2)
-                                                    .foregroundStyle(.secondary)
-                                            }
-                                        }
-                                    }
-                                    .padding(.vertical, 4)
-                                }
-                            }
-                        }
+                        .padding(22)
                     }
-                    .formStyle(.grouped)
-                    .navigationTitle((mode == "edit" || cardToEdit != nil) ? "编辑\(cardCategoryTitle)信息" : "新增\(cardCategoryTitle)")
-                    .toolbar {
-                        ToolbarItem(placement: .cancellationAction) {
-                            Button("取消") {
-                                dismiss()
-                            }
-                            .keyboardShortcut(.cancelAction)
-                        }
-                        ToolbarItem(placement: .confirmationAction) {
-                            Button("确定") {
-                                saveCard()
-                            }
-                            .keyboardShortcut(.defaultAction)
-                        }
-                    }
-                    .onAppear {
+                    .scrollContentBackground(.hidden)
+                    editorFooter
+                }
+                .onAppear {
+                    if !didLoad {
                         loadInitialData()
-                        focusedField = .cardNumber // 打开时默认激活卡号焦点，顺手！
+                        originalDraft = draftSnapshot
+                        didLoad = true
+                        focusedField = .cardNumber
                     }
-                    .fileImporter(
-                        isPresented: $isImportingImages,
-                        allowedContentTypes: [.image],
-                        allowsMultipleSelection: true
-                    ) { result in
-                        if case let .success(urls) = result {
-                            importImageFiles(urls)
+                }
+                .fileImporter(isPresented: $isImportingImages, allowedContentTypes: [.image], allowsMultipleSelection: true) { result in
+                    if case let .success(urls) = result { importImageFiles(urls) }
+                }
+            }
+        }
+        .modifier(WalletThemeModifier())
+        .animation(walletAnimation, value: isLocked)
+        .interactiveDismissDisabled(hasUnsavedChanges)
+        .alert("放弃这次修改？", isPresented: $showingDiscardConfirmation) {
+            Button("继续编辑", role: .cancel) {}
+            Button("放弃修改", role: .destructive) { dismiss() }
+        } message: { Text("尚未保存的内容将丢失，已有卡片不会改变。") }
+        .onChange(of: draftSnapshot) { _, _ in validationMessage = "" }
+        .onDisappear { importTask?.cancel() }
+        .frame(width: sheetSize.width, height: sheetSize.height)
+    }
+
+    private var basicFields: some View {
+        WalletFormSection(title: "基本信息", icon: "creditcard") {
+            WalletChoiceBar(title: "卡类别", selection: $cardCategory, choices: [
+                WalletChoice(value: "credit", title: "信用卡"), WalletChoice(value: "debit", title: "储蓄卡")
+            ])
+            .onChange(of: cardCategory) { _, _ in checkExistingSharedLimit() }
+
+            HStack(alignment: .top, spacing: 18) {
+                EditableOptionField(title: "国家/地区 *", text: $country, options: countries)
+                    .onChange(of: country) { _, _ in checkExistingSharedLimit() }
+                EditableOptionField(title: "发卡银行 *", text: $bank, options: banks)
+                    .onChange(of: bank) { _, _ in checkExistingSharedLimit() }
+            }
+            if let previous = cardToEdit, bank != previous.bank,
+               existingCards.contains(where: { $0.id != previous.id && BankNameNormalizer.namesReferToSameBank($0.bank, previous.bank) }) {
+                Text("保存后，同银行的其他卡片也会使用这个银行名称。").font(.caption).foregroundStyle(palette.warning)
+            }
+            WalletFormField(title: "银行卡号 *") {
+                HStack(spacing: 10) {
+                    TextField("银行卡号", text: $cardNumber, prompt: Text("输入 13–19 位银行卡号"))
+                        .focused($focusedField, equals: .cardNumber)
+                        .onChange(of: cardNumber) { _, newValue in
+                            cardNumber = formatCardNumber(String(newValue.filter(\.isNumber).prefix(19)))
+                            checkExistingSharedLimit()
+                        }
+                    CardBrandIcon(brand: CardBrand.detect(from: cardNumber, level: level)).frame(width: 40)
+                }
+            }
+            HStack(alignment: .top, spacing: 18) {
+                WalletFormField(title: "卡片别名") {
+                    TextField("卡片别名", text: $alias, prompt: Text("例如：日常消费卡"))
+                        .focused($focusedField, equals: .alias)
+                }
+                WalletFormField(title: "有效期 *") {
+                    TextField("有效期", text: $valid, prompt: Text("MM/YY，例如 08/29"))
+                        .onChange(of: valid) { _, newValue in valid = String(newValue.prefix(5)) }
+                }
+                WalletFormField(title: "CVV 安全码") {
+                    SecureField("CVV 安全码", text: $cvv, prompt: Text("3–4 位数字"))
+                        .focused($focusedField, equals: .cvv)
+                        .onChange(of: cvv) { _, newValue in cvv = String(newValue.filter(\.isNumber).prefix(4)) }
+                }
+            }
+            CardLevelPickerField(level: $level)
+            if isDebitCard {
+                EditableOptionField(title: "币种", text: $type, options: currencies)
+            }
+        }
+    }
+
+    private var limitFields: some View {
+        WalletFormSection(title: "额度与年费", icon: "yensign.circle") {
+            HStack(alignment: .top, spacing: 18) {
+                EditableOptionField(title: "币种", text: $type, options: currencies)
+                    .onChange(of: type) { _, _ in checkExistingSharedLimit() }
+                WalletFormField(title: "信用额度") {
+                    TextField("信用额度", text: $limitText, prompt: Text("选填"))
+                        .focused($focusedField, equals: .limit)
+                        .onChange(of: limitText) { _, value in limitText = filterAmountInput(value) }
+                }
+                if !isUltimateFreeFee { WalletFormField(title: "年费金额") {
+                    TextField("年费金额", text: $annualFeeText, prompt: Text("选填"))
+                        .focused($focusedField, equals: .annualFee)
+                        .onChange(of: annualFeeText) { _, value in annualFeeText = filterAmountInput(value) }
+                } }
+            }
+            Toggle("共享该行额度", isOn: $isSharedLimit)
+                .toggleStyle(.checkbox)
+                .onChange(of: isSharedLimit) { _, _ in checkExistingSharedLimit() }
+            if isSharedLimit && existingSharedCard != nil {
+                Text("保存后，同银行、地区和币种的共享卡片会一起更新额度。").font(.caption).foregroundStyle(palette.accent)
+            }
+            WalletChoiceBar(title: "年费减免政策", selection: $isQualified, choices: [
+                WalletChoice(value: "", title: "未选择"), WalletChoice(value: "2", title: "未达标"),
+                WalletChoice(value: "1", title: "已达标"), WalletChoice(value: "3", title: "终免年费")
+            ], showsTitle: true)
+            .onChange(of: isQualified) { _, value in
+                isUltimateFreeFee = value == "3"
+                if isUltimateFreeFee { nextAnnualFeeCollectionTime = nil }
+            }
+            HStack(alignment: .top, spacing: 18) {
+                if !isUltimateFreeFee {
+                    OptionalDatePickerRow(title: "下次年费收取日", date: $nextAnnualFeeCollectionTime)
+                }
+                OptionalDatePickerRow(title: "上次提额时间", date: $lastTime)
+            }
+        }
+    }
+
+    private var billingFields: some View {
+        WalletFormSection(title: "账单与还款", icon: "calendar") {
+            HStack(alignment: .top, spacing: 18) {
+                WalletFormField(title: "账单日") {
+                    TextField("账单日", text: $accountBillDate, prompt: Text("每月 1–31 日"))
+                        .focused($focusedField, equals: .billDate)
+                        .onChange(of: accountBillDate) { _, value in accountBillDate = validateDateInput(value) }
+                }
+                WalletFormField(title: "还款日") {
+                    TextField("还款日", text: $dueDate, prompt: Text("每月 1–31 日"))
+                        .focused($focusedField, equals: .dueDate)
+                        .onChange(of: dueDate) { _, value in dueDate = validateDateInput(value) }
+                }
+            }
+            WalletChoiceBar(title: "账单日当天消费计入", selection: $billingDaySpendingToNextBill, choices: [
+                WalletChoice(value: true, title: "下一期账单"), WalletChoice(value: false, title: "当期账单")
+            ], showsTitle: true)
+        }
+    }
+
+    private var noteFields: some View {
+        WalletFormSection(title: "权益与备注", icon: "text.alignleft") {
+            WalletFormField(title: "卡片权益") {
+                TextField("卡片权益", text: $equity, prompt: Text("例如：积分、出行礼遇"), axis: .vertical)
+                    .focused($focusedField, equals: .equity).lineLimit(2...4)
+            }
+            WalletFormField(title: "个人备注") {
+                TextField("个人备注", text: $remark, prompt: Text("记录使用习惯或注意事项"), axis: .vertical)
+                    .focused($focusedField, equals: .remark).lineLimit(2...4)
+            }
+        }
+    }
+
+    private var imageFields: some View {
+        WalletFormSection(title: "卡片图片", icon: "photo.on.rectangle") {
+            HStack {
+                Text("\(cardImages.count) 张 · 总大小 \(formatFileSize(cardImages.reduce(0) { $0 + imageByteSize($1) }))")
+                    .font(.caption).foregroundStyle(.secondary)
+                Spacer()
+                Button { isImportingImages = true } label: {
+                    Label(isImportingPhotoData ? "正在添加图片" : "添加图片", systemImage: "photo.badge.plus")
+                }.disabled(isImportingPhotoData)
+            }
+            if cardImages.isEmpty {
+                Text("可以添加卡片照片，方便日后查看。").font(.caption).foregroundStyle(.secondary)
+            } else {
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 12) {
+                        ForEach(cardImages) { image in
+                            VStack(alignment: .leading, spacing: 6) {
+                                CardImageView(asset: image, pixels: 340).frame(width: 150, height: 94)
+                                HStack {
+                                    Text(image.name.isEmpty ? String(localized: "卡片图片") : image.name)
+                                        .font(.caption).lineLimit(1).truncationMode(.middle)
+                                    Spacer()
+                                    Button(role: .destructive) { cardImages.removeAll { $0.id == image.id } } label: {
+                                        Image(systemName: "trash")
+                                    }
+                                    .buttonStyle(.borderless).help("移除图片").accessibilityLabel("移除图片")
+                                }.frame(width: 150)
+                                Text(formatFileSize(imageByteSize(image))).font(.caption2).foregroundStyle(.secondary)
+                            }
                         }
                     }
                 }
             }
         }
-        .animation(.easeInOut(duration: 0.3), value: lockManager.isLocked)
-        .frame(minWidth: 550, minHeight: 650)
+    }
+
+    private var editorFooter: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            if !validationMessage.isEmpty || !imageImportError.isEmpty {
+                Label(validationMessage.isEmpty ? imageImportError : validationMessage, systemImage: "exclamationmark.circle")
+                    .font(.caption).foregroundStyle(validationMessage.isEmpty ? palette.warning : .red)
+                    .accessibilityAddTraits(.updatesFrequently)
+            }
+            HStack {
+                Label("仅在保存后更新卡片", systemImage: "lock").font(.caption).foregroundStyle(.secondary)
+                Spacer()
+                Button("取消", action: requestDismiss).keyboardShortcut(.cancelAction)
+                Button("保存卡片", action: saveCard)
+                    .buttonStyle(.borderedProminent).disabled(isImportingPhotoData).keyboardShortcut(.defaultAction)
+            }
+        }
+        .padding(.horizontal, 22).padding(.vertical, 16)
+        .background(palette.surface.opacity(0.4))
+        .overlay(alignment: .top) { palette.line.frame(height: 1) }
+    }
+
+    private var draftSnapshot: [String] {
+        [country, cardCategory, bank, cardNumber, alias, level, type, limitText, cvv, valid, annualFeeText, isQualified,
+         nextAnnualFeeCollectionTime.map { String(Calendar.current.startOfDay(for: $0).timeIntervalSince1970) } ?? "", lastTime.map { String(Calendar.current.startOfDay(for: $0).timeIntervalSince1970) } ?? "",
+         accountBillDate, dueDate, String(billingDaySpendingToNextBill), equity, remark, String(isSharedLimit)] + cardImages.map(\.id)
+    }
+    private var hasUnsavedChanges: Bool { didLoad && draftSnapshot != originalDraft }
+    private func requestDismiss() {
+        if hasUnsavedChanges { showingDiscardConfirmation = true } else { dismiss() }
     }
     
     // 初始化加载数据
@@ -448,18 +385,18 @@ public struct CardEditView: View {
         cardCategory = card.cardCategory == "debit" ? "debit" : "credit"
         country = card.country
         bank = card.bank
-        cardNumber = card.cardNumber
+        cardNumber = formatCardNumber(String(card.cardNumber.filter(\.isNumber).prefix(19)))
         alias = card.alias ?? ""
         level = CardLevelGroup.normalize(card.level ?? "")
         type = card.type ?? ""
         limitText = formatEditableAmount(card.limit)
-        cvv = card.cvv ?? ""
-        valid = card.valid ?? ""
+        cvv = String((card.cvv ?? "").filter(\.isNumber).prefix(4))
+        valid = String((card.valid ?? "").prefix(5))
         annualFeeText = formatEditableAmount(card.annualFee)
         isQualified = card.isQualified ?? ""
         isUltimateFreeFee = (isQualified == "3")
         
-        if let date = DateCalculator.date(fromTimestamp: card.nextAnnualFeeCollectionTime) {
+        if !isUltimateFreeFee, let date = DateCalculator.date(fromTimestamp: card.nextAnnualFeeCollectionTime) {
             nextAnnualFeeCollectionTime = date
         } else {
             nextAnnualFeeCollectionTime = nil
@@ -470,8 +407,8 @@ public struct CardEditView: View {
             lastTime = nil
         }
         
-        accountBillDate = card.accountBillDate ?? ""
-        dueDate = card.dueDate ?? ""
+        accountBillDate = validateDateInput(card.accountBillDate ?? "")
+        dueDate = validateDateInput(card.dueDate ?? "")
         billingDaySpendingToNextBill = card.billingDaySpendingToNextBill
         equity = card.equity ?? ""
         remark = card.remark ?? ""
@@ -568,26 +505,32 @@ public struct CardEditView: View {
     
     private func saveCard() {
         guard !country.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            validationMessage = String(localized: "请填写国家或地区。")
             return
         }
         guard !bank.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            validationMessage = String(localized: "请填写发卡银行。")
             return
         }
         
         // 卡号基本验证
         let cleanNumber = cardNumber.replacingOccurrences(of: " ", with: "")
         guard cleanNumber.count >= 13 && cleanNumber.count <= 19 else {
+            validationMessage = String(localized: "请填写十三到十九位银行卡号。")
             focusedField = .cardNumber
             return
         }
         guard isValidExpiry(valid) else {
+            validationMessage = String(localized: "请按月月/年年填写有效期，例如 08/29。")
             return
         }
         guard isDebitCard || limitText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || parseAmount(limitText) != nil else {
+            validationMessage = String(localized: "请填写有效的信用额度。")
             focusedField = .limit
             return
         }
         guard isDebitCard || annualFeeText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || parseAmount(annualFeeText) != nil else {
+            validationMessage = String(localized: "请填写有效的年费金额。")
             focusedField = .annualFee
             return
         }
@@ -629,75 +572,26 @@ public struct CardEditView: View {
     }
 
     private func importImageFiles(_ urls: [URL]) {
-        let imported = urls.compactMap { makeCardImageAsset(from: $0) }
-        guard !imported.isEmpty else { return }
-        cardImages.append(contentsOf: imported)
-    }
-
-    private func makeCardImageAsset(from url: URL) -> CardImageAsset? {
-        let didAccess = url.startAccessingSecurityScopedResource()
-        defer {
-            if didAccess {
-                url.stopAccessingSecurityScopedResource()
-            }
+        isImportingPhotoData = true
+        imageImportError = ""
+        importTask?.cancel()
+        importTask = Task {
+            let imported = await Task.detached(priority: .utility) { CardImageImporter.read(urls) }.value
+            guard !Task.isCancelled else { return }
+            cardImages.append(contentsOf: imported)
+            isImportingPhotoData = false
+            if imported.count != urls.count { imageImportError = String(localized: "部分图片未能添加，请检查文件后重试。") }
         }
-
-        guard let payload = normalizedImagePayload(from: url) else { return nil }
-        return CardImageAsset(
-            mimeType: payload.mimeType,
-            data: "data:\(payload.mimeType);base64,\(payload.data.base64EncodedString())",
-            source: "mac_upload",
-            name: url.lastPathComponent
-        )
-    }
-
-    private func normalizedImagePayload(from url: URL) -> (data: Data, mimeType: String)? {
-        guard let image = NSImage(contentsOf: url) else {
-            guard let raw = try? Data(contentsOf: url) else { return nil }
-            return (raw, UTType(filenameExtension: url.pathExtension)?.preferredMIMEType ?? "image/jpeg")
-        }
-
-        let maxEdge: CGFloat = 1600
-        let scale = min(1, maxEdge / max(image.size.width, image.size.height))
-        let targetSize = NSSize(width: max(1, image.size.width * scale), height: max(1, image.size.height * scale))
-        let resized = NSImage(size: targetSize)
-        resized.lockFocus()
-        image.draw(in: NSRect(origin: .zero, size: targetSize), from: .zero, operation: .copy, fraction: 1)
-        resized.unlockFocus()
-
-        guard
-            let tiff = resized.tiffRepresentation,
-            let bitmap = NSBitmapImageRep(data: tiff),
-            let jpeg = bitmap.representation(using: .jpeg, properties: [.compressionFactor: 0.84])
-        else {
-            return nil
-        }
-        return (jpeg, "image/jpeg")
-    }
-
-    private func nsImage(from asset: CardImageAsset) -> NSImage? {
-        let base64 = asset.data.components(separatedBy: "base64,").last ?? asset.data
-        guard let data = Data(base64Encoded: base64) else { return nil }
-        return NSImage(data: data)
     }
 
     private func imageByteSize(_ asset: CardImageAsset) -> Int64 {
-        let base64 = asset.data.components(separatedBy: "base64,").last ?? asset.data
-        return Int64(Data(base64Encoded: base64, options: .ignoreUnknownCharacters)?.count ?? 0)
+        CardImageView.byteCount(asset)
     }
 
     private func formatFileSize(_ bytes: Int64) -> String {
         ByteCountFormatter.string(fromByteCount: max(0, bytes), countStyle: .file)
     }
 
-    private func formatImageUploadTime(_ timestamp: Double) -> String {
-        guard timestamp > 0 else { return "未知" }
-        let seconds = timestamp < 1_000_000_000_000 ? timestamp : timestamp / 1000
-        let formatter = DateFormatter()
-        formatter.locale = Locale(identifier: "zh_CN")
-        formatter.dateFormat = "yyyy-MM-dd HH:mm"
-        return formatter.string(from: Date(timeIntervalSince1970: seconds))
-    }
 }
 
 private struct CardLevelGroup {
@@ -793,9 +687,8 @@ private struct CardLevelPickerField: View {
     }
 
     var body: some View {
-        HStack(spacing: 10) {
-            Text("卡片等级")
-            Spacer()
+        WalletFormField(title: "卡片等级") {
+          HStack(spacing: 12) {
             Picker("卡组织", selection: brandBinding) {
                 Text("请选择卡组织").tag("")
                 ForEach(CardLevelGroup.all, id: \.brand) { group in
@@ -803,7 +696,7 @@ private struct CardLevelPickerField: View {
                 }
             }
             .labelsHidden()
-            .frame(width: 120)
+            .frame(maxWidth: .infinity)
 
             Picker("等级", selection: levelBinding) {
                 Text("请选择等级").tag("")
@@ -812,20 +705,17 @@ private struct CardLevelPickerField: View {
                 }
             }
             .labelsHidden()
-            .frame(width: 120)
+            .frame(maxWidth: .infinity)
             .disabled(selectedGroup == nil)
 
-            Text(level.isEmpty ? "预览：—" : "预览：\(level)")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .frame(width: 150, alignment: .leading)
-                .lineLimit(1)
+          }
+          if !level.isEmpty { Text(level).font(.caption).foregroundStyle(.secondary) }
         }
     }
 }
 
 private struct EditableOptionField: View {
-    let title: String
+    let title: LocalizedStringKey
     @Binding var text: String
     let options: [String]
 
@@ -836,12 +726,11 @@ private struct EditableOptionField: View {
     }
 
     var body: some View {
-        HStack {
-            Text(title)
-            Spacer()
-            TextField("可输入或选择", text: $text)
+        WalletFormField(title: title) {
+          HStack(spacing: 8) {
+            TextField(title, text: $text, prompt: Text("可输入或选择"))
                 .textFieldStyle(.roundedBorder)
-                .frame(width: 260)
+                .labelsHidden()
 
             Menu {
                 if filteredOptions.isEmpty {
@@ -857,35 +746,29 @@ private struct EditableOptionField: View {
                 Image(systemName: "chevron.down.circle")
             }
             .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
             .fixedSize()
+            .accessibilityLabel(title)
+          }
         }
     }
 }
 
 private struct OptionalDatePickerRow: View {
-    let title: String
+    let title: LocalizedStringKey
     @Binding var date: Date?
 
     var body: some View {
-        if date == nil {
+        WalletFormField(title: title) {
             HStack {
-                Text(title)
-                Spacer()
-                Button("选择日期") {
-                    date = Date()
+                if date == nil {
+                    Button("选择日期") { date = Date() }
+                } else {
+                    DatePicker(title, selection: Binding(get: { date ?? Date() }, set: { date = $0 }), displayedComponents: .date)
+                        .labelsHidden()
+                    Button("清除") { date = nil }.buttonStyle(.borderless)
                 }
-            }
-        } else {
-            DatePicker(
-                title,
-                selection: Binding(
-                    get: { date ?? Date() },
-                    set: { date = $0 }
-                ),
-                displayedComponents: .date
-            )
-            Button("清除") {
-                date = nil
+                Spacer(minLength: 0)
             }
         }
     }

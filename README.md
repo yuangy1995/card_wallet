@@ -7,12 +7,21 @@ SwiftUI 的 macOS 原生卡包客户端，用于本地管理信用卡和储蓄�
 ## 当前架构
 
 - 平台：macOS 14+，SwiftUI，XcodeGen 生成 Xcode 工程。
-- 依赖：CryptoSwift、CryptoKit、CloudKit。
+- 界面：侧栏、卡片列表与详情三栏布局；窗口顶部透明且不显示标题，保留系统窗口按钮。分类切换统一使用轻量标签，云同步入口集中在侧栏底部。默认冰蓝皮肤，可切换森绿、浅色/深色、紧凑列表及减少透明效果，尊重系统减少动态效果设置。
+- 展示层：`WalletTheme` 统一外观，`CardCatalog`、`CardStatistics`、`CardEditing` 分离筛选统计和编辑规则；列表与图片使用缓存，避免反复解码和计算。
+- 本地化：`Resources/Localizable.xcstrings` 维护简体及繁体中文界面文案。
+- 详情与编辑：自定义分区布局取代系统大表单；弹窗宽高根据父窗口预留边距，正文独立滚动，操作按钮固定显示。终免年费不显示金额和收取日期。
+- 附件照片：侧栏详情与完整详情均有缩略图和明确的查看入口；独立预览支持上一张/下一张、缩放、适应窗口，预览框跟随皮肤且受锁屏保护，不修改原始附件。
+- 导航：优惠用卡、卡片统计、检查卡片各保留一个侧栏入口，同步只保留底部入口；移除重复的工具汇总页。
+- 设置：分类采用图标导航，子页使用统一主题卡片、可视化皮肤选项和分层说明；同步记录的选中高亮随皮肤及浅色/深色外观变化，支持单击与方向键选择。
+- 统计：概览卡片保持等高，多币种独立分行；年费待确认、提额记录和低额度卡片分区展示。
+- 图标：`Resources/AppIcon.png` 为 1024px 源图，`AppIcon.appiconset` 提供 Dock/系统图标，`WalletLogo.imageset` 用于侧栏。使用内置图片生成工具设计，经用户同意用本地工具裁切透明圆角并导出各尺寸。设计提示词摘要：简洁的蓝色卡包，冰蓝和森绿卡片，白色圆角底，清晰轮廓、轻微层次、无文字和霓虹装饰，小尺寸可辨认。
+- 依赖：CryptoSwift、CryptoKit。
 - 本地卡片数据：`LocalStorageManager` 写入 Application Support 下的加密 `cards.json`。
-- 凭证存储：WebDAV 账号、同步密钥和应用锁密码通过 `KeychainManager` 管理；部分开关和间隔配置使用 `UserDefaults`。
-- 云同步：`SyncCoordinator` 统一协调本地账本、WebDAV bridge 和可选 iCloud。
+- 凭证存储：`KeychainManager` 保留调用接口，正常读写改为 `LocalCredentialStore` 的本地 AES-GCM 加密文件；每份凭证库使用独立随机密钥，凭证文件和密钥仅当前用户可读写。部分开关和间隔配置使用 `UserDefaults`。
+- 首次升级：读取旧钥匙串凭证，完整写入本地后才标记迁移成功。可能需要系统授权；拒绝后不重复自动申请，可在锁屏主动重试。旧钥匙串记录不会被删除，迁移成功后不再访问。旧版本的本地加密文件也可读取。
+- 云同步：`SyncCoordinator` 只协调本地账本和 WebDAV bridge；已移除 Apple 私有云同步及其权限。旧账本中的额外字段会被忽略，卡片和 WebDAV 状态仍可读取。
 - WebDAV：`WebDAVBridgeService` 使用 SyncV4 自动快照，文件名包含 `[SyncV4][Mac][自]`。
-- iCloud：CloudKit 仅在具备正式签名和 entitlement 的构建中可验证；离线构建不具备真实 iCloud 能力。
 
 ## 关键数据规则
 
@@ -28,8 +37,8 @@ SwiftUI 的 macOS 原生卡包客户端，用于本地管理信用卡和储蓄�
 # 生成工程并离线打包
 ./build.sh
 
-# 带 CloudKit entitlement 的签名归档
-CLOUDKIT_SIGNED_BUILD=1 DEVELOPMENT_TEAM=<Apple Team ID> ./build.sh
+# 使用开发团队正式签名归档
+DEVELOPMENT_TEAM=<Apple Team ID> ./build.sh
 ```
 
 脚本成功后会输出：
@@ -44,16 +53,32 @@ dist/卡包.app
 brew install xcodegen
 ```
 
+## 操作与回归测试
+
+- `⌘N` 添加卡片，`⌘F` 搜索，`⌘E` 编辑当前卡片，`⌘,` 打开设置；列表支持方向键选卡。
+- 单击卡片立即选中并更新右侧详情；仅方向键导航触发自动滚动，焦点使用细圆角线提示。
+- 卡片编辑、图片、批量操作、年费提醒、优惠用卡、统计导出、应用锁与同步设置仍保留。
+- 单元测试通过 `WALLET_TEST_HOST=1` 隔离应用启动，不读取真实卡包、钥匙串或启动云同步。
+
+```bash
+xcodegen generate
+xcodebuild -project CreditCardMac.xcodeproj -scheme CreditCardMac \
+  -destination 'platform=macOS,arch=arm64' -parallel-testing-enabled NO \
+  test CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_ENTITLEMENTS=''
+```
+
+回归测试覆盖日期、加密、同步合并，以及共享额度、卡片编辑、年费确认、同步状态脱敏、CSV 导出、皮肤偏好、缓存清理边界、本地凭证加密、旧凭证迁移和授权拒绝后的重试。真实 WebDAV 和 Touch ID 需使用对应账户及设备另行验证。
+
 ## 调试提示
 
 - 构建失败时先查看 `build/xcodebuild-archive.log`。
 - WebDAV 同步异常优先检查 `Domain/WebDAVBridgeService.swift`、`Domain/WebDAVClient.swift` 和同步密钥。
-- 本地读写异常优先检查 `Domain/LocalStorageManager.swift`、`Domain/CryptoManager.swift` 和 Application Support 下的 `CreditCardMac/cards.json`。该目录名保留旧值用于兼容已有数据。
-- CloudKit 不可用时，先确认是否使用正式签名归档，以及 entitlement 中是否包含 CloudKit。
+- 本地读写异常优先检查 `Domain/LocalStorageManager.swift`、`Domain/CryptoManager.swift` 和 Application Support 下的 `CardWallet/cards.json`。该目录名与现有存储实现一致，本次界面改造不迁移数据。
+- 本地凭证文件为 `CardWallet/security_credentials.enc`，随机密钥文件为同目录的 `security_credentials.key`。手工备份凭证时必须同时保留两者，并将备份视为敏感数据；它们不会上传至 WebDAV。本地加密不能抵御已能读取当前用户全部文件的进程。
 
 ## 维护注意
 
 - `CreditCardMac.xcodeproj` 由 XcodeGen 生成，结构调整优先修改 `project.yml`。
-- 离线构建用于本地运行，不代表 iCloud/CloudKit 能力已通过验证。
+- 未提供开发团队时使用本地签名，方便在这台 Mac 上运行。
 - 不要把 WebDAV 自动快照协议降级到旧导入导出方案。
 - Web、Android、macOS 三端共用 SyncV4 数据语义，字段变更需要同时检查三端。

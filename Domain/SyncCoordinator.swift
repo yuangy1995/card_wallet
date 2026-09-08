@@ -23,27 +23,13 @@ public final class SyncCoordinator: ObservableObject {
         hasBootstrapped = true
         persistActiveView()
 
-        CloudKitSyncService.shared.configure(
-            stateData: ledger.cloudKitStateData,
-            onRecordsReceived: { [weak self] records in
-                self?.mergeRemote(records, originatingFrom: .icloud)
-            },
-            onStateUpdated: { [weak self] data in
-                guard let self else { return }
-                self.ledger.cloudKitStateData = data
-                SyncLedgerStore.shared.save(self.ledger)
-            }
-        )
         WebDAVBridgeService.shared.configure(
             recordsProvider: { [weak self] in self?.ledger.records ?? [] },
             onMergedRecords: { [weak self] records in
-                self?.mergeRemote(records, originatingFrom: .webdav)
+                self?.mergeRemote(records)
             }
         )
         pendingStatus = "同步准备完成"
-        if CloudKitSyncService.shared.isEnabled {
-            CloudKitSyncService.shared.queue(records: ledger.records)
-        }
         return currentCards
     }
 
@@ -84,15 +70,8 @@ public final class SyncCoordinator: ObservableObject {
         if isLocked {
             WebDAVBridgeService.shared.stop()
         } else {
+            guard hasBootstrapped else { return }
             WebDAVBridgeService.shared.start()
-            CloudKitSyncService.shared.refresh()
-        }
-    }
-
-    public func setICloudEnabled(_ enabled: Bool) {
-        CloudKitSyncService.shared.setEnabled(enabled)
-        if enabled {
-            CloudKitSyncService.shared.queue(records: ledger.records)
         }
     }
 
@@ -103,17 +82,10 @@ public final class SyncCoordinator: ObservableObject {
         }
     }
 
-    private enum Origin {
-        case icloud
-        case webdav
-    }
-
-    private func mergeRemote(_ records: [CardSyncRecord], originatingFrom origin: Origin) {
+    private func mergeRemote(_ records: [CardSyncRecord]) {
         let merged = CardSyncMergeEngine.merge([ledger.records, records])
         guard merged != ledger.records else { return }
         ledger.records = merged
-        ledger.pendingCloudKitUpload = origin == .webdav
-        ledger.pendingWebDAVUpload = origin == .icloud
         SyncLedgerStore.shared.save(ledger)
         persistActiveView()
         let cards = currentCards
@@ -121,23 +93,15 @@ public final class SyncCoordinator: ObservableObject {
         lastConvergenceAt = Date()
         pendingStatus = "已更新云端变化"
 
-        switch origin {
-        case .webdav:
-            CloudKitSyncService.shared.queue(records: merged)
-        case .icloud:
-            WebDAVBridgeService.shared.synchronize(forceUpload: true)
-        }
     }
 
     private func writeLocal(events: [CardSyncRecord]) -> [SharedCard] {
         guard !events.isEmpty else { return currentCards }
         ledger.records = CardSyncMergeEngine.merge([ledger.records, events])
-        ledger.pendingCloudKitUpload = true
         ledger.pendingWebDAVUpload = true
         SyncLedgerStore.shared.save(ledger)
         persistActiveView()
         pendingStatus = "正在同步最新修改"
-        CloudKitSyncService.shared.queue(records: events)
         WebDAVBridgeService.shared.synchronize(forceUpload: true)
         return currentCards
     }

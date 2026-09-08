@@ -2,313 +2,84 @@ import SwiftUI
 
 public struct LockScreenView: View {
     @State private var passwordInput = ""
-    @State private var showingError = false
     @State private var showingPasswordRecovery = false
-    
-    // 指纹图标呼吸动画
-    @State private var ringScale: CGFloat = 1.0
-    @State private var ringOpacity: Double = 0.5
-    
-    // 💡 盾牌飘浮与背景光环动画状态
-    @State private var shieldScale: CGFloat = 1.0
-    @State private var shieldOffsetY: CGFloat = 0.0
-    @State private var glowRotation: Double = 0.0
-    
-    // 💡 退出按钮与解锁按钮悬浮 Hover 状态
-    @State private var isExitButtonHovered = false
-    @State private var isUnlockButtonHovered = false
-    
+    @State private var errorText = ""
+    @State private var supportsTouchID = false
+    @FocusState private var passwordFocused: Bool
+    @Environment(\.walletPalette) private var palette
+    @Environment(\.walletAnimation) private var animation
+
     public var body: some View {
         ZStack {
-            // 1. 系统级强磨砂玻璃防窥罩 (Apple ultraThinMaterial)
-            Rectangle()
-                .fill(.ultraThinMaterial)
-                .ignoresSafeArea()
-            
-            // 2. 暗色微弱发光的科技感星空背景 (自适应暗度)
-            Color.black.opacity(0.25)
-                .ignoresSafeArea()
-            
-            // 3. 💡 绚丽的背景霓虹光晕 (Glassmorphism Backing Glow)，溢出磨砂感
-            ZStack {
-                Circle()
-                    .fill(Color.cyan.opacity(0.18))
-                    .frame(width: 280, height: 280)
-                    .blur(radius: 60)
-                    .offset(x: -140, y: -120)
-                
-                Circle()
-                    .fill(Color.purple.opacity(0.18))
-                    .frame(width: 280, height: 280)
-                    .blur(radius: 60)
-                    .offset(x: 140, y: 120)
-            }
-            .ignoresSafeArea()
-            
-            VStack(spacing: 28) {
-                // 顶部锁孔状态与动画盾牌
+            WalletBackground(palette: palette)
+            VStack(spacing: 22) {
+                Image(systemName: "lock.shield")
+                    .font(.system(size: 35, weight: .light))
+                    .foregroundStyle(palette.accent)
+                    .frame(width: 76, height: 76)
+                    .background(palette.surface, in: RoundedRectangle(cornerRadius: 23))
+                VStack(spacing: 8) {
+                    Text("卡包已锁定").font(.system(size: 26, weight: .semibold))
+                    Text("每张卡，安心收好。").font(.subheadline).foregroundStyle(.secondary)
+                }
+                if AutoLockManager.shared.credentialAccessFailed {
+                    Text("还未能读取已有密码。首次升级需要允许系统读取旧密码，转入本地后不再重复申请。")
+                        .font(.caption).foregroundStyle(.secondary)
+                    Button("重新读取已有密码") { AutoLockManager.shared.retryCredentialAccess() }
+                }
+                if supportsTouchID {
+                    Button {
+                        AutoLockManager.shared.evaluateTouchID { success in
+                            if !success { errorText = String(localized: "验证未完成，也可以使用密码解锁。") }
+                        }
+                    } label: {
+                        Label("使用 Touch ID", systemImage: "touchid").frame(maxWidth: .infinity)
+                    }
+                    .controlSize(.large)
+                }
                 VStack(spacing: 12) {
-                    ZStack {
-                        // 底层流光霓虹圆环 (慢速旋转渐变)
-                        Circle()
-                            .stroke(
-                                AngularGradient(
-                                    colors: [.cyan, .purple, .blue, .cyan],
-                                    center: .center
-                                ),
-                                lineWidth: 2
-                            )
-                            .frame(width: 66, height: 66)
-                            .rotationEffect(.degrees(glowRotation))
-                            .blur(radius: 1.5)
-                            .opacity(0.7)
-                            .scaleEffect(shieldScale * 1.1)
-                        
-                        // 软晕阴影环
-                        Circle()
-                            .fill(
-                                RadialGradient(
-                                    colors: [Color.purple.opacity(0.18), Color.clear],
-                                    center: .center,
-                                    startRadius: 0,
-                                    endRadius: 36
-                                )
-                            )
-                            .frame(width: 74, height: 74)
-                            .scaleEffect(shieldScale)
-                        
-                        // 盾牌主体 (带浮动与精致阴影)
-                        Image(systemName: "lock.shield.fill")
-                            .font(.system(size: 46))
-                            .foregroundStyle(
-                                LinearGradient(
-                                    colors: [Color.cyan, Color.purple],
-                                    startPoint: .topLeading,
-                                    endPoint: .bottomTrailing
-                                )
-                            )
-                            .shadow(color: .purple.opacity(0.4), radius: 10)
-                            .scaleEffect(shieldScale)
-                            .offset(y: shieldOffsetY)
+                    SecureField("解锁密码", text: $passwordInput)
+                        .textFieldStyle(.roundedBorder).controlSize(.large)
+                        .focused($passwordFocused).onSubmit(unlock)
+                    if !errorText.isEmpty {
+                        Text(errorText).font(.caption).foregroundStyle(.red)
+                            .frame(maxWidth: .infinity, alignment: .leading)
                     }
-                    .frame(width: 80, height: 80)
-                    .padding(.bottom, 4)
-                    
-                    Text("系统处于安全保护状态")
-                        .font(.headline)
-                        .bold()
-                        .foregroundColor(.primary)
-                    
-                    Text("防窥护盾已启动，请认证以继续操作")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                    Button(action: unlock) { Text("解锁卡包").frame(maxWidth: .infinity) }
+                        .buttonStyle(.borderedProminent).controlSize(.large).disabled(passwordInput.isEmpty)
                 }
-                
-                if AutoLockManager.shared.isTouchIDAvailable {
-                    // 中部：呼吸指纹 Touch ID 秒级解锁标
-                    Button(action: triggerTouchID) {
-                        ZStack {
-                            // 霓虹呼吸外环
-                            Circle()
-                                .stroke(
-                                    LinearGradient(colors: [Color.cyan, Color.purple], startPoint: .top, endPoint: .bottom),
-                                    lineWidth: 2
-                                )
-                                .frame(width: 70, height: 70)
-                                .scaleEffect(ringScale)
-                                .opacity(ringOpacity)
-                            
-                            Circle()
-                                .fill(Color.primary.opacity(0.06))
-                                .frame(width: 60, height: 60)
-                                .overlay(
-                                    Circle()
-                                        .stroke(Color.primary.opacity(0.15), lineWidth: 1.5)
-                                )
-                            
-                            Image(systemName: "touchid")
-                                .font(.system(size: 30))
-                                .foregroundColor(.cyan)
-                                .shadow(color: .cyan.opacity(0.6), radius: 6)
-                        }
-                    }
-                    .buttonStyle(.plain)
-                    .onAppear {
-                        startBreathingAnimation()
-                    }
-                    
-                    // 💡 提示用户手动点击指纹图标唤起硬件解锁，优雅引导
-                    Text("💡 点击上方指纹图标以唤起 Touch ID 解锁")
-                        .font(.system(size: 10))
-                        .foregroundColor(.secondary.opacity(0.7))
-                        .padding(.top, -8)
-                }
-                
-                // 下部：精美密码输入栏与提交微缩放
-                VStack(spacing: 12) {
-                    HStack(spacing: 10) {
-                        HStack(spacing: 6) {
-                            Image(systemName: "key.fill")
-                                .font(.system(size: 11))
-                                .foregroundColor(.secondary)
-                            
-                            SecureField("输入应用安全解锁密码", text: $passwordInput)
-                                .textFieldStyle(.plain)
-                                .font(.system(size: 13))
-                        }
-                        .padding(.horizontal, 12)
-                        .padding(.vertical, 8)
-                        .background(Color.primary.opacity(0.04))
-                        .cornerRadius(10)
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 10)
-                                .stroke(showingError ? Color.red : Color.primary.opacity(0.12), lineWidth: 1.5)
-                        )
-                        .frame(width: 190)
-                        .onSubmit {
-                            executePasswordUnlock()
-                        }
-                        
-                        Button {
-                            executePasswordUnlock()
-                        } label: {
-                            Image(systemName: "arrow.right.circle.fill")
-                                .font(.system(size: 26))
-                                .foregroundColor(.cyan)
-                                .shadow(color: .cyan.opacity(0.3), radius: 4)
-                        }
-                        .buttonStyle(.plain)
-                        .scaleEffect(isUnlockButtonHovered ? 1.1 : 1.0)
-                        .animation(.spring(response: 0.2, dampingFraction: 0.6), value: isUnlockButtonHovered)
-                        .onHover { hover in
-                            isUnlockButtonHovered = hover
-                        }
-                    }
-                    
-                    if showingError {
-                        Text("❌ 解锁密码错误，请检查后重新输入")
-                            .font(.caption)
-                            .foregroundColor(.red)
-                            .transition(.shake) // 平滑抖动提示
-                    }
-
-                    Button("忘记密码？通过卡片信息验证") {
-                        showingPasswordRecovery = true
-                    }
-                    .buttonStyle(.link)
-                    .font(.system(size: 11, weight: .medium))
-                }
-                
-                // 最底部：精致红色发光安全退出胶囊按钮，符合HIG逻辑
-                Button(action: exitApp) {
-                    HStack(spacing: 6) {
-                        Image(systemName: "power")
-                            .font(.system(size: 11, weight: .bold))
-                        Text("安全退出")
-                            .font(.system(size: 12, weight: .semibold))
-                    }
-                    .foregroundColor(isExitButtonHovered ? .white : .red.opacity(0.85))
-                    .padding(.horizontal, 18)
-                    .padding(.vertical, 8)
-                    .background(
-                        Capsule()
-                            .fill(isExitButtonHovered ? Color.red.opacity(0.85) : Color.red.opacity(0.06))
-                    )
-                    .overlay(
-                        Capsule()
-                            .stroke(isExitButtonHovered ? Color.red.opacity(0.9) : Color.red.opacity(0.25), lineWidth: 1)
-                    )
-                    .shadow(color: isExitButtonHovered ? Color.red.opacity(0.3) : Color.clear, radius: 6)
-                    .scaleEffect(isExitButtonHovered ? 1.05 : 1.0)
-                    .animation(.spring(response: 0.25, dampingFraction: 0.65), value: isExitButtonHovered)
-                }
-                .buttonStyle(.plain)
-                .onHover { hover in
-                    isExitButtonHovered = hover
-                }
+                Button("忘记密码？") { showingPasswordRecovery = true }.buttonStyle(.borderless)
+                Divider()
+                Button { NSApplication.shared.terminate(nil) } label: { Label("退出卡包", systemImage: "power") }
+                    .buttonStyle(.plain).foregroundStyle(.secondary).font(.caption)
             }
-            .frame(width: 320)
-            .padding(.horizontal, 24)
-            .padding(.vertical, 32)
-            .background(.ultraThinMaterial)
-            .cornerRadius(24)
-            .overlay(
-                RoundedRectangle(cornerRadius: 24)
-                    .stroke(
-                        LinearGradient(
-                            colors: [Color.cyan.opacity(0.4), Color.purple.opacity(0.4)],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        ),
-                        lineWidth: 1.2
-                    )
-            )
-            .shadow(color: .black.opacity(0.25), radius: 25)
-            .onAppear {
-                startShieldAnimation()
-            }
+            .padding(30)
+            .frame(width: 350)
+            .modifier(WalletGlass())
+            .clipShape(RoundedRectangle(cornerRadius: 22))
+            .overlay(RoundedRectangle(cornerRadius: 22).stroke(palette.edge, lineWidth: 1))
         }
+        .onAppear {
+            supportsTouchID = AutoLockManager.shared.isTouchIDAvailable
+            passwordFocused = true
+        }
+        .onChange(of: passwordInput) { _, _ in errorText = "" }
+        .animation(animation, value: errorText.isEmpty)
         .sheet(isPresented: $showingPasswordRecovery) {
-            MacPasswordRecoveryView {
-                showingPasswordRecovery = false
-            }
+            MacPasswordRecoveryView { showingPasswordRecovery = false }
+                .modifier(WalletThemeModifier())
         }
     }
-    
-    private func startBreathingAnimation() {
-        withAnimation(
-            .easeInOut(duration: 1.5)
-            .repeatForever(autoreverses: true)
-        ) {
-            ringScale = 1.15
-            ringOpacity = 0.8
-        }
-    }
-    
-    private func startShieldAnimation() {
-        // 呼吸浮动动效
-        withAnimation(
-            .easeInOut(duration: 2.2)
-            .repeatForever(autoreverses: true)
-        ) {
-            shieldScale = 1.06
-            shieldOffsetY = -5.0
-        }
-        
-        // 慢速流光旋转
-        withAnimation(
-            .linear(duration: 8.0)
-            .repeatForever(autoreverses: false)
-        ) {
-            glowRotation = 360.0
-        }
-    }
-    
-    private func triggerTouchID() {
-        AutoLockManager.shared.evaluateTouchID { success in
-            if !success {
-                // 如果指纹失败，静默降级到密码输入，不影响交互
-                print("Touch ID 解锁未成功")
-            }
-        }
-    }
-    
-    private func executePasswordUnlock() {
+
+    private func unlock() {
+        guard !passwordInput.isEmpty else { return }
         if AutoLockManager.shared.unlock(password: passwordInput) {
-            showingError = false
+            passwordInput = ""
+            errorText = ""
         } else {
-            withAnimation(.default) {
-                showingError = true
-            }
-            // 2秒后自动清除错误状态
-            DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-                self.showingError = false
-            }
+            errorText = String(localized: "未能解锁，请检查密码，并允许系统读取已保存的密码。")
+            passwordFocused = true
         }
-    }
-    
-    private func exitApp() {
-        NSApplication.shared.terminate(nil)
     }
 }
 
@@ -480,7 +251,10 @@ private struct MacPasswordRecoveryView: View {
             errorText = "两次输入的新密码不一致。"
             return
         }
-        AutoLockManager.shared.setPassword(newPassword)
+        guard AutoLockManager.shared.setPassword(newPassword) else {
+            errorText = String(localized: "新密码未保存，请检查密码存储权限后重试。")
+            return
+        }
         _ = AutoLockManager.shared.unlock(password: newPassword)
         onRecovered()
         dismiss()

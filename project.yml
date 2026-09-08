@@ -1,6 +1,17 @@
 name: CreditCardMac
 options:
   bundleIdPrefix: com.applist
+  developmentLanguage: zh-Hans
+schemes:
+  CreditCardMac:
+    build:
+      targets:
+        CreditCardMac: all
+    test:
+      targets:
+        - CreditCardMacTests
+      environmentVariables:
+        WALLET_TEST_HOST: "1"
 packages:
   CryptoSwift:
     url: https://github.com/krzyzanowskim/CryptoSwift.git
@@ -23,6 +34,7 @@ targets:
         MACOSX_DEPLOYMENT_TARGET: "14.0"
         MARKETING_VERSION: "1.0.0"
         CURRENT_PROJECT_VERSION: "1"
+        SWIFT_EMIT_LOC_STRINGS: YES
         GENERATE_INFOPLIST_FILE: NO
         INFOPLIST_FILE: Resources/Info.plist
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon

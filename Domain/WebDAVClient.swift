@@ -144,9 +144,9 @@ public class WebDAVClient {
             return .failure(WebDAVError.invalidURL)
         }
         
+        if case .failure(let error) = KeychainManager.save(key: "webdav_username", value: username) { return .failure(error) }
+        if case .failure(let error) = KeychainManager.save(key: "webdav_password", value: password) { return .failure(error) }
         UserDefaults.standard.set(cleanURL, forKey: "webdav_url")
-        KeychainManager.save(key: "webdav_username", value: username)
-        KeychainManager.save(key: "webdav_password", value: password)
         
         return .success(())
     }

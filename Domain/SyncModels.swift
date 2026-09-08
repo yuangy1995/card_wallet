@@ -322,33 +322,25 @@ public struct SyncLedger: Codable {
     public var records: [CardSyncRecord]
     public var processedWebDAVSnapshotIDs: Set<String>
     public var lastWebDAVSnapshotFilename: String?
-    public var cloudKitStateData: Data?
     public var pendingWebDAVUpload: Bool
-    public var pendingCloudKitUpload: Bool
 
     private enum CodingKeys: String, CodingKey {
         case records
         case processedWebDAVSnapshotIDs
         case lastWebDAVSnapshotFilename
-        case cloudKitStateData
         case pendingWebDAVUpload
-        case pendingCloudKitUpload
     }
 
     public init(
         records: [CardSyncRecord] = [],
         processedWebDAVSnapshotIDs: Set<String> = [],
         lastWebDAVSnapshotFilename: String? = nil,
-        cloudKitStateData: Data? = nil,
-        pendingWebDAVUpload: Bool = false,
-        pendingCloudKitUpload: Bool = false
+        pendingWebDAVUpload: Bool = false
     ) {
         self.records = CardSyncMergeEngine.merge([records])
         self.processedWebDAVSnapshotIDs = processedWebDAVSnapshotIDs
         self.lastWebDAVSnapshotFilename = lastWebDAVSnapshotFilename
-        self.cloudKitStateData = cloudKitStateData
         self.pendingWebDAVUpload = pendingWebDAVUpload
-        self.pendingCloudKitUpload = pendingCloudKitUpload
     }
 
     public init(from decoder: Decoder) throws {
@@ -357,9 +349,7 @@ public struct SyncLedger: Codable {
         self.records = CardSyncMergeEngine.merge([records])
         self.processedWebDAVSnapshotIDs = try container.decodeIfPresent(Set<String>.self, forKey: .processedWebDAVSnapshotIDs) ?? []
         self.lastWebDAVSnapshotFilename = try container.decodeIfPresent(String.self, forKey: .lastWebDAVSnapshotFilename)
-        self.cloudKitStateData = try container.decodeIfPresent(Data.self, forKey: .cloudKitStateData)
         self.pendingWebDAVUpload = try container.decodeIfPresent(Bool.self, forKey: .pendingWebDAVUpload) ?? false
-        self.pendingCloudKitUpload = try container.decodeIfPresent(Bool.self, forKey: .pendingCloudKitUpload) ?? false
     }
 
     public func encode(to encoder: Encoder) throws {
@@ -367,8 +357,6 @@ public struct SyncLedger: Codable {
         try container.encode(records, forKey: .records)
         try container.encode(processedWebDAVSnapshotIDs, forKey: .processedWebDAVSnapshotIDs)
         try container.encodeIfPresent(lastWebDAVSnapshotFilename, forKey: .lastWebDAVSnapshotFilename)
-        try container.encodeIfPresent(cloudKitStateData, forKey: .cloudKitStateData)
         try container.encode(pendingWebDAVUpload, forKey: .pendingWebDAVUpload)
-        try container.encode(pendingCloudKitUpload, forKey: .pendingCloudKitUpload)
     }
 }

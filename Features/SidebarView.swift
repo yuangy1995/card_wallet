@@ -1,164 +1,159 @@
 import SwiftUI
 
 public enum NavigationSection: Hashable {
-    case allCards
-    case annualFeeAlert
-    case statistics
-    case tools
-    case settings
+    case allCards, annualFeeAlert, bestUsage, statistics, cardCheck, sync, settings
 }
 
 public struct SidebarView: View {
     @Binding public var selection: NavigationSection?
-    public var cards: [SharedCard]
-    
-    // 💡 监听锁定管理器状态，实现设置修改后侧边栏实时响应
-    @State private var lockManager = AutoLockManager.shared
-    
-    // 💡 锁定按钮悬浮 Hover 状态
-    @State private var isLockHovered = false
-    
-    // 💡 退出按钮悬浮 Hover 状态
-    @State private var isQuitHovered = false
-    
-    // 计算需要处理的卡片提醒数量
-    private var annualFeeAlertCount: Int {
-        cards.filter { card in
-            DateCalculator.annualFeeDetection(for: card) != nil
-        }.count
-    }
+    @Binding public var selectedBank: String
+    public let cards: [SharedCard]
+    public let hasPassword: Bool
+    public let onLock: () -> Void
+    @Environment(\.walletPalette) private var palette
+    @Environment(\.walletAnimation) private var animation
+    @State private var reminderCount = 0
+    @State private var banks: [BankShortcut] = []
 
-    private var expiryAlertCount: Int {
-        cards.filter { card in
-            guard let status = DateCalculator.cardExpiryStatus(valid: card.valid) else { return false }
-            return status == .expired || status == .soonExpiring
-        }.count
-    }
-
-    private var billingCycleAlertCount: Int {
-        DateCalculator.billingCycleReminderItems(for: cards).count
-    }
-
-    private var cardReminderCount: Int {
-        billingCycleAlertCount + annualFeeAlertCount + expiryAlertCount
-    }
-    
-    public init(selection: Binding<NavigationSection?>, cards: [SharedCard]) {
-        self._selection = selection
+    public init(selection: Binding<NavigationSection?>, selectedBank: Binding<String>, cards: [SharedCard], hasPassword: Bool, onLock: @escaping () -> Void) {
+        _selection = selection
+        _selectedBank = selectedBank
         self.cards = cards
+        self.hasPassword = hasPassword
+        self.onLock = onLock
     }
-    
-    public var body: some View {
-        List(selection: $selection) {
-            Section(header: Text("导航栏")) {
-                NavigationLink(value: NavigationSection.allCards) {
-                    Label("卡包", systemImage: "creditcard")
-                }
-                
-                // 💡 卡片提醒角标：存在待处理事项时显示急需处理数量
-                if cardReminderCount > 0 {
-                    NavigationLink(value: NavigationSection.annualFeeAlert) {
-                        HStack {
-                            Label("卡片提醒卡", systemImage: "clock.badge.exclamationmark")
-                                .foregroundColor(.orange)
-                            Spacer()
-                            Text("\(cardReminderCount)")
-                                .font(.caption2)
-                                .bold()
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .background(Color.red)
-                                .foregroundColor(.white)
-                                .clipShape(Capsule())
-                        }
-                    }
-                }
-                
-                NavigationLink(value: NavigationSection.tools) {
-                    Label("工具", systemImage: "wrench.and.screwdriver.fill")
-                }
-                
 
-                
-                NavigationLink(value: NavigationSection.settings) {
-                    Label("设置", systemImage: "gearshape.2.fill")
+    public var body: some View {
+        VStack(spacing: 0) {
+            HStack(spacing: 10) {
+                Image("WalletLogo").resizable().scaledToFit().frame(width: 38, height: 38)
+                    .accessibilityHidden(true)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("卡包").font(.system(size: 20, weight: .semibold))
+                    Text("卡片整理助手").font(.caption2).foregroundStyle(.secondary)
                 }
+                Spacer(minLength: 0)
             }
-        }
-        .listStyle(.sidebar)
-        .frame(minWidth: 180)
-        // 💡 侧边栏底部提供锁屏及退出App功能，提供磨砂背景与优雅悬浮反馈
-        .safeAreaInset(edge: .bottom) {
-            HStack(spacing: 20) {
-                Spacer()
-                
-                // 💡 仅当用户保存了密码，侧边栏底部才居中浮现主动锁定圆形组件
-                if lockManager.hasPassword {
-                    Button {
-                        lockManager.lock()
-                    } label: {
-                        ZStack {
-                            // 优雅的圆形磨砂背景盘
-                            Circle()
-                                .fill(isLockHovered ? Color.orange.opacity(0.18) : Color.primary.opacity(0.04))
-                                .frame(width: 32, height: 32)
-                                .overlay(
-                                    Circle()
-                                        .stroke(isLockHovered ? Color.orange.opacity(0.4) : Color.primary.opacity(0.12), lineWidth: 1)
-                                )
-                            
-                            Image(systemName: "lock.fill")
-                                .font(.system(size: 12, weight: .bold))
-                                .foregroundColor(isLockHovered ? .orange : .secondary)
-                                .shadow(color: isLockHovered ? .orange.opacity(0.35) : .clear, radius: 4)
+            .padding(.horizontal, 18).padding(.top, 20).padding(.bottom, 24)
+
+            ScrollView {
+                VStack(alignment: .leading, spacing: 4) {
+                    item("全部卡片", icon: "rectangle.stack", section: .allCards, count: cards.count)
+                    item("卡片提醒", icon: "calendar.badge.clock", section: .annualFeeAlert, count: reminderCount)
+                    item("优惠用卡", icon: "sparkles", section: .bestUsage)
+                    Text("管理").font(.caption2).foregroundStyle(.secondary).padding(.leading, 10).padding(.top, 19).padding(.bottom, 6)
+                    item("卡片统计", icon: "chart.bar.xaxis", section: .statistics)
+                    item("检查卡片", icon: "checkmark.shield", section: .cardCheck)
+                    item("设置", icon: "slider.horizontal.3", section: .settings)
+
+                    if !banks.isEmpty {
+                        Divider().padding(.vertical, 14)
+                        Text("按银行").font(.caption2).foregroundStyle(.secondary).padding(.horizontal, 10).padding(.bottom, 4)
+                        ForEach(banks) { bank in
+                            Button {
+                                withAnimation(animation) {
+                                    selectedBank = selectedBank == bank.name ? "" : bank.name
+                                    selection = .allCards
+                                }
+                            } label: {
+                                HStack(spacing: 9) {
+                                    Circle().fill(palette.accent.opacity(0.6)).frame(width: 5, height: 5)
+                                    Text(bank.name).lineLimit(1)
+                                    Spacer(minLength: 3)
+                                    Text(bank.count.formatted()).font(.caption2).monospacedDigit()
+                                }
+                                .font(.system(size: 12))
+                                .padding(.horizontal, 10).padding(.vertical, 8)
+                                .foregroundStyle(selectedBank == bank.name ? palette.accent : Color.secondary)
+                                .background(selectedBank == bank.name ? palette.selection : .clear, in: RoundedRectangle(cornerRadius: 8))
+                                .contentShape(Rectangle())
+                            }
+                            .buttonStyle(.plain)
+                            .accessibilityLabel(Text("筛选银行：\(bank.name)"))
                         }
-                        .scaleEffect(isLockHovered ? 1.08 : 1.0)
-                        .animation(.spring(response: 0.25, dampingFraction: 0.65), value: isLockHovered)
-                    }
-                    .buttonStyle(.plain)
-                    .onHover { hover in
-                        isLockHovered = hover
                     }
                 }
-                
-                // 💡 退出应用圆形按钮，提供亮丽的红色悬浮警告
-                Button {
-                    NSApplication.shared.terminate(nil)
-                } label: {
-                    ZStack {
-                        // 优雅的圆形磨砂背景盘
-                        Circle()
-                            .fill(isQuitHovered ? Color.red.opacity(0.18) : Color.primary.opacity(0.04))
-                            .frame(width: 32, height: 32)
-                            .overlay(
-                                Circle()
-                                    .stroke(isQuitHovered ? Color.red.opacity(0.4) : Color.primary.opacity(0.12), lineWidth: 1)
-                            )
-                        
-                        Image(systemName: "power")
-                            .font(.system(size: 12, weight: .bold))
-                            .foregroundColor(isQuitHovered ? .red : .secondary)
-                            .shadow(color: isQuitHovered ? .red.opacity(0.35) : .clear, radius: 4)
-                    }
-                    .scaleEffect(isQuitHovered ? 1.08 : 1.0)
-                    .animation(.spring(response: 0.25, dampingFraction: 0.65), value: isQuitHovered)
-                }
-                .buttonStyle(.plain)
-                .onHover { hover in
-                    isQuitHovered = hover
-                }
-                
-                Spacer()
+                .padding(.horizontal, 10)
             }
-            .padding(.vertical, 10)
-            .background(.thinMaterial) // 自适应窗口毛玻璃
-            .overlay(
-                VStack {
-                    Divider()
-                        .opacity(0.3)
-                    Spacer()
+
+            VStack(spacing: 10) {
+                Button { selection = .sync } label: { WalletSidebarSyncStatus() }
+                    .buttonStyle(.plain)
+                    .overlay(RoundedRectangle(cornerRadius: 12).stroke(selection == .sync ? palette.accent.opacity(0.5) : .clear, lineWidth: 1))
+                    .accessibilityAddTraits(selection == .sync ? [.isSelected] : [])
+                HStack {
+                    Label("本机卡片已加密", systemImage: "shield.lefthalf.filled").font(.system(size: 10)).foregroundStyle(.secondary)
+                    Spacer(minLength: 0)
+                    if hasPassword {
+                        Button(action: onLock) { Image(systemName: "lock") }
+                            .buttonStyle(.plain).help("锁定卡包").accessibilityLabel("锁定卡包")
+                    }
+                    Button { NSApplication.shared.terminate(nil) } label: { Image(systemName: "power") }
+                        .buttonStyle(.plain).help("退出卡包").accessibilityLabel("退出卡包")
                 }
-            )
+            }
+            .padding(13)
         }
+        .modifier(WalletGlass())
+        .navigationSplitViewColumnWidth(min: 180, ideal: 196, max: 240)
+        .onAppear(perform: refresh)
+        .onChange(of: cards) { _, _ in refresh() }
+        .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged)) { _ in refresh() }
+    }
+
+    private func item(_ title: LocalizedStringKey, icon: String, section: NavigationSection, count: Int = 0) -> some View {
+        Button {
+            withAnimation(animation) {
+                if section == .allCards { selectedBank = "" }
+                selection = section
+            }
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: icon).frame(width: 17).accessibilityHidden(true)
+                Text(title)
+                Spacer(minLength: 2)
+                if count > 0 { Text(count.formatted()).font(.caption2).monospacedDigit() }
+            }
+            .font(.system(size: 13, weight: selection == section ? .semibold : .regular))
+            .foregroundStyle(selection == section ? palette.accent : Color.secondary)
+            .padding(.horizontal, 11).frame(minHeight: 38)
+            .background(selection == section ? palette.surface.opacity(0.92) : .clear, in: RoundedRectangle(cornerRadius: 10))
+            .overlay(RoundedRectangle(cornerRadius: 10).stroke(selection == section ? palette.edge : .clear, lineWidth: 1))
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(selection == section ? [.isSelected] : [])
+    }
+
+    private func refresh() {
+        let groups = Dictionary(grouping: cards) { BankNameNormalizer.normalizedKey($0.bank) }
+        banks = groups.filter { !$0.key.isEmpty }.map { BankShortcut(name: BankNameNormalizer.groupDisplayName($0.value.map(\.bank)), count: $0.value.count) }.sorted { $0.name.localizedCompare($1.name) == .orderedAscending }
+        reminderCount = DateCalculator.billingCycleReminderItems(for: cards).count
+            + cards.filter { DateCalculator.annualFeeDetection(for: $0) != nil }.count
+            + cards.filter { let state = DateCalculator.cardExpiryStatus(valid: $0.valid); return state == .expired || state == .soonExpiring }.count
+    }
+
+    private struct BankShortcut: Identifiable {
+        var id: String { name }
+        let name: String
+        let count: Int
+    }
+}
+
+private struct WalletSidebarSyncStatus: View {
+    @ObservedObject private var bridge = WebDAVBridgeService.shared
+    @Environment(\.walletPalette) private var palette
+    var body: some View {
+        HStack(spacing: 9) {
+            Image(systemName: bridge.isSyncing ? "arrow.triangle.2.circlepath" : "icloud")
+                .foregroundStyle(palette.accent)
+            VStack(alignment: .leading, spacing: 3) {
+                Text("云端同步").font(.system(size: 12, weight: .medium))
+                Text(bridge.isSyncing ? "正在同步" : "查看状态与记录").font(.system(size: 10)).foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 0)
+            Image(systemName: "chevron.right").font(.system(size: 9)).foregroundStyle(.secondary)
+        }
+        .modifier(WalletSurface(padding: 10))
     }
 }
