@@ -16,7 +16,7 @@ SwiftUI 的 macOS 原生卡包客户端，用于本地管理信用卡和储蓄�
 - 设置：分类采用图标导航，子页使用统一主题卡片、可视化皮肤选项和分层说明；同步记录的选中高亮随皮肤及浅色/深色外观变化，支持单击与方向键选择。
 - 统计：概览卡片保持等高，多币种独立分行；年费待确认、提额记录和低额度卡片分区展示。
 - 图标：`Resources/AppIcon.png` 为 1024px 源图，`AppIcon.appiconset` 提供 Dock/系统图标，`WalletLogo.imageset` 用于侧栏。使用内置图片生成工具设计，经用户同意用本地工具裁切透明圆角并导出各尺寸。设计提示词摘要：简洁的蓝色卡包，冰蓝和森绿卡片，白色圆角底，清晰轮廓、轻微层次、无文字和霓虹装饰，小尺寸可辨认。
-- 依赖：CryptoSwift、CryptoKit。
+- 依赖：CryptoSwift、CryptoKit、Sparkle 2。
 - 本地卡片数据：`LocalStorageManager` 写入 Application Support 下的加密 `cards.json`。
 - 凭证存储：`KeychainManager` 保留调用接口，正常读写改为 `LocalCredentialStore` 的本地 AES-GCM 加密文件；每份凭证库使用独立随机密钥，凭证文件和密钥仅当前用户可读写。部分开关和间隔配置使用 `UserDefaults`。
 - 首次升级：读取旧钥匙串凭证，完整写入本地后才标记迁移成功。可能需要系统授权；拒绝后不重复自动申请，可在锁屏主动重试。旧钥匙串记录不会被删除，迁移成功后不再访问。旧版本的本地加密文件也可读取。
@@ -35,11 +35,8 @@ SwiftUI 的 macOS 原生卡包客户端，用于本地管理信用卡和储蓄�
 ## 常用命令
 
 ```bash
-# 生成工程并离线打包
+# 生成工程并以固定 Ad-Hoc 临时签名打包
 ./build.sh
-
-# 使用开发团队正式签名归档
-DEVELOPMENT_TEAM=<Apple Team ID> ./build.sh
 ```
 
 脚本成功后会输出：
@@ -71,7 +68,43 @@ xcodebuild -project CreditCardMac.xcodeproj -scheme CreditCardMac \
 
 回归测试覆盖日期、加密、同步合并，以及共享额度、卡片编辑、年费确认、同步状态脱敏、CSV 导出、皮肤偏好、缓存清理边界、本地凭证加密、旧凭证迁移、授权拒绝后的重试和后台处理结果一致性。完整同步密文测试包含密钥派生运算，建议按上述 Release 配置运行；Debug 未优化构建会明显更慢。真实 WebDAV 和 Touch ID 需使用对应账户及设备另行验证。
 
-## 调试提示
+## GitHub Releases 自动更新
+
+- 源码仓库保持私有；公开仓库 `yuangy1995/card-wallet-releases` 仅用于发布经过检查的安装包和更新清单，禁止推送源码、历史记录或签名材料。
+- 应用通过「设置 → 软件更新」或应用菜单「检查更新…」手动检查，两处共用同一个更新器；设置页同时显示当前版本。默认由 Sparkle 定期检查，发现新版后提示用户确认安装，不默认静默安装。
+- 更新地址固定为 `https://github.com/yuangy1995/card-wallet-releases/releases/latest/download/appcast.xml`。首个正式 Release 发布前该地址不可用，检查更新会报连接失败，而不是显示已是最新版。
+- 保留应用标识和本地数据位置。Xcode 默认构建保留原有沙盒；`build.sh` 保持旧临时签名产物的非沙盒运行方式，使用单独的 `CreditCardMacAdHoc.entitlements`，避免新启用沙盒后改读容器内的数据。单元测试宿主不创建更新器或请求更新服务。
+- 每次发布都必须递增 `project.yml` 中的 `CURRENT_PROJECT_VERSION`，并按需修改 `MARKETING_VERSION`。Sparkle 用构建号判断新旧，不以 GitHub 标签排序判断。
+
+### 首次发布准备
+
+1. 固定使用 Ad-Hoc 临时签名，不使用 Developer ID 或公证。`build.sh` 在 Xcode 归档阶段完成临时签名，保持旧打包脚本产物的非沙盒运行方式，即使设置了 `DEVELOPMENT_TEAM` 环境变量也不切换签名方式。对外发布统一使用该脚本，不要混用 Xcode 默认沙盒构建。
+2. 为允许临时签名的应用加载 Sparkle，保留 Hardened Runtime 并关闭库验证（`disable-library-validation`）。这不等于获得 Apple 信任：首次从 GitHub 下载后仍可能被 Gatekeeper 拦截，用户需将应用移入 Applications，并按系统提示在「隐私与安全性」中确认打开。不应要求用户关闭系统全局安全检查。
+3. 更新签名密钥已使用 Sparkle `generate_keys --account com.applist.cardwallet.mac` 创建，私钥保存在创建它的这台 Mac 的登录钥匙串中，仓库只保存公钥。请通过安全渠道备份，换机器发布需迁移同一密钥；不要重新生成后直接替换已发布客户端的公钥。不要把私钥、GitHub 令牌或 Apple 凭证写进应用或提交仓库。
+
+### 生成发布附件
+
+以下命令均在 `apps/macos` 目录执行：
+
+```bash
+xcodegen generate
+xcodebuild -resolvePackageDependencies -project CreditCardMac.xcodeproj \
+  -scheme CreditCardMac -clonedSourcePackagesDirPath build/SourcePackages
+./build.sh
+bash prepare-update.sh "$(pwd)/dist/卡包.app"
+```
+
+脚本检查应用标识、更新签名密钥和 Ad-Hoc 签名完整性，不检查公证。将通用归档中的应用及内嵌组件拆分成 arm64 和 x86_64 两份，逐层重新签名，生成 `dist/updates/mac-v<版本>-<构建号>/` 下的 `*-arm64.zip`、`*-x86_64.zip` 和带 EdDSA 更新包签名的 `appcast.xml`。清单中 Apple Silicon 专用条目排在前面，Intel 使用兼容回退条目；Sparkle 2.9 的硬件限制及同版本首次匹配规则保证 Apple Silicon 优先使用原生版本。两份清单先独立生成，再合并，避免生成器按版本号去重丢失其中一个架构。输出目录已存在时停止，避免覆盖待发布附件；不会自行上传或发布。Ad-Hoc 不需要固定证书，但更新验证使用的 EdDSA 密钥必须保持不变；私钥丢失后不能依赖 Apple 签名恢复更新信任，需要用户手动安装新版。
+
+在公开仓库新建 Release，标签必须与脚本输出一致，同时上传该目录里的 ZIP 和 `appcast.xml`，填写面向用户的更新说明。先保存草稿并检查附件，再发布为最新正式版；不要只上传安装包，也不要将测试版设为最新正式版。每个正式版本都要带上更新清单，且发布后不要替换已签名的 ZIP。当前清单只保留本次完整更新包，适用于仍支持 macOS 14 的稳定通道；以后提高系统门槛时，需保留旧系统可用的更新条目。
+
+首个含自动更新功能的版本需要用户手动安装一次。正式发布前，用两个构建号的 Ad-Hoc 签名应用在独立 macOS 测试账户中验证发现新版、下载安装、重启后版本与数据保留；不要拿真实卡包数据进行升级测试。
+
+首个公开版本为 [1.0.0（构建号 2）](https://github.com/yuangy1995/card-wallet-releases/releases/tag/mac-v1.0.0-2)。构建号高于先前的本地试用包，便于试用包检测到首次公开更新。公开安装说明和版本说明的维护副本位于 `releases/`。
+
+本次验证：64 项单元测试通过（含设置更新入口、更新地址、公钥格式及检查/安装默认行为）；Apple Silicon + Intel 通用 Ad-Hoc 归档和嵌套签名完整性检查通过；更新附件生成及 EdDSA 签名验证通过。仍需在独立测试账户中完成安装替换及重启的端到端升级验证。
+
+## 调试提示（本地功能）
 
 - 构建失败时先查看 `build/xcodebuild-archive.log`。
 - WebDAV 同步异常优先检查 `Domain/WebDAVBridgeService.swift`、`Domain/WebDAVClient.swift` 和同步密钥。
@@ -81,6 +114,6 @@ xcodebuild -project CreditCardMac.xcodeproj -scheme CreditCardMac \
 ## 维护注意
 
 - `CreditCardMac.xcodeproj` 由 XcodeGen 生成，结构调整优先修改 `project.yml`。
-- 未提供开发团队时使用本地签名，方便在这台 Mac 上运行。
+- 固定使用 Ad-Hoc 临时签名，不切换到开发团队签名或公证。
 - 不要把 WebDAV 自动快照协议降级到旧导入导出方案。
 - Web、Android、macOS 三端共用 SyncV4 数据语义，字段变更需要同时检查三端。

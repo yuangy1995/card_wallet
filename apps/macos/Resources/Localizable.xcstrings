@@ -1,6 +1,46 @@
 {
   "sourceLanguage" : "zh-Hans",
   "strings" : {
+    "软件更新" : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "軟體更新"
+          }
+        }
+      }
+    },
+    "当前版本" : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "目前版本"
+          }
+        }
+      }
+    },
+    "卡包会定期检查新版本，发现更新后由你确认安装。" : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "卡包會定期檢查新版本，發現更新後由你確認安裝。"
+          }
+        }
+      }
+    },
+    "检查更新…" : {
+      "localizations" : {
+        "zh-Hant" : {
+          "stringUnit" : {
+            "state" : "translated",
+            "value" : "檢查更新…"
+          }
+        }
+      }
+    },
     "—" : {
       "localizations" : {
         "zh-Hant" : {

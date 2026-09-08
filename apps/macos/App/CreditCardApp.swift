@@ -3,11 +3,13 @@ import SwiftUI
 @main
 struct CreditCardApp: App {
     @StateObject private var appearance = WalletAppearance()
+    private let updater: AppUpdater?
     private static var isRunningTests: Bool {
         ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil || ProcessInfo.processInfo.environment["WALLET_TEST_HOST"] == "1"
     }
 
     init() {
+        updater = Self.isRunningTests ? nil : AppUpdater()
         // 单元测试宿主不读取卡包、钥匙串或启动云同步。
         guard !Self.isRunningTests else { return }
         NSEvent.addLocalMonitorForEvents(matching: [.mouseMoved, .leftMouseDown, .rightMouseDown, .keyDown]) { event in
@@ -21,9 +23,10 @@ struct CreditCardApp: App {
             Group {
                 if Self.isRunningTests {
                     Color.clear
-                } else {
+                } else if let updater {
                     GeometryReader { geometry in
                         ContentView()
+                            .environmentObject(updater)
                             .environment(\.walletSheetSize, WalletSheetLayout.size(in: geometry.size))
                             .modifier(WalletThemeModifier())
                     }
@@ -38,6 +41,11 @@ struct CreditCardApp: App {
         .windowToolbarStyle(.unifiedCompact)
         .defaultSize(width: 1160, height: 800)
         .commands {
+            CommandGroup(after: .appInfo) {
+                if let updater {
+                    CheckForUpdatesMenu(updater: updater)
+                }
+            }
             CommandGroup(replacing: .newItem) {
                 Button("添加卡片") { NotificationCenter.default.post(name: .walletNewCard, object: nil) }
                     .keyboardShortcut("n", modifiers: .command)

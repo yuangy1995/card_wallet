@@ -61,27 +61,19 @@ xcodegen generate
 
 # 3. 运行 xcodebuild 编译归档
 rm -rf build/CreditCardMac.xcarchive
-if [ -n "${DEVELOPMENT_TEAM:-}" ]; then
-    echo -e "${YELLOW}正在生成正式签名归档...${NC}"
-    run_xcodebuild_archive xcodebuild archive \
-        -project CreditCardMac.xcodeproj \
-        -scheme CreditCardMac \
-        -destination "generic/platform=macOS" \
-        -archivePath ./build/CreditCardMac.xcarchive \
-        DEVELOPMENT_TEAM="$DEVELOPMENT_TEAM" \
-        CODE_SIGN_STYLE=Automatic
-else
-    echo -e "${YELLOW}正在编译本地运行版本...${NC}"
-    run_xcodebuild_archive xcodebuild archive \
-        -project CreditCardMac.xcodeproj \
-        -scheme CreditCardMac \
-        -destination "generic/platform=macOS" \
-        -archivePath ./build/CreditCardMac.xcarchive \
-        CODE_SIGNING_ALLOWED=NO \
-        CODE_SIGNING_REQUIRED=NO \
-        CODE_SIGN_IDENTITY="" \
-        CODE_SIGN_ENTITLEMENTS=""
-fi
+echo -e "${YELLOW}正在生成固定 Ad-Hoc 临时签名归档...${NC}"
+run_xcodebuild_archive xcodebuild archive \
+    -project CreditCardMac.xcodeproj \
+    -scheme CreditCardMac \
+    -destination "generic/platform=macOS" \
+    -clonedSourcePackagesDirPath ./build/SourcePackages \
+    -archivePath ./build/CreditCardMac.xcarchive \
+    DEVELOPMENT_TEAM="" \
+    CODE_SIGN_STYLE=Manual \
+    CODE_SIGN_IDENTITY="-" \
+    ENABLE_APP_SANDBOX=NO \
+    WALLET_CODE_SIGN_ENTITLEMENTS=Resources/CreditCardMacAdHoc.entitlements \
+    CODE_SIGNING_ALLOWED=YES
 
 # 4. 提取生成的 .app 包到规范输出目录 dist/
 APP_PATH="./build/CreditCardMac.xcarchive/Products/Applications/CreditCardMac.app"
@@ -92,12 +84,8 @@ if [ -d "$APP_PATH" ]; then
     rm -rf "$DIST_APP_PATH"
     cp -R "$APP_PATH" "$DIST_APP_PATH"
 
-    # 未提供开发团队时使用本地签名，不覆盖正式签名。
-    if [ -z "${DEVELOPMENT_TEAM:-}" ] && command -v codesign >/dev/null 2>&1; then
-        echo -e "${GREEN}正在为可执行程序施加 Ad-Hoc 本地代码签名 (Ad-Hoc Code Signing)...${NC}"
-        codesign --force --deep --sign - "$DIST_APP_PATH" > /dev/null 2>&1
-        echo -e "${GREEN}本地临时自签名注入成功！${NC}"
-    fi
+    # 保留旧临时签名产物的非沙盒数据位置；复制后仅验证，不用 --deep 重签。
+    codesign --verify --deep --strict "$DIST_APP_PATH"
     
     echo -e "${GREEN}================================================${NC}"
     echo -e "${GREEN}🎉 恭喜！macOS 原生客户端一键打包构建成功！${NC}"
