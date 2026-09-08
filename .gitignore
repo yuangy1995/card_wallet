@@ -1,0 +1,32 @@
+# 通用系统文件与本地配置；各客户端继续使用自己的 .gitignore。
+.DS_Store
+.env
+.env.*
+!.env.example
+*.log
+*.tmp
+.idea/
+.vscode/
+.codex-derived/
+
+# 本地生成的依赖、构建产物和测试报告。
+node_modules/
+build/
+dist/
+DerivedData/
+.gradle/
+.kotlin/
+.build/
+coverage/
+venv/
+.venv/
+
+# 不再添加新的签名材料；已导入的历史文件不受忽略规则影响。
+*.jks
+*.keystore
+*.p12
+*.mobileprovision
+*.provisionprofile
+local.properties
+keystore.properties
+signing.properties
