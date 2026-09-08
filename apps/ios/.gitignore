@@ -1,0 +1,58 @@
+# Xcode
+build/
+build_derived/
+DerivedData/
+*.xcarchive
+*.xcresult
+*.dSYM
+*.ipa
+*.pbxuser
+*.mode1v3
+*.mode2v3
+*.perspectivev3
+xcuserdata/
+*.xcodeproj/project.xcworkspace/
+*.xcodeproj/xcuserdata/
+*.xcworkspace
+*.xcuserstate
+*.xcbuilddata
+*.xccheckout
+*.xcscmblueprint
+
+# Swift Package Manager
+.build/
+.swiftpm/xcode/package.resolved
+.swiftpm/xcode/xcshareddata/
+.swiftpm/xcode/xcuserdata/
+
+# CocoaPods
+Pods/
+
+# Local config and signing material
+.env
+.env.*
+!.env.example
+*.p12
+*.cer
+*.pem
+*.key
+*.mobileprovision
+*.provisionprofile
+Local.xcconfig
+Secrets.xcconfig
+
+# Editors and local tooling
+.idea/
+.vscode/
+.codex-derived/
+.kiro/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+
+# Log files
+*.log
