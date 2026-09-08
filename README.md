@@ -1,6 +1,10 @@
-# 卡包
+# 卡包 · Card Wallet
 
 同一个卡包应用的 Web、macOS、Android 和 iOS 客户端。四端统一在本仓库维护，分别构建、调试和发布。
+
+英文项目名为 **Card Wallet**，仓库及本地总目录使用 `card_wallet`。目前管理信用卡和储蓄卡，命名不限定卡片类型，便于以后扩展。
+
+GitHub 私有仓库：[yuangy1995/card_wallet](https://github.com/yuangy1995/card_wallet)。
 
 ## 项目目录
 

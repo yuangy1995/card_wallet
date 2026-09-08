@@ -40,7 +40,7 @@ GitHub 当前账户为 `yuangy1995`；旧 remote 中的 `qwertyuiop1995` 地址�
 | macOS | Debug 构建通过；Release 测试构建成功，61 项测试全部通过 |
 | Android | Debug APK 构建通过；3 个测试类、4 项单元测试全部通过 |
 | iOS | 工程、Info.plist、entitlements 检查通过；安装运行环境后 `make ios-build` 通过；App 已安装到专用 iPhone 17 Pro 模拟器并成功打开卡包首页 |
-| GitHub | 私有仓库 `yuangy1995/credit_card`，默认分支 `main`；总项目及 5 个历史保留分支已推送，远端分支提交与本地核对一致 |
+| GitHub | 私有仓库 `yuangy1995/card_wallet`（迁移时名为 `credit_card`），默认分支 `main`；总项目及 5 个历史保留分支已推送，远端分支提交与本地核对一致 |
 
 iOS 首次构建因本机没有模拟器运行环境而失败。经用户授权，已下载并安装 iOS 26.5（23F73，arm64），新建并启动“卡包调试 - iPhone 17 Pro”。在空白模拟器中安装、启动卡包，并确认显示“还没有银行卡”的首页；未导入真实卡片或配置真实云同步账户。原有的其他模拟器保留。
 
@@ -66,4 +66,13 @@ xcrun simctl runtime match set iphoneos26.5 --default --sdkBuild 23F81a
 
 - 四个旧本地目录已使用系统废纸篓功能移走，未永久擦除，可从废纸篓恢复。新总项目及迁移备份保持不动。
 - 用户完成 GitHub 删除权限授权后，已删除 `yuangy1995/credit_card_web`、`yuangy1995/credit_card_mac`、`yuangy1995/credit_card_android`、`yuangy1995/credit_card_iOS`，四次删除命令均成功。
-- 新的私有总仓库 `yuangy1995/credit_card` 保留，包含四端主分支历史及原有备份分支；删除旧远端仓库不会删除这些已导入的提交。迁移前的本地 Git bundle 备份也继续保留。
+- 新的私有总仓库保留（现名 `yuangy1995/card_wallet`），包含四端主分支历史及原有备份分支；删除旧远端仓库不会删除这些已导入的提交。迁移前的本地 Git bundle 备份也继续保留。
+
+## 项目更名（2026-09-08）
+
+为体现信用卡、储蓄卡以及未来其他卡片类型的管理范围，按用户要求将总项目英文名定为 **Card Wallet**，GitHub 总仓库及本地总目录由 `credit_card` 更名为 `card_wallet`。
+
+- GitHub 原仓库直接更名，仓库 ID 不变，保留私有可见性、提交历史和所有分支；本地 `origin` 已更新到新地址。
+- 同步更新总项目说明及 Web 包的仓库链接；Web 包名原本就是 `card-wallet`，继续保留。
+- 不变更各客户端内部工程名、应用标识、签名、本地存储位置和用户可见文案，不新增卡片类型功能。
+- 历史迁移来源和备份名称保留原名，便于追溯。
