@@ -28,7 +28,7 @@ GitHub 当前账户为 `yuangy1995`；旧 remote 中的 `qwertyuiop1995` 地址�
 - 新仓库使用私有可见性，默认分支为 `main`。
 - 迁移阶段未删除、归档或修改旧仓库可见性；后续按用户新授权执行清理，状态见下文。
 - 本次不迁移平台设置、Secrets、发布附件或部署服务；各客户端源码中未发现已跟踪的 `.github` 工作流。
-- 原 Android 仓库为公开仓库，主分支已跟踪发布签名文件，构建配置包含明文签名口令。为保留提交历史及升级身份，本次未更换签名或清理历史；新仓库私有不等于已修复原有安全风险。
+- 原 Android 仓库曾为公开仓库，主分支已跟踪发布签名文件，构建配置包含明文签名口令。为保留提交历史及升级身份，本次未更换签名或清理历史；新仓库私有及删除旧仓库不等于已消除签名材料曾公开的风险。
 
 ## 验证
 
@@ -65,5 +65,5 @@ xcrun simctl runtime match set iphoneos26.5 --default --sdkBuild 23F81a
 用户随后明确要求删除四个旧本地项目及四个旧 GitHub 仓库。删除前再次拉取并核对：旧四端没有新增提交或未提交改动，没有标签、额外远端分支、开放 Issues/PR 或 Releases；来源提交在新 GitHub 仓库完整可达，四份本地 Git bundle 验证通过。
 
 - 四个旧本地目录已使用系统废纸篓功能移走，未永久擦除，可从废纸篓恢复。新总项目及迁移备份保持不动。
-- 待删除的旧 GitHub 仓库为 `yuangy1995/credit_card_web`、`yuangy1995/credit_card_mac`、`yuangy1995/credit_card_android`、`yuangy1995/credit_card_iOS`。
-- 当前 GitHub CLI 凭证缺少 `delete_repo` 权限，已发起授权流程，等待用户完成；四个远端旧仓库尚未删除。
+- 用户完成 GitHub 删除权限授权后，已删除 `yuangy1995/credit_card_web`、`yuangy1995/credit_card_mac`、`yuangy1995/credit_card_android`、`yuangy1995/credit_card_iOS`，四次删除命令均成功。
+- 新的私有总仓库 `yuangy1995/credit_card` 保留，包含四端主分支历史及原有备份分支；删除旧远端仓库不会删除这些已导入的提交。迁移前的本地 Git bundle 备份也继续保留。
