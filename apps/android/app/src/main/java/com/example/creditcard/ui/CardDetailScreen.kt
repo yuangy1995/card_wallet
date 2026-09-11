@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material.icons.filled.Nfc
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import com.example.creditcard.ui.components.WalletSection
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -66,6 +67,8 @@ import com.example.creditcard.utils.CardReminderRules
 import com.example.creditcard.utils.SyncCoordinator
 import com.example.creditcard.utils.ThemeManager
 import com.example.creditcard.utils.CardScanProgressManager
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.io.File
@@ -198,7 +201,9 @@ fun CardDetailScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
-                .padding(horizontal = 16.dp)
+                .wrapContentWidth(Alignment.CenterHorizontally)
+                .widthIn(max = 760.dp)
+                .padding(horizontal = 20.dp)
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
@@ -511,22 +516,13 @@ fun CardDetailScreen(
                     modifier = Modifier.fillMaxSize()
                 ) { page ->
                     val previewImg = previewList[page]
-                    val bitmap = remember(previewImg) {
-                        when (previewImg) {
-                            is PreviewImage.Asset -> CardImageCodec.decodeBitmap(previewImg.asset)
-                            is PreviewImage.LocalFile -> {
-                                try {
-                                    BitmapFactory.decodeFile(previewImg.file.absolutePath)
-                                } catch (e: Exception) {
-                                    null
-                                }
-                            }
-                        }
+                    val bitmap by produceState<android.graphics.Bitmap?>(null, previewImg) {
+                        value = withContext(Dispatchers.IO) { decodePreviewBitmap(previewImg) }
                     }
 
                     if (bitmap != null) {
                         ZoomableImage(
-                            bitmap = bitmap,
+                            bitmap = bitmap!!,
                             contentDescription = "预览图片 ${page + 1}",
                             onScaleChanged = { scale: Float ->
                                 isZoomed = scale > 1f
@@ -835,7 +831,9 @@ private fun MediaThumbnail(
     isDark: Boolean,
     onClick: () -> Unit
 ) {
-    val bitmap = remember(preview) { decodePreviewBitmap(preview) }
+    val bitmap by produceState<android.graphics.Bitmap?>(null, preview) {
+        value = withContext(Dispatchers.IO) { decodePreviewBitmap(preview) }
+    }
 
     Column(
         modifier = Modifier.width(170.dp),
@@ -858,7 +856,7 @@ private fun MediaThumbnail(
         ) {
             if (bitmap != null) {
                 Image(
-                    bitmap = bitmap.asImageBitmap(),
+                    bitmap = bitmap!!.asImageBitmap(),
                     contentDescription = "卡片图片 ${index + 1}",
                     modifier = Modifier
                         .fillMaxSize()
@@ -904,27 +902,8 @@ private fun MediaThumbnail(
  * 卡片详细信息分块 UI
  */
 @Composable
-fun DetailSection(
-    title: String,
-    content: @Composable ColumnScope.() -> Unit
-) {
-    Column(modifier = Modifier.fillMaxWidth()) {
-        if (title.isNotBlank()) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.padding(vertical = 12.dp)
-            )
-        }
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 4.dp),
-            content = content
-        )
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-    }
+fun DetailSection(title: String, content: @Composable ColumnScope.() -> Unit) {
+    WalletSection(title = title, content = content)
 }
 
 @Composable
@@ -934,35 +913,7 @@ fun CollapsibleDetailSection(
     onExpandedChange: (Boolean) -> Unit,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable { onExpandedChange(!expanded) }
-                .padding(horizontal = 4.dp, vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.weight(1f)
-            )
-            Icon(
-                imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
-                contentDescription = if (expanded) "收起" else "展开",
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-
-        AnimatedVisibility(visible = expanded) {
-            Column(modifier = Modifier.padding(horizontal = 4.dp, vertical = 4.dp)) {
-                content()
-            }
-        }
-    }
+    WalletSection(title, expanded, onExpandedChange, content)
 }
 
 @Composable

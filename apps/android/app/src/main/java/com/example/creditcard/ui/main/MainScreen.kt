@@ -38,6 +38,17 @@ import androidx.compose.material.icons.automirrored.filled.Sort
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.selected
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.runtime.saveable.rememberSaveableStateHolder
+import com.example.creditcard.R
+import com.example.creditcard.ui.components.WalletSection
+import com.example.creditcard.ui.update.UpdateSettingsPanel
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -184,9 +195,9 @@ fun MainScreen(
     val isDark by ThemeManager.isDarkTheme.collectAsState()
 
     // 底部 Tab 切换状态 (0: 卡包, 1: 工具, 2: 设置) - 纯图标化极简渲染
-    var selectedTab by remember { mutableIntStateOf(0) }
-    var toolsMode by remember { mutableStateOf(ToolsMode.HOME) }
-    var settingsMode by remember { mutableStateOf(SettingsMode.MAIN) }
+    var selectedTab by rememberSaveable { mutableIntStateOf(0) }
+    var toolsMode by rememberSaveable { mutableStateOf(ToolsMode.HOME) }
+    var settingsMode by rememberSaveable { mutableStateOf(SettingsMode.MAIN) }
     var verifySessionSeed by remember { mutableIntStateOf(0) }
 
     // 系统返回先处理工具、设置子页面和非首页 Tab，再交给 Activity 默认退出。
@@ -211,9 +222,9 @@ fun MainScreen(
     }
     
     // 卡包搜索状态
-    var searchQuery by remember { mutableStateOf("") }
+    var searchQuery by rememberSaveable { mutableStateOf("") }
     var showCardManagement by remember { mutableStateOf(false) }
-    var cardCategoryFilter by remember { mutableStateOf("all") }
+    var cardCategoryFilter by rememberSaveable { mutableStateOf("all") }
     var showAddMenu by remember { mutableStateOf(false) }
     val cardListPrefs = remember(context) {
         context.getSharedPreferences(CARD_LIST_PREFS, Context.MODE_PRIVATE)
@@ -318,6 +329,9 @@ fun MainScreen(
         }
     }
 
+    val walletListState = rememberLazyListState()
+    val tabStateHolder = rememberSaveableStateHolder()
+
     val isSubPage = (selectedTab == 1 && toolsMode != ToolsMode.HOME) ||
                     (selectedTab == 2 && settingsMode != SettingsMode.MAIN)
 
@@ -404,8 +418,8 @@ fun MainScreen(
                             toolsMode = ToolsMode.HOME
                             settingsMode = SettingsMode.MAIN
                         },
-                        icon = { Icon(Icons.Filled.Wallet, contentDescription = "卡包") },
-                        label = { Text("卡包") },
+                        icon = { Icon(Icons.Filled.Wallet, contentDescription = stringResource(R.string.nav_wallet)) },
+                        label = { Text(stringResource(R.string.nav_wallet)) },
                         colors = NavigationBarItemDefaults.colors(
                             selectedIconColor = if (isDark) NeonCyan else GoldPrimary,
                             indicatorColor = (if (isDark) NeonCyan else GoldPrimary).copy(alpha = 0.15f)
@@ -418,8 +432,8 @@ fun MainScreen(
                             toolsMode = ToolsMode.HOME
                             settingsMode = SettingsMode.MAIN
                         },
-                        icon = { Icon(Icons.Filled.Handyman, contentDescription = "工具") },
-                        label = { Text("工具") },
+                        icon = { Icon(Icons.Filled.Handyman, contentDescription = stringResource(R.string.nav_tools)) },
+                        label = { Text(stringResource(R.string.nav_tools)) },
                         colors = NavigationBarItemDefaults.colors(
                             selectedIconColor = if (isDark) NeonCyan else GoldPrimary,
                             indicatorColor = (if (isDark) NeonCyan else GoldPrimary).copy(alpha = 0.15f)
@@ -432,8 +446,8 @@ fun MainScreen(
                             toolsMode = ToolsMode.HOME
                             settingsMode = SettingsMode.MAIN
                         },
-                        icon = { Icon(Icons.Filled.Settings, contentDescription = "设置") },
-                        label = { Text("设置") },
+                        icon = { Icon(Icons.Filled.Settings, contentDescription = stringResource(R.string.nav_settings)) },
+                        label = { Text(stringResource(R.string.nav_settings)) },
                         colors = NavigationBarItemDefaults.colors(
                             selectedIconColor = if (isDark) NeonCyan else GoldPrimary,
                             indicatorColor = (if (isDark) NeonCyan else GoldPrimary).copy(alpha = 0.15f)
@@ -448,20 +462,22 @@ fun MainScreen(
                     modifier = Modifier.padding(bottom = 16.dp, end = 8.dp),
                     contentAlignment = Alignment.BottomEnd
                 ) {
-                    FloatingActionButton(
+                    ExtendedFloatingActionButton(
                         onClick = { showAddMenu = true },
                         containerColor = if (isDark) NeonCyan else GoldPrimary,
                         contentColor = if (isDark) DarkBg else Color.White,
                         shape = CircleShape
                     ) {
-                        Icon(imageVector = Icons.Filled.Add, contentDescription = "新增卡片")
+                        Icon(imageVector = Icons.Filled.Add, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text(stringResource(R.string.add_card))
                     }
                     DropdownMenu(
                         expanded = showAddMenu,
                         onDismissRequest = { showAddMenu = false }
                     ) {
                         DropdownMenuItem(
-                            text = { Text("新增信用卡") },
+                            text = { Text(stringResource(R.string.add_credit)) },
                             leadingIcon = { Icon(Icons.Filled.CreditCard, contentDescription = null) },
                             onClick = {
                                 showAddMenu = false
@@ -469,7 +485,7 @@ fun MainScreen(
                             }
                         )
                         DropdownMenuItem(
-                            text = { Text("新增储蓄卡") },
+                            text = { Text(stringResource(R.string.add_debit)) },
                             leadingIcon = { Icon(Icons.Filled.AccountBalanceWallet, contentDescription = null) },
                             onClick = {
                                 showAddMenu = false
@@ -486,13 +502,20 @@ fun MainScreen(
         Box(
             modifier = modifier
                 .fillMaxSize()
-                .padding(innerPadding)
+                .padding(innerPadding),
+            contentAlignment = Alignment.TopCenter
         ) {
+            // 只保留当前页面的组合，切换时仅做短暂透明度过渡；列表位置独立保存。
+            val tabAlpha = remember { Animatable(1f) }
+            LaunchedEffect(selectedTab) { tabAlpha.snapTo(0f); tabAlpha.animateTo(1f, tween(180)) }
+            Box(Modifier.widthIn(max = 760.dp).fillMaxSize().graphicsLayer { alpha = tabAlpha.value }) {
+            tabStateHolder.SaveableStateProvider(selectedTab) {
             when (selectedTab) {
                 0 -> {
                     val syncConfig = remember(context) { SyncCoordinator.loadConfig(context) }
 
                     LazyColumn(
+                        state = walletListState,
                         modifier = Modifier
                             .fillMaxSize(),
                         contentPadding = PaddingValues(bottom = 80.dp),
@@ -503,26 +526,26 @@ fun MainScreen(
                             Row(
                                 modifier = Modifier
                                     .fillMaxWidth()
-                                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                                    .padding(horizontal = 20.dp, vertical = 16.dp),
                                 horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(
-                                    text = "我的卡包",
-                                    fontSize = 24.sp,
-                                    fontWeight = FontWeight.ExtraBold,
-                                    color = MaterialTheme.colorScheme.onBackground
-                                )
+                                Column(Modifier.weight(1f)) {
+                                    Text(stringResource(R.string.wallet_title), style = MaterialTheme.typography.headlineSmall)
+                                    Text(stringResource(R.string.cards_count, cards.size),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                }
 
                                 Row(verticalAlignment = Alignment.CenterVertically) {
                                     // 模式切换按钮 (简洁/丰富)
                                     IconButton(
                                         onClick = { isCompactView = !isCompactView },
-                                        modifier = Modifier.size(40.dp)
+                                        modifier = Modifier.size(48.dp)
                                     ) {
                                         Icon(
                                             imageVector = if (isCompactView) Icons.Filled.ViewAgenda else Icons.Filled.ViewStream,
-                                            contentDescription = if (isCompactView) "切换为卡片模式" else "切换为列表模式",
+                                            contentDescription = stringResource(if (isCompactView) R.string.view_cards else R.string.view_list),
                                             tint = if (isDark) NeonCyan else GoldPrimary,
                                             modifier = Modifier.size(22.dp)
                                         )
@@ -551,11 +574,11 @@ fun MainScreen(
                                     // 搜索与管理入口
                                     IconButton(
                                         onClick = { showCardManagement = !showCardManagement },
-                                        modifier = Modifier.size(40.dp)
+                                        modifier = Modifier.size(48.dp)
                                     ) {
                                         Icon(
-                                            imageVector = if (showCardManagement) Icons.Filled.Close else Icons.Filled.Search,
-                                            contentDescription = if (showCardManagement) "关闭搜索" else "搜索与管理",
+                                            imageVector = if (showCardManagement) Icons.Filled.Close else Icons.Filled.Tune,
+                                            contentDescription = stringResource(if (showCardManagement) R.string.close_manage else R.string.manage_cards),
                                             tint = MaterialTheme.colorScheme.onSurfaceVariant,
                                             modifier = Modifier.size(22.dp)
                                         )
@@ -564,12 +587,32 @@ fun MainScreen(
                             }
                         }
 
+                        item(key = "search") {
+                            OutlinedTextField(
+                                value = searchQuery, onValueChange = { searchQuery = it },
+                                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
+                                placeholder = { Text(stringResource(R.string.search_cards), style = MaterialTheme.typography.bodyMedium) },
+                                leadingIcon = { Icon(Icons.Default.Search, null) },
+                                trailingIcon = {
+                                    if (searchQuery.isNotEmpty()) IconButton(onClick = { searchQuery = "" }) {
+                                        Icon(Icons.Default.Close, stringResource(R.string.clear_search))
+                                    }
+                                },
+                                singleLine = true,
+                                shape = MaterialTheme.shapes.large,
+                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
+                                colors = OutlinedTextFieldDefaults.colors(
+                                    unfocusedBorderColor = Color.Transparent,
+                                    focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                                    focusedContainerColor = MaterialTheme.colorScheme.surface
+                                )
+                            )
+                        }
                         // 2. 搜寻与管理扩展面板
                         item(key = "card_management_panel") {
                             AnimatedVisibility(visible = showCardManagement || selectionMode) {
                                 CardManagementPanel(
-                                    searchQuery = searchQuery,
-                                    onSearchQueryChange = { searchQuery = it },
                                     groupOption = groupOption,
                                     sortOption = sortOption,
                                     showGroupMenu = showGroupMenu,
@@ -604,9 +647,9 @@ fun MainScreen(
                                 horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
                                 listOf(
-                                    Triple("all", "全部", cards.size),
-                                    Triple("credit", "信用卡", creditCardCount),
-                                    Triple("debit", "储蓄卡", debitCardCount)
+                                    Triple("all", stringResource(R.string.all_cards), searchFilteredCards.size),
+                                    Triple("credit", stringResource(R.string.credit_cards), creditCardCount),
+                                    Triple("debit", stringResource(R.string.debit_cards), debitCardCount)
                                 ).forEach { (code, label, count) ->
                                     FilterChip(
                                         selected = cardCategoryFilter == code,
@@ -623,7 +666,7 @@ fun MainScreen(
                                             selectedLabelColor = if (isDark) NeonCyan else GoldPrimary,
                                             containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
                                         ),
-                                        shape = RoundedCornerShape(12.dp)
+                                        shape = CircleShape
                                     )
                                 }
                             }
@@ -652,8 +695,16 @@ fun MainScreen(
                                     contentAlignment = Alignment.Center
                                 ) {
                                     Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                        Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.primaryContainer) {
+                                            Icon(Icons.Default.Wallet, null, Modifier.padding(24.dp).size(40.dp),
+                                                tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                                        }
+                                        Spacer(Modifier.height(20.dp))
+                                        Text(stringResource(if (cards.isEmpty()) R.string.wallet_empty_title else R.string.wallet_no_results),
+                                            style = MaterialTheme.typography.titleLarge)
+                                        Spacer(Modifier.height(8.dp))
                                         Text(
-                                            text = if (searchQuery.isEmpty()) "暂无卡片，随时添加您的第一张银行卡" else "未匹配到符合条件的卡片",
+                                            text = if (cards.isEmpty()) stringResource(R.string.wallet_empty_body) else "",
                                             color = if (isDark) TextGray else TextMuted,
                                             fontSize = 14.sp
                                         )
@@ -669,7 +720,7 @@ fun MainScreen(
                                             ) {
                                                 Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(18.dp))
                                                 Spacer(modifier = Modifier.width(6.dp))
-                                                Text("新增信用卡")
+                                                Text(stringResource(R.string.add_credit))
                                             }
                                         }
                                     }
@@ -699,7 +750,7 @@ fun MainScreen(
                                             )
                                             Spacer(modifier = Modifier.weight(1f))
                                             Text(
-                                                text = "${groupCards.size} 张",
+                                                text = stringResource(R.string.cards_count, groupCards.size),
                                                 style = MaterialTheme.typography.labelMedium,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
@@ -829,14 +880,14 @@ fun MainScreen(
                     )
                 }
             }
+            }
+            }
         }
     }
 }
 
 @Composable
 private fun CardManagementPanel(
-    searchQuery: String,
-    onSearchQueryChange: (String) -> Unit,
     groupOption: CardListGroupOption,
     sortOption: CardListSortOption,
     showGroupMenu: Boolean,
@@ -859,22 +910,6 @@ private fun CardManagementPanel(
             .padding(horizontal = 16.dp, vertical = 4.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        OutlinedTextField(
-            value = searchQuery,
-            onValueChange = onSearchQueryChange,
-            placeholder = { Text("搜索银行、卡名或尾号") },
-            leadingIcon = { Icon(Icons.Filled.Search, contentDescription = null) },
-            trailingIcon = {
-                if (searchQuery.isNotEmpty()) {
-                    IconButton(onClick = { onSearchQueryChange("") }) {
-                        Icon(Icons.Filled.Clear, contentDescription = "清除搜索")
-                    }
-                }
-            },
-            singleLine = true,
-            shape = MaterialTheme.shapes.medium,
-            modifier = Modifier.fillMaxWidth()
-        )
 
         Row(
             modifier = Modifier.fillMaxWidth(),
@@ -1013,8 +1048,11 @@ private fun CompactCardRow(
     Row(
         modifier = modifier
             .fillMaxWidth()
+            .clip(MaterialTheme.shapes.large)
+            .background(MaterialTheme.colorScheme.surface)
+            .semantics { if (selectionMode) this.selected = selected }
             .clickable(onClick = onClick)
-            .padding(vertical = 12.dp),
+            .padding(horizontal = 16.dp, vertical = 16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
@@ -1421,24 +1459,15 @@ fun DynamicSyncBadge(
     onSyncClick: () -> Unit,
     onSyncingClick: () -> Unit
 ) {
-    // 1. 无限顺时针360度旋转动画 spec 声明
-    val infiniteTransition = rememberInfiniteTransition(label = "syncRotation")
-    val rotationAngle by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(durationMillis = 1200, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "syncRotation"
-    )
 
     // 2. 自适应状态颜色确定
     val iconColor = when {
+        !isSyncAvailable -> MaterialTheme.colorScheme.onSurfaceVariant
         isSyncing -> if (isDark) NeonCyan else NavySecondary
         statusType == "success" -> if (isDark) NeonGreen else ForestGreen
-        statusType == "error" -> if (isDark) NeonRed else Color.Red
-        else -> if (isDark) Color(0xFFFF9100) else WarmOrange // warning
+        statusType == "error" -> MaterialTheme.colorScheme.error
+        statusType == "warning" -> if (isDark) Color(0xFFFFD08A) else WarmOrange
+        else -> MaterialTheme.colorScheme.onSurfaceVariant
     }
 
     val badgeBgColor = iconColor.copy(alpha = 0.15f)
@@ -1460,14 +1489,16 @@ fun DynamicSyncBadge(
         contentAlignment = Alignment.Center
     ) {
         if (isSyncing) {
-            // 正在同步：进行 360 度圆滑旋转
+            val transition = rememberInfiniteTransition(label = "sync")
+            val angle = transition.animateFloat(0f, 360f,
+                infiniteRepeatable(tween(1200, easing = LinearEasing)), label = "syncAngle")
             Icon(
                 imageVector = Icons.Filled.Sync,
                 contentDescription = "正在同步",
                 tint = iconColor,
                 modifier = Modifier
                     .size(22.dp)
-                    .rotate(rotationAngle)
+                    .graphicsLayer { rotationZ = angle.value }
             )
         } else {
             // 静止态：按同步成败状态显示经典 Icon
@@ -1599,7 +1630,7 @@ private fun HomeDashboardHeader(
                     Spacer(modifier = Modifier.width(4.dp))
                     IconButton(
                         onClick = onToggleManagement,
-                        modifier = Modifier.size(40.dp)
+                        modifier = Modifier.size(48.dp)
                     ) {
                         Icon(
                             imageVector = if (showCardManagement) Icons.Filled.Close else Icons.Filled.Search,
@@ -1673,176 +1704,90 @@ fun CreditCardTile(
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
-    val brand = getCardBrand(card.cardNumber)
-    val isDebitCard = card.cardCategory == "debit"
-    val hasAnnualReminder = CardReminderRules.annualFeeDetection(card) != null
-    val expiryStatus = CardReminderRules.cardExpiryStatus(card.valid)
-    val reminderColor = when {
-        expiryStatus == CardExpiryStatus.EXPIRED -> Color(0xFFFFA09B)
-        expiryStatus == CardExpiryStatus.SOON_EXPIRING -> Color(0xFFFFD08A)
-        hasAnnualReminder -> Color(0xFFFFD08A)
-        else -> null
+    val brand = remember(card.cardNumber) { getCardBrand(card.cardNumber) }
+    val isDebit = card.cardCategory == "debit"
+    val reminder = remember(card) {
+        CardReminderRules.annualFeeDetection(card) != null ||
+            CardReminderRules.cardExpiryStatus(card.valid) in listOf(CardExpiryStatus.EXPIRED, CardExpiryStatus.SOON_EXPIRING)
     }
-    val cardColors = remember(card.bank) { bankCardColors(card.bank) }
-    val gradientBrush = Brush.linearGradient(cardColors)
-    val cardTitle = card.alias.ifBlank { card.bank.ifBlank { "未命名卡片" } }
-    val bankLabel = if (card.alias.isBlank()) {
-        if (isDebitCard) "储蓄卡" else "信用卡"
-    } else {
-        card.bank.ifBlank { if (isDebitCard) "储蓄卡" else "信用卡" }
-    }
-    val interestFreeDays = remember(card) {
-        if (!isDebitCard) calculateInterestFreeDays(card) else -1
-    }
-
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .aspectRatio(1.68f)
-            .shadow(
-                elevation = if (isDark) 2.dp else 5.dp,
-                shape = RoundedCornerShape(18.dp),
-                ambientColor = Color.Black.copy(alpha = 0.2f),
-                spotColor = Color.Black.copy(alpha = 0.2f)
-            )
-            .clip(RoundedCornerShape(18.dp))
-            .background(gradientBrush)
-            .border(1.dp, Color.White.copy(alpha = 0.18f), RoundedCornerShape(18.dp))
-            .clickable { onClick() }
-            .padding(18.dp)
+    val days = remember(card) { if (isDebit) -1 else calculateInterestFreeDays(card) }
+    val accent = MaterialTheme.colorScheme.primary
+    val border by animateColorAsState(
+        if (selected) accent else MaterialTheme.colorScheme.outlineVariant, tween(180), label = "cardSelection"
+    )
+    Card(
+        onClick = onClick,
+        modifier = modifier.fillMaxWidth().semantics { if (selectionMode) this.selected = selected },
+        shape = MaterialTheme.shapes.large,
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, border)
     ) {
-        Column(
-            modifier = Modifier.fillMaxSize(),
-            verticalArrangement = Arrangement.SpaceBetween
-        ) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = cardTitle,
-                        color = Color.White,
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 18.sp,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Text(
-                        text = bankLabel,
-                        color = Color.White.copy(alpha = 0.78f),
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.Normal,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+        Column(Modifier.padding(20.dp), verticalArrangement = Arrangement.spacedBy(20.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Surface(shape = RoundedCornerShape(14.dp), color = MaterialTheme.colorScheme.primaryContainer) {
+                    Icon(
+                        if (isDebit) Icons.Default.AccountBalanceWallet else Icons.Default.CreditCard,
+                        null, Modifier.padding(12.dp).size(24.dp),
+                        tint = MaterialTheme.colorScheme.onPrimaryContainer
                     )
                 }
-
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    CardBrandBadge(brand = brand)
+                Spacer(Modifier.width(12.dp))
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    Text(card.alias.ifBlank { card.bank.ifBlank { stringResource(R.string.card_unnamed) } },
+                        style = MaterialTheme.typography.titleMedium, maxLines = 2, overflow = TextOverflow.Ellipsis)
+                    Text(card.bank.ifBlank { stringResource(R.string.bank_unset) },
+                        style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
-            }
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                EMVChip()
-                Text(
-                    text = formatMaskedCardNumber(card.cardNumber),
-                    color = Color.White,
-                    fontSize = 16.sp,
-                    fontFamily = FontFamily.Monospace,
-                    fontWeight = FontWeight.SemiBold,
-                    letterSpacing = 1.sp,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.Bottom
-            ) {
-                Column {
-                    Text(
-                        text = if (isDebitCard) "储蓄卡" else "信用额度",
-                        color = Color.White.copy(alpha = 0.65f),
-                        fontSize = 10.sp
-                    )
-                    Text(
-                        text = if (isDebitCard) "DEBIT" else "${card.type.ifBlank { "¥" }} ${String.format("%,.0f", card.limit)}",
-                        color = Color.White,
-                        fontSize = 17.sp,
-                        fontWeight = FontWeight.ExtraBold
-                    )
-                }
-
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    if (reminderColor != null) {
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(reminderColor.copy(alpha = 0.25f))
-                                .border(1.dp, reminderColor.copy(alpha = 0.5f), RoundedCornerShape(8.dp))
-                                .padding(horizontal = 8.dp, vertical = 4.dp)
-                        ) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(
-                                    imageVector = Icons.Filled.ReportProblem,
-                                    contentDescription = "提醒",
-                                    tint = reminderColor,
-                                    modifier = Modifier.size(13.dp)
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = "待处理事项",
-                                    color = reminderColor,
-                                    fontSize = 11.sp,
-                                    fontWeight = FontWeight.Bold
-                                )
-                            }
-                        }
-                    } else if (!isDebitCard && interestFreeDays >= 0) {
-                        Box(
-                            modifier = Modifier
-                                .clip(RoundedCornerShape(8.dp))
-                                .background(Color.White.copy(alpha = 0.15f))
-                                .border(1.dp, Color.White.copy(alpha = 0.25f), RoundedCornerShape(8.dp))
-                                .padding(horizontal = 8.dp, vertical = 4.dp)
-                        ) {
-                            Text(
-                                text = "免息期 $interestFreeDays 天",
-                                color = Color.White,
-                                fontSize = 11.sp,
-                                fontWeight = FontWeight.Medium
-                            )
-                        }
-                    } else {
-                        Text(
-                            text = card.level.ifBlank { if (isDebitCard) "储蓄卡" else "标准卡" },
-                            color = Color.White.copy(alpha = 0.75f),
-                            fontSize = 11.sp,
-                            fontWeight = FontWeight.Medium
-                        )
+                if (selectionMode) {
+                    Icon(if (selected) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
+                        stringResource(if (selected) R.string.selected else R.string.not_selected), tint = accent)
+                } else {
+                    Surface(
+                        shape = MaterialTheme.shapes.small,
+                        color = MaterialTheme.colorScheme.surfaceVariant
+                    ) {
+                        Text(brand.uppercase(), Modifier.widthIn(max = 88.dp).padding(horizontal = 10.dp, vertical = 8.dp),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis)
                     }
                 }
             }
-        }
-
-        if (selectionMode) {
-            Icon(
-                imageVector = if (selected) Icons.Filled.CheckCircle else Icons.Filled.RadioButtonUnchecked,
-                contentDescription = if (selected) "已选择" else "未选择",
-                tint = if (selected) Color.White else Color.White.copy(alpha = 0.75f),
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .size(24.dp)
-                    .shadow(3.dp, CircleShape)
-            )
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text("••••", color = MaterialTheme.colorScheme.onSurfaceVariant, letterSpacing = 3.sp)
+                Text(card.cardNumber.filter(Char::isDigit).takeLast(4).ifEmpty { "----" },
+                    style = MaterialTheme.typography.headlineSmall, fontFamily = FontFamily.Monospace,
+                    modifier = Modifier.weight(1f))
+                Text(stringResource(if (isDebit) R.string.debit_cards else R.string.credit_cards),
+                    color = accent, style = MaterialTheme.typography.labelMedium)
+            }
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.65f))
+            FlowRow(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                if (!isDebit) {
+                    Column {
+                        Text(stringResource(R.string.credit_limit), style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("${card.type} ${String.format("%,.0f", card.limit)}".trim(),
+                            style = MaterialTheme.typography.titleLarge)
+                    }
+                } else if (card.type.isNotBlank()) {
+                    Text(card.type, style = MaterialTheme.typography.titleLarge)
+                }
+                if (reminder) {
+                    Text(stringResource(R.string.card_attention), color = MaterialTheme.colorScheme.error,
+                        style = MaterialTheme.typography.labelMedium)
+                } else if (days >= 0) {
+                    Text(stringResource(R.string.interest_days, days), color = accent,
+                        style = MaterialTheme.typography.labelMedium)
+                } else if (card.level.isNotBlank()) {
+                    Text(card.level, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.labelMedium)
+                }
+            }
         }
     }
 }
@@ -2022,40 +1967,40 @@ fun ToolsPanel(
         ToolMenuItem(
             id = "stats",
             icon = Icons.Filled.Analytics,
-            title = "统计分析",
-            subtitle = "查看信用额度、储蓄卡币种、共享额度和年费预警",
+            title = stringResource(R.string.tool_stats),
+            subtitle = stringResource(R.string.tool_stats_desc),
             accent = if (isDark) NeonCyan else GoldPrimary,
             onClick = onOpenStats
         ),
         ToolMenuItem(
             id = "verify",
             icon = Icons.AutoMirrored.Filled.FactCheck,
-            title = "快速验卡",
-            subtitle = "先同步云端最新数据，再用 NFC 逐张核对本地卡包",
+            title = stringResource(R.string.tool_verify),
+            subtitle = stringResource(R.string.tool_verify_desc),
             accent = if (isDark) NeonGreen else ForestGreen,
             onClick = onStartVerify
         ),
         ToolMenuItem(
             id = "best_usage",
             icon = Icons.Filled.AutoAwesome,
-            title = "优惠用卡",
-            subtitle = "实时计算卡片当前可用免息期，智能推荐今日消费首选卡片",
+            title = stringResource(R.string.tool_usage),
+            subtitle = stringResource(R.string.tool_usage_desc),
             accent = if (isDark) NeonPurple else NavySecondary,
             onClick = onOpenBestUsage
         ),
         ToolMenuItem(
             id = "sync_log",
             icon = Icons.Filled.History,
-            title = "同步记录",
-            subtitle = "查看与 WebDAV 云盘的数据同步记录",
+            title = stringResource(R.string.tool_sync),
+            subtitle = stringResource(R.string.tool_sync_desc),
             accent = if (isDark) NeonCyan else GoldPrimary,
             onClick = onOpenSyncHistory
         ),
         ToolMenuItem(
             id = "data_diagnostics",
             icon = Icons.Filled.ReportProblem,
-            title = "数据异常检测",
-            subtitle = "检查重复卡号、账单还款配置、有效期格式和共享额度一致性",
+            title = stringResource(R.string.tool_diagnostics),
+            subtitle = stringResource(R.string.tool_diagnostics_desc),
             accent = if (isDark) Color(0xFFFF9100) else WarmOrange,
             onClick = onOpenDataDiagnostics
         )
@@ -2083,11 +2028,12 @@ fun ToolsPanel(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = "工具",
-                style = MaterialTheme.typography.headlineSmall,
-                color = MaterialTheme.colorScheme.onBackground
-            )
+            Column(Modifier.weight(1f)) {
+                Text(stringResource(R.string.nav_tools), style = MaterialTheme.typography.headlineSmall)
+                Spacer(Modifier.height(4.dp))
+                Text(stringResource(R.string.tools_subtitle), style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
 
             TextButton(onClick = { showCustomizeDialog = true }) {
                 Icon(
@@ -2097,7 +2043,7 @@ fun ToolsPanel(
                     tint = if (isDark) NeonCyan else GoldPrimary
                 )
                 Spacer(modifier = Modifier.width(4.dp))
-                Text("自定义", fontSize = 12.sp, color = if (isDark) NeonCyan else GoldPrimary)
+                Text(stringResource(R.string.customize), fontSize = 14.sp, color = if (isDark) NeonCyan else GoldPrimary)
             }
         }
 
@@ -2171,7 +2117,6 @@ fun ToolsPanel(
                             )
                         }
                 )
-                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             }
         }
 
@@ -2351,7 +2296,8 @@ fun ToolActionTile(
             .fillMaxWidth()
             .clip(MaterialTheme.shapes.medium)
             .clickable { onClick() }
-            .padding(vertical = 12.dp),
+            .background(MaterialTheme.colorScheme.surface)
+            .padding(horizontal = 12.dp, vertical = 16.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Box(
@@ -2366,8 +2312,10 @@ fun ToolActionTile(
         Spacer(modifier = Modifier.width(14.dp))
         Column(modifier = Modifier.weight(1f)) {
             Text(title, style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onBackground)
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(subtitle, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if (subtitle.isNotBlank()) {
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(subtitle, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
         }
         Icon(Icons.Filled.ChevronRight, contentDescription = "进入", tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.45f))
     }
@@ -2680,18 +2628,15 @@ fun VerifyCloudPrefetchPanel(
                 .padding(horizontal = 24.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            val transition = rememberInfiniteTransition(label = "prefetch")
-            val pulse by transition.animateFloat(
-                initialValue = 0.72f,
-                targetValue = 1.08f,
-                animationSpec = infiniteRepeatable(tween(900), RepeatMode.Reverse),
-                label = "pulse"
-            )
+            val pulse = if (failedMessage == null) {
+                rememberInfiniteTransition(label = "prefetch").animateFloat(0.72f, 1.08f,
+                    infiniteRepeatable(tween(900), RepeatMode.Reverse), label = "pulse")
+            } else rememberUpdatedState(1f)
             Box(modifier = Modifier.size(150.dp), contentAlignment = Alignment.Center) {
                 Canvas(modifier = Modifier.fillMaxSize()) {
                     drawCircle(
                         color = (if (isDark) NeonCyan else GoldPrimary).copy(alpha = 0.18f),
-                        radius = size.minDimension * 0.42f * pulse
+                        radius = size.minDimension * 0.42f * pulse.value
                     )
                     drawCircle(
                         color = (if (isDark) NeonCyan else GoldPrimary).copy(alpha = 0.48f),
@@ -3082,32 +3027,11 @@ fun NfcVerifyHero(
     hasReadCard: Boolean,
     uiState: VerifyUiState
 ) {
-    val transition = rememberInfiniteTransition(label = "nfcVerifyHero")
     val isAnimating = uiState == VerifyUiState.WAITING || uiState == VerifyUiState.READING || uiState == VerifyUiState.PARSING
-    val duration = when (uiState) {
-        VerifyUiState.READING -> 700
-        VerifyUiState.PARSING -> 600
-        else -> 2200
-    }
-    
-    val pulse by transition.animateFloat(
-        initialValue = 0.65f,
-        targetValue = 1.12f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(duration, easing = FastOutSlowInEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "nfcPulse"
-    )
-    val fade by transition.animateFloat(
-        initialValue = 0.25f,
-        targetValue = 0.78f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(duration, easing = LinearEasing),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "nfcFade"
-    )
+    val pulse = if (isAnimating) {
+        rememberInfiniteTransition(label = "nfcVerifyHero").animateFloat(0f, 1f,
+            infiniteRepeatable(tween(1800, easing = LinearEasing)), label = "nfcPulse")
+    } else rememberUpdatedState(0f)
     val accent = when (uiState) {
         VerifyUiState.PARSING -> if (isDark) NeonGreen else ForestGreen
         VerifyUiState.SUCCESS_EXIST -> if (isDark) NeonGreen else ForestGreen
@@ -3119,15 +3043,9 @@ fun NfcVerifyHero(
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .height(230.dp)
+            .heightIn(min = 230.dp)
             .clip(RoundedCornerShape(18.dp))
-            .background(
-                Brush.radialGradient(
-                    colors = listOf(accent.copy(alpha = 0.22f), MaterialTheme.colorScheme.surface),
-                    center = Offset.Unspecified,
-                    radius = 520f
-                )
-            )
+            .background(MaterialTheme.colorScheme.surface)
             .border(1.dp, accent.copy(alpha = 0.28f), RoundedCornerShape(18.dp))
             .padding(18.dp),
         contentAlignment = Alignment.Center
@@ -3141,8 +3059,8 @@ fun NfcVerifyHero(
                 // A. 动态水波纹外环
                 Canvas(modifier = Modifier.fillMaxSize()) {
                     val center = Offset(size.width / 2, size.height / 2)
-                    val finalAlpha = if (isAnimating) fade else 0f
-                    val finalPulse = if (isAnimating) pulse else 1f
+                    val finalAlpha = if (isAnimating) 1f - pulse.value else 0f
+                    val finalPulse = if (isAnimating) 0.65f + 0.4f * pulse.value else 1f
                     if (finalAlpha > 0f) {
                         drawCircle(
                             color = accent.copy(alpha = 0.16f * finalAlpha),
@@ -3790,7 +3708,8 @@ private enum class SettingsMode {
     HELP,
     ABOUT,
     PRIVACY,
-    STORAGE
+    STORAGE,
+    UPDATES
 }
 
 @Composable
@@ -3808,9 +3727,11 @@ private fun SettingsPanel(
                 onOpenHelp = { onSettingsModeChange(SettingsMode.HELP) },
                 onOpenAbout = { onSettingsModeChange(SettingsMode.ABOUT) },
                 onOpenPrivacy = { onSettingsModeChange(SettingsMode.PRIVACY) },
-                onOpenStorage = { onSettingsModeChange(SettingsMode.STORAGE) }
+                onOpenStorage = { onSettingsModeChange(SettingsMode.STORAGE) },
+                onOpenUpdates = { onSettingsModeChange(SettingsMode.UPDATES) }
             )
         }
+        SettingsMode.UPDATES -> UpdateSettingsPanel(onBack = { onSettingsModeChange(SettingsMode.MAIN) })
         SettingsMode.WEBDAV -> {
             SettingsWebDAVPanel(
                 isDark = isDark,
@@ -3850,13 +3771,6 @@ private fun SettingsPanel(
     }
 }
 
-private data class WebDAVStatusUI(
-    val icon: androidx.compose.ui.graphics.vector.ImageVector,
-    val tint: Color,
-    val bg: Color,
-    val text: String
-)
-
 @Composable
 fun SettingsMainPanel(
     isDark: Boolean,
@@ -3865,578 +3779,87 @@ fun SettingsMainPanel(
     onOpenHelp: () -> Unit,
     onOpenAbout: () -> Unit,
     onOpenPrivacy: () -> Unit,
-    onOpenStorage: () -> Unit
+    onOpenStorage: () -> Unit,
+    onOpenUpdates: () -> Unit
 ) {
     val context = LocalContext.current
-    val loadedConfig = remember { SyncCoordinator.loadConfig(context) }
-    val syncStatus by SyncCoordinator.syncStatus.collectAsState()
-    val isReady = loadedConfig.isReadyForSync
-    val securityState by SecurityLockManager.state.collectAsState()
-    val biometricLabel = remember(securityState.enabled, securityState.biometricEnabled) {
-        BiometricAuthHelper.modalityLabel(context)
-    }
-
-    // 动态计算 WebDAV 的连接与配置状态 UI 属性
-    val statusUI = remember(isReady, syncStatus, isDark) {
-        when {
-            !isReady -> {
-                val text = if (!loadedConfig.isEnabled) "未启用，点击进入配置并开启" else "配置不完整，点击填齐 WebDAV 参数"
-                val tint = if (isDark) Color(0xFF888888) else Color(0xFF757575)
-                WebDAVStatusUI(Icons.Filled.CloudOff, tint, tint.copy(alpha = 0.14f), text)
-            }
-            syncStatus.isSyncing -> {
-                val tint = if (isDark) NeonCyan else Color(0xFF0066FF)
-                val text = syncStatus.message.ifBlank { "正在连接 WebDAV 服务器同步数据..." }
-                WebDAVStatusUI(Icons.Filled.Sync, tint, tint.copy(alpha = 0.16f), text)
-            }
-            syncStatus.type == "error" -> {
-                val tint = Color(0xFFFF5252)
-                val text = "连接异常: ${syncStatus.message.ifBlank { "无法连接服务器" }}"
-                WebDAVStatusUI(Icons.Filled.CloudOff, tint, tint.copy(alpha = 0.16f), text)
-            }
-            else -> {
-                val tint = if (isDark) Color(0xFF00E676) else Color(0xFF2E7D32)
-                WebDAVStatusUI(Icons.Filled.CloudDone, tint, tint.copy(alpha = 0.16f), "服务正常连接，加密云同步已开启")
-            }
-        }
-    }
-
-    val infiniteTransition = rememberInfiniteTransition(label = "webdavSyncRotation")
-    val syncingAngle by infiniteTransition.animateFloat(
-        initialValue = 0f,
-        targetValue = 360f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(1200, easing = LinearEasing),
-            repeatMode = RepeatMode.Restart
-        ),
-        label = "webdavSyncRotationAngle"
-    )
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 16.dp)
-            .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
+    val config = remember { SyncCoordinator.loadConfig(context) }
+    val sync by SyncCoordinator.syncStatus.collectAsState()
+    val security by SecurityLockManager.state.collectAsState()
+    val accent = MaterialTheme.colorScheme.primary
+    LazyColumn(
+        modifier = Modifier.fillMaxSize(),
+        contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 16.dp, bottom = 32.dp),
+        verticalArrangement = Arrangement.spacedBy(20.dp)
     ) {
-        Spacer(modifier = Modifier.height(6.dp))
-        Text(
-            text = "设置",
-            style = MaterialTheme.typography.headlineSmall,
-            color = MaterialTheme.colorScheme.onBackground
-        )
-        Text(
-            text = "管理加密云同步连接参数、偏好设置与敏感数据重设。",
-            fontSize = 13.sp,
-            color = if (isDark) TextGray else TextMuted
-        )
-
-        // 1. WebDAV 云同步二级菜单入口卡片（包含自适应状态 Logo 与动画）
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(RoundedCornerShape(14.dp))
-                .background(MaterialTheme.colorScheme.surface)
-                .border(
-                    width = 1.dp,
-                    color = statusUI.tint.copy(alpha = 0.35f),
-                    shape = RoundedCornerShape(14.dp)
-                )
-                .clickable { onOpenWebDAV() }
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Box(
-                modifier = Modifier
-                    .size(48.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(statusUI.bg),
-                contentAlignment = Alignment.Center
-            ) {
-                Icon(
-                    imageVector = statusUI.icon,
-                    contentDescription = "WebDAV 云同步状态",
-                    tint = statusUI.tint,
-                    modifier = Modifier
-                        .size(26.dp)
-                        .graphicsLayer(rotationZ = if (syncStatus.isSyncing) syncingAngle else 0f)
-                )
-            }
-            Spacer(modifier = Modifier.width(14.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "WebDAV 云同步设置",
-                    fontSize = 16.sp,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onBackground
-                )
-                Spacer(modifier = Modifier.height(3.dp))
-                Text(
-                    text = statusUI.text,
-                    fontSize = 12.sp,
-                    color = statusUI.tint,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-            }
-            Icon(
-                imageVector = Icons.Filled.ChevronRight,
-                contentDescription = "进入 WebDAV 设置",
-                tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.45f)
-            )
+        item {
+            Text(stringResource(R.string.nav_settings), style = MaterialTheme.typography.headlineSmall)
+            Spacer(Modifier.height(4.dp))
+            Text(stringResource(R.string.settings_subtitle), color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.bodyMedium)
         }
-
-        // 2. 个性外观 Section
-        DetailSection(title = "外观") {
-            ModernThemeSelector(isDark = isDark)
-        }
-
-        DetailSection(title = "安全") {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(if (isDark) DarkBg else LightBg)
-                    .clickable { onOpenSecurity() }
-                    .padding(horizontal = 14.dp, vertical = 14.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Lock,
-                        contentDescription = "安全设置",
-                        tint = if (isDark) NeonCyan else GoldPrimary,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                        Text(
-                            text = "应用安全锁",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp
-                        )
-                        Text(
-                            text = if (securityState.enabled) {
-                                if (securityState.biometricEnabled) "已开启，支持数字密码与${biometricLabel}解锁" else "已开启，使用数字密码解锁"
-                            } else {
-                                "默认关闭，设置数字密码后启用"
-                            },
-                            fontSize = 11.sp,
-                            color = if (isDark) TextGray else TextMuted,
-                            lineHeight = 15.sp
-                        )
-                    }
-                }
-                Icon(
-                    imageVector = Icons.Filled.ChevronRight,
-                    contentDescription = "进入安全设置",
-                    tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),
-                    modifier = Modifier.size(16.dp)
-                )
+        item { WalletSection(stringResource(R.string.appearance)) { ModernThemeSelector(isDark) } }
+        item {
+            WalletSection(stringResource(R.string.settings_data)) {
+                ToolActionTile(Icons.Default.CloudQueue, stringResource(R.string.settings_sync),
+                    stringResource(when {
+                        !config.isReadyForSync -> R.string.settings_sync_off
+                        sync.isSyncing -> R.string.settings_sync_busy
+                        sync.type == "error" -> R.string.settings_sync_error
+                        else -> R.string.settings_sync_ready
+                    }), accent, onOpenWebDAV)
+                ToolActionTile(Icons.Default.Lock, stringResource(R.string.settings_security),
+                    stringResource(if (security.enabled) R.string.settings_security_on else R.string.settings_security_off),
+                    accent, onOpenSecurity)
+                ToolActionTile(Icons.Default.Storage, stringResource(R.string.settings_storage),
+                    stringResource(R.string.settings_storage_desc), accent, onOpenStorage)
+                ToolActionTile(Icons.Default.Security, stringResource(R.string.settings_privacy),
+                    stringResource(R.string.settings_privacy_desc), accent, onOpenPrivacy)
             }
         }
-
-        DetailSection(title = "存储与重置") {
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(if (isDark) DarkBg else LightBg)
-                    .clickable { onOpenStorage() }
-                    .padding(horizontal = 14.dp, vertical = 14.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Storage,
-                        contentDescription = "存储管理",
-                        tint = if (isDark) NeonCyan else GoldPrimary,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
-                        Text(
-                            text = "存储管理",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp
-                        )
-                        Text(
-                            text = "查看数据占用明细，或一键恢复初始状态",
-                            fontSize = 11.sp,
-                            color = if (isDark) TextGray else TextMuted,
-                            lineHeight = 15.sp
-                        )
-                    }
-                }
-                Icon(
-                    imageVector = Icons.Filled.ChevronRight,
-                    contentDescription = "进入存储管理",
-                    tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),
-                    modifier = Modifier.size(16.dp)
-                )
+        item {
+            WalletSection(stringResource(R.string.settings_app)) {
+                ToolActionTile(Icons.Default.SystemUpdate, stringResource(R.string.update_title),
+                    stringResource(R.string.update_desc), accent, onOpenUpdates)
+                ToolActionTile(Icons.AutoMirrored.Filled.HelpOutline, stringResource(R.string.settings_help), "", accent, onOpenHelp)
+                ToolActionTile(Icons.Default.Info, stringResource(R.string.settings_about), "", accent, onOpenAbout)
             }
         }
-
-        DetailSection(title = "帮助与支持") {
-            Column(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(10.dp))
-                    .background(if (isDark) DarkBg else LightBg)
-                    .padding(vertical = 4.dp),
-                verticalArrangement = Arrangement.spacedBy(2.dp)
-            ) {
-                // 1. 隐私管理
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onOpenPrivacy() }
-                        .padding(horizontal = 14.dp, vertical = 14.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Filled.Security,
-                            contentDescription = "隐私管理",
-                            tint = if (isDark) NeonCyan else GoldPrimary,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Text(
-                            text = "隐私权限管理",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp
-                        )
-                    }
-                    Icon(
-                        imageVector = Icons.Filled.ChevronRight,
-                        contentDescription = "进入隐私管理",
-                        tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),
-                        modifier = Modifier.size(16.dp)
-                    )
-                }
-
-                // 分割线，纯 Box 渲染防 API 冲突
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 14.dp)
-                        .height(0.5.dp)
-                        .background((if (isDark) TextGray else TextMuted).copy(alpha = 0.12f))
-                )
-
-                // 2. 使用帮助
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onOpenHelp() }
-                        .padding(horizontal = 14.dp, vertical = 14.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.AutoMirrored.Filled.HelpOutline,
-                            contentDescription = "使用帮助",
-                            tint = if (isDark) NeonCyan else GoldPrimary,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Text(
-                            text = "使用帮助",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp
-                        )
-                    }
-                    Icon(
-                        imageVector = Icons.Filled.ChevronRight,
-                        contentDescription = "进入使用帮助",
-                        tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),
-                        modifier = Modifier.size(16.dp)
-                    )
-                }
-
-                // 分割线，纯 Box 渲染防 API 冲突
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 14.dp)
-                        .height(0.5.dp)
-                        .background((if (isDark) TextGray else TextMuted).copy(alpha = 0.12f))
-                )
-
-                // 3. 关于软件
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onOpenAbout() }
-                        .padding(horizontal = 14.dp, vertical = 14.dp),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Icon(
-                            imageVector = Icons.Filled.Info,
-                            contentDescription = "关于软件",
-                            tint = if (isDark) NeonCyan else GoldPrimary,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Text(
-                            text = "关于软件",
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 14.sp
-                        )
-                    }
-                    Icon(
-                        imageVector = Icons.Filled.ChevronRight,
-                        contentDescription = "进入关于",
-                        tint = MaterialTheme.colorScheme.onBackground.copy(alpha = 0.4f),
-                        modifier = Modifier.size(16.dp)
-                    )
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(40.dp))
     }
 }
 
 @Composable
 fun ModernThemeSelector(isDark: Boolean) {
     val context = LocalContext.current
-    val currentMode by ThemeManager.themeMode.collectAsState()
-
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(14.dp))
-            .background(if (isDark) DarkBg else LightBg)
-            .padding(14.dp),
-        verticalArrangement = Arrangement.spacedBy(12.dp)
-    ) {
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                val rotationAngle by animateFloatAsState(
-                    targetValue = when (currentMode) {
-                        AppThemeMode.DARK -> 360f
-                        AppThemeMode.LIGHT -> 180f
-                        AppThemeMode.SYSTEM -> 0f
-                    },
-                    animationSpec = spring(stiffness = Spring.StiffnessLow, dampingRatio = Spring.DampingRatioLowBouncy),
-                    label = "themeIconRotation"
-                )
-
-                Icon(
-                    imageVector = when (currentMode) {
-                        AppThemeMode.DARK -> Icons.Filled.NightlightRound
-                        AppThemeMode.LIGHT -> Icons.Filled.LightMode
-                        AppThemeMode.SYSTEM -> Icons.Filled.PhoneAndroid
-                    },
-                    contentDescription = "主题模式",
-                    tint = if (isDark) NeonCyan else GoldPrimary,
-                    modifier = Modifier
-                        .size(20.dp)
-                        .graphicsLayer(rotationZ = rotationAngle)
-                )
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(
-                    text = "主题风格",
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 14.sp,
-                    color = MaterialTheme.colorScheme.onBackground
-                )
-            }
-
-            Text(
-                text = when (currentMode) {
-                    AppThemeMode.DARK -> "极夜深色"
-                    AppThemeMode.LIGHT -> "晨曦浅色"
-                    AppThemeMode.SYSTEM -> "跟随系统"
-                },
-                fontSize = 12.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = if (isDark) NeonCyan else GoldPrimary
+    val current by ThemeManager.themeMode.collectAsState()
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        listOf(
+            Triple(AppThemeMode.SYSTEM, R.string.theme_system, Icons.Default.PhoneAndroid),
+            Triple(AppThemeMode.LIGHT, R.string.theme_light, Icons.Default.LightMode),
+            Triple(AppThemeMode.DARK, R.string.theme_dark, Icons.Default.DarkMode)
+        ).forEach { (mode, title, icon) ->
+            val selected = current == mode
+            val container by animateColorAsState(
+                if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
+                tween(180), label = "themeSelection"
             )
-        }
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
-        ) {
-            ThemeOptionCard(
-                mode = AppThemeMode.SYSTEM,
-                title = "跟随系统",
-                isSelected = currentMode == AppThemeMode.SYSTEM,
-                isDark = isDark,
-                onClick = { ThemeManager.setThemeMode(context, AppThemeMode.SYSTEM) },
-                modifier = Modifier.weight(1f)
-            )
-            ThemeOptionCard(
-                mode = AppThemeMode.LIGHT,
-                title = "浅色模式",
-                isSelected = currentMode == AppThemeMode.LIGHT,
-                isDark = isDark,
-                onClick = { ThemeManager.setThemeMode(context, AppThemeMode.LIGHT) },
-                modifier = Modifier.weight(1f)
-            )
-            ThemeOptionCard(
-                mode = AppThemeMode.DARK,
-                title = "深色模式",
-                isSelected = currentMode == AppThemeMode.DARK,
-                isDark = isDark,
-                onClick = { ThemeManager.setThemeMode(context, AppThemeMode.DARK) },
-                modifier = Modifier.weight(1f)
-            )
-        }
-    }
-}
-
-@Composable
-private fun ThemeOptionCard(
-    mode: AppThemeMode,
-    title: String,
-    isSelected: Boolean,
-    isDark: Boolean,
-    onClick: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val scale by animateFloatAsState(
-        targetValue = if (isSelected) 1.02f else 0.98f,
-        animationSpec = spring(stiffness = Spring.StiffnessMediumLow, dampingRatio = Spring.DampingRatioMediumBouncy),
-        label = "cardScale"
-    )
-    val activeBorderColor = if (isDark) NeonCyan else GoldPrimary
-
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = modifier
-            .graphicsLayer(scaleX = scale, scaleY = scale)
-            .clip(RoundedCornerShape(12.dp))
-            .background(
-                if (isDark) Color(0xFF1E222B) else Color(0xFFF3F4F6)
-            )
-            .border(
-                width = if (isSelected) 2.dp else 1.dp,
-                color = if (isSelected) activeBorderColor else Color.Transparent,
-                shape = RoundedCornerShape(12.dp)
-            )
-            .clickable(onClick = onClick)
-            .padding(8.dp)
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(64.dp)
-                .clip(RoundedCornerShape(8.dp))
-                .background(
-                    when (mode) {
-                        AppThemeMode.DARK -> Color(0xFF12141A)
-                        AppThemeMode.LIGHT -> Color(0xFFFFFFFF)
-                        AppThemeMode.SYSTEM -> Color(0xFF1C1E24)
-                    }
-                )
-                .border(0.5.dp, Color.White.copy(alpha = 0.1f), RoundedCornerShape(8.dp))
-        ) {
-            if (mode == AppThemeMode.SYSTEM) {
-                Row(modifier = Modifier.fillMaxSize()) {
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxHeight()
-                            .background(Color(0xFFFAFAFA))
-                    ) {
-                        Column(modifier = Modifier.padding(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Box(modifier = Modifier.size(width = 20.dp, height = 4.dp).clip(RoundedCornerShape(2.dp)).background(Color(0xFF333333)))
-                            Box(modifier = Modifier.size(width = 28.dp, height = 14.dp).clip(RoundedCornerShape(3.dp)).background(Color(0xFF0066FF).copy(alpha = 0.7f)))
-                        }
-                    }
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .fillMaxHeight()
-                            .background(Color(0xFF12141A))
-                    ) {
-                        Column(modifier = Modifier.padding(6.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                            Box(modifier = Modifier.size(width = 20.dp, height = 4.dp).clip(RoundedCornerShape(2.dp)).background(Color(0xFFEEEEEE)))
-                            Box(modifier = Modifier.size(width = 28.dp, height = 14.dp).clip(RoundedCornerShape(3.dp)).background(Color(0xFF00E5FF).copy(alpha = 0.7f)))
-                        }
-                    }
-                }
-            } else {
-                val mockBg = if (mode == AppThemeMode.DARK) Color(0xFF181B22) else Color(0xFFF7F8FA)
-                val mockCardBg = if (mode == AppThemeMode.DARK) Color(0xFF00E5FF).copy(alpha = 0.8f) else Color(0xFF1A1F71)
-                val textColor = if (mode == AppThemeMode.DARK) Color.White else Color(0xFF1A1A1A)
-
-                Column(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(mockBg)
-                        .padding(6.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box(modifier = Modifier.size(width = 24.dp, height = 4.dp).clip(RoundedCornerShape(2.dp)).background(textColor.copy(alpha = 0.7f)))
-                        Box(modifier = Modifier.size(6.dp).clip(CircleShape).background(activeBorderColor))
-                    }
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(28.dp)
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(mockCardBg)
-                            .padding(4.dp)
-                    ) {
-                        Box(modifier = Modifier.size(width = 10.dp, height = 6.dp).clip(RoundedCornerShape(1.dp)).background(Color(0xFFFFD700)))
-                    }
-                }
-            }
-
-            if (isSelected) {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(4.dp)
-                        .size(16.dp)
-                        .clip(CircleShape)
-                        .background(activeBorderColor),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.Check,
-                        contentDescription = "已选择",
-                        tint = if (isDark && mode == AppThemeMode.DARK) Color.Black else Color.White,
-                        modifier = Modifier.size(10.dp)
-                    )
+            Surface(
+                onClick = { ThemeManager.setThemeMode(context, mode) },
+                shape = MaterialTheme.shapes.medium,
+                color = container,
+                modifier = Modifier.weight(1f).semantics { this.selected = selected },
+                border = if (selected) BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null
+            ) {
+                Column(Modifier.padding(horizontal = 4.dp, vertical = 16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Icon(icon, null, tint = MaterialTheme.colorScheme.primary)
+                    Text(stringResource(title), style = MaterialTheme.typography.labelMedium, textAlign = TextAlign.Center)
+                    if (selected) Icon(Icons.Default.Check, stringResource(R.string.selected), Modifier.size(16.dp),
+                        tint = MaterialTheme.colorScheme.primary)
+                    else Spacer(Modifier.height(16.dp))
                 }
             }
         }
-
-        Spacer(modifier = Modifier.height(6.dp))
-
-        Text(
-            text = title,
-            fontSize = 11.sp,
-            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal,
-            color = if (isSelected) activeBorderColor else MaterialTheme.colorScheme.onSurfaceVariant
-        )
     }
 }
 
@@ -5936,49 +5359,9 @@ fun DetailSection(
     initialExpanded: Boolean = true,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    var expanded by remember { mutableStateOf(initialExpanded) }
-    
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp)
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .then(
-                    if (isCollapsible) {
-                        Modifier.clickable { expanded = !expanded }
-                    } else {
-                        Modifier
-                    }
-                )
-                .padding(vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.weight(1f)
-            )
-            if (isCollapsible) {
-                Icon(
-                    imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
-                    contentDescription = if (expanded) "折叠" else "展开",
-                    modifier = Modifier.size(20.dp),
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-        }
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-        if (!isCollapsible || expanded) {
-            Column(modifier = Modifier.padding(vertical = 8.dp)) {
-                content()
-            }
-        }
-    }
+    var expanded by rememberSaveable { mutableStateOf(initialExpanded) }
+    WalletSection(title, !isCollapsible || expanded,
+        if (isCollapsible) ({ expanded = it }) else null, content)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -7094,147 +6477,57 @@ fun FAQItem(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsAboutPanel(
-    isDark: Boolean,
-    onBack: () -> Unit
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(if (isDark) DarkBg else LightBg)
-    ) {
-        // 顶部导航
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
-            verticalAlignment = Alignment.CenterVertically
+fun SettingsAboutPanel(isDark: Boolean, onBack: () -> Unit) {
+    val context = LocalContext.current
+    val version = remember { context.packageManager.getPackageInfo(context.packageName, 0).versionName.orEmpty() }
+    Column(Modifier.fillMaxSize()) {
+        TopAppBar(
+            title = { Text(stringResource(R.string.settings_about)) },
+            navigationIcon = { AppBackButton(onBack) },
+            windowInsets = WindowInsets(0, 0, 0, 0),
+            colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.background)
+        )
+        LazyColumn(
+            contentPadding = PaddingValues(20.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
-            val accent = if (isDark) NeonCyan else GoldPrimary
-            AppBackButton(
-                onClick = onBack,
-                contentDescription = "返回设置",
-                tint = accent,
-                containerColor = MaterialTheme.colorScheme.surface,
-                borderColor = accent.copy(alpha = 0.34f)
-            )
-            Spacer(modifier = Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "关于软件",
-                    fontSize = 22.sp,
-                    fontWeight = FontWeight.Black,
-                    color = if (isDark) TextWhite else TextDark
-                )
-                Text(
-                    text = "版本规约与隐私安全透明度声明",
-                    fontSize = 12.sp,
-                    color = if (isDark) NeonCyan else GoldPrimary,
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
-        }
-
-        // 关于我们主体文字
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .weight(1f)
-                .padding(horizontal = 16.dp)
-                .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(14.dp)
-        ) {
-            Spacer(modifier = Modifier.height(6.dp))
-            
-            // 软件卡片
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clip(RoundedCornerShape(16.dp))
-                    .background(if (isDark) DarkCardBg else LightCardBg)
-                    .border(1.dp, (if (isDark) NeonCyan else GoldPrimary).copy(alpha = 0.18f), RoundedCornerShape(16.dp))
-                    .padding(20.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.AutoAwesome,
-                        contentDescription = "卡包",
-                        tint = if (isDark) NeonCyan else GoldPrimary,
-                        modifier = Modifier.size(44.dp)
-                    )
-                    Text(
-                        text = "卡包",
-                        fontSize = 18.sp,
-                        fontWeight = FontWeight.Black,
-                        color = if (isDark) TextWhite else TextDark
-                    )
-                    Text(
-                        text = "版本号：v2.2.0 (2026)",
-                        fontSize = 12.sp,
-                        fontWeight = FontWeight.SemiBold,
-                        color = if (isDark) NeonCyan else GoldPrimary
-                    )
+            item {
+                Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.primaryContainer) {
+                    Column(Modifier.fillMaxWidth().padding(28.dp), horizontalAlignment = Alignment.CenterHorizontally,
+                        verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                        Icon(Icons.Default.Wallet, null, Modifier.size(40.dp), tint = MaterialTheme.colorScheme.onPrimaryContainer)
+                        Text(stringResource(R.string.app_name), style = MaterialTheme.typography.headlineSmall,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer)
+                        Text(stringResource(R.string.update_current, version), color = MaterialTheme.colorScheme.onPrimaryContainer)
+                        Text(stringResource(R.string.about_summary), textAlign = TextAlign.Center,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer, style = MaterialTheme.typography.bodyMedium)
+                    }
                 }
             }
-
-            // 软件简介
-            DetailSection(title = "软件简介") {
-                Text(
-                    text = "卡包是一款专注安全、精细拟真的银行卡管理助手。应用通过完全离线的本地沙盒数据库以及高规格的本地 NFC 读卡、相机识别技术，让您能够轻松归集信用卡和储蓄卡。信用卡支持共享额度、年费和免息期推算，储蓄卡保留国家/地区、银行、币种、权益、备注与卡片媒体，并通过端到端加密的 WebDAV 私人同步通道保护数据。",
-                    fontSize = 12.sp,
-                    color = if (isDark) TextGray else TextMuted,
-                    lineHeight = 18.sp,
-                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
-                )
-            }
-
-            // 隐私与权限说明
-            DetailSection(title = "权限与隐私声明") {
-                Column(
-                    modifier = Modifier.padding(horizontal = 4.dp),
-                    verticalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    PrivacyPermissionRow(
-                        name = "NFC 读卡权限 (感应刷卡)",
-                        description = "仅在您主动使用 NFC 靠近验卡或雷达读卡时唤醒硬件，通过读取公开的非接触式 IC 卡标准指令，解析脱敏的卡号与有效期。本应用绝不也无权保存任何交易密码或敏感安全码。",
-                        isDark = isDark
-                    )
-                    PrivacyPermissionRow(
-                        name = "相机扫描权限 (卡号提取)",
-                        description = "用于启动拍摄镜头读取卡面数字及手动拍照备份。识别及卡片裁剪保存等分析处理全部发生在本机设备本地，绝对不会将您的卡面图像或数字向任何远端服务器进行传输或收集。",
-                        isDark = isDark
-                    )
-                    PrivacyPermissionRow(
-                        name = "本地存储空间 (沙盒隔离)",
-                        description = "用于加密存储本地卡包信息、卡片裁剪后的大图资源。数据严格储存在系统沙盒中，其他第三方应用无权读取，且会随着应用的卸载自动清除，保障物理隔离隐私。",
-                        isDark = isDark
-                    )
-                    PrivacyPermissionRow(
-                        name = "端到端网络同步 (WebDAV)",
-                        description = "仅在您配置了私人 WebDAV 云备份账号后，在本地与您的私人网盘之间进行直连备份。我们绝不架设中间服务器，没有任何广告、统计以及追踪 SDK 驻留，保证 100% 纯净度。",
-                        isDark = isDark
-                    )
+            item {
+                WalletSection(stringResource(R.string.about_privacy)) {
+                    listOf(
+                        R.string.about_local to R.string.about_local_desc,
+                        R.string.about_scan to R.string.about_scan_desc,
+                        R.string.about_cloud to R.string.about_cloud_desc,
+                        R.string.update_title to R.string.about_update_desc
+                    ).forEach { (title, body) ->
+                        Text(stringResource(title), style = MaterialTheme.typography.titleSmall)
+                        Spacer(Modifier.height(6.dp))
+                        Text(stringResource(body), style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Spacer(Modifier.height(16.dp))
+                    }
                 }
             }
-
-            // 条款与免责声明
-            DetailSection(title = "⚖️ 服务与免责条款") {
-                Text(
-                    text = "1. 数据免责：本应用提供的免息期天数推算、账单日与还款日提醒以及信用额度统计等结果，仅针对信用卡并根据您所录入的参数进行日历学与日期的数学映射推导，仅供个人合理消费规划参考。由于各行信用卡章程可能存在临时修订、国定假期顺延还款等细微差异，请务必以各发卡银行官方公告及账单信息为准。\n" +
-                            "2. 财务安全：用户应妥善管理个人手机密码以及 WebDAV 应用同步密码，由于设备丢失或泄露密码引发的数据损毁，需自行承担相应责任。本软件在任何情况下均不对由于依赖本计算结果产生的滞纳金或信用受损等任何直接与间接损失负责。",
-                    fontSize = 11.sp,
-                    color = if (isDark) TextGray else TextMuted,
-                    lineHeight = 16.sp,
-                    modifier = Modifier.padding(horizontal = 4.dp, vertical = 2.dp)
-                )
+            item {
+                WalletSection(stringResource(R.string.about_reminder)) {
+                    Text(stringResource(R.string.about_reminder_desc), style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant)
+                }
             }
-
-            Spacer(modifier = Modifier.height(20.dp))
         }
     }
 }

@@ -44,6 +44,8 @@ make android-test
 
 各端已有说明见 [Web](apps/web/README.md)、[macOS](apps/macos/README.md)、[Android](apps/android/README.md)。运行原有打包脚本时，先进入对应客户端目录。
 
+Android 支持通过公开产物仓库检查更新、下载与安装，发布步骤见 [Android 更新发布说明](apps/android/UPDATE_RELEASES.md)。源码仓库仍保持私有。
+
 ## 协作约定
 
 - 日常开发使用本仓库的 `main`，功能分支使用 `codex/` 前缀。四端相关变更可以在同一个分支和 PR 中提交。

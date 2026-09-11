@@ -10,6 +10,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
+import com.example.creditcard.R
 
 /**
  * 统一的二级页面返回按钮，使用 Android 原生 Top App Bar 的无容器样式。
@@ -19,7 +21,7 @@ import androidx.compose.ui.unit.dp
 fun AppBackButton(
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
-    contentDescription: String = "返回",
+    contentDescription: String = stringResource(R.string.back),
     tint: Color = MaterialTheme.colorScheme.onSurface,
     containerColor: Color = MaterialTheme.colorScheme.surface,
     borderColor: Color = MaterialTheme.colorScheme.outlineVariant
