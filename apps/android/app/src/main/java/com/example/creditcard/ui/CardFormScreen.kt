@@ -1,5 +1,7 @@
 package com.example.creditcard.ui
 
+import androidx.compose.ui.res.stringResource
+import com.example.creditcard.R
 import android.app.DatePickerDialog
 import android.widget.Toast
 import kotlinx.coroutines.delay
@@ -43,7 +45,9 @@ import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import com.example.creditcard.ui.components.WalletSection
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.compose.foundation.gestures.detectTransformGestures
@@ -604,7 +608,9 @@ fun CardFormScreen(
                     modifier = Modifier
                         .fillMaxSize()
                         .padding(innerPadding)
-                        .padding(horizontal = 16.dp)
+                        .wrapContentWidth(Alignment.CenterHorizontally)
+                        .widthIn(max = 760.dp)
+                        .padding(horizontal = 20.dp)
                         .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(16.dp)
                 ) {
@@ -1310,22 +1316,8 @@ fun CardFormScreen(
  * 表单 Section 区块容器
  */
 @Composable
-fun FormSection(
-    title: String,
-    content: @Composable ColumnScope.() -> Unit
-) {
-    Column(modifier = Modifier.fillMaxWidth()) {
-        if (title.isNotBlank()) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.padding(vertical = 12.dp)
-            )
-        }
-        Column(modifier = Modifier.fillMaxWidth().padding(horizontal = 4.dp), content = content)
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-    }
+fun FormSection(title: String, content: @Composable ColumnScope.() -> Unit) {
+    WalletSection(title = title, content = content)
 }
 
 @Composable
@@ -1335,35 +1327,7 @@ fun CollapsibleFormSection(
     onExpandedChange: (Boolean) -> Unit,
     content: @Composable ColumnScope.() -> Unit
 ) {
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable { onExpandedChange(!expanded) }
-                .padding(horizontal = 4.dp, vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleMedium,
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.weight(1f)
-            )
-            Icon(
-                imageVector = if (expanded) Icons.Filled.ExpandLess else Icons.Filled.ExpandMore,
-                contentDescription = if (expanded) "收起" else "展开",
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-        }
-
-        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-
-        AnimatedVisibility(visible = expanded) {
-            Column(modifier = Modifier.padding(horizontal = 4.dp, vertical = 8.dp)) {
-                content()
-            }
-        }
-    }
+    WalletSection(title, expanded, onExpandedChange, content)
 }
 
 @Composable
@@ -1866,33 +1830,7 @@ fun NfcScanLayout(
             .background(MaterialTheme.colorScheme.background),
         contentAlignment = Alignment.Center
     ) {
-        // 轻微扩散用于表达正在等待卡片靠近。
-        val transition = rememberInfiniteTransition(label = "nfc")
         val isAnimating = uiState == NfcUiState.WAITING || uiState == NfcUiState.READING || uiState == NfcUiState.PARSING
-        val duration = when (uiState) {
-            NfcUiState.READING -> 900
-            NfcUiState.PARSING -> 900
-            else -> 1800
-        }
-        
-        val radiusScale by transition.animateFloat(
-            initialValue = 0.4f,
-            targetValue = 1.0f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(duration, easing = LinearEasing),
-                repeatMode = RepeatMode.Restart
-            ),
-            label = "radius"
-        )
-        val alphaVal by transition.animateFloat(
-            initialValue = 0.6f,
-            targetValue = 0.0f,
-            animationSpec = infiniteRepeatable(
-                animation = tween(duration, easing = LinearEasing),
-                repeatMode = RepeatMode.Restart
-            ),
-            label = "alpha"
-        )
 
         val accentColor = when (uiState) {
             NfcUiState.PARSING -> if (isDark) NeonGreen else ForestGreen
@@ -1935,15 +1873,15 @@ fun NfcScanLayout(
                 modifier = Modifier.size(200.dp),
                 contentAlignment = Alignment.Center
             ) {
-                // 只保留一层状态脉冲，避免干扰。
-                Canvas(modifier = Modifier.fillMaxSize()) {
-                    val finalAlpha = if (isAnimating) alphaVal else 0f
-                    val finalScale = if (isAnimating) radiusScale else 0f
-                    if (finalAlpha > 0f) {
+                if (isAnimating) {
+                    val transition = rememberInfiniteTransition(label = "nfc")
+                    val pulse = transition.animateFloat(0.55f, 1f,
+                        infiniteRepeatable(tween(1600, easing = LinearEasing)), label = "pulse")
+                    Canvas(Modifier.fillMaxSize()) {
                         drawCircle(
-                            color = accentColor.copy(alpha = finalAlpha),
-                            radius = size.minDimension / 2 * finalScale,
-                            style = Stroke(width = 4.dp.toPx())
+                            color = accentColor.copy(alpha = (1f - pulse.value) * 0.5f),
+                            radius = size.minDimension / 2 * pulse.value,
+                            style = Stroke(width = 2.dp.toPx())
                         )
                     }
                 }
@@ -2076,6 +2014,7 @@ fun NfcScanLayout(
  * CameraX 真实渲染且包含绿色发光激光扫描线的高清对齐蒙板全屏页面
  */
 @Composable
+@androidx.annotation.OptIn(androidx.camera.core.ExperimentalGetImage::class)
 fun CameraScanLayout(
     context: android.content.Context,
     isDark: Boolean,
@@ -2297,7 +2236,7 @@ fun CameraScanLayout(
                         modifier = Modifier.size(48.dp)
                     )
                     Text(
-                        text = if (!hasCameraPermission) "⚠️ 未获得相机授权，无法使用扫描功能" else "📸 智能聚焦感应器就绪...",
+                        text = stringResource(if (!hasCameraPermission) R.string.scan_permission else R.string.scan_waiting),
                         color = Color.LightGray.copy(alpha = 0.85f),
                         fontSize = 15.sp,
                         fontWeight = FontWeight.Bold,
@@ -2305,7 +2244,7 @@ fun CameraScanLayout(
                     )
                     if (!hasCameraPermission) {
                         Text(
-                            text = "扫描银行卡需要调用您的相机权限进行本地 OCR 识别。卡片图像严格在本地进行分析，绝不上报，100% 保护隐私安全。",
+                            text = stringResource(R.string.scan_permission_hint),
                             color = Color.Gray,
                             fontSize = 12.sp,
                             textAlign = TextAlign.Center,
@@ -2322,7 +2261,7 @@ fun CameraScanLayout(
                             border = androidx.compose.foundation.BorderStroke(1.dp, (if (isDark) Color(0xFF22D3EE) else Color(0xFFC0A060)).copy(alpha = 0.5f)),
                             shape = RoundedCornerShape(8.dp)
                         ) {
-                            Text("点击发起授权申请", fontSize = 12.sp, fontWeight = FontWeight.Bold)
+                            Text(stringResource(R.string.scan_allow), fontSize = 12.sp, fontWeight = FontWeight.Bold)
                         }
                     }
                 }
@@ -2331,19 +2270,6 @@ fun CameraScanLayout(
 
         // 绘制对准框与霓虹绿色粗直角四角包边
         Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-            val transition = rememberInfiniteTransition(label = "laser")
-            
-            // 循环滑动的激光扫描线动画
-            val laserOffset by transition.animateFloat(
-                initialValue = 0.05f,
-                targetValue = 0.95f,
-                animationSpec = infiniteRepeatable(
-                    animation = tween(1800, easing = LinearEasing),
-                    repeatMode = RepeatMode.Reverse
-                ),
-                label = "offset"
-            )
-
             Column(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center,
@@ -2355,38 +2281,22 @@ fun CameraScanLayout(
                         .aspectRatio(1.586f) // 完美符合银行卡 85.6 : 53.98 的国际黄金比例
                         .border(1.dp, Color.White.copy(alpha = 0.25f), RoundedCornerShape(16.dp))
                 ) {
-                    val cornerSize = 24.dp
-                    val strokeW = 4.dp
-
-                    // 左上角包边
-                    Box(modifier = Modifier.size(cornerSize).align(Alignment.TopStart).border(width = strokeW, color = NeonGreen, shape = RoundedCornerShape(topStart = 16.dp)))
-                    // 右上角包边
-                    Box(modifier = Modifier.size(cornerSize).align(Alignment.TopEnd).border(width = strokeW, color = NeonGreen, shape = RoundedCornerShape(topEnd = 16.dp)))
-                    // 左下角包边
-                    Box(modifier = Modifier.size(cornerSize).align(Alignment.BottomStart).border(width = strokeW, color = NeonGreen, shape = RoundedCornerShape(bottomStart = 16.dp)))
-                    // 右下角包边
-                    Box(modifier = Modifier.size(cornerSize).align(Alignment.BottomEnd).border(width = strokeW, color = NeonGreen, shape = RoundedCornerShape(bottomEnd = 16.dp)))
-
-                    // 脉冲滑动的霓虹激光扫描线
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth(0.96f)
-                            .height(3.dp)
-                            .align(Alignment.TopCenter)
-                            .offset(y = 120.dp + (100.dp * laserOffset)) // 限制上下活动空间在卡内
-                            .background(
-                                brush = Brush.horizontalGradient(
-                                    colors = listOf(Color.Transparent, Color(0xFF4ADE80), Color.Transparent)
-                                )
-                            )
-                            .shadow(elevation = 6.dp, spotColor = Color(0xFF4ADE80))
-                    )
+                    if (hasCameraPermission && !cameraBindError && !isScannedTriggered && !isCapturing) {
+                        val transition = rememberInfiniteTransition(label = "scanGuide")
+                        val scan = transition.animateFloat(0.1f, 0.9f,
+                            infiniteRepeatable(tween(2000, easing = LinearEasing), RepeatMode.Reverse), label = "scanPosition")
+                        Canvas(Modifier.fillMaxSize()) {
+                            val y = size.height * scan.value
+                            drawLine(NeonCyan.copy(alpha = 0.7f), Offset(size.width * 0.05f, y),
+                                Offset(size.width * 0.95f, y), strokeWidth = 1.dp.toPx())
+                        }
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(24.dp))
 
                 Text(
-                    text = "请将您的卡片对齐绿色框内",
+                    text = stringResource(R.string.scan_align),
                     color = Color.White,
                     fontSize = 16.sp,
                     fontWeight = FontWeight.Bold,
@@ -2396,7 +2306,7 @@ fun CameraScanLayout(
                 Spacer(modifier = Modifier.height(6.dp))
 
                 Text(
-                    text = "已集成智能大图 OCR，可手动拍照瞬间代入卡包卡面。",
+                    text = stringResource(R.string.scan_hint),
                     color = Color.LightGray.copy(alpha = 0.8f),
                     fontSize = 12.sp,
                     textAlign = TextAlign.Center
@@ -2445,7 +2355,7 @@ fun CameraScanLayout(
                 modifier = Modifier
                     .size(76.dp)
                     .background(
-                        brush = Brush.radialGradient(listOf(Color(0xFF4ADE80), Color(0xFF16A34A))),
+                        color = GoldPrimary,
                         shape = CircleShape
                     )
                     .border(4.dp, Color.White, CircleShape)

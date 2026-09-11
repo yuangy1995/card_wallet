@@ -11,8 +11,8 @@ android {
         applicationId = "com.applist.cardwallet"
         minSdk = 23
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = providers.gradleProperty("releaseVersionCode").orElse("2").get().toInt()
+        versionName = providers.gradleProperty("releaseVersionName").orElse("1.1.0").get()
     }
 
     signingConfigs {
@@ -43,6 +43,10 @@ android {
       aidl = false
       buildConfig = false
       shaders = false
+    }
+
+    testOptions {
+        unitTests.isIncludeAndroidResources = true
     }
 
     androidResources {
@@ -99,6 +103,8 @@ dependencies {
   // Local tests: jUnit, coroutines, Android runner
   testImplementation(libs.junit)
   testImplementation(libs.kotlinx.coroutines.test)
+  testImplementation("org.robolectric:robolectric:4.16.1")
+  testImplementation(libs.androidx.compose.ui.test.junit4)
 
   // Instrumented tests: jUnit rules and runners
   androidTestImplementation(libs.androidx.test.core)

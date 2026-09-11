@@ -2,7 +2,7 @@
 
 Kotlin + Jetpack Compose 的原生 Android 卡包客户端，用于本地管理信用卡和储蓄卡，并通过 WebDAV SyncV4 与 Web、macOS 端同步。
 
-本仓库只保留根目录 `README.md` 作为维护入口。过期设计说明不再作为实现依据，实际行为以当前代码和三端 SyncV4 数据语义为准。
+仓库总览见根目录 `README.md`；Android 在线更新与发布步骤见 [更新发布说明](UPDATE_RELEASES.md)。过期设计说明不再作为实现依据，实际行为以当前代码和 SyncV4 数据语义为准。
 
 ## 当前架构
 
@@ -34,6 +34,9 @@ Kotlin + Jetpack Compose 的原生 Android 卡包客户端，用于本地管理�
 
 # 单元测试
 ./gradlew test
+
+# 准备 GitHub Releases 在线更新包（不自动上传）
+bash prepare-update.sh 1.1.0 2
 ```
 
 Release 成功后，脚本会输出：

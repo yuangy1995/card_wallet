@@ -15,6 +15,11 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.lifecycle.ViewModelProvider
+import com.example.creditcard.update.AppUpdater
+import com.example.creditcard.ui.update.AppUpdateHost
+import com.example.creditcard.ui.update.LocalAppUpdater
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.zIndex
 import androidx.core.content.IntentCompat
@@ -72,6 +77,7 @@ class MainActivity : FragmentActivity() {
         }
 
         enableEdgeToEdge()
+        val appUpdater = ViewModelProvider(this)[AppUpdater::class.java]
         setContent {
             // 监听全局主题状态，动态响应热切换
             val isDark by ThemeManager.isDarkTheme.collectAsState()
@@ -88,7 +94,10 @@ class MainActivity : FragmentActivity() {
             CreditCardTheme(darkTheme = isDark) { 
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) { 
                     Box(modifier = Modifier.fillMaxSize()) {
-                        MainNavigation()
+                        CompositionLocalProvider(LocalAppUpdater provides appUpdater) {
+                            MainNavigation()
+                            AppUpdateHost(locked = securityState.locked)
+                        }
                         if (securityState.locked) {
                             SecurityLockScreen(
                                 isDark = isDark,
