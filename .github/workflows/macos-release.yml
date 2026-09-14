@@ -129,7 +129,7 @@ jobs:
           set -euo pipefail
           output="dist/updates/$RELEASE_TAG"
           gh release create "$RELEASE_TAG" --repo "$RELEASE_REPOSITORY" --draft \
-            --title "卡包 $RELEASE_VERSION（Mac）" --notes-file "releases/$RELEASE_VERSION.md" \
+            --title "卡包 ${RELEASE_VERSION}（Mac）" --notes-file "releases/$RELEASE_VERSION.md" \
             "$output/CardWallet-$RELEASE_VERSION-$RELEASE_BUILD-arm64.zip" \
             "$output/CardWallet-$RELEASE_VERSION-$RELEASE_BUILD-x86_64.zip" \
             "$output/appcast.xml"
