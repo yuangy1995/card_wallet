@@ -1,0 +1,4 @@
+<resources>
+    <string name="wallet_bank_fallback">Bank card</string>
+    <string name="wallet_preview_feedback_name">Card Wallet Preview 3</string>
+</resources>
