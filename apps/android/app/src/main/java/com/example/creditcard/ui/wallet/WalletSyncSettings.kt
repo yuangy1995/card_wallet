@@ -160,13 +160,13 @@ internal fun WalletSyncSettings(onBack: () -> Unit) {
                         else Text(stringResource(R.string.wallet_sync_test), maxLines = 1)
                     }
                     Button(onClick = {
-                        val candidate = draft.copy(url = draft.url.trim(), user = draft.user.trim(), syncPassword = draft.syncPassword.trim(), isEnabled = true)
+                        val candidate = draft.copy(url = draft.url.trim(), user = draft.user.trim(), isEnabled = true)
                         val address = Uri.parse(candidate.url)
                         if (!candidate.isReadyForSync || address.scheme !in listOf("https", "http") ||
                             address.host.isNullOrBlank() || address.userInfo != null) {
                             error = R.string.wallet_sync_invalid; return@Button
                         }
-                        if (candidate.syncPassword.length < 10) { error = R.string.wallet_sync_short_key; return@Button }
+                        if (candidate.syncPassword != saved.syncPassword && candidate.syncPassword.length < 10) { error = R.string.wallet_sync_short_key; return@Button }
                         SyncCoordinator.saveConfig(context, candidate)
                         saved = candidate; editing = false; error = null; testPassed = null
                         // Use the coordinator entry point, including mobile-data confirmation.

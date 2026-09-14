@@ -8,6 +8,7 @@ android {
     namespace = "com.example.creditcard"
     compileSdk = 36
     defaultConfig {
+        manifestPlaceholders["appLabel"] = "@string/app_name"
         applicationId = "com.applist.cardwallet"
         minSdk = 23
         targetSdk = 36
@@ -27,6 +28,13 @@ android {
     }
 
     buildTypes {
+        debug {
+            if (providers.gradleProperty("walletPreview").orNull == "true") {
+                applicationIdSuffix = ".preview"
+                versionNameSuffix = "-ui-v2-preview"
+                manifestPlaceholders["appLabel"] = "@string/wallet_preview_name"
+            }
+        }
         release {
             isMinifyEnabled = true
             isShrinkResources = true
@@ -35,6 +43,7 @@ android {
         }
     }
     compileOptions {
+        isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
@@ -75,6 +84,7 @@ kotlin {
 }
 
 dependencies {
+  coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.5")
   val composeBom = platform(libs.androidx.compose.bom)
   implementation(composeBom)
   androidTestImplementation(composeBom)

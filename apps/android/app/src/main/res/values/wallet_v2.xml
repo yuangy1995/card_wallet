@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="wallet_mode_cards">Cards</string>
+  <string name="wallet_mode_list">List</string>
+  <string name="wallet_search_short">Search cards</string>
+  <string name="wallet_reminders_count">%1$d card reminders</string>
+  <string name="wallet_reset_hint">Try a different search or view all cards.</string>
+  <string name="wallet_show_all">Show all cards</string>
+  <string name="wallet_card_number">Card number</string>
+  <string name="wallet_copy_number">Copy full card number</string>
+  <string name="wallet_hide_number">Hide card number</string>
+  <string name="wallet_show_number">Show card number</string>
+  <string name="wallet_number_hint">Tap to copy. Revealed details hide after 5 seconds.</string>
+  <string name="wallet_sync_edit">Edit connection</string>
+  <string name="wallet_sync_busy">Syncing</string>
+  <string name="wallet_sync_error">Sync needs attention</string>
+  <string name="wallet_sync_current">Up to date</string>
+  <string name="wallet_sync_configured">Ready to sync</string>
+  <string name="wallet_sync_always_on">Syncs automatically once configured</string>
+  <string name="wallet_sync_server">Server</string>
+  <string name="wallet_sync_user">Account</string>
+  <string name="wallet_sync_now">Sync now</string>
+  <string name="wallet_sync_cancel_run">Cancel this sync</string>
+  <string name="wallet_sync_network">Network</string>
+  <string name="wallet_sync_url">WebDAV address</string>
+  <string name="wallet_sync_password">App password</string>
+  <string name="wallet_sync_key">Encryption key</string>
+  <string name="wallet_sync_key_hint">Use the same key on your other devices. Keep it safe: it is required to decrypt your cloud data.</string>
+  <string name="wallet_sync_test_success">Connection succeeded. This does not validate the encryption key.</string>
+  <string name="wallet_sync_test_failed">Could not connect. Check the address and credentials.</string>
+  <string name="wallet_sync_invalid">Enter a valid http(s) address, account, password and encryption key.</string>
+  <string name="wallet_sync_test">Test connection</string>
+  <string name="wallet_sync_save">Save and sync</string>
+  <string name="wallet_sync_short_key">Use an encryption key of at least 10 characters.</string>
+  <string name="wallet_cancel">Cancel</string>
+  <string name="wallet_hide_secret">Hide password</string>
+  <string name="wallet_show_secret">Show password</string>
+  <string name="wallet_wifi_only">Wi-Fi only</string>
+  <string name="wallet_wifi_mobile">Wi-Fi + mobile</string>
+  <string name="wallet_sync_network_hint">Automatic sync follows this network choice. Manual sync on mobile data asks for confirmation.</string>
+  <string name="wallet_preview_name">Wallet Preview</string>
+</resources>

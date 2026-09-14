@@ -53,7 +53,7 @@ code_to_slug={'cmb':'cmbchina','abc':'abchina','bocom':'bankcomm','citic':'citic
 for m in re.finditer(r'^\s+[A-Z]+\("([^"]+)", 0xFF([A-Fa-f0-9]+), (.+)\),?$',old,re.M):
     key=code_to_slug.get(m[1],m[1]); aliases[key]=re.findall(r'"([^"]+)"',m[3]); colors[key]=m[2]
 extra=json.loads((BRAND/'issuer_aliases.json').read_text())
-for key,names in extra.items(): aliases.setdefault(key,[]).extend(names)
+for key,names in extra.items(): aliases.setdefault({"americanexpress":"amex", "deutschebank":"deutsche"}.get(key,key),[]).extend(names)
 redirect={norm(name):key for key,names in aliases.items() for name in names}
 records={}
 
