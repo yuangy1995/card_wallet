@@ -50,7 +50,7 @@ internal fun WalletCardNumber(cardNumber: String, visible: Boolean, countdownPro
             modifier = Modifier.fillMaxWidth().heightIn(min = 40.dp).clickable(enabled = digits.isNotEmpty(), onClick = onCopy)
                 .testTag("wallet_detail_number"),
             maxLines = 1, softWrap = false,
-            autoSize = TextAutoSize.StepBased(minFontSize = 12.sp, maxFontSize = 22.sp, stepSize = 0.5.sp),
+            autoSize = TextAutoSize.StepBased(minFontSize = 10.sp, maxFontSize = 22.sp, stepSize = 0.5.sp),
             style = MaterialTheme.typography.titleLarge.copy(fontFamily = FontFamily.Monospace,
                 fontWeight = FontWeight.Medium, letterSpacing = 0.sp, color = MaterialTheme.colorScheme.onSurface))
         Text(stringResource(R.string.wallet_number_hint), style = MaterialTheme.typography.labelSmall,
