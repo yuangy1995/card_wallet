@@ -1,5 +1,7 @@
 package com.example.creditcard.ui
 
+import com.example.creditcard.ui.wallet.*
+
 import android.widget.Toast
 import androidx.compose.animation.AnimatedVisibility
 import java.text.SimpleDateFormat
@@ -114,6 +116,7 @@ fun CardDetailScreen(
         }
         return
     }
+    val walletPreferences = rememberWalletPreferences()
     val isDebitCard = card.cardCategory == "debit"
     val cardCategoryText = if (isDebitCard) "储蓄卡" else "信用卡"
 
@@ -203,14 +206,19 @@ fun CardDetailScreen(
                 .padding(innerPadding)
                 .wrapContentWidth(Alignment.CenterHorizontally)
                 .widthIn(max = 760.dp)
-                .padding(horizontal = 20.dp)
+                .padding(horizontal = 16.dp)
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Spacer(modifier = Modifier.height(12.dp))
 
             // 1. 黄金比例卡片磁贴展示
-            CreditCardTile(card = card, isDark = isDark, onClick = {})
+            WalletCardFace(
+                card = card,
+                favorite = card.id in walletPreferences.state.favorites,
+                onFavoriteClick = { walletPreferences.toggleFavorite(card.id) },
+                onClick = {}
+            )
 
             Spacer(modifier = Modifier.height(16.dp))
 
@@ -223,11 +231,10 @@ fun CardDetailScreen(
                 InfoRow(label = "卡类别", value = cardCategoryText)
                 DetailDivider(isDark = isDark)
 
-                CardNumberInfoRow(
+                WalletCardNumber(
                     cardNumber = card.cardNumber,
                     visible = isNumberVisible,
                     countdownProgress = countdownProgress,
-                    isDark = isDark,
                     onToggleVisible = { isNumberVisible = !isNumberVisible },
                     onCopy = {
                         copyCardNumberToClipboard(context, card.cardNumber)

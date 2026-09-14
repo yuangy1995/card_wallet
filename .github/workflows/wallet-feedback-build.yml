@@ -1,0 +1,65 @@
+name: Android feedback build
+on:
+  push:
+    branches: [fix/android-wallet-preview-feedback]
+    paths: ['apps/android/**', 'tools/feedback_apply.py', '.github/workflows/wallet-feedback-build.yml']
+permissions:
+  contents: write
+concurrency:
+  group: wallet-feedback-build
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: fix/android-wallet-preview-feedback
+      - name: Integrate reviewed feedback changes
+        run: |
+          if test -f tools/feedback_apply.py; then
+            python3 tools/feedback_apply.py
+            rm tools/feedback_apply.py
+            git config user.name 'github-actions[bot]'
+            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+            git add apps/android tools/feedback_apply.py
+            git diff --cached --check
+            git commit -m '修复空卡包入口、主题默认值、图标回退和同步内存峰值'
+            git push origin HEAD:fix/android-wallet-preview-feedback
+          fi
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+          cache-dependency-path: |
+            apps/android/**/*.gradle.kts
+            apps/android/gradle/libs.versions.toml
+      - name: Native regression tests
+        working-directory: apps/android
+        run: bash gradlew :app:testDebugUnitTest --stacktrace --max-workers=2
+      - name: Debug build and Lint
+        if: ${{ !cancelled() }}
+        working-directory: apps/android
+        run: bash gradlew :app:assembleDebug :app:lintDebug --continue --stacktrace --max-workers=2
+      - name: Build separate feedback preview
+        if: ${{ !cancelled() }}
+        working-directory: apps/android
+        run: |
+          bash gradlew :app:assembleDebug -PwalletPreview=true -PwalletPreviewSuffix=.preview3 -PreleaseVersionCode=3 --stacktrace --max-workers=2
+          APK=app/build/outputs/apk/debug/app-debug.apk
+          "$ANDROID_HOME/cmdline-tools/latest/bin/apkanalyzer" manifest application-id "$APK" | tee app/build/outputs/apk/debug/package-id.txt
+          grep -qx 'com.applist.cardwallet.preview3' app/build/outputs/apk/debug/package-id.txt
+          git rev-parse HEAD > app/build/outputs/apk/debug/source-commit.txt
+          sha256sum "$APK" > app/build/outputs/apk/debug/SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: wallet-feedback-${{ github.run_id }}
+          retention-days: 7
+          path: |
+            apps/android/app/build/outputs/apk/debug/
+            apps/android/app/build/outputs/ui-review/
+            apps/android/app/build/reports/
+            apps/android/app/build/test-results/

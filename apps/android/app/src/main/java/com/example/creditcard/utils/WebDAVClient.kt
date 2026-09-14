@@ -206,6 +206,20 @@ object WebDAVClient {
             mediaType = mediaType,
             onProgress = onProgress
         )
+        return uploadRequest(fileUrl, credential, requestBody)
+    }
+
+    internal fun uploadSyncSnapshot(
+        url: String, user: String, pass: String, filename: String,
+        upload: SyncUpload, onProgress: ((Long) -> Unit)? = null
+    ): Boolean {
+        val cleanUrl = sanitizeUrl(url)
+        val credential = Credentials.basic(user, pass)
+        ensureBackupDirExists(cleanUrl, credential)
+        return uploadRequest(backupFileUrl(cleanUrl, filename), credential, upload.requestBody(onProgress))
+    }
+
+    private fun uploadRequest(fileUrl: String, credential: String, requestBody: RequestBody): Boolean {
         val request = Request.Builder()
             .url(fileUrl)
             .put(requestBody)

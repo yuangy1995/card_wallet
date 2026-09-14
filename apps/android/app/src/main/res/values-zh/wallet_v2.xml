@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="wallet_mode_cards">卡片</string>
+  <string name="wallet_mode_list">列表</string>
+  <string name="wallet_search_short">搜索银行、卡名或尾号</string>
+  <string name="wallet_reminders_count">%1$d 项卡片提醒</string>
+  <string name="wallet_reset_hint">可以更换搜索条件，或查看全部卡片。</string>
+  <string name="wallet_show_all">查看全部卡片</string>
+  <string name="wallet_card_number">银行卡号</string>
+  <string name="wallet_copy_number">复制完整卡号</string>
+  <string name="wallet_hide_number">隐藏卡号</string>
+  <string name="wallet_show_number">显示卡号</string>
+  <string name="wallet_number_hint">轻点复制完整号码，显示后 5 秒自动隐藏。</string>
+  <string name="wallet_sync_edit">修改配置</string>
+  <string name="wallet_sync_busy">正在同步</string>
+  <string name="wallet_sync_error">同步需要处理</string>
+  <string name="wallet_sync_current">已同步</string>
+  <string name="wallet_sync_configured">已配置云同步</string>
+  <string name="wallet_sync_always_on">配置完成后自动同步</string>
+  <string name="wallet_sync_server">服务器</string>
+  <string name="wallet_sync_user">账号</string>
+  <string name="wallet_sync_now">立即同步</string>
+  <string name="wallet_sync_cancel_run">停止本次同步</string>
+  <string name="wallet_sync_network">同步网络</string>
+  <string name="wallet_sync_url">WebDAV 地址</string>
+  <string name="wallet_sync_password">应用密码</string>
+  <string name="wallet_sync_key">同步密钥</string>
+  <string name="wallet_sync_key_hint">与其他设备使用相同密钥。请妥善保存，遗失后将无法解密云端数据。</string>
+  <string name="wallet_sync_test_success">连接测试成功；此测试不校验同步密钥。</string>
+  <string name="wallet_sync_test_failed">连接失败，请检查地址、账号和应用密码。</string>
+  <string name="wallet_sync_invalid">请填写有效的 http(s) 地址、账号、应用密码和同步密钥。</string>
+  <string name="wallet_sync_test">测试连接</string>
+  <string name="wallet_sync_save">保存并同步</string>
+  <string name="wallet_sync_short_key">同步密钥至少需要 10 个字符。</string>
+  <string name="wallet_cancel">取消</string>
+  <string name="wallet_hide_secret">隐藏密码</string>
+  <string name="wallet_show_secret">显示密码</string>
+  <string name="wallet_wifi_only">仅 Wi-Fi</string>
+  <string name="wallet_wifi_mobile">Wi-Fi + 流量</string>
+  <string name="wallet_sync_network_hint">自动同步遵循此网络限制，移动数据下手动同步仍会先征求确认。</string>
+  <string name="wallet_preview_name">卡包预览</string>
+</resources>

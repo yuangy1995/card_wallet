@@ -27,6 +27,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.withContext
+import java.io.File
 import java.io.IOException
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -41,19 +42,17 @@ data class WebDAVConfig(
     val user: String = "",
     val pass: String = "",
     val syncPassword: String = "",
-    val isEnabled: Boolean = false,
+    val isEnabled: Boolean = true,
     val networkPreference: SyncNetworkPreference = SyncNetworkPreference.WIFI_ONLY
 ) {
     val isReadyForSync: Boolean
-        get() = isEnabled &&
-            url.isNotBlank() &&
+        get() = url.isNotBlank() &&
             user.isNotBlank() &&
             pass.isNotBlank() &&
             syncPassword.isNotBlank()
 
     fun syncUnavailableMessage(): String? {
         return when {
-            !isEnabled -> "请先在 WebDAV 设置中配置并开启云同步"
             url.isBlank() || user.isBlank() || pass.isBlank() || syncPassword.isBlank() ->
                 "WebDAV 配置不完整，请先填齐服务器、账号、应用密码和同步密钥"
             else -> null
@@ -188,17 +187,15 @@ object SyncCoordinator {
             if (config.syncPassword.isNotEmpty()) {
                 putString(KEY_SYNC_PASSWORD, CryptoManager.encrypt(config.syncPassword))
             }
-            putBoolean(KEY_ENABLED, config.isEnabled)
+            putBoolean(KEY_ENABLED, true)
             putString(KEY_NETWORK_PREFERENCE, config.networkPreference.storedValue)
             apply()
         }
         
         if (config.isReadyForSync) {
             updateStatus("云同步配置已保存，正在尝试建立首期同步...", "info", isPending(context))
-        } else if (config.isEnabled) {
-            updateStatus(config.syncUnavailableMessage() ?: "WebDAV 配置不完整", "warning", isPending(context))
         } else {
-            updateStatus("云同步已关闭，本机改动将仅保留于本地", "info", isPending(context))
+            updateStatus(config.syncUnavailableMessage() ?: "WebDAV 配置不完整", "warning", isPending(context))
         }
     }
 
@@ -229,7 +226,11 @@ object SyncCoordinator {
             }
         } else ""
 
-        val isEnabled = prefs.getBoolean(KEY_ENABLED, false)
+        // Migrate an explicit old "off" value once; credentials and network policy are preserved.
+        if (prefs.contains(KEY_ENABLED) && !prefs.getBoolean(KEY_ENABLED, true)) {
+            prefs.edit().putBoolean(KEY_ENABLED, true).apply()
+        }
+        val isEnabled = true
         val networkPreference = SyncNetworkPreference.fromStoredValue(
             prefs.getString(KEY_NETWORK_PREFERENCE, null)
         )
@@ -864,7 +865,7 @@ object SyncCoordinator {
                 val downloadDetail = if (filesToRead.size == 1) {
                     "正在下载最新云同步快照$totalFilesText，网络慢时会自动续传"
                 } else {
-                    "正在并发下载 ${filesToRead.size} 份云同步文件$totalFilesText，网络慢时会自动续传"
+                    "正在逐份下载 ${filesToRead.size} 份云同步文件$totalFilesText，网络慢时会自动续传"
                 }
                 val downloadProgressLock = Any()
                 var downloadedBytes = 0L
@@ -906,109 +907,98 @@ object SyncCoordinator {
 
                 // 3. 下载并解密选中的自动同步文件。每个文件的下载请求都支持慢网重试
                 // 和 Range 续传，避免大文件还在传输时被总时长限制误判失败。
-                val readResults = coroutineScope {
-                    filesToRead.mapIndexed { index, file ->
-                        async(Dispatchers.IO) {
-                            ensureSyncNotCancelled()
-                            withContext(Dispatchers.Main) {
-                                updateProgress(
-                                    "读取文件",
-                                    3,
-                                    6,
-                                    if (filesToRead.size == 1) {
-                                        "正在读取最新快照：${file.filename}"
-                                    } else {
-                                        "正在并发读取 ${index + 1}/${filesToRead.size}：${file.filename}"
-                                    },
-                                    totalBytes = totalDownloadBytes,
-                                    transferredBytes = downloadedBytes
-                                )
-                            }
-                            var fileDownloadedBytes = 0L
-                            val fileContent = try {
-                                WebDAVClient.restoreBackupOrThrow(
-                                    config.url,
-                                    config.user,
-                                    config.pass,
-                                    file.filename,
-                                    onProgress = { bytesRead ->
-                                        val delta = bytesRead - fileDownloadedBytes
-                                        fileDownloadedBytes = bytesRead
-                                        if (delta != 0L) {
-                                            reportDownloadDelta(delta)
-                                        }
-                                    }
-                                )
-                            } catch (e: IOException) {
-                                if (cancelRequested) throw CancellationException("同步已被手动终止")
-                                e.printStackTrace()
-                                return@async SnapshotReadResult(
-                                    filename = file.filename,
-                                    failureStage = "download",
-                                    failureMessage = "同步文件下载失败：${e.message ?: "网络超时或连接中断"}"
-                                )
-                            }
-                            ensureSyncNotCancelled()
-                            if (fileContent.isEmpty()) {
-                                return@async SnapshotReadResult(
-                                    filename = file.filename,
-                                    failureStage = "download",
-                                    failureMessage = "同步文件下载失败：响应为空"
-                                )
-                            }
-                            val remainingBytes = file.size - fileDownloadedBytes
-                            if (remainingBytes > 0L) {
-                                reportDownloadDelta(remainingBytes, force = true)
-                            }
-                            val decryptedJson = try {
-                                CryptoManager.decryptSyncEnvelopeV4(fileContent, config.syncPassword)
-                            } catch (e: Exception) {
-                                e.printStackTrace()
-                                return@async SnapshotReadResult(
-                                    filename = file.filename,
-                                    failureStage = "decrypt",
-                                    failureMessage = "同步文件无法解密，请检查同步密钥：${file.filename}"
-                                )
-                            }
-                            val snapshot = try {
-                                AppJson.json.decodeFromString<SyncSnapshot>(decryptedJson)
-                            } catch (e: Exception) {
-                                e.printStackTrace()
-                                return@async SnapshotReadResult(
-                                    filename = file.filename,
-                                    failureStage = "parse",
-                                    failureMessage = "同步文件已解密但快照格式无法解析：${file.filename}"
-                                )
-                            }
-                            if (snapshot.schemaVersion == "4.0.0") {
-                                SnapshotReadResult(filename = file.filename, snapshot = snapshot)
+                suspend fun readSnapshot(index: Int, file: BackupFile): SnapshotReadResult {
+                    ensureSyncNotCancelled()
+                    withContext(Dispatchers.Main) {
+                        updateProgress(
+                            "读取文件",
+                            3,
+                            6,
+                            if (filesToRead.size == 1) {
+                                "正在读取最新快照：${file.filename}"
                             } else {
-                                SnapshotReadResult(
-                                    filename = file.filename,
-                                    failureStage = "parse",
-                                    failureMessage = "同步文件版本不支持：${file.filename}"
-                                )
-                            }
-                        }
-                    }.awaitAll()
-                }
-                val snapshots = readResults.mapNotNull { it.snapshot }
-                val firstResult = readResults.firstOrNull()
-                if (filesToRead.isNotEmpty() && firstResult?.failed == true) {
-                    throw IllegalArgumentException(firstResult.failureMessage ?: "最新云同步文件读取失败，请稍后重试")
-                }
-                if (filesToRead.isNotEmpty() && snapshots.isEmpty()) {
-                    val failures = readResults.filter { it.failed }
-                    val downloadFailures = failures.count { it.failureStage == "download" }
-                    val decryptFailures = failures.count { it.failureStage == "decrypt" }
-                    val message = when {
-                        downloadFailures > 0 -> "云同步文件下载失败，请检查网络或稍后重试"
-                        decryptFailures > 0 -> "无法解密云端同步文件，请检查同步密钥"
-                        else -> failures.firstOrNull()?.failureMessage ?: "云同步文件格式无法解析"
+                                "正在读取 ${index + 1}/${filesToRead.size}：${file.filename}"
+                            },
+                            totalBytes = totalDownloadBytes,
+                            transferredBytes = downloadedBytes
+                        )
                     }
-                    throw IllegalArgumentException(message)
+                    var fileDownloadedBytes = 0L
+                    val fileContent = try {
+                        WebDAVClient.restoreBackupOrThrow(
+                            config.url,
+                            config.user,
+                            config.pass,
+                            file.filename,
+                            onProgress = { bytesRead ->
+                                val delta = bytesRead - fileDownloadedBytes
+                                fileDownloadedBytes = bytesRead
+                                if (delta != 0L) {
+                                    reportDownloadDelta(delta)
+                                }
+                            }
+                        )
+                    } catch (e: IOException) {
+                        if (cancelRequested) throw CancellationException("同步已被手动终止")
+                        e.printStackTrace()
+                        return SnapshotReadResult(
+                            filename = file.filename,
+                            failureStage = "download",
+                            failureMessage = "同步文件下载失败：${e.message ?: "网络超时或连接中断"}"
+                        )
+                    }
+                    ensureSyncNotCancelled()
+                    if (fileContent.isEmpty()) {
+                        return SnapshotReadResult(
+                            filename = file.filename,
+                            failureStage = "download",
+                            failureMessage = "同步文件下载失败：响应为空"
+                        )
+                    }
+                    val remainingBytes = file.size - fileDownloadedBytes
+                    if (remainingBytes > 0L) {
+                        reportDownloadDelta(remainingBytes, force = true)
+                    }
+                    val decryptedJson = try {
+                        CryptoManager.decryptSyncEnvelopeV4(fileContent, config.syncPassword)
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                        return SnapshotReadResult(
+                            filename = file.filename,
+                            failureStage = "decrypt",
+                            failureMessage = "同步文件无法解密，请检查同步密钥：${file.filename}"
+                        )
+                    }
+                    val snapshot = try {
+                        AppJson.json.decodeFromString<SyncSnapshot>(decryptedJson)
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                        return SnapshotReadResult(
+                            filename = file.filename,
+                            failureStage = "parse",
+                            failureMessage = "同步文件已解密但快照格式无法解析：${file.filename}"
+                        )
+                    }
+                    return if (snapshot.schemaVersion == "4.0.0") {
+                        SnapshotReadResult(filename = file.filename, snapshot = snapshot)
+                    } else {
+                        SnapshotReadResult(
+                            filename = file.filename,
+                            failureStage = "parse",
+                            failureMessage = "同步文件版本不支持：${file.filename}"
+                        )
+                    }
                 }
-                val remoteRecords = snapshots.flatMap { it.records }
+                var remoteRecords = emptyList<CardSyncRecord>()
+                filesToRead.forEachIndexed { index, file ->
+                    val result = readSnapshot(index, file)
+                    if (index == 0 && result.failed) {
+                        throw IllegalArgumentException(result.failureMessage ?: "最新云同步文件读取失败，请稍后重试")
+                    }
+                    result.snapshot?.let { remote ->
+                        remoteRecords = SyncMergeEngine.merge(remoteRecords, remote.records)
+                    }
+                }
 
                 withContext(Dispatchers.Main) {
                     updateProgress("合并数据", 4, 6, "正在合并本机和云端修改")
@@ -1051,48 +1041,31 @@ object SyncCoordinator {
                         generatedAt = isoNow,
                         records = mergedRecords
                     )
-                    val snapshotJson = AppJson.json.encodeToString(SyncSnapshot.serializer(), snapshot)
-                    val encryptedSnapshot = CryptoManager.encryptSyncEnvelopeV4(snapshotJson, config.syncPassword)
-
-                    // 将文件名中的冒号与点替换为短横线，确保 WebDAV 磁盘极致兼容
                     val timeFilename = isoNow.replace(":", "-").replace(".", "-")
                     val activeCount = activeCards.size
                     val filename = "${timeFilename}---($activeCount)[SyncV4][Android][自].json"
-                    val uploadBytes = encryptedSnapshot.toByteArray(Charsets.UTF_8).size.toLong()
-
-                    ensureSyncNotCancelled()
-                    updateProgress(
-                        "保存云端",
-                        5,
-                        6,
-                        "正在写入 WebDAV 加密快照",
-                        totalBytes = uploadBytes,
-                        transferredBytes = 0L
-                    )
-                    var lastUploadProgressReportAt = 0L
-                    val uploadSuccess = WebDAVClient.uploadSyncSnapshot(
-                        config.url,
-                        config.user,
-                        config.pass,
-                        filename,
-                        encryptedSnapshot,
-                        onProgress = { bytesSent ->
-                            val currentBytes = bytesSent.coerceIn(0L, uploadBytes)
-                            val now = SyncTime.nowMillis()
-                            if (currentBytes < uploadBytes && now - lastUploadProgressReportAt < PROGRESS_UI_INTERVAL_MS) {
-                                return@uploadSyncSnapshot
+                    val uploadSuccess = SyncUpload.prepare(
+                        File(appContext.cacheDir, "sync-upload"), snapshot, config.syncPassword,
+                        checkpoint = ::ensureSyncNotCancelled
+                    ).use { upload ->
+                        val uploadBytes = upload.size
+                        updateProgress("保存云端", 5, 6, "正在写入 WebDAV 加密快照",
+                            totalBytes = uploadBytes, transferredBytes = 0L)
+                        var lastUploadProgressReportAt = 0L
+                        WebDAVClient.uploadSyncSnapshot(
+                            config.url, config.user, config.pass, filename, upload,
+                            onProgress = { bytesSent ->
+                                ensureSyncNotCancelled()
+                                val currentBytes = bytesSent.coerceIn(0L, uploadBytes)
+                                val now = SyncTime.nowMillis()
+                                if (currentBytes == uploadBytes || now - lastUploadProgressReportAt >= PROGRESS_UI_INTERVAL_MS) {
+                                    lastUploadProgressReportAt = now
+                                    updateProgress("保存云端", 5, 6, "正在写入 WebDAV 加密快照",
+                                        totalBytes = uploadBytes, transferredBytes = currentBytes)
+                                }
                             }
-                            lastUploadProgressReportAt = now
-                            updateProgress(
-                                "保存云端",
-                                5,
-                                6,
-                                "正在写入 WebDAV 加密快照",
-                                totalBytes = uploadBytes,
-                                transferredBytes = currentBytes
-                            )
-                        }
-                    )
+                        )
+                    }
                     ensureSyncNotCancelled()
                     if (uploadSuccess) {
                         uploadedFilename = filename
@@ -1308,8 +1281,7 @@ object SyncCoordinator {
         }
         val connectivityManager =
             context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-        connectivityManager.registerDefaultNetworkCallback(
-            object : ConnectivityManager.NetworkCallback() {
+        val callback = object : ConnectivityManager.NetworkCallback() {
                 override fun onCapabilitiesChanged(
                     network: Network,
                     networkCapabilities: NetworkCapabilities
@@ -1324,7 +1296,14 @@ object SyncCoordinator {
                     }
                 }
             }
-        )
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+            connectivityManager.registerDefaultNetworkCallback(callback)
+        } else {
+            connectivityManager.registerNetworkCallback(
+                android.net.NetworkRequest.Builder()
+                    .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET).build(), callback
+            )
+        }
     }
 
     private fun requestBackgroundSync(context: Context, publishLocalChanges: Boolean) {
