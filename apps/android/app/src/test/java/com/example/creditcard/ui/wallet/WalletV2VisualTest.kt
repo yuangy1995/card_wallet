@@ -142,7 +142,8 @@ class WalletV2VisualTest {
             SettingsMainPanel(false, {}, {}, {}, {}, {}, {}, {})
         } }
         compose.onNodeWithTag("wallet_theme_LIGHT").assertIsSelected()
-        compose.onNodeWithTag("wallet_theme_picker").assertHeightIsAtMost(100.dp)
+        val picker = compose.onNodeWithTag("wallet_theme_picker").getUnclippedBoundsInRoot()
+        assertTrue((picker.bottom - picker.top).value < 100f)
         capture("v2-settings-light")
     }
 
