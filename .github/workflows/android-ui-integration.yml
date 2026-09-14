@@ -5,15 +5,20 @@ on:
     paths: [tools/android_ui_integration.py]
 permissions:
   contents: write
+concurrency:
+  group: android-ui-integration
+  cancel-in-progress: false
 jobs:
   integrate:
     if: github.repository == 'yuangy1995/card_wallet'
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
         with:
           ref: feat/android-wallet-card-list-favorites
+      - name: Install asset conversion tools
+        run: python3 -m pip install 'CairoSVG==2.8.2' 'Pillow==11.3.0'
       - name: Apply reviewed UI changes
         run: python3 tools/android_ui_integration.py
       - name: Commit UI integration to feature branch
@@ -33,3 +38,15 @@ jobs:
       - name: Compile and run Android regression tests
         working-directory: apps/android
         run: bash gradlew :app:assembleDebug :app:testDebugUnitTest :app:lintDebug --stacktrace
+      - name: Upload debug APK and test reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-wallet-ui-checks
+          retention-days: 7
+          path: |
+            apps/android/app/build/outputs/apk/debug/*.apk
+            apps/android/app/build/reports/
+            apps/android/app/build/test-results/
+            apps/android/app/src/main/java/com/example/creditcard/ui/wallet/
+            apps/android/app/src/main/res/drawable-nodpi/wallet_*.webp
