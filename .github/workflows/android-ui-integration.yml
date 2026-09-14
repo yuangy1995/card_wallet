@@ -1,48 +1,27 @@
-name: Android UI integration
+name: Android build and UI checks
 on:
+  pull_request:
+    paths:
+      - 'apps/android/**'
+      - '.github/workflows/android-ui-integration.yml'
   push:
     branches: [feat/android-wallet-card-list-favorites]
-    paths: [tools/android_ui_integration.py, .github/workflows/android-ui-integration.yml]
+    paths:
+      - 'apps/android/**'
+      - '.github/workflows/android-ui-integration.yml'
 permissions:
-  contents: write
+  contents: read
 concurrency:
-  group: android-ui-integration
-  cancel-in-progress: false
+  group: android-ui-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 jobs:
-  integrate:
-    if: github.repository == 'yuangy1995/card_wallet'
+  verify:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: feat/android-wallet-card-list-favorites
-      - name: Install asset conversion tools
-        run: python3 -m pip install 'CairoSVG==2.8.2' 'Pillow==11.3.0'
-      - name: Apply reviewed UI changes
-        run: |
-          python3 tools/android_ui_integration.py
-          python3 - <<'PY'
-          from pathlib import Path
-          import hashlib, json
-          folder = Path('apps/android/branding')
-          manifest = json.loads((folder / 'sources.json').read_text())
-          for record in manifest:
-              path = folder / 'sources' / (record['resource'] + '.svg')
-              path.write_text('\n'.join(line.rstrip() for line in path.read_text().splitlines()) + '\n')
-              record['normalized_file_sha256'] = hashlib.sha256(path.read_bytes()).hexdigest()
-          (folder / 'sources.json').write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + '\n')
-          PY
-      - name: Commit UI integration to feature branch
-        run: |
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add apps/android
-          git diff --cached --check
-          if ! git diff --cached --quiet; then
-            git commit -m '接入双模式卡包、离线品牌标识与本机星标'
-            git push origin HEAD:feat/android-wallet-card-list-favorites
-          fi
+          persist-credentials: false
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -54,11 +33,9 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: android-wallet-ui-checks
+          name: android-wallet-ui-checks-${{ github.run_id }}
           retention-days: 7
           path: |
             apps/android/app/build/outputs/apk/debug/*.apk
             apps/android/app/build/reports/
             apps/android/app/build/test-results/
-            apps/android/app/src/main/java/com/example/creditcard/ui/wallet/
-            apps/android/app/src/main/res/drawable-nodpi/wallet_*.webp
