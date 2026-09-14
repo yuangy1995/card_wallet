@@ -21,6 +21,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ColorFilter
 import androidx.compose.ui.graphics.lerp
+import androidx.compose.ui.graphics.luminance
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
@@ -89,8 +90,9 @@ internal fun WalletFavoriteButton(favorite: Boolean, cardName: String, onClick: 
 
 @Composable
 private fun WalletBankLogo(logo: WalletIssuerLogo?, name: String, onCard: Boolean) {
+    val lightMark = onCard || MaterialTheme.colorScheme.surface.luminance() < 0.3f
     Box(Modifier.width(38.dp).height(34.dp), contentAlignment = Alignment.Center) {
-        if (logo != null) Image(painterResource(if (onCard) logo.cardDrawable else logo.drawable), name,
+        if (logo != null) Image(painterResource(if (lightMark) logo.cardDrawable else logo.drawable), name,
             modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
         else Text(name.trim().take(2).ifBlank { "CW" },
             color = if (onCard) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
@@ -100,11 +102,12 @@ private fun WalletBankLogo(logo: WalletIssuerLogo?, name: String, onCard: Boolea
 
 @Composable
 private fun WalletNetworkLogo(network: WalletNetwork, onCard: Boolean = false) {
+    val lightMark = onCard || MaterialTheme.colorScheme.surface.luminance() < 0.3f
     val asset = WalletBrandAssets.network(network)
     Box(Modifier.width(48.dp).height(28.dp), contentAlignment = Alignment.Center) {
         if (asset != null) Image(painterResource(asset), network.label,
             Modifier.fillMaxSize(), contentScale = ContentScale.Fit,
-            colorFilter = if (onCard && network in listOf(WalletNetwork.VISA, WalletNetwork.AMEX)) ColorFilter.tint(Color.White) else null)
+            colorFilter = if (lightMark && network in listOf(WalletNetwork.VISA, WalletNetwork.AMEX)) ColorFilter.tint(Color.White) else null)
         else Icon(Icons.Default.CreditCard, stringResource(R.string.wallet_network_unknown), Modifier.size(22.dp),
             tint = if (onCard) Color.White.copy(alpha = 0.7f) else MaterialTheme.colorScheme.onSurfaceVariant)
     }
@@ -205,8 +208,12 @@ internal fun WalletListRow(card: SharedCard, favorite: Boolean, onFavoriteClick:
                 Spacer(Modifier.width(12.dp))
                 Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Text(cardName, style = MaterialTheme.typography.titleSmall, maxLines = 1, overflow = TextOverflow.Ellipsis)
-                    Text("$bankName · ${walletLastFour(card.cardNumber)}", style = MaterialTheme.typography.bodySmall,
-                        maxLines = 1, overflow = TextOverflow.Ellipsis, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                        Text(bankName, modifier = Modifier.weight(1f, fill = false), style = MaterialTheme.typography.bodySmall,
+                            maxLines = 1, overflow = TextOverflow.Ellipsis, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(" · ${walletLastFour(card.cardNumber)}", style = MaterialTheme.typography.bodySmall,
+                            maxLines = 1, softWrap = false, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    }
                 }
                 Spacer(Modifier.width(8.dp))
                 WalletNetworkLogo(network)

@@ -47,10 +47,10 @@ class WalletV2VisualTest {
         cardNumber = if (i % 8 == 3) "378282246310005" else "4111111111111111", cvv = "987", valid = "12/30",
         isQualified = "3", lastModifyTime = 200000L - i)
 
-    private fun home(dark: Boolean = false, count: Int = 115, fontScale: Float = 1f) {
+    private fun home(dark: Boolean = false, count: Int = 115, fontScale: Float = 1f, attention: Boolean = false) {
         context.getSharedPreferences(WalletPreferences.FILE, Context.MODE_PRIVATE).edit().clear().commit()
         context.getSharedPreferences("credit_card_sync_prefs", Context.MODE_PRIVATE).edit().clear().commit()
-        DatabaseHelper(context).use { db -> repeat(count) { db.saveCard(sample(it)) } }
+        DatabaseHelper(context).use { db -> repeat(count) { db.saveCard(if (attention && it == 0) sample(it).copy(valid = "01/20") else sample(it)) } }
         ThemeManager.setThemeMode(context, if (dark) AppThemeMode.DARK else AppThemeMode.LIGHT)
         SecurityLockManager.init(context)
         SyncCoordinator.initLocalData(context)
@@ -90,7 +90,7 @@ class WalletV2VisualTest {
         home()
         compose.onNodeWithTag("wallet_mode_list").performClick()
         capture("v2-home-list-light")
-        compose.onNodeWithTag("wallet_favorites_filter").performScrollTo().performClick()
+        compose.onNodeWithTag("wallet_favorites_filter").assertIsDisplayed().performClick()
         compose.onNodeWithText("查看全部卡片").assertIsDisplayed()
         compose.onNodeWithText("新增信用卡").assertDoesNotExist()
         capture("v2-empty-starred")
@@ -104,6 +104,7 @@ class WalletV2VisualTest {
         home(fontScale = 1.6f)
         compose.onNodeWithTag("wallet_mode_list").assertIsDisplayed().performClick()
         compose.onNodeWithTag("wallet_list_demo-0").assertIsDisplayed()
+        compose.onNodeWithTag("wallet_favorites_filter").assertIsDisplayed()
         capture("v2-small-large-font")
     }
 
@@ -161,6 +162,24 @@ class WalletV2VisualTest {
         compose.onNodeWithTag("sync_url").performTextReplacement("https://cancelled.invalid")
         compose.onNodeWithText("取消").performScrollTo().performClick()
         assertEquals("https://example.invalid/dav", SyncCoordinator.loadConfig(context).url)
+    }
+
+    @Test fun emptyWalletHasOneAddAction() {
+        home(count = 0)
+        compose.onNodeWithTag("wallet_empty").assertIsDisplayed()
+        assertEquals(1, compose.onAllNodesWithText("添加卡片").fetchSemanticsNodes().size)
+        compose.onNodeWithTag("wallet_reminders").assertDoesNotExist()
+        capture("v2-empty-wallet")
+        compose.onNodeWithText("添加卡片").performClick()
+        compose.onNodeWithText("新增信用卡").assertExists()
+        compose.onNodeWithText("新增储蓄卡").assertExists()
+    }
+
+    @Test fun remindersUseAFloatingBadgeInsteadOfABanner() {
+        home(attention = true)
+        compose.onNodeWithTag("wallet_reminders").assertIsDisplayed()
+        compose.onNodeWithText("发现", substring = true).assertDoesNotExist()
+        capture("v2-home-with-reminder")
     }
 
     private fun capture(name: String) {

@@ -109,14 +109,17 @@ internal fun WalletHomeHeader(
             WalletModeSwitch(isList, onListModeChange)
         }
         Row(
-            Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(top = 4.dp, bottom = 8.dp),
+            Modifier.fillMaxWidth().padding(top = 4.dp, bottom = 8.dp),
             horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically
         ) {
+            Row(Modifier.weight(1f).horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
             listOf(Triple("all", R.string.all_cards, allCount), Triple("credit", R.string.credit_cards, creditCount),
                 Triple("debit", R.string.debit_cards, debitCount)).forEach { (key, title, count) ->
                 FilterChip(selected = category == key, onClick = { onCategoryChange(key) },
                     label = { Text("${stringResource(title)} $count", maxLines = 1, style = MaterialTheme.typography.labelMedium) },
                     shape = CircleShape, modifier = Modifier.testTag("wallet_category_$key"))
+            }
             }
             WalletFavoritesChip(favoritesOnly, favoriteCount, onFavoritesChange)
         }
