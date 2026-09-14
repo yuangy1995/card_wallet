@@ -2,32 +2,65 @@ name: macOS brand workbench
 on:
   push:
     branches: [feat/macos-wallet-brand-logos]
-    paths: [.github/workflows/macos-brand-workbench.yml]
+    paths: ['apps/macos/**', 'tools/macos-brand.patch', '.github/workflows/macos-brand-workbench.yml']
 permissions:
-  contents: read
+  contents: write
+concurrency:
+  group: macos-brand-workbench
+  cancel-in-progress: false
 jobs:
-  sources:
-    runs-on: ubuntu-latest
+  verify:
+    runs-on: macos-14
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
         with:
-          persist-credentials: false
-      - name: Export relevant source and branding files only
+          ref: feat/macos-wallet-brand-logos
+      - name: Prepare offline native assets
         run: |
-          python3 - <<'PY'
-          from pathlib import Path
-          import zipfile
-          selected = [Path('AGENTS.md')]
-          for root in ['apps/macos', 'apps/android/branding', 'apps/android/app/src/main/assets/licenses', 'apps/android/app/src/main/java/com/example/creditcard/ui/wallet', 'apps/android/app/src/main/res/drawable-nodpi', '.github/workflows']:
-              for p in Path(root).rglob('*'):
-                  if not p.is_file() or any(part in ['build','.build','.git','DerivedData'] for part in p.parts): continue
-                  if p.suffix not in ['.swift','.strings','.json','.yml','.yaml','.pbxproj','.xcscheme','.sh','.py','.md','.txt','.kt','.webp','.png','.plist','.entitlements']: continue
-                  selected.append(p)
-          with zipfile.ZipFile('macos-brand-sources.zip','w',zipfile.ZIP_DEFLATED) as z:
-              for p in sorted(set(selected)): z.write(p,str(p))
-          PY
+          python3 -m venv /tmp/wallet-brand-venv
+          /tmp/wallet-brand-venv/bin/pip install Pillow==11.3.0
+          if test -f tools/macos-brand.patch; then
+            git apply --check tools/macos-brand.patch
+            git apply tools/macos-brand.patch
+            rm tools/macos-brand.patch
+          fi
+          /tmp/wallet-brand-venv/bin/python apps/macos/scripts/import-android-branding.py
+          if ! command -v xcodegen >/dev/null; then brew install xcodegen; fi
+          (cd apps/macos && xcodegen generate)
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add apps/macos
+          if git ls-files --error-unmatch tools/macos-brand.patch >/dev/null 2>&1; then git add -u tools/macos-brand.patch; fi
+          git diff --cached --check
+          if ! git diff --cached --quiet; then
+            git commit -m '为 Mac 接入 Android 离线银行与卡组织品牌标识'
+            git push origin HEAD:feat/macos-wallet-brand-logos
+          fi
+          mkdir -p apps/macos/build
+          git rev-parse HEAD > apps/macos/build/source-commit.txt
+      - name: Verify catalogue parity
+        run: /tmp/wallet-brand-venv/bin/python apps/macos/scripts/import-android-branding.py --check
+      - name: Build and run macOS regression tests
+        working-directory: apps/macos
+        run: |
+          set -o pipefail
+          xcodebuild test -project CreditCardMac.xcodeproj -scheme CreditCardMac -destination 'platform=macOS' -derivedDataPath build/DerivedData -resultBundlePath build/BrandTests.xcresult CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM= ENABLE_APP_SANDBOX=NO WALLET_CODE_SIGN_ENTITLEMENTS=Resources/CreditCardMacAdHoc.entitlements 2>&1 | tee build/brand-tests.log
+      - name: Summarize XCTest results
+        if: always()
+        run: |
+          if test -d apps/macos/build/BrandTests.xcresult; then
+            xcrun xcresulttool get test-results summary --path apps/macos/build/BrandTests.xcresult > apps/macos/build/test-summary.json || true
+          fi
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
-          name: macos-brand-sources
-          path: macos-brand-sources.zip
-          retention-days: 3
+          name: macos-brand-validation-${{ github.run_id }}
+          retention-days: 7
+          path: |
+            apps/macos/build/brand-tests.log
+            apps/macos/build/source-commit.txt
+            apps/macos/build/test-summary.json
+            apps/macos/build/brand-review/
+            apps/macos/build/BrandTests.xcresult/
+            apps/macos/CreditCardMac.xcodeproj/project.pbxproj
