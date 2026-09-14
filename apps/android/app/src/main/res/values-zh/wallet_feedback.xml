@@ -1,0 +1,4 @@
+<resources>
+    <string name="wallet_bank_fallback">银行卡</string>
+    <string name="wallet_preview_feedback_name">卡包预览 3</string>
+</resources>
