@@ -149,7 +149,7 @@ bash prepare-update.sh "$(pwd)/dist/卡包.app"
 
 首个含自动更新功能的版本需要用户手动安装一次。正式发布前，用两个构建号的 Ad-Hoc 签名应用在独立 macOS 测试账户中验证发现新版、下载安装、重启后版本与数据保留；不要拿真实卡包数据进行升级测试。
 
-当前最新正式版为 [1.0.1（构建号 5）](https://github.com/yuangy1995/card-wallet-releases/releases/tag/mac-v1.0.1-5)。[GitHub Actions 运行 34865188410](https://github.com/yuangy1995/card_wallet/actions/runs/34865188410) 从源码提交 `978e9a4` 完成 76 项应用回归测试、更新包校验、双架构构建与签名、上传草稿及正式发布；公开下载的大小、SHA-256、EdDSA 签名、应用标识、版本和架构已独立核验，Latest 更新清单一致。此版沿用 1.0.0（4）的更新公钥，可供该正式版检查升级；安装替换、重启及真实数据保留仍需用户实机确认。
+当前最新正式版为 [1.0.2（构建号 6）](https://github.com/yuangy1995/card-wallet-releases/releases/tag/mac-v1.0.2-6)。[GitHub Actions 运行 34892447667](https://github.com/yuangy1995/card_wallet/actions/runs/34892447667) 从源码提交 `b3d5c65` 完成 76 项应用回归测试、更新包校验、双架构构建与签名、上传草稿及正式发布；公开下载的大小、SHA-256、EdDSA 签名、应用标识、版本和架构已独立核验，Latest 更新清单一致。此版沿用更新公钥，可供现有客户端检查升级。
 
 2026-09-15 按维护者要求清理旧 Mac Release `mac-v1.0.0-4`，保留其标签和已校验的本地备份 `dist/release-backups/mac-v1.0.0-4/`（含说明、元数据与三个附件，可用于重建发布）。清理后再次核对 Latest 更新入口正常，公开仓库保留 Mac 1.0.1（5）和 Android 1.2.0（4）。旧 Mac 发布 `mac-v1.0.0-2` 和 `mac-v1.0.1-3` 已在此前首发重置时移除。公开安装说明和版本说明的维护副本位于 `releases/`。
 
