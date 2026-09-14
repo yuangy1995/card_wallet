@@ -1,0 +1,170 @@
+[
+  {
+    "resource": "wallet_bank_cmb",
+    "url": "https://raw.githubusercontent.com/icongo/bank-logos/ffca539a043900fbf2a4fd6a5d32f1706ae5dfd1/logos/cmbchina-rect.svg",
+    "source_sha256": "1c9b6e27461eaa5060b118ba7960ed7e7a780928c745833c2ba34eb9b22c437b",
+    "normalized_file_sha256": "14b920a9da10d910a86543e1ac3a5cf87f6799281a52d0751d8b53a76691eee3"
+  },
+  {
+    "resource": "wallet_bank_boc",
+    "url": "https://raw.githubusercontent.com/icongo/bank-logos/ffca539a043900fbf2a4fd6a5d32f1706ae5dfd1/logos/boc-rect.svg",
+    "source_sha256": "521bb1790360e95e9f45a6bba9e414acfe8d53be96f3df695ad3015309efdc4d",
+    "normalized_file_sha256": "5dc7f39ccef4044e3bb973f41607fad6c7e87f3a1b540a98f96ff55627e89ecc"
+  },
+  {
+    "resource": "wallet_bank_icbc",
+    "url": "https://raw.githubusercontent.com/icongo/bank-logos/ffca539a043900fbf2a4fd6a5d32f1706ae5dfd1/logos/icbc-rect.svg",
+    "source_sha256": "b39ab756454e0213782123a09aa3e5979907a93fc1ca4cfec466b4c1f402e43b",
+    "normalized_file_sha256": "7a17e1c915f7632f2d06e5a940e5988cb0423fd4a6ae39eaee8415239ce28fc9"
+  },
+  {
+    "resource": "wallet_bank_abc",
+    "url": "https://raw.githubusercontent.com/icongo/bank-logos/ffca539a043900fbf2a4fd6a5d32f1706ae5dfd1/logos/abchina-rect.svg",
+    "source_sha256": "1176b226eb7a88cf92eadfaf24cc02cf667592d89d1f8f5abd50951b31f2797a",
+    "normalized_file_sha256": "2a7b88f452e7656a87758f1da27916bdbfd67ad13f702425e41d657da82915eb"
+  },
+  {
+    "resource": "wallet_bank_ccb",
+    "url": "https://raw.githubusercontent.com/icongo/bank-logos/ffca539a043900fbf2a4fd6a5d32f1706ae5dfd1/logos/ccb-rect.svg",
+    "source_sha256": "e95762dd36b78cfadc0e035566504e9fd29a1c71c82009d3daf9f94d71386350",
+    "normalized_file_sha256": "31a97c6f4db2e9bf5ba648a506db1850d04d952d1eb18cefc0f9ab4d36f918e2"
+  },
+  {
+    "resource": "wallet_bank_bocom",
+    "url": "https://raw.githubusercontent.com/icongo/bank-logos/ffca539a043900fbf2a4fd6a5d32f1706ae5dfd1/logos/bankcomm-rect.svg",
+    "source_sha256": "6fa1f6837abc0302add8cdab8f776c2e724e6d5702700da9edd1a99145b6b49d",
+    "normalized_file_sha256": "73e5d80f75965f324095834d58a69a8fd9bf0e63b7ffc9cdf6dc17835d0765f7"
+  },
+  {
+    "resource": "wallet_bank_citic",
+    "url": "https://raw.githubusercontent.com/icongo/bank-logos/ffca539a043900fbf2a4fd6a5d32f1706ae5dfd1/logos/citicbank-rect.svg",
+    "source_sha256": "71c9d58020b25f5e7668cf9704321631b9728743eba59355554ddbffbb92377f",
+    "normalized_file_sha256": "abe848ee1cd3f24969f3a7b6239e692c9a90733416d94d1683decef168f963eb"
+  },
+  {
+    "resource": "wallet_bank_cgb",
+    "url": "https://raw.githubusercontent.com/icongo/bank-logos/ffca539a043900fbf2a4fd6a5d32f1706ae5dfd1/logos/cgbchina-rect.svg",
+    "source_sha256": "6edd150fade4b8b6743efcf476d0eeb022a08e1e369fbb6564654dc8974c9d2b",
+    "normalized_file_sha256": "3c942edfa0bc60c76b521af9e1d757a0e42d2233c33a7f17e7c9a0b311c072ec"
+  },
+  {
+    "resource": "wallet_bank_pingan",
+    "url": "https://raw.githubusercontent.com/icongo/bank-logos/ffca539a043900fbf2a4fd6a5d32f1706ae5dfd1/logos/pingan-rect.svg",
+    "source_sha256": "134be5286dfdef3941da51c04ae679d7798e19a1828095abda37ca337bc3f1bd",
+    "normalized_file_sha256": "ae3c7989457fd20e96c6d144e1a7c2190b7f0727d6aa77be0944f896b9fbb73d"
+  },
+  {
+    "resource": "wallet_bank_spdb",
+    "url": "https://raw.githubusercontent.com/icongo/bank-logos/ffca539a043900fbf2a4fd6a5d32f1706ae5dfd1/logos/spdb-rect.svg",
+    "source_sha256": "5f7b40df6ec9ed437d44aef42291e442063fd97176416de37293ea2845c01f50",
+    "normalized_file_sha256": "20f69a465190ea65819fb17d98d449e797846537830a911d22e932bec0e36773"
+  },
+  {
+    "resource": "wallet_bank_cib",
+    "url": "https://raw.githubusercontent.com/icongo/bank-logos/ffca539a043900fbf2a4fd6a5d32f1706ae5dfd1/logos/cib-rect.svg",
+    "source_sha256": "347a95cc36c071d24fcc0dabb67487c2b8c5e3f5ca09a2e549ec45ba145f612e",
+    "normalized_file_sha256": "96c3f66f92780b582728f25d017b633915bab97f612d3800d4625a69fc7b7d47"
+  },
+  {
+    "resource": "wallet_bank_ceb",
+    "url": "https://raw.githubusercontent.com/icongo/bank-logos/ffca539a043900fbf2a4fd6a5d32f1706ae5dfd1/logos/cebbank-rect.svg",
+    "source_sha256": "7541efb680d58327caafaf0eaa7ed634c1d2f53de48afd4682756b5ba908fee7",
+    "normalized_file_sha256": "fc6a2fd9a05c245eabf52062d4c453c12daeea97a7e13460c79cdee04d9c92d0"
+  },
+  {
+    "resource": "wallet_bank_cmbc",
+    "url": "https://raw.githubusercontent.com/icongo/bank-logos/ffca539a043900fbf2a4fd6a5d32f1706ae5dfd1/logos/cmbc-rect.svg",
+    "source_sha256": "5cf02212314a35611e021c83a67be7fb0f2214f87eb0c938ae18748d182b14aa",
+    "normalized_file_sha256": "1c0d2d55b9f8d034d16c40fa907cad1ff3a1674253449b8d3e83c008bbbe8cfc"
+  },
+  {
+    "resource": "wallet_bank_psbc",
+    "url": "https://raw.githubusercontent.com/icongo/bank-logos/ffca539a043900fbf2a4fd6a5d32f1706ae5dfd1/logos/psbc-rect.svg",
+    "source_sha256": "52ba6ec2c7dc30302a7318cbe790927e882def90c51d9c4cb9b98a1bf3b25eea",
+    "normalized_file_sha256": "febe61878aee23a5599b8d1498b166f07b148f3d96b9d1fbae78839840475be5"
+  },
+  {
+    "resource": "wallet_bank_hxb",
+    "url": "https://raw.githubusercontent.com/icongo/bank-logos/ffca539a043900fbf2a4fd6a5d32f1706ae5dfd1/logos/hxb-rect.svg",
+    "source_sha256": "73eda23a1c81eb7b3bae1bd5f33ff895b312a42899d015753b6d7db530b61c13",
+    "normalized_file_sha256": "29d9c5aa50f31f9e8cd093d1f6fa5c092165d084e4b5393752d3dab3baa3a62c"
+  },
+  {
+    "resource": "wallet_bank_hsbc",
+    "url": "https://raw.githubusercontent.com/icongo/bank-logos/ffca539a043900fbf2a4fd6a5d32f1706ae5dfd1/logos/hsbc-rect.svg",
+    "source_sha256": "d706f850293612273712b0a903106d456b9370a2a15a16063728a9441679659e",
+    "normalized_file_sha256": "ebdfbf70272008d86ed1e429e20fa141a01df507d031f0601be9e5ad6873b162"
+  },
+  {
+    "resource": "wallet_bank_boa",
+    "url": "https://raw.githubusercontent.com/icongo/bank-logos/ffca539a043900fbf2a4fd6a5d32f1706ae5dfd1/logos/bankofamerica-rect.svg",
+    "source_sha256": "79410756416c38e37809e294da779a60f5a08c13cb8057686c4b14b33e4a64c8",
+    "normalized_file_sha256": "b2e60c2c993b838c59b5ba682020a943f9c9c3872f21f62f2db04554d00284a3"
+  },
+  {
+    "resource": "wallet_bank_citi",
+    "url": "https://raw.githubusercontent.com/icongo/bank-logos/ffca539a043900fbf2a4fd6a5d32f1706ae5dfd1/logos/citibank-rect.svg",
+    "source_sha256": "cb168fd259d5c5a3ec8e1151382e0688ed294eb607b0502dfff33c025015fb97",
+    "normalized_file_sha256": "9f607d57e4ba706909eb76d7fc8e476c626d9b695f846b013c50ffbe7400632b"
+  },
+  {
+    "resource": "wallet_bank_sc",
+    "url": "https://raw.githubusercontent.com/icongo/bank-logos/ffca539a043900fbf2a4fd6a5d32f1706ae5dfd1/logos/sc-rect.svg",
+    "source_sha256": "cdf07d7cc2142af0cde1b6a5a71cdb5eb0a123b28f0c52243e924c4d4f1f4de2",
+    "normalized_file_sha256": "e747a73f8fca46c6f2e13387b61b4a2606b0bf86abb3c81e90e5682dc31a1a24"
+  },
+  {
+    "resource": "wallet_bank_hangseng",
+    "url": "https://raw.githubusercontent.com/icongo/bank-logos/ffca539a043900fbf2a4fd6a5d32f1706ae5dfd1/logos/hangseng-rect.svg",
+    "source_sha256": "63f3b16cb0b4d22dd9e27852f200f42a7da8385ff7701368c82c1cceb5fc3c17",
+    "normalized_file_sha256": "8e9ecabc2960e413cf1ff56e67135d026c29520f5f5df2df47a6ffc06c227e9f"
+  },
+  {
+    "resource": "wallet_bank_dbs",
+    "url": "https://raw.githubusercontent.com/icongo/bank-logos/ffca539a043900fbf2a4fd6a5d32f1706ae5dfd1/logos/dbs-rect.svg",
+    "source_sha256": "cbb24bdbea7013e2e6b870d2e9b1f0e711e512e106216236b35a0a1128768ad5",
+    "normalized_file_sha256": "98a95168f71140a41a6d84c141ab73a1e27cbde0057ee49455ce683b22e1cdc0"
+  },
+  {
+    "resource": "wallet_network_visa",
+    "url": "https://raw.githubusercontent.com/aaronfagan/svg-credit-card-payment-icons/6dd023ae32415ed7b01bf809f15a25613a52098c/flat-rounded/visa.svg",
+    "source_sha256": "00fad36cdeb044ebfa472f60c9e7d24ca5c972c8ec9da8eee86c2e2af476697f",
+    "normalized_file_sha256": "00fad36cdeb044ebfa472f60c9e7d24ca5c972c8ec9da8eee86c2e2af476697f"
+  },
+  {
+    "resource": "wallet_network_mastercard",
+    "url": "https://raw.githubusercontent.com/aaronfagan/svg-credit-card-payment-icons/6dd023ae32415ed7b01bf809f15a25613a52098c/flat-rounded/mastercard.svg",
+    "source_sha256": "954e7dd1f82ad0076f57a0550402a563fee4df9fc4daadf2775997772257f0cb",
+    "normalized_file_sha256": "954e7dd1f82ad0076f57a0550402a563fee4df9fc4daadf2775997772257f0cb"
+  },
+  {
+    "resource": "wallet_network_amex",
+    "url": "https://raw.githubusercontent.com/aaronfagan/svg-credit-card-payment-icons/6dd023ae32415ed7b01bf809f15a25613a52098c/flat-rounded/amex.svg",
+    "source_sha256": "64653c36117c78474229ad6cb1b19a22f7e9c18d22fccc7cb4cf035e590e1ec5",
+    "normalized_file_sha256": "c8a783d6122d80aa409cc048535113cb4d7e7d7533d4b093f8d932e5d1cc7b76"
+  },
+  {
+    "resource": "wallet_network_unionpay",
+    "url": "https://raw.githubusercontent.com/aaronfagan/svg-credit-card-payment-icons/6dd023ae32415ed7b01bf809f15a25613a52098c/flat-rounded/unionpay.svg",
+    "source_sha256": "4e0a0d2f5c476b0739f890c6bdc7e169e0111feba5163a6b9aa6a3efed809079",
+    "normalized_file_sha256": "0e3ec0e1abe66ec80aba5cb1d2dc86ce5d174b9f2228c58651c92d3dd18310a0"
+  },
+  {
+    "resource": "wallet_network_jcb",
+    "url": "https://raw.githubusercontent.com/aaronfagan/svg-credit-card-payment-icons/6dd023ae32415ed7b01bf809f15a25613a52098c/flat-rounded/jcb.svg",
+    "source_sha256": "72dc11ba827d6bb6ebba372b41aa8f3e15a23ed6ae0d2e62b8bdfaada68e4411",
+    "normalized_file_sha256": "23ae6597f6c75deea89e60640c626412aba7b2c1cca7a385a7aab1523cecdb51"
+  },
+  {
+    "resource": "wallet_network_discover",
+    "url": "https://raw.githubusercontent.com/aaronfagan/svg-credit-card-payment-icons/6dd023ae32415ed7b01bf809f15a25613a52098c/flat-rounded/discover.svg",
+    "source_sha256": "7c51c2b93b35766af6d426d2045cd059880f5655821845a7a839be43a0eb7ce6",
+    "normalized_file_sha256": "7c51c2b93b35766af6d426d2045cd059880f5655821845a7a839be43a0eb7ce6"
+  },
+  {
+    "resource": "wallet_network_diners",
+    "url": "https://raw.githubusercontent.com/aaronfagan/svg-credit-card-payment-icons/6dd023ae32415ed7b01bf809f15a25613a52098c/flat-rounded/diners.svg",
+    "source_sha256": "2612a35a993cefc75430842111a8f4601dd23512d25edb61c612e4993819264e",
+    "normalized_file_sha256": "d4615f2ef74b6c4218c09d33676de18db8b36d7d328588d15a83a470d58b3398"
+  }
+]

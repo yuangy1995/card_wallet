@@ -47,6 +47,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import com.example.creditcard.R
+import com.example.creditcard.ui.wallet.*
 import com.example.creditcard.ui.components.WalletSection
 import com.example.creditcard.ui.update.UpdateSettingsPanel
 import androidx.compose.ui.Alignment
@@ -133,7 +134,7 @@ private enum class CardListGroupOption(val storedValue: String, val label: Strin
     COUNTRY("country", "按国家/地区");
 
     companion object {
-        fun from(value: String?): CardListGroupOption = entries.firstOrNull { it.storedValue == value } ?: BANK
+        fun from(value: String?): CardListGroupOption = entries.firstOrNull { it.storedValue == value } ?: NONE
     }
 }
 
@@ -235,9 +236,10 @@ fun MainScreen(
     var sortOption by remember {
         mutableStateOf(CardListSortOption.from(cardListPrefs.getString(CARD_LIST_SORT_KEY, null)))
     }
-    var isCompactView by remember {
-        mutableStateOf(cardListPrefs.getBoolean("card_is_compact_view", false))
-    }
+    val walletPreferences = rememberWalletPreferences()
+    val isCompactView = walletPreferences.state.isList
+    val favoriteCardIDs = walletPreferences.state.favorites
+    var favoritesOnly by rememberSaveable { mutableStateOf(false) }
     var showGroupMenu by remember { mutableStateOf(false) }
     var showSortMenu by remember { mutableStateOf(false) }
     var selectionMode by remember { mutableStateOf(false) }
@@ -250,9 +252,6 @@ fun MainScreen(
     }
     LaunchedEffect(sortOption) {
         cardListPrefs.edit().putString(CARD_LIST_SORT_KEY, sortOption.storedValue).apply()
-    }
-    LaunchedEffect(isCompactView) {
-        cardListPrefs.edit().putBoolean("card_is_compact_view", isCompactView).apply()
     }
     LaunchedEffect(cards) {
         selectedCardIDs = selectedCardIDs.intersect(cards.map { it.id }.toSet())
@@ -294,12 +293,16 @@ fun MainScreen(
     }
 
     // 过滤后的卡片列表
-    val filteredCards = remember(searchFilteredCards, cardCategoryFilter) {
+    val categoryCards = remember(searchFilteredCards, cardCategoryFilter) {
         when (cardCategoryFilter) {
             "credit" -> searchFilteredCards.filter { it.cardCategory != "debit" }
             "debit" -> searchFilteredCards.filter { it.cardCategory == "debit" }
             else -> searchFilteredCards
         }
+    }
+    val favoriteCount = categoryCards.count { it.id in favoriteCardIDs }
+    val filteredCards = remember(categoryCards, favoriteCardIDs, favoritesOnly) {
+        if (favoritesOnly) categoryCards.filter { it.id in favoriteCardIDs } else categoryCards
     }
     val allVisibleCardsSelected = filteredCards.isNotEmpty() && filteredCards.all { it.id in selectedCardIDs }
 
@@ -518,71 +521,39 @@ fun MainScreen(
                         state = walletListState,
                         modifier = Modifier
                             .fillMaxSize(),
-                        contentPadding = PaddingValues(bottom = 80.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                        contentPadding = PaddingValues(bottom = 96.dp),
+                        verticalArrangement = Arrangement.spacedBy(0.dp)
                     ) {
-                        // 1. 极简顶栏（包含样式切换按键、同步按钮、搜索管理按钮）
                         item(key = "clean_header") {
                             Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 20.dp, vertical = 16.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
+                                Modifier.fillMaxWidth().padding(horizontal = 20.dp, vertical = 20.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Column(Modifier.weight(1f)) {
-                                    Text(stringResource(R.string.wallet_title), style = MaterialTheme.typography.headlineSmall)
+                                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(5.dp)) {
+                                    Text("CARD WALLET", style = MaterialTheme.typography.labelSmall,
+                                        letterSpacing = 2.sp, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                    Text(stringResource(R.string.wallet_title), style = MaterialTheme.typography.headlineMedium,
+                                        fontWeight = FontWeight.Bold)
                                     Text(stringResource(R.string.cards_count, cards.size),
-                                        style = MaterialTheme.typography.bodyMedium,
+                                        style = MaterialTheme.typography.bodySmall,
                                         color = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
-
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    // 模式切换按钮 (简洁/丰富)
-                                    IconButton(
-                                        onClick = { isCompactView = !isCompactView },
-                                        modifier = Modifier.size(48.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = if (isCompactView) Icons.Filled.ViewAgenda else Icons.Filled.ViewStream,
-                                            contentDescription = stringResource(if (isCompactView) R.string.view_cards else R.string.view_list),
-                                            tint = if (isDark) NeonCyan else GoldPrimary,
-                                            modifier = Modifier.size(22.dp)
-                                        )
-                                    }
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    // 云同步按钮
-                                    DynamicSyncBadge(
-                                        isSyncing = syncStatus.isSyncing,
-                                        isSyncAvailable = syncConfig.isReadyForSync,
-                                        statusType = syncStatus.type,
-                                        isDark = isDark,
-                                        onSyncClick = {
-                                            val syncUnavailableMessage = syncConfig.syncUnavailableMessage()
-                                            if (syncUnavailableMessage != null) {
-                                                Toast.makeText(context, syncUnavailableMessage, Toast.LENGTH_SHORT).show()
-                                            } else {
-                                                SyncCoordinator.requestManualSync(context)
-                                            }
-                                        },
-                                        onSyncingClick = {
-                                            selectedTab = 1
-                                            toolsMode = ToolsMode.SYNC_LOG
-                                        }
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    // 搜索与管理入口
-                                    IconButton(
-                                        onClick = { showCardManagement = !showCardManagement },
-                                        modifier = Modifier.size(48.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = if (showCardManagement) Icons.Filled.Close else Icons.Filled.Tune,
-                                            contentDescription = stringResource(if (showCardManagement) R.string.close_manage else R.string.manage_cards),
-                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            modifier = Modifier.size(22.dp)
-                                        )
-                                    }
+                                DynamicSyncBadge(
+                                    isSyncing = syncStatus.isSyncing,
+                                    isSyncAvailable = syncConfig.isReadyForSync,
+                                    statusType = syncStatus.type,
+                                    isDark = isDark,
+                                    onSyncClick = {
+                                        val message = syncConfig.syncUnavailableMessage()
+                                        if (message != null) Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                                        else SyncCoordinator.requestManualSync(context)
+                                    },
+                                    onSyncingClick = { selectedTab = 1; toolsMode = ToolsMode.SYNC_LOG }
+                                )
+                                IconButton(onClick = { showCardManagement = !showCardManagement }) {
+                                    Icon(if (showCardManagement) Icons.Default.Close else Icons.Default.Tune,
+                                        stringResource(if (showCardManagement) R.string.close_manage else R.string.manage_cards),
+                                        tint = MaterialTheme.colorScheme.onSurfaceVariant)
                                 }
                             }
                         }
@@ -672,6 +643,16 @@ fun MainScreen(
                             }
                         }
 
+                        item(key = "wallet_view_controls") {
+                            WalletViewControls(
+                                isList = isCompactView,
+                                onListModeChange = walletPreferences::setListMode,
+                                favoritesOnly = favoritesOnly,
+                                favoriteCount = favoriteCount,
+                                onFavoritesChange = { favoritesOnly = it }
+                            )
+                        }
+
                         // 4. 提醒汇总预警条
                         if (billingReminderCount + annualReminderCount + expiryReminderCount > 0) {
                             item(key = "reminder_strip") {
@@ -700,11 +681,11 @@ fun MainScreen(
                                                 tint = MaterialTheme.colorScheme.onPrimaryContainer)
                                         }
                                         Spacer(Modifier.height(20.dp))
-                                        Text(stringResource(if (cards.isEmpty()) R.string.wallet_empty_title else R.string.wallet_no_results),
+                                        Text(stringResource(if (cards.isEmpty()) R.string.wallet_empty_title else if (favoritesOnly && searchQuery.isBlank()) R.string.wallet_no_favorites else R.string.wallet_no_results),
                                             style = MaterialTheme.typography.titleLarge)
                                         Spacer(Modifier.height(8.dp))
                                         Text(
-                                            text = if (cards.isEmpty()) stringResource(R.string.wallet_empty_body) else "",
+                                            text = if (cards.isEmpty()) stringResource(R.string.wallet_empty_body) else if (favoritesOnly) stringResource(R.string.wallet_favorites_body) else "",
                                             color = if (isDark) TextGray else TextMuted,
                                             fontSize = 14.sp
                                         )
@@ -758,16 +739,23 @@ fun MainScreen(
                                     }
                                 }
 
-                                items(groupCards, key = { it.id }) { card ->
+                                itemsIndexed(groupCards, key = { _, card -> card.id }) { index, card ->
                                     Box(
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .padding(horizontal = 16.dp, vertical = if (isCompactView) 0.dp else 4.dp)
+                                            .padding(horizontal = 20.dp)
+                                            .padding(top = if (index == 0) 8.dp else 0.dp,
+                                                bottom = if (index == groupCards.lastIndex) 16.dp else 0.dp)
+                                            .zIndex(index.toFloat())
                                     ) {
                                         if (isCompactView) {
                                             // 简洁模式 (Compact List Mode)
-                                            CompactCardRow(
+                                            WalletListRow(
                                                 card = card,
+                                                favorite = card.id in favoriteCardIDs,
+                                                onFavoriteClick = { walletPreferences.toggleFavorite(card.id) },
+                                                first = index == 0,
+                                                last = index == groupCards.lastIndex,
                                                 selectionMode = selectionMode,
                                                 selected = card.id in selectedCardIDs,
                                                 onClick = {
@@ -784,9 +772,11 @@ fun MainScreen(
                                             )
                                         } else {
                                             // 丰富模式 (Detailed Card Mode)
-                                            CreditCardTile(
+                                            WalletCardFace(
                                                 card = card,
-                                                isDark = isDark,
+                                                favorite = card.id in favoriteCardIDs,
+                                                onFavoriteClick = { walletPreferences.toggleFavorite(card.id) },
+                                                collapsed = index != groupCards.lastIndex && !selectionMode,
                                                 selectionMode = selectionMode,
                                                 selected = card.id in selectedCardIDs,
                                                 onClick = {
