@@ -138,6 +138,7 @@ struct ContentView: View {
                         }
                     }
                     .frame(minWidth: 720, minHeight: 580)
+                    .background(WalletBackground(palette: palette))
                 }
                 .navigationSplitViewStyle(.balanced)
                 .disabled(activeAppAlert != nil)
