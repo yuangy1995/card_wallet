@@ -47,6 +47,7 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.saveable.rememberSaveableStateHolder
 import com.example.creditcard.R
+import com.example.creditcard.ui.wallet.*
 import com.example.creditcard.ui.components.WalletSection
 import com.example.creditcard.ui.update.UpdateSettingsPanel
 import androidx.compose.ui.Alignment
@@ -133,7 +134,7 @@ private enum class CardListGroupOption(val storedValue: String, val label: Strin
     COUNTRY("country", "按国家/地区");
 
     companion object {
-        fun from(value: String?): CardListGroupOption = entries.firstOrNull { it.storedValue == value } ?: BANK
+        fun from(value: String?): CardListGroupOption = entries.firstOrNull { it.storedValue == value } ?: NONE
     }
 }
 
@@ -225,7 +226,6 @@ fun MainScreen(
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var showCardManagement by remember { mutableStateOf(false) }
     var cardCategoryFilter by rememberSaveable { mutableStateOf("all") }
-    var showAddMenu by remember { mutableStateOf(false) }
     val cardListPrefs = remember(context) {
         context.getSharedPreferences(CARD_LIST_PREFS, Context.MODE_PRIVATE)
     }
@@ -235,9 +235,10 @@ fun MainScreen(
     var sortOption by remember {
         mutableStateOf(CardListSortOption.from(cardListPrefs.getString(CARD_LIST_SORT_KEY, null)))
     }
-    var isCompactView by remember {
-        mutableStateOf(cardListPrefs.getBoolean("card_is_compact_view", false))
-    }
+    val walletPreferences = rememberWalletPreferences()
+    val isCompactView = walletPreferences.state.isList
+    val favoriteCardIDs = walletPreferences.state.favorites
+    var favoritesOnly by rememberSaveable { mutableStateOf(false) }
     var showGroupMenu by remember { mutableStateOf(false) }
     var showSortMenu by remember { mutableStateOf(false) }
     var selectionMode by remember { mutableStateOf(false) }
@@ -250,9 +251,6 @@ fun MainScreen(
     }
     LaunchedEffect(sortOption) {
         cardListPrefs.edit().putString(CARD_LIST_SORT_KEY, sortOption.storedValue).apply()
-    }
-    LaunchedEffect(isCompactView) {
-        cardListPrefs.edit().putBoolean("card_is_compact_view", isCompactView).apply()
     }
     LaunchedEffect(cards) {
         selectedCardIDs = selectedCardIDs.intersect(cards.map { it.id }.toSet())
@@ -294,12 +292,16 @@ fun MainScreen(
     }
 
     // 过滤后的卡片列表
-    val filteredCards = remember(searchFilteredCards, cardCategoryFilter) {
+    val categoryCards = remember(searchFilteredCards, cardCategoryFilter) {
         when (cardCategoryFilter) {
             "credit" -> searchFilteredCards.filter { it.cardCategory != "debit" }
             "debit" -> searchFilteredCards.filter { it.cardCategory == "debit" }
             else -> searchFilteredCards
         }
+    }
+    val favoriteCount = remember(categoryCards, favoriteCardIDs) { categoryCards.count { it.id in favoriteCardIDs } }
+    val filteredCards = remember(categoryCards, favoriteCardIDs, favoritesOnly) {
+        if (favoritesOnly) categoryCards.filter { it.id in favoriteCardIDs } else categoryCards
     }
     val allVisibleCardsSelected = filteredCards.isNotEmpty() && filteredCards.all { it.id in selectedCardIDs }
 
@@ -457,42 +459,15 @@ fun MainScreen(
             }
         },
         floatingActionButton = {
+            val count = billingReminderCount + annualReminderCount + expiryReminderCount
             if (selectedTab == 0 && !selectionMode) {
-                Box(
-                    modifier = Modifier.padding(bottom = 16.dp, end = 8.dp),
-                    contentAlignment = Alignment.BottomEnd
-                ) {
-                    ExtendedFloatingActionButton(
-                        onClick = { showAddMenu = true },
-                        containerColor = if (isDark) NeonCyan else GoldPrimary,
-                        contentColor = if (isDark) DarkBg else Color.White,
-                        shape = CircleShape
-                    ) {
-                        Icon(imageVector = Icons.Filled.Add, contentDescription = null)
-                        Spacer(Modifier.width(8.dp))
-                        Text(stringResource(R.string.add_card))
-                    }
-                    DropdownMenu(
-                        expanded = showAddMenu,
-                        onDismissRequest = { showAddMenu = false }
-                    ) {
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.add_credit)) },
-                            leadingIcon = { Icon(Icons.Filled.CreditCard, contentDescription = null) },
-                            onClick = {
-                                showAddMenu = false
-                                onItemClick(CardForm(cardId = null, cardCategory = "credit"))
-                            }
-                        )
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.add_debit)) },
-                            leadingIcon = { Icon(Icons.Filled.AccountBalanceWallet, contentDescription = null) },
-                            onClick = {
-                                showAddMenu = false
-                                onItemClick(CardForm(cardId = null, cardCategory = "debit"))
-                            }
-                        )
-                    }
+                if (cards.isEmpty()) {
+                    WalletAddFab(
+                        onAddCredit = { onItemClick(CardForm(cardId = null, cardCategory = "credit")) },
+                        onAddDebit = { onItemClick(CardForm(cardId = null, cardCategory = "debit")) }
+                    )
+                } else if (count > 0) {
+                    WalletReminderButton(count) { onItemClick(CardReminders) }
                 }
             }
         },
@@ -502,7 +477,7 @@ fun MainScreen(
         Box(
             modifier = modifier
                 .fillMaxSize()
-                .padding(innerPadding),
+                .padding(innerPadding).consumeWindowInsets(innerPadding),
             contentAlignment = Alignment.TopCenter
         ) {
             // 只保留当前页面的组合，切换时仅做短暂透明度过渡；列表位置独立保存。
@@ -518,95 +493,35 @@ fun MainScreen(
                         state = walletListState,
                         modifier = Modifier
                             .fillMaxSize(),
-                        contentPadding = PaddingValues(bottom = 80.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                        contentPadding = PaddingValues(bottom = 96.dp),
+                        verticalArrangement = Arrangement.spacedBy(0.dp)
                     ) {
-                        // 1. 极简顶栏（包含样式切换按键、同步按钮、搜索管理按钮）
-                        item(key = "clean_header") {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 20.dp, vertical = 16.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column(Modifier.weight(1f)) {
-                                    Text(stringResource(R.string.wallet_title), style = MaterialTheme.typography.headlineSmall)
-                                    Text(stringResource(R.string.cards_count, cards.size),
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                }
-
-                                Row(verticalAlignment = Alignment.CenterVertically) {
-                                    // 模式切换按钮 (简洁/丰富)
-                                    IconButton(
-                                        onClick = { isCompactView = !isCompactView },
-                                        modifier = Modifier.size(48.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = if (isCompactView) Icons.Filled.ViewAgenda else Icons.Filled.ViewStream,
-                                            contentDescription = stringResource(if (isCompactView) R.string.view_cards else R.string.view_list),
-                                            tint = if (isDark) NeonCyan else GoldPrimary,
-                                            modifier = Modifier.size(22.dp)
-                                        )
-                                    }
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    // 云同步按钮
-                                    DynamicSyncBadge(
-                                        isSyncing = syncStatus.isSyncing,
-                                        isSyncAvailable = syncConfig.isReadyForSync,
-                                        statusType = syncStatus.type,
-                                        isDark = isDark,
-                                        onSyncClick = {
-                                            val syncUnavailableMessage = syncConfig.syncUnavailableMessage()
-                                            if (syncUnavailableMessage != null) {
-                                                Toast.makeText(context, syncUnavailableMessage, Toast.LENGTH_SHORT).show()
-                                            } else {
-                                                SyncCoordinator.requestManualSync(context)
-                                            }
-                                        },
-                                        onSyncingClick = {
-                                            selectedTab = 1
-                                            toolsMode = ToolsMode.SYNC_LOG
-                                        }
-                                    )
-                                    Spacer(modifier = Modifier.width(4.dp))
-                                    // 搜索与管理入口
-                                    IconButton(
-                                        onClick = { showCardManagement = !showCardManagement },
-                                        modifier = Modifier.size(48.dp)
-                                    ) {
-                                        Icon(
-                                            imageVector = if (showCardManagement) Icons.Filled.Close else Icons.Filled.Tune,
-                                            contentDescription = stringResource(if (showCardManagement) R.string.close_manage else R.string.manage_cards),
-                                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                            modifier = Modifier.size(22.dp)
-                                        )
-                                    }
-                                }
-                            }
-                        }
-
-                        item(key = "search") {
-                            OutlinedTextField(
-                                value = searchQuery, onValueChange = { searchQuery = it },
-                                modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp),
-                                placeholder = { Text(stringResource(R.string.search_cards), style = MaterialTheme.typography.bodyMedium) },
-                                leadingIcon = { Icon(Icons.Default.Search, null) },
-                                trailingIcon = {
-                                    if (searchQuery.isNotEmpty()) IconButton(onClick = { searchQuery = "" }) {
-                                        Icon(Icons.Default.Close, stringResource(R.string.clear_search))
-                                    }
+                        item(key = "clean_header", contentType = "header") {
+                            WalletHomeHeader(
+                                total = cards.size,
+                                search = searchQuery,
+                                onSearchChange = { searchQuery = it },
+                                category = cardCategoryFilter,
+                                onCategoryChange = { cardCategoryFilter = it },
+                                allCount = searchFilteredCards.size,
+                                creditCount = creditCardCount,
+                                debitCount = debitCardCount,
+                                isList = isCompactView,
+                                onListModeChange = walletPreferences::setListMode,
+                                favoritesOnly = favoritesOnly,
+                                favoriteCount = favoriteCount,
+                                onFavoritesChange = { favoritesOnly = it },
+                                isSyncing = syncStatus.isSyncing,
+                                syncType = syncStatus.type,
+                                syncReady = syncConfig.isReadyForSync,
+                                onSync = {
+                                    if (syncStatus.isSyncing) { selectedTab = 1; toolsMode = ToolsMode.SYNC_LOG }
+                                    else if (!syncConfig.isReadyForSync) { selectedTab = 2; settingsMode = SettingsMode.WEBDAV }
+                                    else SyncCoordinator.requestManualSync(context)
                                 },
-                                singleLine = true,
-                                shape = MaterialTheme.shapes.large,
-                                keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
-                                colors = OutlinedTextFieldDefaults.colors(
-                                    unfocusedBorderColor = Color.Transparent,
-                                    focusedBorderColor = MaterialTheme.colorScheme.primary,
-                                    unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
-                                    focusedContainerColor = MaterialTheme.colorScheme.surface
-                                )
+                                onManage = { showCardManagement = !showCardManagement },
+                                onAddCredit = { onItemClick(CardForm(cardId = null, cardCategory = "credit")) },
+                                onAddDebit = { onItemClick(CardForm(cardId = null, cardCategory = "debit")) }
                             )
                         }
                         // 2. 搜寻与管理扩展面板
@@ -638,93 +553,13 @@ fun MainScreen(
                             }
                         }
 
-                        // 3. 分类控制 Switcher
-                        item(key = "category_filter") {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 16.dp),
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                listOf(
-                                    Triple("all", stringResource(R.string.all_cards), searchFilteredCards.size),
-                                    Triple("credit", stringResource(R.string.credit_cards), creditCardCount),
-                                    Triple("debit", stringResource(R.string.debit_cards), debitCardCount)
-                                ).forEach { (code, label, count) ->
-                                    FilterChip(
-                                        selected = cardCategoryFilter == code,
-                                        onClick = { cardCategoryFilter = code },
-                                        label = {
-                                            Text(
-                                                text = "$label $count",
-                                                fontWeight = if (cardCategoryFilter == code) FontWeight.Bold else FontWeight.Normal
-                                            )
-                                        },
-                                        modifier = Modifier.weight(1f),
-                                        colors = FilterChipDefaults.filterChipColors(
-                                            selectedContainerColor = if (isDark) NeonCyan.copy(alpha = 0.22f) else GoldPrimary.copy(alpha = 0.18f),
-                                            selectedLabelColor = if (isDark) NeonCyan else GoldPrimary,
-                                            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
-                                        ),
-                                        shape = CircleShape
-                                    )
-                                }
-                            }
-                        }
-
-                        // 4. 提醒汇总预警条
-                        if (billingReminderCount + annualReminderCount + expiryReminderCount > 0) {
-                            item(key = "reminder_strip") {
-                                ReminderSummaryStrip(
-                                    billingCount = billingReminderCount,
-                                    annualCount = annualReminderCount,
-                                    expiryCount = expiryReminderCount,
-                                    isDark = isDark,
-                                    onClick = { onItemClick(CardReminders) }
-                                )
-                            }
-                        }
-
                         // 5. 空状态与展示
                         if (filteredCards.isEmpty()) {
-                            item(key = "empty_state") {
-                                Box(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .padding(top = 40.dp, bottom = 40.dp),
-                                    contentAlignment = Alignment.Center
-                                ) {
-                                    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                                        Surface(shape = MaterialTheme.shapes.large, color = MaterialTheme.colorScheme.primaryContainer) {
-                                            Icon(Icons.Default.Wallet, null, Modifier.padding(24.dp).size(40.dp),
-                                                tint = MaterialTheme.colorScheme.onPrimaryContainer)
-                                        }
-                                        Spacer(Modifier.height(20.dp))
-                                        Text(stringResource(if (cards.isEmpty()) R.string.wallet_empty_title else R.string.wallet_no_results),
-                                            style = MaterialTheme.typography.titleLarge)
-                                        Spacer(Modifier.height(8.dp))
-                                        Text(
-                                            text = if (cards.isEmpty()) stringResource(R.string.wallet_empty_body) else "",
-                                            color = if (isDark) TextGray else TextMuted,
-                                            fontSize = 14.sp
-                                        )
-                                        if (searchQuery.isEmpty()) {
-                                            Spacer(modifier = Modifier.height(16.dp))
-                                            Button(
-                                                onClick = { onItemClick(CardForm(cardId = null, cardCategory = "credit")) },
-                                                colors = ButtonDefaults.buttonColors(
-                                                    containerColor = if (isDark) NeonCyan else GoldPrimary,
-                                                    contentColor = if (isDark) DarkBg else Color.White
-                                                ),
-                                                shape = RoundedCornerShape(12.dp)
-                                            ) {
-                                                Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                                                Spacer(modifier = Modifier.width(6.dp))
-                                                Text(stringResource(R.string.add_credit))
-                                            }
-                                        }
-                                    }
-                                }
+                            item(key = "empty_state", contentType = "empty") {
+                                WalletEmptyState(
+                                    hasCards = cards.isNotEmpty(), favoritesOnly = favoritesOnly,
+                                    onReset = { searchQuery = ""; cardCategoryFilter = "all"; favoritesOnly = false }
+                                )
                             }
                         } else {
                             groupedCards.forEach { (groupName, groupCards) ->
@@ -758,16 +593,23 @@ fun MainScreen(
                                     }
                                 }
 
-                                items(groupCards, key = { it.id }) { card ->
+                                itemsIndexed(groupCards, key = { _, card -> card.id }, contentType = { _, _ -> if (isCompactView) "list" else "card" }) { index, card ->
                                     Box(
                                         modifier = Modifier
                                             .fillMaxWidth()
-                                            .padding(horizontal = 16.dp, vertical = if (isCompactView) 0.dp else 4.dp)
+                                            .padding(horizontal = 16.dp)
+                                            .padding(top = 0.dp,
+                                                bottom = if (index == groupCards.lastIndex) 16.dp else if (selectionMode && !isCompactView) 8.dp else 0.dp)
+                                            .zIndex(index.toFloat())
                                     ) {
                                         if (isCompactView) {
                                             // 简洁模式 (Compact List Mode)
-                                            CompactCardRow(
+                                            WalletListRow(
                                                 card = card,
+                                                favorite = card.id in favoriteCardIDs,
+                                                onFavoriteClick = { walletPreferences.toggleFavorite(card.id) },
+                                                first = index == 0,
+                                                last = index == groupCards.lastIndex,
                                                 selectionMode = selectionMode,
                                                 selected = card.id in selectedCardIDs,
                                                 onClick = {
@@ -784,9 +626,11 @@ fun MainScreen(
                                             )
                                         } else {
                                             // 丰富模式 (Detailed Card Mode)
-                                            CreditCardTile(
+                                            WalletCardFace(
                                                 card = card,
-                                                isDark = isDark,
+                                                favorite = card.id in favoriteCardIDs,
+                                                onFavoriteClick = { walletPreferences.toggleFavorite(card.id) },
+                                                collapsed = index != groupCards.lastIndex && !selectionMode,
                                                 selectionMode = selectionMode,
                                                 selected = card.id in selectedCardIDs,
                                                 onClick = {
@@ -3830,37 +3674,7 @@ fun SettingsMainPanel(
 
 @Composable
 fun ModernThemeSelector(isDark: Boolean) {
-    val context = LocalContext.current
-    val current by ThemeManager.themeMode.collectAsState()
-    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        listOf(
-            Triple(AppThemeMode.SYSTEM, R.string.theme_system, Icons.Default.PhoneAndroid),
-            Triple(AppThemeMode.LIGHT, R.string.theme_light, Icons.Default.LightMode),
-            Triple(AppThemeMode.DARK, R.string.theme_dark, Icons.Default.DarkMode)
-        ).forEach { (mode, title, icon) ->
-            val selected = current == mode
-            val container by animateColorAsState(
-                if (selected) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant,
-                tween(180), label = "themeSelection"
-            )
-            Surface(
-                onClick = { ThemeManager.setThemeMode(context, mode) },
-                shape = MaterialTheme.shapes.medium,
-                color = container,
-                modifier = Modifier.weight(1f).semantics { this.selected = selected },
-                border = if (selected) BorderStroke(1.dp, MaterialTheme.colorScheme.primary) else null
-            ) {
-                Column(Modifier.padding(horizontal = 4.dp, vertical = 16.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Icon(icon, null, tint = MaterialTheme.colorScheme.primary)
-                    Text(stringResource(title), style = MaterialTheme.typography.labelMedium, textAlign = TextAlign.Center)
-                    if (selected) Icon(Icons.Default.Check, stringResource(R.string.selected), Modifier.size(16.dp),
-                        tint = MaterialTheme.colorScheme.primary)
-                    else Spacer(Modifier.height(16.dp))
-                }
-            }
-        }
-    }
+    WalletThemePicker()
 }
 
 @Composable
@@ -4655,380 +4469,8 @@ private fun SyncNetworkPreferenceSelector(
 }
 
 @Composable
-fun SettingsWebDAVPanel(
-    isDark: Boolean,
-    onBack: () -> Unit
-) {
-    val context = LocalContext.current
-    val coroutineScope = rememberCoroutineScope()
-
-    // 1. 加载云同步参数
-    val loadedConfig = remember { SyncCoordinator.loadConfig(context) }
-    var url by remember { mutableStateOf(loadedConfig.url) }
-    var user by remember { mutableStateOf(loadedConfig.user) }
-    var pass by remember { mutableStateOf(loadedConfig.pass) }
-    var syncPassword by remember { mutableStateOf(loadedConfig.syncPassword) }
-    var isEnabled by remember { mutableStateOf(loadedConfig.isEnabled) }
-    var networkPreference by remember { mutableStateOf(loadedConfig.networkPreference) }
-
-    // 2. 状态监听
-    var isTestingConnection by remember { mutableStateOf(false) }
-    val syncStatus by SyncCoordinator.syncStatus.collectAsState()
-
-    // 3. 配置模式控制
-    val isConfigured = url.trim().isNotEmpty() && user.trim().isNotEmpty() && pass.trim().isNotEmpty() && syncPassword.trim().isNotEmpty()
-    var isEditingConfig by remember { mutableStateOf(!isConfigured) }
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(horizontal = 16.dp)
-            .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(14.dp)
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            val accent = if (isDark) NeonCyan else GoldPrimary
-            AppBackButton(
-                onClick = onBack,
-                contentDescription = "返回设置",
-                tint = accent,
-                containerColor = MaterialTheme.colorScheme.surface,
-                borderColor = accent.copy(alpha = 0.34f)
-            )
-            Spacer(modifier = Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text("WebDAV 设置", fontSize = 22.sp, fontWeight = FontWeight.Black)
-                Text(
-                    text = "WebDAV 加密云同步参数与状态",
-                    fontSize = 12.sp,
-                    color = if (isDark) NeonCyan else GoldPrimary,
-                    fontWeight = FontWeight.SemiBold
-                )
-            }
-        }
-
-        if (isConfigured && !isEditingConfig) {
-            DetailSection(title = "云端防护已连接") {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(8.dp))
-                        .background(if (isDark) DarkBg else LightBg)
-                        .padding(14.dp),
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Icon(
-                        imageVector = Icons.Filled.CloudDone,
-                        contentDescription = "云同步已连接",
-                        tint = if (isDark) NeonGreen else ForestGreen,
-                        modifier = Modifier.size(52.dp)
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Text(
-                        text = "WebDAV 加密云同步通道正常连接",
-                        fontWeight = FontWeight.Bold,
-                        fontSize = 15.sp,
-                        color = if (isDark) NeonGreen else ForestGreen,
-                        textAlign = TextAlign.Center
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = "同步云盘：${url.substringAfter("://").substringBefore("/")}\n同步账号：$user\n同步方式：加密云同步\n本机和云端会自动保持最新",
-                        fontSize = 11.sp,
-                        lineHeight = 15.sp,
-                        textAlign = TextAlign.Center,
-                        color = (if (isDark) TextGray else TextMuted).copy(alpha = 0.8f)
-                    )
-                    Spacer(modifier = Modifier.height(14.dp))
-                    
-                    // 双向自动同步开关
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("开启双向自动同步", fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                            Text("改动卡片时自动在后台执行加密同步", fontSize = 10.sp, color = if (isDark) TextGray else TextMuted)
-                        }
-                        Switch(
-                            checked = isEnabled,
-                            onCheckedChange = { 
-                                isEnabled = it 
-                                val newConfig = WebDAVConfig(
-                                    url.trim(),
-                                    user.trim(),
-                                    pass.trim(),
-                                    syncPassword.trim(),
-                                    it,
-                                    networkPreference
-                                )
-                                SyncCoordinator.saveConfig(context, newConfig)
-                                Toast.makeText(context, "自动同步状态已成功更新", Toast.LENGTH_SHORT).show()
-                            },
-                            colors = SwitchDefaults.colors(
-                                checkedThumbColor = if (isDark) NeonCyan else GoldPrimary,
-                                checkedTrackColor = (if (isDark) NeonCyan else GoldPrimary).copy(alpha = 0.3f)
-                            )
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(12.dp))
-                    HorizontalDivider(color = (if (isDark) TextGray else TextMuted).copy(alpha = 0.15f), thickness = 1.dp)
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    SyncNetworkPreferenceSelector(
-                        selected = networkPreference,
-                        onSelected = {
-                            networkPreference = it
-                            SyncCoordinator.saveConfig(
-                                context,
-                                WebDAVConfig(
-                                    url.trim(),
-                                    user.trim(),
-                                    pass.trim(),
-                                    syncPassword.trim(),
-                                    isEnabled,
-                                    it
-                                )
-                            )
-                        },
-                        isDark = isDark
-                    )
-
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Button(
-                            onClick = {
-                                SyncCoordinator.requestManualSync(context)
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                            enabled = !syncStatus.isSyncing,
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = if (isDark) NeonCyan else GoldPrimary,
-                                contentColor = if (isDark) DarkBg else Color.White
-                            )
-                        ) {
-                            if (syncStatus.isSyncing) {
-                                CircularProgressIndicator(modifier = Modifier.size(14.dp), color = if (isDark) DarkBg else Color.White, strokeWidth = 2.dp)
-                            } else {
-                                Icon(imageVector = Icons.Filled.CloudSync, contentDescription = "立即同步", modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("立即同步", fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                            }
-                        }
-
-                        if (syncStatus.isSyncing) {
-                            Button(
-                                onClick = {
-                                    SyncCoordinator.cancelCurrentSync(context)
-                                    Toast.makeText(context, "已请求终止当前同步", Toast.LENGTH_SHORT).show()
-                                },
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = (if (isDark) NeonRed else Color(0xFFD32F2F)).copy(alpha = 0.92f),
-                                    contentColor = Color.White
-                                )
-                            ) {
-                                Icon(imageVector = Icons.Filled.Cancel, contentDescription = "终止同步", modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("终止当前同步", fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                            }
-                        }
-
-                        Button(
-                            onClick = { isEditingConfig = true },
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = (if (isDark) TextGray else TextMuted).copy(alpha = 0.2f),
-                                contentColor = MaterialTheme.colorScheme.onBackground
-                            )
-                        ) {
-                            Icon(imageVector = Icons.Filled.Edit, contentDescription = "修改配置", modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("修改云配置", fontSize = 11.sp)
-                        }
-                    }
-                }
-            }
-        } else {
-            DetailSection(title = "⚙️ 配置 WebDAV 服务器参数") {
-                Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
-                    OutlinedTextField(
-                        value = url,
-                        onValueChange = { url = it },
-                        label = { Text("WebDAV 服务器 URL (带 https://)") },
-                        placeholder = { Text("https://dav.jianguoyun.com/dav") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = getOutlinedTextFieldColors(isDark)
-                    )
-
-                    OutlinedTextField(
-                        value = user,
-                        onValueChange = { user = it },
-                        label = { Text("用户名 (Email 账号)") },
-                        singleLine = true,
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = getOutlinedTextFieldColors(isDark)
-                    )
-
-                    OutlinedTextField(
-                        value = pass,
-                        onValueChange = { pass = it },
-                        label = { Text("应用独立安全密码") },
-                        singleLine = true,
-                        visualTransformation = PasswordVisualTransformation(),
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = getOutlinedTextFieldColors(isDark)
-                    )
-
-                    OutlinedTextField(
-                        value = syncPassword,
-                        onValueChange = { syncPassword = it },
-                        label = { Text("同步密钥") },
-                        placeholder = { Text("三端必须填写同一个同步密钥") },
-                        singleLine = true,
-                        visualTransformation = PasswordVisualTransformation(),
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = getOutlinedTextFieldColors(isDark)
-                    )
-                    Text(
-                        text = "该密钥用于加密 WebDAV 上的云同步文件。忘记后无法解密云端同步数据。",
-                        fontSize = 10.sp,
-                        lineHeight = 14.sp,
-                        color = (if (isDark) TextGray else TextMuted).copy(alpha = 0.85f)
-                    )
-
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("开启双向自动同步", fontWeight = FontWeight.Bold, fontSize = 13.sp)
-                            Text("改动卡片时自动在后台同步", fontSize = 10.sp, color = if (isDark) TextGray else TextMuted)
-                        }
-                        Switch(
-                            checked = isEnabled,
-                            onCheckedChange = { isEnabled = it },
-                            colors = SwitchDefaults.colors(
-                                checkedThumbColor = if (isDark) NeonCyan else GoldPrimary,
-                                checkedTrackColor = (if (isDark) NeonCyan else GoldPrimary).copy(alpha = 0.3f)
-                            )
-                        )
-                    }
-
-                    SyncNetworkPreferenceSelector(
-                        selected = networkPreference,
-                        onSelected = { networkPreference = it },
-                        isDark = isDark
-                    )
-
-                    Spacer(modifier = Modifier.height(4.dp))
-                    HorizontalDivider(color = (if (isDark) TextGray else TextMuted).copy(alpha = 0.15f), thickness = 1.dp)
-                    Spacer(modifier = Modifier.height(4.dp))
-
-                    Column(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        Button(
-                            onClick = {
-                                if (url.trim().isEmpty() || user.trim().isEmpty() || pass.trim().isEmpty()) {
-                                    Toast.makeText(context, "请先填齐所有 WebDAV 配置参数", Toast.LENGTH_SHORT).show()
-                                    return@Button
-                                }
-                                isTestingConnection = true
-                                coroutineScope.launch(Dispatchers.IO) {
-                                    val (success, message) = WebDAVClient.testConnection(url, user, pass)
-                                    withContext(Dispatchers.Main) {
-                                        isTestingConnection = false
-                                        Toast.makeText(context, "测试结果: $message", Toast.LENGTH_LONG).show()
-                                    }
-                                }
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                            enabled = !isTestingConnection && !syncStatus.isSyncing,
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = if (isDark) NeonCyan else GoldPrimary,
-                                contentColor = if (isDark) DarkBg else Color.White
-                            )
-                        ) {
-                            if (isTestingConnection) {
-                                CircularProgressIndicator(modifier = Modifier.size(14.dp), color = if (isDark) DarkBg else Color.White, strokeWidth = 2.dp)
-                            } else {
-                                Icon(imageVector = Icons.Filled.NetworkCheck, contentDescription = "测试", modifier = Modifier.size(16.dp))
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text("测试", fontSize = 11.sp)
-                            }
-                        }
-
-                        Button(
-                            onClick = {
-                                if (isEnabled && (url.trim().isEmpty() || user.trim().isEmpty() || pass.trim().isEmpty() || syncPassword.trim().isEmpty())) {
-                                    Toast.makeText(context, "开启同步时，必须填齐 WebDAV 参数和同步密钥", Toast.LENGTH_SHORT).show()
-                                    return@Button
-                                }
-                                if (isEnabled && syncPassword.trim().length < 10) {
-                                    Toast.makeText(context, "同步密钥至少 10 位", Toast.LENGTH_SHORT).show()
-                                    return@Button
-                                }
-                                
-                                val newConfig = WebDAVConfig(
-                                    url.trim(),
-                                    user.trim(),
-                                    pass.trim(),
-                                    syncPassword.trim(),
-                                    isEnabled,
-                                    networkPreference
-                                )
-                                SyncCoordinator.saveConfig(context, newConfig)
-                                Toast.makeText(context, "配置已保存，网络通道畅通", Toast.LENGTH_SHORT).show()
-                                isEditingConfig = false
-                                
-                                if (isEnabled) {
-                                    coroutineScope.launch {
-                                        SyncCoordinator.synchronize(context, publishLocalChanges = false)
-                                    }
-                                }
-                            },
-                            modifier = Modifier.fillMaxWidth(),
-                            enabled = !syncStatus.isSyncing,
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = if (isDark) NeonGreen else ForestGreen,
-                                contentColor = Color.White
-                            )
-                        ) {
-                            Icon(imageVector = Icons.Filled.Save, contentDescription = "保存配置", modifier = Modifier.size(16.dp))
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text("应用并保存", fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                        }
-
-                        if (isConfigured) {
-                            Button(
-                                onClick = { isEditingConfig = false },
-                                modifier = Modifier.fillMaxWidth(),
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = (if (isDark) TextGray else TextMuted).copy(alpha = 0.15f),
-                                    contentColor = MaterialTheme.colorScheme.onBackground
-                                )
-                            ) {
-                                Text("取消", fontSize = 11.sp)
-                            }
-                        }
-                    }
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(24.dp))
-    }
+fun SettingsWebDAVPanel(isDark: Boolean, onBack: () -> Unit) {
+    WalletSyncSettings(onBack)
 }
 
 @Composable

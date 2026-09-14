@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="wallet_favorites_count">Starred %1$d</string>
+  <string name="wallet_add_favorite">Star %1$s</string>
+  <string name="wallet_remove_favorite">Unstar %1$s</string>
+  <string name="wallet_valid_through">Valid thru %1$s</string>
+  <string name="wallet_network_unknown">Card network not identified</string>
+  <string name="wallet_no_favorites">No starred cards in this view</string>
+  <string name="wallet_favorites_body">Tap the star on a card to keep it close at hand.</string>
+</resources>

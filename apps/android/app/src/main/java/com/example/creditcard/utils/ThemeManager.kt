@@ -14,10 +14,10 @@ enum class AppThemeMode {
  */
 object ThemeManager {
     
-    private val _themeMode = MutableStateFlow(AppThemeMode.DARK)
+    private val _themeMode = MutableStateFlow(AppThemeMode.SYSTEM)
     val themeMode: StateFlow<AppThemeMode> = _themeMode
 
-    private val _isDarkTheme = MutableStateFlow(true)
+    private val _isDarkTheme = MutableStateFlow(false)
     val isDarkTheme: StateFlow<Boolean> = _isDarkTheme
 
     /**
@@ -25,8 +25,8 @@ object ThemeManager {
      */
     fun init(context: Context) {
         val prefs = context.getSharedPreferences("credit_card_theme_prefs", Context.MODE_PRIVATE)
-        val modeStr = prefs.getString("theme_mode", AppThemeMode.DARK.name) ?: AppThemeMode.DARK.name
-        val mode = try { AppThemeMode.valueOf(modeStr) } catch (e: Exception) { AppThemeMode.DARK }
+        val modeStr = prefs.getString("theme_mode", AppThemeMode.SYSTEM.name) ?: AppThemeMode.SYSTEM.name
+        val mode = try { AppThemeMode.valueOf(modeStr) } catch (e: IllegalArgumentException) { AppThemeMode.SYSTEM }
         _themeMode.value = mode
         updateIsDark(context, mode)
     }
@@ -69,6 +69,6 @@ object ThemeManager {
     }
 
     fun resetToDefault(context: Context) {
-        setThemeMode(context, AppThemeMode.DARK)
+        setThemeMode(context, AppThemeMode.SYSTEM)
     }
 }

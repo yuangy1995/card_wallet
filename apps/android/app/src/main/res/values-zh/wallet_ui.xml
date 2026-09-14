@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+  <string name="wallet_favorites_count">我的星标 %1$d</string>
+  <string name="wallet_add_favorite">收藏%1$s</string>
+  <string name="wallet_remove_favorite">取消收藏%1$s</string>
+  <string name="wallet_valid_through">有效期 %1$s</string>
+  <string name="wallet_network_unknown">未识别卡组织</string>
+  <string name="wallet_no_favorites">当前分类还没有星标卡片</string>
+  <string name="wallet_favorites_body">轻点卡片上的星标，方便下次快速找到。</string>
+</resources>

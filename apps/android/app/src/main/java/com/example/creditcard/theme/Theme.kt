@@ -9,13 +9,13 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 
-private val ColorDarkPrimaryContainer = Color(0xFF294D40)
-private val ColorDarkOutline = Color(0xFF81958A)
+private val ColorDarkPrimaryContainer = Color(0xFF304852)
+private val ColorDarkOutline = Color(0xFF889BAA)
 private val ColorDarkErrorContainer = Color(0xFF4B2527)
 private val ColorDarkErrorText = Color(0xFFFFDAD7)
-private val ColorLightPrimaryContainer = Color(0xFFD9EBDF)
-private val ColorLightPrimaryText = Color(0xFF193D2E)
-private val ColorLightOutline = Color(0xFF728579)
+private val ColorLightPrimaryContainer = Color(0xFFE0EAEE)
+private val ColorLightPrimaryText = Color(0xFF243C4B)
+private val ColorLightOutline = Color(0xFF748795)
 private val ColorLightError = Color(0xFFB3261E)
 private val ColorLightErrorContainer = Color(0xFFFFDAD6)
 private val ColorLightErrorText = Color(0xFF410002)

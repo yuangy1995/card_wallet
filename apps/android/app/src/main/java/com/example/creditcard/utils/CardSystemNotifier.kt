@@ -63,7 +63,12 @@ object CardSystemNotifier {
             .setContentIntent(pendingIntent)
             .build()
 
-        NotificationManagerCompat.from(context).notify(NOTIFICATION_ID, notification)
+        // Permission may be revoked between checking and delivery.
+        try {
+            NotificationManagerCompat.from(context).notify(NOTIFICATION_ID, notification)
+        } catch (_: SecurityException) {
+            return false
+        }
         prefs.edit().putString(LAST_FINGERPRINT, fingerprint).apply()
         return true
     }
