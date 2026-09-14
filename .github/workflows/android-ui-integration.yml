@@ -4,11 +4,6 @@ on:
     paths:
       - 'apps/android/**'
       - '.github/workflows/android-ui-integration.yml'
-  push:
-    branches: [feat/android-wallet-card-list-favorites]
-    paths:
-      - 'apps/android/**'
-      - '.github/workflows/android-ui-integration.yml'
 permissions:
   contents: read
 concurrency:
@@ -17,7 +12,7 @@ concurrency:
 jobs:
   verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
         with:
@@ -26,16 +21,30 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-      - name: Compile and run Android regression tests
+          cache: gradle
+          cache-dependency-path: |
+            apps/android/**/*.gradle.kts
+            apps/android/gradle/libs.versions.toml
+      - name: Compile, regression tests and Lint
         working-directory: apps/android
-        run: bash gradlew :app:assembleDebug :app:testDebugUnitTest :app:lintDebug --stacktrace
-      - name: Upload debug APK and test reports
+        run: bash gradlew :app:assembleDebug :app:testDebugUnitTest :app:lintDebug --continue --stacktrace --max-workers=2
+      - name: Build isolated preview APK
+        working-directory: apps/android
+        run: |
+          bash gradlew :app:assembleDebug -PwalletPreview=true --stacktrace --max-workers=2
+          APK=app/build/outputs/apk/debug/app-debug.apk
+          "$ANDROID_HOME/cmdline-tools/latest/bin/apkanalyzer" manifest application-id "$APK" | tee app/build/outputs/apk/debug/package-id.txt
+          grep -qx 'com.applist.cardwallet.preview' app/build/outputs/apk/debug/package-id.txt
+          git rev-parse HEAD > app/build/outputs/apk/debug/BUILD_COMMIT
+          sha256sum "$APK" > app/build/outputs/apk/debug/SHA256SUMS
+      - name: Upload preview APK, native screenshots and reports
         if: always()
         uses: actions/upload-artifact@v4
         with:
           name: android-wallet-ui-checks-${{ github.run_id }}
           retention-days: 7
           path: |
-            apps/android/app/build/outputs/apk/debug/*.apk
+            apps/android/app/build/outputs/apk/debug/
+            apps/android/app/build/outputs/ui-review/
             apps/android/app/build/reports/
             apps/android/app/build/test-results/
