@@ -2,6 +2,7 @@ name: CreditCardMac
 options:
   bundleIdPrefix: com.applist
   developmentLanguage: zh-Hans
+  projectFormat: xcode15_0
 schemes:
   CreditCardMac:
     build:
