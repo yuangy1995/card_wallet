@@ -206,7 +206,7 @@ fun CardDetailScreen(
                 .padding(innerPadding)
                 .wrapContentWidth(Alignment.CenterHorizontally)
                 .widthIn(max = 760.dp)
-                .padding(horizontal = 20.dp)
+                .padding(horizontal = 16.dp)
                 .verticalScroll(rememberScrollState()),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
@@ -231,11 +231,10 @@ fun CardDetailScreen(
                 InfoRow(label = "卡类别", value = cardCategoryText)
                 DetailDivider(isDark = isDark)
 
-                CardNumberInfoRow(
+                WalletCardNumber(
                     cardNumber = card.cardNumber,
                     visible = isNumberVisible,
                     countdownProgress = countdownProgress,
-                    isDark = isDark,
                     onToggleVisible = { isNumberVisible = !isNumberVisible },
                     onCopy = {
                         copyCardNumberToClipboard(context, card.cardNumber)

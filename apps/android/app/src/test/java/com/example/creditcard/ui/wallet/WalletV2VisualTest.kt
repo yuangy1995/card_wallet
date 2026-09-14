@@ -48,7 +48,7 @@ class WalletV2VisualTest {
 
     private fun home(dark: Boolean = false, count: Int = 115, fontScale: Float = 1f) {
         context.getSharedPreferences(WalletPreferences.FILE, Context.MODE_PRIVATE).edit().clear().commit()
-        context.getSharedPreferences("webdav_config", Context.MODE_PRIVATE).edit().clear().commit()
+        context.getSharedPreferences("credit_card_sync_prefs", Context.MODE_PRIVATE).edit().clear().commit()
         DatabaseHelper(context).use { db -> repeat(count) { db.saveCard(sample(it)) } }
         ThemeManager.setThemeMode(context, if (dark) AppThemeMode.DARK else AppThemeMode.LIGHT)
         SecurityLockManager.init(context)

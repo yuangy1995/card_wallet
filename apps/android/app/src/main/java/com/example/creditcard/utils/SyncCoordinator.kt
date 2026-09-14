@@ -41,19 +41,17 @@ data class WebDAVConfig(
     val user: String = "",
     val pass: String = "",
     val syncPassword: String = "",
-    val isEnabled: Boolean = false,
+    val isEnabled: Boolean = true,
     val networkPreference: SyncNetworkPreference = SyncNetworkPreference.WIFI_ONLY
 ) {
     val isReadyForSync: Boolean
-        get() = isEnabled &&
-            url.isNotBlank() &&
+        get() = url.isNotBlank() &&
             user.isNotBlank() &&
             pass.isNotBlank() &&
             syncPassword.isNotBlank()
 
     fun syncUnavailableMessage(): String? {
         return when {
-            !isEnabled -> "请先在 WebDAV 设置中配置并开启云同步"
             url.isBlank() || user.isBlank() || pass.isBlank() || syncPassword.isBlank() ->
                 "WebDAV 配置不完整，请先填齐服务器、账号、应用密码和同步密钥"
             else -> null
@@ -188,17 +186,15 @@ object SyncCoordinator {
             if (config.syncPassword.isNotEmpty()) {
                 putString(KEY_SYNC_PASSWORD, CryptoManager.encrypt(config.syncPassword))
             }
-            putBoolean(KEY_ENABLED, config.isEnabled)
+            putBoolean(KEY_ENABLED, true)
             putString(KEY_NETWORK_PREFERENCE, config.networkPreference.storedValue)
             apply()
         }
         
         if (config.isReadyForSync) {
             updateStatus("云同步配置已保存，正在尝试建立首期同步...", "info", isPending(context))
-        } else if (config.isEnabled) {
-            updateStatus(config.syncUnavailableMessage() ?: "WebDAV 配置不完整", "warning", isPending(context))
         } else {
-            updateStatus("云同步已关闭，本机改动将仅保留于本地", "info", isPending(context))
+            updateStatus(config.syncUnavailableMessage() ?: "WebDAV 配置不完整", "warning", isPending(context))
         }
     }
 
@@ -229,7 +225,11 @@ object SyncCoordinator {
             }
         } else ""
 
-        val isEnabled = prefs.getBoolean(KEY_ENABLED, false)
+        // Migrate an explicit old "off" value once; credentials and network policy are preserved.
+        if (prefs.contains(KEY_ENABLED) && !prefs.getBoolean(KEY_ENABLED, true)) {
+            prefs.edit().putBoolean(KEY_ENABLED, true).apply()
+        }
+        val isEnabled = true
         val networkPreference = SyncNetworkPreference.fromStoredValue(
             prefs.getString(KEY_NETWORK_PREFERENCE, null)
         )
@@ -1308,8 +1308,7 @@ object SyncCoordinator {
         }
         val connectivityManager =
             context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-        connectivityManager.registerDefaultNetworkCallback(
-            object : ConnectivityManager.NetworkCallback() {
+        val callback = object : ConnectivityManager.NetworkCallback() {
                 override fun onCapabilitiesChanged(
                     network: Network,
                     networkCapabilities: NetworkCapabilities
@@ -1324,7 +1323,14 @@ object SyncCoordinator {
                     }
                 }
             }
-        )
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+            connectivityManager.registerDefaultNetworkCallback(callback)
+        } else {
+            connectivityManager.registerNetworkCallback(
+                android.net.NetworkRequest.Builder()
+                    .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET).build(), callback
+            )
+        }
     }
 
     private fun requestBackgroundSync(context: Context, publishLocalChanges: Boolean) {

@@ -154,9 +154,14 @@ internal fun WalletCardFace(
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
                         Text(bankName, style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold,
                             maxLines = 1, overflow = TextOverflow.Ellipsis)
-                        Text(if (collapsed) "${card.alias.ifBlank { category }} · ${walletLastFour(card.cardNumber)}" else card.alias.ifBlank { category },
-                            style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.85f),
-                            maxLines = 1, overflow = TextOverflow.Ellipsis)
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(card.alias.ifBlank { category }, modifier = Modifier.weight(1f, fill = false),
+                                style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.85f),
+                                maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            if (collapsed) Text(" · ${walletLastFour(card.cardNumber)}",
+                                style = MaterialTheme.typography.labelSmall, color = Color.White.copy(alpha = 0.85f),
+                                maxLines = 1, softWrap = false)
+                        }
                     }
                     Spacer(Modifier.width(6.dp))
                     WalletNetworkLogo(network, onCard = true)
