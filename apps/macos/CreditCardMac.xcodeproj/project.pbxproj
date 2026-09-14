@@ -3,7 +3,7 @@
 	archiveVersion = 1;
 	classes = {
 	};
-	objectVersion = 77;
+	objectVersion = 60;
 	objects = {
 
 /* Begin PBXBuildFile section */
@@ -373,6 +373,7 @@
 				};
 			};
 			buildConfigurationList = FB1E82C25D4ED34DD7890D7D /* Build configuration list for PBXProject "CreditCardMac" */;
+			compatibilityVersion = "Xcode 15.0";
 			developmentRegion = "zh-Hans";
 			hasScannedForEncodings = 0;
 			knownRegions = (
@@ -386,7 +387,6 @@
 				4A930F27BB62FFEF7C29B1E8 /* XCRemoteSwiftPackageReference "CryptoSwift" */,
 				5B409EDA3EFD1A537AFA8DC8 /* XCRemoteSwiftPackageReference "Sparkle" */,
 			);
-			preferredProjectObjectVersion = 77;
 			productRefGroup = F53BEE61FF79BC10C6D95562 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
