@@ -226,7 +226,6 @@ fun MainScreen(
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var showCardManagement by remember { mutableStateOf(false) }
     var cardCategoryFilter by rememberSaveable { mutableStateOf("all") }
-    var showAddMenu by remember { mutableStateOf(false) }
     val cardListPrefs = remember(context) {
         context.getSharedPreferences(CARD_LIST_PREFS, Context.MODE_PRIVATE)
     }
@@ -461,8 +460,15 @@ fun MainScreen(
         },
         floatingActionButton = {
             val count = billingReminderCount + annualReminderCount + expiryReminderCount
-            if (selectedTab == 0 && !selectionMode && count > 0) {
-                WalletReminderButton(count) { onItemClick(CardReminders) }
+            if (selectedTab == 0 && !selectionMode) {
+                if (cards.isEmpty()) {
+                    WalletAddFab(
+                        onAddCredit = { onItemClick(CardForm(cardId = null, cardCategory = "credit")) },
+                        onAddDebit = { onItemClick(CardForm(cardId = null, cardCategory = "debit")) }
+                    )
+                } else if (count > 0) {
+                    WalletReminderButton(count) { onItemClick(CardReminders) }
+                }
             }
         },
         containerColor = MaterialTheme.colorScheme.background
@@ -550,21 +556,10 @@ fun MainScreen(
                         // 5. 空状态与展示
                         if (filteredCards.isEmpty()) {
                             item(key = "empty_state", contentType = "empty") {
-                                Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.BottomCenter) {
-                                    WalletEmptyState(
-                                        hasCards = cards.isNotEmpty(), favoritesOnly = favoritesOnly,
-                                        onReset = { searchQuery = ""; cardCategoryFilter = "all"; favoritesOnly = false },
-                                        onAdd = { showAddMenu = true }
-                                    )
-                                    DropdownMenu(expanded = showAddMenu, onDismissRequest = { showAddMenu = false }) {
-                                        DropdownMenuItem(text = { Text(stringResource(R.string.add_credit)) }, onClick = {
-                                            showAddMenu = false; onItemClick(CardForm(cardId = null, cardCategory = "credit"))
-                                        })
-                                        DropdownMenuItem(text = { Text(stringResource(R.string.add_debit)) }, onClick = {
-                                            showAddMenu = false; onItemClick(CardForm(cardId = null, cardCategory = "debit"))
-                                        })
-                                    }
-                                }
+                                WalletEmptyState(
+                                    hasCards = cards.isNotEmpty(), favoritesOnly = favoritesOnly,
+                                    onReset = { searchQuery = ""; cardCategoryFilter = "all"; favoritesOnly = false }
+                                )
                             }
                         } else {
                             groupedCards.forEach { (groupName, groupCards) ->

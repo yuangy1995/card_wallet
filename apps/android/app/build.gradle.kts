@@ -30,9 +30,9 @@ android {
     buildTypes {
         debug {
             if (providers.gradleProperty("walletPreview").orNull == "true") {
-                applicationIdSuffix = ".preview"
-                versionNameSuffix = "-ui-v2-preview"
-                manifestPlaceholders["appLabel"] = "@string/wallet_preview_name"
+                applicationIdSuffix = providers.gradleProperty("walletPreviewSuffix").orElse(".preview").get()
+                versionNameSuffix = "-ui-v3-preview"
+                manifestPlaceholders["appLabel"] = "@string/wallet_preview_feedback_name"
             }
         }
         release {
@@ -111,6 +111,7 @@ dependencies {
   debugImplementation(libs.androidx.compose.ui.test.manifest)
 
   // Local tests: jUnit, coroutines, Android runner
+  testImplementation("com.squareup.okhttp3:mockwebserver:4.12.0")
   testImplementation(libs.junit)
   testImplementation(libs.kotlinx.coroutines.test)
   testImplementation("org.robolectric:robolectric:4.16.1")

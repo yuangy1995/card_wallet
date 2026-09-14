@@ -94,9 +94,9 @@ private fun WalletBankLogo(logo: WalletIssuerLogo?, name: String, onCard: Boolea
     Box(Modifier.width(38.dp).height(34.dp), contentAlignment = Alignment.Center) {
         if (logo != null) Image(painterResource(if (lightMark) logo.cardDrawable else logo.drawable), name,
             modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
-        else Text(name.trim().take(2).ifBlank { "CW" },
-            color = if (onCard) Color.White else MaterialTheme.colorScheme.onSurfaceVariant,
-            fontWeight = FontWeight.Bold, fontSize = 15.sp, maxLines = 1)
+        else Icon(Icons.Default.CreditCard, stringResource(R.string.wallet_bank_fallback),
+            modifier = Modifier.size(28.dp).testTag("wallet_bank_fallback"),
+            tint = if (onCard) Color.White else MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 

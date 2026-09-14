@@ -70,7 +70,7 @@ internal fun WalletHomeHeader(
                 Icon(Icons.Default.Tune, stringResource(R.string.manage_cards), Modifier.size(22.dp))
             }
             if (total > 0) Box {
-                FilledTonalIconButton(onClick = { addMenu = true }, modifier = Modifier.size(48.dp)) {
+                FilledTonalIconButton(onClick = { addMenu = true }, modifier = Modifier.size(48.dp).testTag("wallet_add_header")) {
                     Icon(Icons.Default.Add, stringResource(R.string.add_card))
                 }
                 DropdownMenu(expanded = addMenu, onDismissRequest = { addMenu = false }) {
@@ -137,7 +137,7 @@ internal fun WalletReminderButton(count: Int, onClick: () -> Unit) {
 }
 
 @Composable
-internal fun WalletEmptyState(hasCards: Boolean, favoritesOnly: Boolean, onReset: () -> Unit, onAdd: () -> Unit) {
+internal fun WalletEmptyState(hasCards: Boolean, favoritesOnly: Boolean, onReset: () -> Unit) {
     Column(Modifier.fillMaxWidth().padding(horizontal = 32.dp, vertical = 32.dp).testTag("wallet_empty"),
         horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(12.dp)) {
         Icon(if (favoritesOnly) Icons.Default.StarBorder else Icons.Default.Wallet, null,
@@ -148,8 +148,8 @@ internal fun WalletEmptyState(hasCards: Boolean, favoritesOnly: Boolean, onReset
         Text(stringResource(if (!hasCards) R.string.wallet_empty_body else if (favoritesOnly) R.string.wallet_favorites_body
             else R.string.wallet_reset_hint), style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Button(onClick = if (hasCards) onReset else onAdd) {
-            Text(stringResource(if (hasCards) R.string.wallet_show_all else R.string.add_card))
+        if (hasCards) Button(onClick = onReset) {
+            Text(stringResource(R.string.wallet_show_all))
         }
     }
 }
