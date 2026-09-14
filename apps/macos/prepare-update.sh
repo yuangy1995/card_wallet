@@ -12,6 +12,7 @@ APP_PATH="$1"
 PLIST="$APP_PATH/Contents/Info.plist"
 SPARKLE_BIN="build/SourcePackages/artifacts/sparkle/Sparkle/bin"
 ACCOUNT="com.applist.cardwallet.mac"
+KEY_ACCOUNT="com.applist.cardwallet.mac.public"
 REPOSITORY="yuangy1995/card-wallet-releases"
 
 if [ ! -x "$SPARKLE_BIN/generate_appcast" ]; then
@@ -25,8 +26,8 @@ if [ "$BUNDLE_ID" != "$ACCOUNT" ]; then
     exit 1
 fi
 if [ -z "${SPARKLE_PRIVATE_KEY:-}" ]; then
-    if ! PUBLIC_KEY=$("$SPARKLE_BIN/generate_keys" --account "$ACCOUNT" -p); then
-        echo '未找到原有 Sparkle 更新签名密钥；本地请恢复钥匙串，CI 请配置 SPARKLE_PRIVATE_KEY。' >&2
+    if ! PUBLIC_KEY=$("$SPARKLE_BIN/generate_keys" --account "$KEY_ACCOUNT" -p); then
+        echo '未找到当前发布系列的 Sparkle 更新签名密钥；本地请恢复钥匙串，CI 请配置 SPARKLE_PRIVATE_KEY。' >&2
         exit 1
     fi
     APP_KEY=$(/usr/libexec/PlistBuddy -c 'Print :SUPublicEDKey' "$PLIST")
@@ -36,12 +37,12 @@ if [ -z "${SPARKLE_PRIVATE_KEY:-}" ]; then
     fi
 fi
 
-# CI 仅通过标准输入传入原有私钥，不写文件、不放进命令行参数。
+# CI 仅通过标准输入传入当前发布密钥，不写文件、不放进命令行参数。
 generate_appcast() {
     if [ -n "${SPARKLE_PRIVATE_KEY:-}" ]; then
         printf '%s' "$SPARKLE_PRIVATE_KEY" | "$SPARKLE_BIN/generate_appcast" --ed-key-file - "$@"
     else
-        "$SPARKLE_BIN/generate_appcast" --account "$ACCOUNT" "$@"
+        "$SPARKLE_BIN/generate_appcast" --account "$KEY_ACCOUNT" "$@"
     fi
 }
 
