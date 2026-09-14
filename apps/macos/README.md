@@ -99,6 +99,8 @@ xcodebuild -project CreditCardMac.xcodeproj -scheme CreditCardMac \
 
 GitHub 默认的 `GITHUB_TOKEN` 仅能访问工作流所在仓库，不能替代跨仓库发布令牌。不要把自己的全权限令牌用于发布，也不要将这两个值提交到仓库或贴入聊天、Issue、日志中。
 
+2026-09-14 已配置两端共用的受限 `RELEASES_TOKEN`，只授权公开产物仓库的 Contents 读写及 Metadata 只读，有效期至 2026-12-13。到期前通过 GitHub 设置轮换并更新此 Secret；不要修改客户端签名身份或 Sparkle 更新密钥。令牌过期只会阻止新的自动发布，不影响已发布安装包的下载。
+
 在保存当前密钥的 Mac 上，可通过已登录的 `gh` 直接上传私钥 Secret；先进入 `apps/macos` 并确认 Sparkle 工具已解析，以下命令不打印私钥：
 
 ```bash

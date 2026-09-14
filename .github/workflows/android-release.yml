@@ -141,7 +141,7 @@ jobs:
         run: |
           set -euo pipefail
           gh release create "$RELEASE_TAG" --repo "$RELEASE_REPOSITORY" --draft --latest=false \
-            --title "卡包 $RELEASE_VERSION（Android）" --notes-file "release-notes/$RELEASE_VERSION.md" \
+            --title "卡包 ${RELEASE_VERSION}（Android）" --notes-file "release-notes/$RELEASE_VERSION.md" \
             "dist/updates/$RELEASE_TAG/CardWallet-Android-$RELEASE_BUILD.apk"
           gh release view "$RELEASE_TAG" --repo "$RELEASE_REPOSITORY" \
             --json isDraft,assets > "$RUNNER_TEMP/android-release-assets.json"
