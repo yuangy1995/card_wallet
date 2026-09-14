@@ -53,17 +53,30 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
+          cache: gradle
+          cache-dependency-path: |
+            apps/android/**/*.gradle.kts
+            apps/android/gradle/libs.versions.toml
       - name: Native build and tests
         if: hashFiles('tools/wallet_v2_apply.py') != ''
         working-directory: apps/android
-        run: bash gradlew :app:assembleDebug :app:testDebugUnitTest :app:lintDebug --continue --stacktrace
+        run: bash gradlew :app:assembleDebug :app:testDebugUnitTest :app:lintDebug --continue --stacktrace --max-workers=2
+      - name: Build isolated preview APK
+        if: always() && hashFiles('apps/android/app/src/main/java/com/example/creditcard/ui/wallet/WalletLogoCatalogData.kt') != ''
+        working-directory: apps/android
+        run: |
+          bash gradlew :app:assembleDebug -PwalletPreview=true --stacktrace --max-workers=2
+          APK=app/build/outputs/apk/debug/app-debug.apk
+          "$ANDROID_HOME/cmdline-tools/latest/bin/apkanalyzer" manifest application-id "$APK" | tee app/build/outputs/apk/debug/package-id.txt
+          grep -qx 'com.applist.cardwallet.preview' app/build/outputs/apk/debug/package-id.txt
+          sha256sum "$APK" > app/build/outputs/apk/debug/SHA256SUMS
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: wallet-v2-validation-${{ github.run_id }}
           retention-days: 7
           path: |
-            apps/android/app/build/outputs/apk/debug/*.apk
+            apps/android/app/build/outputs/apk/debug/
             apps/android/app/build/outputs/ui-review/
             apps/android/app/build/reports/
             apps/android/app/build/test-results/
