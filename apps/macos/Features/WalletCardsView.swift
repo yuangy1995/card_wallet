@@ -90,7 +90,7 @@ struct AllCardsView: View {
                     onUpdateStatus: { onUpdateStatus(card, $0) }
                 )
                 .frame(width: 282)
-                .modifier(WalletGlass())
+                .background(WalletBackground(palette: palette))
             }
         }
         .onAppear(perform: prepare)

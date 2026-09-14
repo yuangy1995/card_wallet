@@ -74,6 +74,7 @@ public struct SidebarView: View {
                     }
                 }
                 .padding(.horizontal, 10)
+                .background(WalletScrollTrackAppearance())
             }
 
             VStack(spacing: 10) {
@@ -94,7 +95,7 @@ public struct SidebarView: View {
             }
             .padding(13)
         }
-        .modifier(WalletGlass())
+        .background(WalletBackground(palette: palette))
         .navigationSplitViewColumnWidth(min: 180, ideal: 196, max: 240)
         .onAppear(perform: refresh)
         .onChange(of: cards) { _, _ in refresh() }

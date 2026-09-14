@@ -117,12 +117,7 @@ struct WalletThemeModifier: ViewModifier {
 struct WalletBackground: View {
     let palette: WalletPalette
     var body: some View {
-        ZStack {
-            palette.background
-            RadialGradient(colors: [palette.glow, .clear], center: .topLeading, startRadius: 0, endRadius: 650)
-            RadialGradient(colors: [palette.secondaryGlow.opacity(0.6), .clear], center: .bottomTrailing, startRadius: 0, endRadius: 700)
-        }
-        .ignoresSafeArea()
+        palette.background.ignoresSafeArea()
     }
 }
 
