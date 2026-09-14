@@ -167,10 +167,12 @@ class WalletV2VisualTest {
     @Test fun emptyWalletHasOneAddAction() {
         home(count = 0)
         compose.onNodeWithTag("wallet_empty").assertIsDisplayed()
-        assertEquals(1, compose.onAllNodesWithText("添加卡片").fetchSemanticsNodes().size)
+        // Extended FAB exposes its icon description, not its visual label, to accessibility.
+        compose.onAllNodesWithContentDescription("添加卡片").assertCountEquals(1)
+        compose.onNodeWithTag("wallet_add_header").assertDoesNotExist()
         compose.onNodeWithTag("wallet_reminders").assertDoesNotExist()
         capture("v2-empty-wallet")
-        compose.onNodeWithText("添加卡片").performClick()
+        compose.onNodeWithContentDescription("添加卡片").assertIsDisplayed().assertHasClickAction().performClick()
         compose.onNodeWithText("新增信用卡").assertExists()
         compose.onNodeWithText("新增储蓄卡").assertExists()
     }

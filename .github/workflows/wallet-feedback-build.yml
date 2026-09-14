@@ -44,8 +44,10 @@ jobs:
         working-directory: apps/android
         run: bash gradlew :app:assembleDebug :app:lintDebug --continue --stacktrace --max-workers=2
       - name: Build separate feedback preview
+        id: preview
         if: ${{ !cancelled() }}
         working-directory: apps/android
+        shell: bash
         run: |
           bash gradlew :app:assembleDebug -PwalletPreview=true -PwalletPreviewSuffix=.preview3 -PreleaseVersionCode=3 --stacktrace --max-workers=2
           APK=app/build/outputs/apk/debug/app-debug.apk
@@ -53,13 +55,21 @@ jobs:
           grep -qx 'com.applist.cardwallet.preview3' app/build/outputs/apk/debug/package-id.txt
           git rev-parse HEAD > app/build/outputs/apk/debug/source-commit.txt
           sha256sum "$APK" > app/build/outputs/apk/debug/SHA256SUMS
-      - uses: actions/upload-artifact@v4
-        if: always()
+      - name: Upload verified feedback preview APK
+        if: ${{ !cancelled() && steps.preview.outcome == 'success' }}
+        uses: actions/upload-artifact@v4
         with:
           name: wallet-feedback-${{ github.run_id }}
           retention-days: 7
+          if-no-files-found: error
+          path: apps/android/app/build/outputs/apk/debug/
+      - name: Upload native screenshots and reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: wallet-feedback-reports-${{ github.run_id }}
+          retention-days: 7
           path: |
-            apps/android/app/build/outputs/apk/debug/
             apps/android/app/build/outputs/ui-review/
             apps/android/app/build/reports/
             apps/android/app/build/test-results/

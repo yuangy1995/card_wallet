@@ -12,8 +12,8 @@ android {
         applicationId = "com.applist.cardwallet"
         minSdk = 23
         targetSdk = 36
-        versionCode = providers.gradleProperty("releaseVersionCode").orElse("2").get().toInt()
-        versionName = providers.gradleProperty("releaseVersionName").orElse("1.1.0").get()
+        versionCode = providers.gradleProperty("releaseVersionCode").orElse("4").get().toInt()
+        versionName = providers.gradleProperty("releaseVersionName").orElse("1.2.0").get()
     }
 
     signingConfigs {
