@@ -311,7 +311,7 @@ struct AllCardsView: View {
     private func edit(_ card: SharedCard) { cardEditRequest = CardEditRequest(mode: "edit", card: card) }
 }
 
-private struct WalletCatalogRow: View {
+struct WalletCatalogRow: View {
     let item: CardCatalogItem
     let grid: Bool
     let selected: Bool
@@ -337,16 +337,15 @@ private struct WalletCatalogRow: View {
                     if selectionMode {
                         Image(systemName: selected ? "checkmark.circle.fill" : "circle").foregroundStyle(palette.accent)
                     }
-                    Text(String(item.card.bank.prefix(1))).font(.system(size: 13, weight: .semibold))
+                    WalletBankLogo(bank: item.card.bank, country: item.card.country, width: 32, height: 32)
                         .accessibilityHidden(true)
-                        .frame(width: 32, height: 36)
-                        .background(palette.surface, in: RoundedRectangle(cornerRadius: 8))
                     VStack(alignment: .leading, spacing: 4) {
                         Text(item.card.bank).font(.system(size: 13, weight: .medium)).lineLimit(1)
                         Text("\(item.card.alias ?? "") · \(String(item.card.cardNumber.suffix(4)))")
                             .font(.caption).foregroundStyle(.secondary).lineLimit(1)
                     }
                     .frame(maxWidth: .infinity, alignment: .leading)
+                    CardBrandIcon(brand: item.brand, width: 34, height: 22)
                     VStack(alignment: .trailing, spacing: 3) {
                         Text(item.card.cardCategory == "debit" ? "—" : WalletFormat.amount(item.card.limit, currency: item.card.type))
                             .font(.system(size: 12, weight: .medium)).monospacedDigit()

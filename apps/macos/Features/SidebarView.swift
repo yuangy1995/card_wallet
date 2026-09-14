@@ -57,7 +57,7 @@ public struct SidebarView: View {
                                 }
                             } label: {
                                 HStack(spacing: 9) {
-                                    Circle().fill(palette.accent.opacity(0.6)).frame(width: 5, height: 5)
+                                    WalletBankLogo(bank: bank.name, width: 18, height: 18).accessibilityHidden(true)
                                     Text(bank.name).lineLimit(1)
                                     Spacer(minLength: 3)
                                     Text(bank.count.formatted()).font(.caption2).monospacedDigit()
