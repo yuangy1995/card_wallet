@@ -1,4 +1,5 @@
 {
+  "asset_revision": 2,
   "upstreams": {
     "banks": [
       "icongo/bank-logos",
@@ -50,8 +51,8 @@
     {
       "id": "amex",
       "name": "American Express",
-      "origin": "global",
-      "path": "assets/bank/international-bank/american-express.svg",
+      "origin": "networks",
+      "path": "logo/amex.svg",
       "aliases": [
         "AMEX",
         "American Express",
@@ -509,6 +510,20 @@
       "accent": "79412E"
     },
     {
+      "id": "capitalone",
+      "name": "Capital One",
+      "origin": "supplement",
+      "path": "capitalone.svg",
+      "aliases": [
+        "Capital One",
+        "第一資本銀行",
+        "第一资本银行",
+        "美国第一资本银行"
+      ],
+      "resource": "wallet_issuer_capitalone",
+      "accent": "244B6B"
+    },
+    {
       "id": "cathaybk",
       "name": "国泰世华银行",
       "origin": "banks",
@@ -610,6 +625,20 @@
       ],
       "resource": "wallet_issuer_cgbchina",
       "accent": "923642"
+    },
+    {
+      "id": "charlesschwab",
+      "name": "Charles Schwab",
+      "origin": "supplement",
+      "path": "charlesschwab.svg",
+      "aliases": [
+        "Charles Schwab",
+        "Schwab",
+        "嘉信",
+        "嘉信理财"
+      ],
+      "resource": "wallet_issuer_charlesschwab",
+      "accent": "226285"
     },
     {
       "id": "chase",
@@ -1174,17 +1203,6 @@
       ],
       "resource": "wallet_issuer_cn_7b047165711c",
       "accent": "246977"
-    },
-    {
-      "id": "cn_7c8811fb22c8",
-      "name": "中国银行业监督",
-      "origin": "banks",
-      "path": "other/中国银行业监督logo.svg",
-      "aliases": [
-        "中国银行业监督"
-      ],
-      "resource": "wallet_issuer_cn_7c8811fb22c8",
-      "accent": "6F3859"
     },
     {
       "id": "cn_7ea02e13b47b",
@@ -3889,6 +3907,18 @@
       "accent": "6F3859"
     },
     {
+      "id": "sofi",
+      "name": "SoFi",
+      "origin": "supplement",
+      "path": "sofi.svg",
+      "aliases": [
+        "SoFi",
+        "SoFi Bank"
+      ],
+      "resource": "wallet_issuer_sofi",
+      "accent": "196774"
+    },
+    {
       "id": "spdb",
       "name": "浦发银行",
       "origin": "banks",
@@ -4420,7 +4450,7 @@
       "url": "https://github.com/icongo/bank-logos/blob/ffca539a043900fbf2a4fd6a5d32f1706ae5dfd1/logos/abnamro-rect.svg",
       "source_sha256": "280a46080356ab4f24acb001338023f96e8f65aa2c2e8f8e9d84d22b5f122724",
       "stored_sha256": "35569b97d807230cd9f5d24f486e7ff9327a4568459e5d948312416427880d4a",
-      "width": 196,
+      "width": 150,
       "height": 196
     },
     {
@@ -4429,14 +4459,14 @@
       "source_sha256": "825afc8c62a6b3282f69ed8d66b7d8f510683abd025dd0be21eede3eb39a0860",
       "stored_sha256": "3080a7de6816e8f36aef9857509ef258f63eda57c88d477a9415a2799d43a9cc",
       "width": 196,
-      "height": 196
+      "height": 182
     },
     {
       "resource": "wallet_issuer_bangkokbank",
       "url": "https://github.com/icongo/bank-logos/blob/ffca539a043900fbf2a4fd6a5d32f1706ae5dfd1/logos/bangkokbank-rect.svg",
       "source_sha256": "ce57f5ee7a0c1cb403a8190205d5dfee9509d2e775ea82483ace3c8b39c19df5",
       "stored_sha256": "34750ad027c7a6bd9d46fc901aba133b34da9ee76f289e2fa4c9acde31f6a14d",
-      "width": 196,
+      "width": 146,
       "height": 196
     },
     {
@@ -4461,7 +4491,7 @@
       "source_sha256": "e3e7477a19d4820bba6349d85e5786fb1710d21bc0268d810f2b8ec4675c0f92",
       "stored_sha256": "8f933df7387d78cf5cd218a04d64585423e153f244513d331ca0d5907d9ca514",
       "width": 196,
-      "height": 196
+      "height": 194
     },
     {
       "resource": "wallet_issuer_bankofamerica",
@@ -4469,7 +4499,7 @@
       "source_sha256": "79410756416c38e37809e294da779a60f5a08c13cb8057686c4b14b33e4a64c8",
       "stored_sha256": "b2e60c2c993b838c59b5ba682020a943f9c9c3872f21f62f2db04554d00284a3",
       "width": 196,
-      "height": 196
+      "height": 102
     },
     {
       "resource": "wallet_issuer_bankofas",
@@ -4485,7 +4515,7 @@
       "source_sha256": "a9b3e3236d56e7d173148f6bf35050d580706bdcde50f46a2313be22a1445e31",
       "stored_sha256": "71aa2f1625e001b13236994f19cf7b25dda21377102d10ee37c6220c566dbae6",
       "width": 196,
-      "height": 196
+      "height": 187
     },
     {
       "resource": "wallet_issuer_bankofbeijing",
@@ -4525,7 +4555,7 @@
       "source_sha256": "22333f44618d53b1cfa3c48ae4cf9caf89154010501844e87a19ee63dc25f48a",
       "stored_sha256": "a6474bffc97f2256e7ec9519cef95835e971b8f58cea4a0b1ddac7479212405a",
       "width": 196,
-      "height": 196
+      "height": 109
     },
     {
       "resource": "wallet_issuer_bankofpj",
@@ -4541,7 +4571,7 @@
       "source_sha256": "41d48a5b25c26fca6d8318dc1d73495281154975d2b18137ebeaad76863b54b9",
       "stored_sha256": "35c0b45dc77f7dbb1424e37d41f255c2d0618c80285f24cf92b20c5549da67e9",
       "width": 196,
-      "height": 196
+      "height": 195
     },
     {
       "resource": "wallet_issuer_bankoftianjin",
@@ -4581,7 +4611,7 @@
       "source_sha256": "1e60df792efe1fba8c776080aa3dddfd37ad3b3ca22d1dd7a900004dbc430101",
       "stored_sha256": "4ea9b5879772d80b707e35843c30eccefeb62623f3f81930f5f757453513ed3e",
       "width": 196,
-      "height": 196
+      "height": 158
     },
     {
       "resource": "wallet_issuer_bankyellowriver",
@@ -4596,7 +4626,7 @@
       "url": "https://github.com/icongo/bank-logos/blob/ffca539a043900fbf2a4fd6a5d32f1706ae5dfd1/logos/barclays-rect.svg",
       "source_sha256": "f7c3b0c77dedd8933e2dfe7378cb597e3a76e98cfaaca89b7709f25c50d1c136",
       "stored_sha256": "d4d62428cf863b81bcec107c0763c07c0963a93cc1376b8900d1db6b6e85626e",
-      "width": 196,
+      "width": 183,
       "height": 196
     },
     {
@@ -4605,7 +4635,7 @@
       "source_sha256": "e86cec28e90f1b4d1ef87a251ac2e72afa78e684b8abadfcd52e105aa1c1bf0a",
       "stored_sha256": "26d7d332497d6a9078b35d4f1b9b8376aa2b63e4cfbfd66ca5a1c21ca6d6c193",
       "width": 196,
-      "height": 196
+      "height": 161
     },
     {
       "resource": "wallet_issuer_bd_bank",
@@ -4620,7 +4650,7 @@
       "url": "https://github.com/icongo/bank-logos/blob/ffca539a043900fbf2a4fd6a5d32f1706ae5dfd1/logos/bgzchina-rect.svg",
       "source_sha256": "b859a542e8ba3ecad7b6f5d6091e24f8637f5955147d9b482ef71cdb7fa7b0b7",
       "stored_sha256": "344d681a6f43313de448e0f0d7ddcc412dde80e90ce0cddfcbb700d6161c3844",
-      "width": 196,
+      "width": 195,
       "height": 196
     },
     {
@@ -4629,7 +4659,7 @@
       "source_sha256": "df7095b5bd0326a0894c092262c0fdcd253d80db149c7c3b697744f8c89f1b5a",
       "stored_sha256": "270c79c8c18be31a6a7a67d17a31f7de2f6f95637dcbee10ea38253443b0f3a2",
       "width": 196,
-      "height": 196
+      "height": 178
     },
     {
       "resource": "wallet_issuer_bmo",
@@ -4652,7 +4682,7 @@
       "url": "https://github.com/icongo/bank-logos/blob/ffca539a043900fbf2a4fd6a5d32f1706ae5dfd1/logos/bocd-rect.svg",
       "source_sha256": "5f46bd75425e5569c8841639cc4a771b7612b7768651fa40fbe90a2c901c4eac",
       "stored_sha256": "ea05e2792b9d93a9e66d8babf6f85dae2c6ed148d2c6c4bb4d38522f327fd088",
-      "width": 196,
+      "width": 176,
       "height": 196
     },
     {
@@ -4668,7 +4698,7 @@
       "url": "https://github.com/icongo/bank-logos/blob/ffca539a043900fbf2a4fd6a5d32f1706ae5dfd1/logos/bolz-rect.svg",
       "source_sha256": "ef3ef5d6914e143094939154d0ceda79af9e698f973050a4815bb1cad693b334",
       "stored_sha256": "21e1cc45390ee9f35526535f67b421a0e20f5da0200213bf5fb67448fb88b0dc",
-      "width": 196,
+      "width": 195,
       "height": 196
     },
     {
@@ -4684,7 +4714,7 @@
       "url": "https://github.com/icongo/bank-logos/blob/ffca539a043900fbf2a4fd6a5d32f1706ae5dfd1/logos/boy-rect.svg",
       "source_sha256": "fb373ff67d2fdab0f9bfc4ab4f092eef145154d04ab433280f326cec3dcd00ba",
       "stored_sha256": "554702aaead73126be19d240ae0839655062f0bfd7e71a1887bbede84969869a",
-      "width": 196,
+      "width": 147,
       "height": 196
     },
     {
@@ -4693,7 +4723,7 @@
       "source_sha256": "dbf82b07a77b60ce95d6730891764a2e2fbae1fdee4d71870f4a4da4c0450fcb",
       "stored_sha256": "a02bc0a95d8a21468ecf736c737bdfbc0b987245d06c372cf862410e260b0bf3",
       "width": 196,
-      "height": 196
+      "height": 144
     },
     {
       "resource": "wallet_issuer_cbhb",
@@ -4708,7 +4738,7 @@
       "url": "https://github.com/icongo/bank-logos/blob/ffca539a043900fbf2a4fd6a5d32f1706ae5dfd1/logos/ccabchina-rect.svg",
       "source_sha256": "44b3a9f8bbd860cd6badd71ee7076d112a3c3d345dab8da1371a8a8bffe59668",
       "stored_sha256": "410f2a2a4bf984c2c0c0952d0d46e6fdf16c48d09655a12003a2c5d9297786cc",
-      "width": 196,
+      "width": 193,
       "height": 196
     },
     {
@@ -4781,7 +4811,7 @@
       "source_sha256": "cb168fd259d5c5a3ec8e1151382e0688ed294eb607b0502dfff33c025015fb97",
       "stored_sha256": "9f607d57e4ba706909eb76d7fc8e476c626d9b695f846b013c50ffbe7400632b",
       "width": 196,
-      "height": 196
+      "height": 52
     },
     {
       "resource": "wallet_issuer_citicbank",
@@ -4828,7 +4858,7 @@
       "url": "https://github.com/icongo/bank-logos/blob/ffca539a043900fbf2a4fd6a5d32f1706ae5dfd1/logos/cqcbank-rect.svg",
       "source_sha256": "9f57c8e32fc958c5e882338e43f84903b210761c4ef176b1296b4ba6158093aa",
       "stored_sha256": "ecf4abc8626353f9f54cf27029c158e5c9350610bdcb90994459a0c31fd56e93",
-      "width": 196,
+      "width": 194,
       "height": 196
     },
     {
@@ -4837,7 +4867,7 @@
       "source_sha256": "6b19e9779acfa93b5dca0f5903a232e6f60af852fdb794d1b6c7e29612ec6d3f",
       "stored_sha256": "354c272ecfbeef6c35b71c746d685c3a30713c9bcfc81754bb49165cf9c9ed18",
       "width": 196,
-      "height": 196
+      "height": 194
     },
     {
       "resource": "wallet_issuer_crbank",
@@ -4853,7 +4883,7 @@
       "source_sha256": "cad58ee32945b0a05254e029c364be02bf32f6c5cab251d81b0cb171cf49f712",
       "stored_sha256": "f2a347ef41e3c05d8b29229856a5e2c50603c8689b650ccdb4f89509d881767b",
       "width": 196,
-      "height": 196
+      "height": 108
     },
     {
       "resource": "wallet_issuer_csrcbank",
@@ -4901,7 +4931,7 @@
       "source_sha256": "10ff5cae6f9a21b96e9d4d227f994f56ddc4ed46249e8fb9001add25fc5b7a40",
       "stored_sha256": "01b31193eae24328daf5a018354cae32529d2c932a6665d0cc66edb4e2c839b4",
       "width": 196,
-      "height": 196
+      "height": 177
     },
     {
       "resource": "wallet_issuer_dandongbank",
@@ -4949,7 +4979,7 @@
       "source_sha256": "95be78597f922fb7d1b7024a2f136b42673eed215c1ecb2fdba2c34653713457",
       "stored_sha256": "9d6ae1dd9d23501191e0e9a761ac75234dc53edbb883f0a770c8a6d4f6793b98",
       "width": 196,
-      "height": 196
+      "height": 158
     },
     {
       "resource": "wallet_issuer_dzccb",
@@ -4981,7 +5011,7 @@
       "source_sha256": "ff0869cf9e09cd210d9d71b9f99f8f292f63daa52f6ee9c88b9292b51900533b",
       "stored_sha256": "0909ac335b9616335de9842e68ccd07f2181246eab3dbfe84646e0d623394ae0",
       "width": 196,
-      "height": 196
+      "height": 189
     },
     {
       "resource": "wallet_issuer_fjhxbank",
@@ -4997,14 +5027,14 @@
       "source_sha256": "febd1082cb925542d4a8ce339061b48865d79fe7b8ec539f990d137534374cf2",
       "stored_sha256": "bfdf6cf4d1ae815eed26642c9c908fa3e3b0d432def5f48a25fc596feec793dd",
       "width": 196,
-      "height": 196
+      "height": 185
     },
     {
       "resource": "wallet_issuer_fubonchina",
       "url": "https://github.com/icongo/bank-logos/blob/ffca539a043900fbf2a4fd6a5d32f1706ae5dfd1/logos/fubonchina-rect.svg",
       "source_sha256": "ea5dc6fc6092aece63bc8adce1492f1e147c26b0faa110134b38f9e6e4a449de",
       "stored_sha256": "3fb9772258c35404b75ad3f76002333ec146980ec2b035632ae637b8c1ccfcda",
-      "width": 196,
+      "width": 189,
       "height": 196
     },
     {
@@ -5037,14 +5067,14 @@
       "source_sha256": "6f7476d430899e044edac4689b44026cc6e6aba360390106e4a427ac561f66f4",
       "stored_sha256": "5db66ba21cb5e0e3e40d5353fae74da4280ae5303f92b51fbe09d27b43f06f70",
       "width": 196,
-      "height": 196
+      "height": 160
     },
     {
       "resource": "wallet_issuer_grcbank",
       "url": "https://github.com/icongo/bank-logos/blob/ffca539a043900fbf2a4fd6a5d32f1706ae5dfd1/logos/grcbank-rect.svg",
       "source_sha256": "5049323c1749938881dd09428023ceb4d1489d2915cb6bfc6723355d3ebac7ba",
       "stored_sha256": "ecb17d6a51dd8f52b746602f8269f2c52f5d620bedee92a0ffb4e698bf9097f7",
-      "width": 196,
+      "width": 109,
       "height": 196
     },
     {
@@ -5060,7 +5090,7 @@
       "url": "https://github.com/icongo/bank-logos/blob/ffca539a043900fbf2a4fd6a5d32f1706ae5dfd1/logos/guilinbank-rect.svg",
       "source_sha256": "cec217a5057262b2a053927dff0d7d561bb11a67b182faaf0f85999e10b3a165",
       "stored_sha256": "32ed6a1a48d7c3814ce42df48d4218f0817748dcb54bc833e210905001947393",
-      "width": 196,
+      "width": 195,
       "height": 196
     },
     {
@@ -5069,7 +5099,7 @@
       "source_sha256": "cd361bc2b2019ec9823b405a8b3dbf3974975cd40c35f6ceb9e8fd2e1c312936",
       "stored_sha256": "faf8a02acd9e3e5282f66df732eaf5fad61cb05b0b6d1c889ac84cf1bd59d1cc",
       "width": 196,
-      "height": 196
+      "height": 176
     },
     {
       "resource": "wallet_issuer_gzcb",
@@ -5085,7 +5115,7 @@
       "source_sha256": "cb443336793d58b09bce1e193a13f33eb5efa42a6df03420234b768a6a82386b",
       "stored_sha256": "6d1ee4e8b67776d4360afe63b4dea63e8e1b6013d6a5f3a84e79a530230d46fb",
       "width": 196,
-      "height": 196
+      "height": 188
     },
     {
       "resource": "wallet_issuer_hana",
@@ -5093,7 +5123,7 @@
       "source_sha256": "df55aa74a541c07c82a6a3c187b7be13ad8560b9a0acc5ea72d0d4b1fc3cc6ab",
       "stored_sha256": "48072c5baf70b7cea637e40f024f4ee52fb3e2b0cfa8cf2547fe538e2b5bff04",
       "width": 196,
-      "height": 196
+      "height": 179
     },
     {
       "resource": "wallet_issuer_hangseng",
@@ -5101,7 +5131,7 @@
       "source_sha256": "63f3b16cb0b4d22dd9e27852f200f42a7da8385ff7701368c82c1cceb5fc3c17",
       "stored_sha256": "8e9ecabc2960e413cf1ff56e67135d026c29520f5f5df2df47a6ffc06c227e9f",
       "width": 196,
-      "height": 196
+      "height": 195
     },
     {
       "resource": "wallet_issuer_hdcb",
@@ -5133,14 +5163,14 @@
       "source_sha256": "7ffc42d4c534c64c552d0e5736ffa7d5a7194865bc2a9ab475dbff468b917437",
       "stored_sha256": "53f1cbfdd8492183310b8be1c04b42bbb2c52093c365c6eba296d3490b333d1f",
       "width": 196,
-      "height": 196
+      "height": 195
     },
     {
       "resource": "wallet_issuer_hkbchina",
       "url": "https://github.com/icongo/bank-logos/blob/ffca539a043900fbf2a4fd6a5d32f1706ae5dfd1/logos/hkbchina-rect.svg",
       "source_sha256": "2c70ead2277912c3328d8f9f09453d86ecd4d2020195baa2eaf9f4cf3b25a2f9",
       "stored_sha256": "72131f824da508759c012a900a042de7ec4c8ca44ff7702ab9af148c347f9046",
-      "width": 196,
+      "width": 189,
       "height": 196
     },
     {
@@ -5148,7 +5178,7 @@
       "url": "https://github.com/icongo/bank-logos/blob/ffca539a043900fbf2a4fd6a5d32f1706ae5dfd1/logos/hkbea-rect.svg",
       "source_sha256": "e8193e425130777c1faae7a684de75a9b5070163aa777e65c49a5c71ae51c27b",
       "stored_sha256": "c4338aa6293f94e34dd4a28a6222ffc7e068b14f3a1f9674aa9f69ea009a7302",
-      "width": 196,
+      "width": 133,
       "height": 196
     },
     {
@@ -5157,7 +5187,7 @@
       "source_sha256": "88753a7e0dfa5767c1001db93f07d43a2c5f552f8dafbbede3334347c28afccd",
       "stored_sha256": "0bbfcaa63c0043806640b0f0f09740f128b71c8ac87aba6e203ee246e4e8be14",
       "width": 196,
-      "height": 196
+      "height": 195
     },
     {
       "resource": "wallet_issuer_hrbb",
@@ -5181,7 +5211,7 @@
       "source_sha256": "db7cba86960732ebac66b5fd4add3262313d352ddc251e4396532f45dd51615c",
       "stored_sha256": "3f1f8cc60f366c89024b7caca9db9377c48f25ab9646750a384076fc0320d539",
       "width": 196,
-      "height": 196
+      "height": 187
     },
     {
       "resource": "wallet_issuer_hsbc",
@@ -5189,7 +5219,7 @@
       "source_sha256": "d706f850293612273712b0a903106d456b9370a2a15a16063728a9441679659e",
       "stored_sha256": "ebdfbf70272008d86ed1e429e20fa141a01df507d031f0601be9e5ad6873b162",
       "width": 196,
-      "height": 196
+      "height": 100
     },
     {
       "resource": "wallet_issuer_hubeibank",
@@ -5197,7 +5227,7 @@
       "source_sha256": "74442ad8519c64b2ffd5d7572aa595c7612010ed2c9f06854dd1e2358133bd39",
       "stored_sha256": "fca1f24c6bfe1da4427e3c39a2f1874cf5367acfcebc69d90cc86ab56427d88e",
       "width": 196,
-      "height": 196
+      "height": 195
     },
     {
       "resource": "wallet_issuer_hxb",
@@ -5213,7 +5243,7 @@
       "source_sha256": "1d1806d5a783c2f53b1a27d0ee240f946cb1269d70322c91cfd240df3eda1448",
       "stored_sha256": "4c7a0059bf256fc319a172f9e1f2d6bbb6aaaa5fe8bb03ea058359e2603ba678",
       "width": 196,
-      "height": 196
+      "height": 177
     },
     {
       "resource": "wallet_issuer_hzccb",
@@ -5228,7 +5258,7 @@
       "url": "https://github.com/icongo/bank-logos/blob/ffca539a043900fbf2a4fd6a5d32f1706ae5dfd1/logos/hznsyh-rect.svg",
       "source_sha256": "7484e04f5b33307acc6b84bcb34b2175f6135f9cf5ba82b6039c31a2d70d2ce6",
       "stored_sha256": "bda843b6b4a1d7eecfad0282d4b406438be676608974bba0015dba37d782e97f",
-      "width": 196,
+      "width": 187,
       "height": 196
     },
     {
@@ -5237,7 +5267,7 @@
       "source_sha256": "91f4cdca8a9f185e1ffc7427dbb2a453fd3b8a3c240158cb7a86c3866c5f9065",
       "stored_sha256": "2285fdc642bf4300b18d84e7f7b6e1399321c5c1009ac45dfe997da088cff815",
       "width": 196,
-      "height": 196
+      "height": 190
     },
     {
       "resource": "wallet_issuer_icbc",
@@ -5261,7 +5291,7 @@
       "source_sha256": "98fad44ec06526bf78fc73eb09acee3f4931b48cbb23a6d5a77f5051fc9632d3",
       "stored_sha256": "0247de80f98a76e86e31e9a83a240768b741059ede3261c771377cd34c6cd8c4",
       "width": 196,
-      "height": 196
+      "height": 195
     },
     {
       "resource": "wallet_issuer_jinzhoubank",
@@ -5277,7 +5307,7 @@
       "source_sha256": "abecb6863a908bfc2f8d06e83bcf0f211da206b98b91dac3553f3066239d7de2",
       "stored_sha256": "06e1cf40796d7b5316bae4217277b3b0b73e2ce33c8538f847ecfe243ac5efa6",
       "width": 196,
-      "height": 196
+      "height": 98
     },
     {
       "resource": "wallet_issuer_jjccb",
@@ -5301,7 +5331,7 @@
       "source_sha256": "2005b33ba5581c3eef172aceaa349b72aaaa5373390bbb73863b7c633d8296d3",
       "stored_sha256": "98c78180897cd5546991824f20436d42fb1fd60247c02416e63f04b718161506",
       "width": 196,
-      "height": 196
+      "height": 44
     },
     {
       "resource": "wallet_issuer_jn_bank",
@@ -5309,7 +5339,7 @@
       "source_sha256": "c3e6321f3ade584bc04a19b8641ef40bd904e07fdaad08d769762e1e12dd78bd",
       "stored_sha256": "e9c18b85e3221a3d10362b846ec2c8e7f4e25bafee2cfba7f220b4918dd8845d",
       "width": 196,
-      "height": 196
+      "height": 194
     },
     {
       "resource": "wallet_issuer_chase",
@@ -5325,7 +5355,7 @@
       "source_sha256": "98fad44ec06526bf78fc73eb09acee3f4931b48cbb23a6d5a77f5051fc9632d3",
       "stored_sha256": "0247de80f98a76e86e31e9a83a240768b741059ede3261c771377cd34c6cd8c4",
       "width": 196,
-      "height": 196
+      "height": 195
     },
     {
       "resource": "wallet_issuer_jsbchina",
@@ -5365,7 +5395,7 @@
       "source_sha256": "c26c13df4fd8859cc4f58a29f66cb790ae3b4a2558c94d6b237724221a73ac84",
       "stored_sha256": "97d7a8296e965f6bf4006372dfc724218928dfe39996e41ee28fa8a6273926be",
       "width": 196,
-      "height": 196
+      "height": 171
     },
     {
       "resource": "wallet_issuer_jybank",
@@ -5381,7 +5411,7 @@
       "source_sha256": "a3200b45a0e0644142361307988fa411870fc68d72782b5aa42e7b07c3fcecf8",
       "stored_sha256": "362228c5bb62e768a09f237921119bfd113bacacaa05a6af6768697f61a81cd8",
       "width": 196,
-      "height": 196
+      "height": 141
     },
     {
       "resource": "wallet_issuer_klb",
@@ -5389,7 +5419,7 @@
       "source_sha256": "39b7c3511ef82c52d797749503388a2d41d3c7ce64ea2ac2f446af5a4960fa2e",
       "stored_sha256": "3640630ba406e4904561fe2230b186ba679efc4744a10a949c03d634c2b3e3a7",
       "width": 196,
-      "height": 196
+      "height": 190
     },
     {
       "resource": "wallet_issuer_ksrcb",
@@ -5429,7 +5459,7 @@
       "source_sha256": "551e0219b700ec813fca57cf92832fa333ebae4e56a7e182c2d8cb193e219132",
       "stored_sha256": "04384cd0e11e94829fc94f4ee48e74e5c5537289dc20d27f09168d5e08def212",
       "width": 196,
-      "height": 196
+      "height": 195
     },
     {
       "resource": "wallet_issuer_lsbchina",
@@ -5445,14 +5475,14 @@
       "source_sha256": "a428c4460fcab84a6197e726c60aab30a64f5145105479fe58cd26bf341304b0",
       "stored_sha256": "ac7b7477847d430b107dd529b7d77404797e46c5e3194bc47e538b913207a474",
       "width": 196,
-      "height": 196
+      "height": 195
     },
     {
       "resource": "wallet_issuer_luoyang_szgold",
       "url": "https://github.com/icongo/bank-logos/blob/ffca539a043900fbf2a4fd6a5d32f1706ae5dfd1/logos/luoyang-szgold-rect.svg",
       "source_sha256": "4c2b083e626a930ae0a02e38a02c776b032e03a3793cf95ec0b0fcfe946aeb83",
       "stored_sha256": "599591be267aa617b4460550c892fdd12c61873dc39dc40589f0e3fccc30eaef",
-      "width": 196,
+      "width": 180,
       "height": 196
     },
     {
@@ -5461,14 +5491,14 @@
       "source_sha256": "98fad44ec06526bf78fc73eb09acee3f4931b48cbb23a6d5a77f5051fc9632d3",
       "stored_sha256": "0247de80f98a76e86e31e9a83a240768b741059ede3261c771377cd34c6cd8c4",
       "width": 196,
-      "height": 196
+      "height": 195
     },
     {
       "resource": "wallet_issuer_lzbank",
       "url": "https://github.com/icongo/bank-logos/blob/ffca539a043900fbf2a4fd6a5d32f1706ae5dfd1/logos/lzbank-rect.svg",
       "source_sha256": "b76fbae895ca8cd8f0fbe7309ada5e26c11931c13360f4cc8687ca8e3e31af7b",
       "stored_sha256": "389f4f796b7f554f8ebbad181f28eab3a4f812ecb3ac9d98dd3945184edd8360",
-      "width": 196,
+      "width": 193,
       "height": 196
     },
     {
@@ -5485,7 +5515,7 @@
       "source_sha256": "c4cf0eb1970dff1d37825888150324a7968e905191b68178c07a3f8de1fd2cc5",
       "stored_sha256": "17cd9edaaed2cd61f35d83c471e233105e9efb933e22daef8ca9cbfe63ef99f9",
       "width": 196,
-      "height": 196
+      "height": 189
     },
     {
       "resource": "wallet_issuer_maybank",
@@ -5508,7 +5538,7 @@
       "url": "https://github.com/icongo/bank-logos/blob/ffca539a043900fbf2a4fd6a5d32f1706ae5dfd1/logos/meigin-rect.svg",
       "source_sha256": "725407686ecdbc8227d9d386fec146445c74fcb13132b57e7932739f33a6f0f7",
       "stored_sha256": "7ff664fce6b457f38f079bff24f2306ceb06df518cca1b5ba28f879549dc373b",
-      "width": 196,
+      "width": 138,
       "height": 196
     },
     {
@@ -5525,7 +5555,7 @@
       "source_sha256": "20437b2aa81220e1e701bdd54867903f02752914aa85b416fa6cf38a253cc5ea",
       "stored_sha256": "876bb60f813003cc8bdc7e15d24fd47ae806e831369209be3015f9932216be28",
       "width": 196,
-      "height": 196
+      "height": 194
     },
     {
       "resource": "wallet_issuer_mycc",
@@ -5533,14 +5563,14 @@
       "source_sha256": "2ef481156faa7329e6c1e488945a50763596719b34b03cef338a6a6ce657c741",
       "stored_sha256": "56965b0e50061ce2b5c72520e62d56f68733ae42fde6497a78e3b720ee01f89b",
       "width": 196,
-      "height": 196
+      "height": 164
     },
     {
       "resource": "wallet_issuer_nanhaibank",
       "url": "https://github.com/icongo/bank-logos/blob/ffca539a043900fbf2a4fd6a5d32f1706ae5dfd1/logos/nanhaibank-rect.svg",
       "source_sha256": "48cb43a0933c091fc40c61a53fc316746866581a07732c7d6d81a63fde1391e4",
       "stored_sha256": "d75d4230c147bec5612d1cceda32a44fbccba06b799bac50d0424c17da07f384",
-      "width": 196,
+      "width": 195,
       "height": 196
     },
     {
@@ -5565,7 +5595,7 @@
       "source_sha256": "b1bcb66dd746c3b5de27812c793145e8a5a41410e8f56d0c2d38c9fc8fc77b8d",
       "stored_sha256": "2e1773d876c91a0ba6bf6d1787efdcf19e40c2c20cf553fb26bfc11580d5b2ed",
       "width": 196,
-      "height": 196
+      "height": 195
     },
     {
       "resource": "wallet_issuer_njcb",
@@ -5581,7 +5611,7 @@
       "source_sha256": "006a781ab85dc1d2fabfa3f49b69b63fe936970c065cfd8511247897db4b851b",
       "stored_sha256": "2ca7c8838292a9d9cb48fe823feffd81b16ba528f2b697fa7aabe12059615ff2",
       "width": 196,
-      "height": 196
+      "height": 51
     },
     {
       "resource": "wallet_issuer_ocbc",
@@ -5621,7 +5651,7 @@
       "source_sha256": "1a88b4258af2730bd16f2cd5595c4e197f45dc40f4181a1c5a6832d8f43e84d6",
       "stored_sha256": "5e163ca274e0111a9e1e0810e39eb3c39b5bce438fb8155af1efa7550a27364a",
       "width": 196,
-      "height": 196
+      "height": 187
     },
     {
       "resource": "wallet_issuer_qhdbank",
@@ -5637,7 +5667,7 @@
       "source_sha256": "9083a3d38530e0602e923d05e2a25234ca561d7341bae0f2c38f0adf908d809f",
       "stored_sha256": "ccce48fe925f0bb58c076db64183515c60ac40a2e338cc9ff8995d0e8cf7aa0b",
       "width": 196,
-      "height": 196
+      "height": 94
     },
     {
       "resource": "wallet_issuer_qjccb",
@@ -5645,14 +5675,14 @@
       "source_sha256": "c4226573dc1190e4c398de64cebde1fe0b1920954f6f7d6f960e9c9158cc5b98",
       "stored_sha256": "54622be322210685d709abafbfe413d3568ae3d43518402da719e31b59d5e427",
       "width": 196,
-      "height": 196
+      "height": 193
     },
     {
       "resource": "wallet_issuer_qlbchina",
       "url": "https://github.com/icongo/bank-logos/blob/ffca539a043900fbf2a4fd6a5d32f1706ae5dfd1/logos/qlbchina-rect.svg",
       "source_sha256": "3229dcadd16d481c64d5259847847182d35ad3661111e733009daa6b988e7d31",
       "stored_sha256": "8ec8812af1cdc5415acd43bfa956ebf09016d2cd6ee987984a2d0035b3c686f1",
-      "width": 196,
+      "width": 195,
       "height": 196
     },
     {
@@ -5676,7 +5706,7 @@
       "url": "https://github.com/icongo/bank-logos/blob/ffca539a043900fbf2a4fd6a5d32f1706ae5dfd1/logos/rbcroyalbank-rect.svg",
       "source_sha256": "d1b95ed6f1421d90cecaa11e108a3b233295d502926899381ee4a2e4c7e96795",
       "stored_sha256": "0caba8a7ee42fa38f7c16993b11304345d7625178bc46eaa894f399033f8d651",
-      "width": 196,
+      "width": 158,
       "height": 196
     },
     {
@@ -5708,7 +5738,7 @@
       "url": "https://github.com/icongo/bank-logos/blob/ffca539a043900fbf2a4fd6a5d32f1706ae5dfd1/logos/sdebank-rect.svg",
       "source_sha256": "4d127e3055e83dac2d2fb1c0dd15e8eb0772909e4f3776c59298b5375155d05b",
       "stored_sha256": "498fb7394d4baecc32c4dc0588e592e1fd75a2a587d8e4268e399a5fa1467873",
-      "width": 196,
+      "width": 193,
       "height": 196
     },
     {
@@ -5717,7 +5747,7 @@
       "source_sha256": "b80215aa682c7508f1d5634889efe8434f9fbe25cc9b5567cc07a2d5859e7928",
       "stored_sha256": "094cf211c03fc17c41c0477bbd6d45ba42c2ea491ea2f42435f88ba6fbba1fed",
       "width": 196,
-      "height": 196
+      "height": 188
     },
     {
       "resource": "wallet_issuer_sgb",
@@ -5725,7 +5755,7 @@
       "source_sha256": "832f00070fd7e8e67782437b3a9afe424dab5f92b1e640859bbeaa22f6d28ae5",
       "stored_sha256": "f070b47d30ccf7e63148dff712d8b297452130624ad080c63ccbe8cc2f001973",
       "width": 196,
-      "height": 196
+      "height": 99
     },
     {
       "resource": "wallet_issuer_shengjingbank",
@@ -5748,7 +5778,7 @@
       "url": "https://github.com/icongo/bank-logos/blob/ffca539a043900fbf2a4fd6a5d32f1706ae5dfd1/logos/snccb-rect.svg",
       "source_sha256": "42b968d97e9db41e15e9a56afdfc7a6e6bbab476baaa60a399a296502596f4d6",
       "stored_sha256": "3511305cdb6259216203792c16a08feaafafde6ac3315d7f9034f417a94ac8ac",
-      "width": 196,
+      "width": 195,
       "height": 196
     },
     {
@@ -5773,7 +5803,7 @@
       "source_sha256": "c08bc880b9005ee36baf170cff0e280e4e5554454d2929d736d103aed2b15d4d",
       "stored_sha256": "dbfd0eae8a04455a95af4bf7bdee4f6eb6d7310fdb1c2445dc9e97b8b7046d89",
       "width": 196,
-      "height": 196
+      "height": 186
     },
     {
       "resource": "wallet_issuer_srcb",
@@ -5781,7 +5811,7 @@
       "source_sha256": "ec49824f3d63b583ba45d1ca418abbda1412de63f59dd6ed831ec0a04d5250ac",
       "stored_sha256": "86c64eb946afe39dd88c14bc994edeb107cf72635e7dd97cfa608b987478875e",
       "width": 196,
-      "height": 196
+      "height": 195
     },
     {
       "resource": "wallet_issuer_suzhoubank",
@@ -5805,14 +5835,14 @@
       "source_sha256": "16277a84df74778f1d5b9d81338af8cc49c22c2ee767ce5b6fab36efdbad3596",
       "stored_sha256": "0e29dde33cb6154c156758d2da3fcb0b35b181675b88f3be027e41d303753ad1",
       "width": 196,
-      "height": 196
+      "height": 153
     },
     {
       "resource": "wallet_issuer_szsccb",
       "url": "https://github.com/icongo/bank-logos/blob/ffca539a043900fbf2a4fd6a5d32f1706ae5dfd1/logos/szsccb-rect.svg",
       "source_sha256": "995abd182ac3ac30bad55e20f81646167f7d159b25dcce787f0df375fb812af1",
       "stored_sha256": "1b5c9946fd22db5b28865bc771c34f90111f3fe9ea2cb60d3af5c0e494307ed5",
-      "width": 196,
+      "width": 117,
       "height": 196
     },
     {
@@ -5836,7 +5866,7 @@
       "url": "https://github.com/icongo/bank-logos/blob/ffca539a043900fbf2a4fd6a5d32f1706ae5dfd1/logos/tf-rect.svg",
       "source_sha256": "5c8f59a6715374d3f48d2049d3ecc87b0511bd4df53f07bcc43a43bf2db60d7b",
       "stored_sha256": "9eda9c451de9481fe7ff2e9ccfee69c4907facb650cc5ff3c91c4614c4831567",
-      "width": 196,
+      "width": 195,
       "height": 196
     },
     {
@@ -5845,7 +5875,7 @@
       "source_sha256": "653e74bf819c9b8275f9b19d0e7978545a1f569e75186ff040b8fba0b1de8b0b",
       "stored_sha256": "42eb186e08c2a8995d95deefe24a25163e27c3ad5fa25e6e1ac7e85c8d48f661",
       "width": 196,
-      "height": 196
+      "height": 191
     },
     {
       "resource": "wallet_issuer_trcbank",
@@ -5853,7 +5883,7 @@
       "source_sha256": "83c298c85d2ab6bffdcb95e8c373c1cc3864e24d7dfb5288d9621fcfedc374b9",
       "stored_sha256": "f05d9fefc9c68a89c956c8948c972ab75d6132a067bb0008839a1a040e69b72f",
       "width": 196,
-      "height": 196
+      "height": 193
     },
     {
       "resource": "wallet_issuer_ts_bank",
@@ -5868,7 +5898,7 @@
       "url": "https://github.com/icongo/bank-logos/blob/ffca539a043900fbf2a4fd6a5d32f1706ae5dfd1/logos/ubs-rect.svg",
       "source_sha256": "0135956a9387f72b266dee085029792a624070d093a3b44407a433e69ec840ab",
       "stored_sha256": "0a78bf4e2dbf4a14b8dc3255ad199480c6c33e19a9bff36237390e57ce46cc4e",
-      "width": 196,
+      "width": 178,
       "height": 196
     },
     {
@@ -5877,7 +5907,7 @@
       "source_sha256": "9b70615536a74968c9570066e8e7444087f5ceddca15f58fe072c4b732fbff73",
       "stored_sha256": "086c15b98a49bd1a705530499401f7b9815c76e8e2a69140b5f0d68848269f92",
       "width": 196,
-      "height": 196
+      "height": 181
     },
     {
       "resource": "wallet_issuer_uob",
@@ -5932,7 +5962,7 @@
       "url": "https://github.com/icongo/bank-logos/blob/ffca539a043900fbf2a4fd6a5d32f1706ae5dfd1/logos/xacbank-rect.svg",
       "source_sha256": "cf7254237951b327667d419155b0008579aa1fd9f558f143844eb6e784bb78d4",
       "stored_sha256": "f1e8cd93fe5ad627b782b87b9094cecba14e8e3680ff28743b14a9040fb81914",
-      "width": 196,
+      "width": 167,
       "height": 196
     },
     {
@@ -5940,7 +5970,7 @@
       "url": "https://github.com/icongo/bank-logos/blob/ffca539a043900fbf2a4fd6a5d32f1706ae5dfd1/logos/xib-rect.svg",
       "source_sha256": "8339ede934ceaf18c244d04ed29e15a5c2c2d9b2d2c021d85bdcd0b0190835e0",
       "stored_sha256": "5332aab5722c1138e4642fb95f41beb00b894872e17b1acbcea6f88ce18f5a1d",
-      "width": 196,
+      "width": 182,
       "height": 196
     },
     {
@@ -5949,7 +5979,7 @@
       "source_sha256": "f818a3473235e435da89ef37d52e62a72c58a8a7b24b1e4f047b6e84c6a4bd16",
       "stored_sha256": "09fa963d5489f6db83b6b20658986a48b548ceec7bca96079d495dbdce641bae",
       "width": 196,
-      "height": 196
+      "height": 195
     },
     {
       "resource": "wallet_issuer_xmbankonline",
@@ -5957,7 +5987,7 @@
       "source_sha256": "fa3f5e08c5ba37361a5c9d7910f801a35e27cd78c28ca3e829814c43a30982fb",
       "stored_sha256": "2c1c20cbfaa5f1fdd0ecbf2e08e7a06faa3d10a90397ed7e40ac8d20ec989a5d",
       "width": 196,
-      "height": 196
+      "height": 195
     },
     {
       "resource": "wallet_issuer_xynsh",
@@ -5973,7 +6003,7 @@
       "source_sha256": "b00de577ad4b37d5c57745a7b7aea0be0ea885fdd10101a356621c1c2d5fdc6e",
       "stored_sha256": "66634abda1ce030e2020db809aaa90ec4faab2feb238fc3859fb653eea8ebec9",
       "width": 196,
-      "height": 196
+      "height": 53
     },
     {
       "resource": "wallet_issuer_yantaibank",
@@ -5989,14 +6019,14 @@
       "source_sha256": "26cc65dbf6f06e86e3dceab2a37b01efc651cee7afefd096d417fb3313af0899",
       "stored_sha256": "f8706c33c738588d8bb8fda9c043cb16c9ca4e0b128d5ca9413a09e5c5a557a5",
       "width": 196,
-      "height": 196
+      "height": 171
     },
     {
       "resource": "wallet_issuer_zaozhuangbank",
       "url": "https://github.com/icongo/bank-logos/blob/ffca539a043900fbf2a4fd6a5d32f1706ae5dfd1/logos/zaozhuangbank-rect.svg",
       "source_sha256": "ef23dd626b6e2e69b82cd11c7d625ff371b2675a7332d0c8d687a52469b7d145",
       "stored_sha256": "3a2d293b9e9be7e087e9f5d4eb5eb9256896d25989dd04461ab9b80e14567fa6",
-      "width": 196,
+      "width": 173,
       "height": 196
     },
     {
@@ -6005,7 +6035,7 @@
       "source_sha256": "2c089fca1d83c46133df587e27c8514e83e7890f96e32400d30f8b1dc9f098d6",
       "stored_sha256": "e82eab1c5709b4c4aefbbb4075dd95b47d625ec13cce8f1719e6ce0e23d28657",
       "width": 196,
-      "height": 196
+      "height": 193
     },
     {
       "resource": "wallet_issuer_zhnsb",
@@ -6045,7 +6075,7 @@
       "source_sha256": "71ca4180f6c4ca8036c67f129a0fc2be9e78eff84ff286a19139ff3376a9cac1",
       "stored_sha256": "89166d39f3e13defa0b0337ef713db38d2361ce37bf8af6fb4fac52a7c2ded7e",
       "width": 196,
-      "height": 196
+      "height": 185
     },
     {
       "resource": "wallet_issuer_zybank",
@@ -6053,7 +6083,7 @@
       "source_sha256": "7ff96e5389d39061f2ee2d843adc49223f87b3703f29f3b98e55f5c3ed0a13bf",
       "stored_sha256": "240edeb1b8b1ff0405c86a32a1f4d7486fa3bc1292864ebf11331d2980e56103",
       "width": 196,
-      "height": 196
+      "height": 189
     },
     {
       "resource": "wallet_issuer_zzbank",
@@ -6084,7 +6114,7 @@
       "url": "https://github.com/icongo/bank-logos/blob/ffca539a043900fbf2a4fd6a5d32f1706ae5dfd1/other/三井住友银行logo.svg",
       "source_sha256": "a865785d771b731e4942cabf59c5f6cae4ddb5eb76fcc7d92b49c1c7b001b908",
       "stored_sha256": "ea7d2576058b25a94a6860f00d4e7769650b3d11b8db0e3848e2006076e322da",
-      "width": 196,
+      "width": 133,
       "height": 196
     },
     {
@@ -6093,7 +6123,7 @@
       "source_sha256": "f7f9473c46c294b4b07af37989811fe8f98c6c224df0c8303c5536e8a2e1b038",
       "stored_sha256": "d020e70ce8b8a55dc93b860a911738a0bdcd807250d23218f39b34a6c177ac9c",
       "width": 196,
-      "height": 196
+      "height": 183
     },
     {
       "resource": "wallet_issuer_cn_c2d3f86a7988",
@@ -6101,7 +6131,7 @@
       "source_sha256": "a95863a1d955e131e6f8a05392a3325d4d3a8066648f26ba807e46cded1d9dad",
       "stored_sha256": "53a1e5016ea4f1f789b3da9ad71f32a5809f1831b548274fc1d10046c226d984",
       "width": 196,
-      "height": 196
+      "height": 138
     },
     {
       "resource": "wallet_issuer_cn_6fad59ae3f0a",
@@ -6112,20 +6142,12 @@
       "height": 196
     },
     {
-      "resource": "wallet_issuer_cn_7c8811fb22c8",
-      "url": "https://github.com/icongo/bank-logos/blob/ffca539a043900fbf2a4fd6a5d32f1706ae5dfd1/other/中国银行业监督logo.svg",
-      "source_sha256": "5889f059c02c8fe3a5740e5c4745f5733f9025a3e7ce53f8087168a10f6ee69f",
-      "stored_sha256": "54a23e586cb43844938a98a9266bbda3af2392bf654cf595bbc4db49b2500fac",
-      "width": 196,
-      "height": 196
-    },
-    {
       "resource": "wallet_issuer_cn_8634bf23b2c7",
       "url": "https://github.com/icongo/bank-logos/blob/ffca539a043900fbf2a4fd6a5d32f1706ae5dfd1/other/云南红塔银行logo.svg",
       "source_sha256": "6202168041831927957d8978ef60eb369d447cc0a4d1e11496086f05cdd7a1cc",
       "stored_sha256": "158cfaf1aee15d593e9f341fc364d9d997827b25846e4be022b810c6dbb142b2",
       "width": 196,
-      "height": 196
+      "height": 165
     },
     {
       "resource": "wallet_issuer_cn_8dd89a5f87a6",
@@ -6156,7 +6178,7 @@
       "url": "https://github.com/icongo/bank-logos/blob/ffca539a043900fbf2a4fd6a5d32f1706ae5dfd1/other/北京顺义银座村镇银行logo.svg",
       "source_sha256": "29a22b7ea670ae088cd896637e01631fbb9b6fb5d783446e93d70184ef181b24",
       "stored_sha256": "4f39b5d64d23d06b4640051b0055d5ce547c61bfcaa428a2e1ba0f7fd687d1af",
-      "width": 196,
+      "width": 134,
       "height": 196
     },
     {
@@ -6165,7 +6187,7 @@
       "source_sha256": "b2ba1b4bb72631b1df72494b63ac1c5d46412c7eda98bc311d5e19760885da23",
       "stored_sha256": "879852df7341e19005caa499733ee6a99fda8831b8894bf7f7c9e99a87f57966",
       "width": 196,
-      "height": 196
+      "height": 139
     },
     {
       "resource": "wallet_issuer_cn_2dc42d631407",
@@ -6173,7 +6195,7 @@
       "source_sha256": "e4f8588d3fb716f2926efb01379b8fa23369b05dbeda2b28685f1a3f73ae5673",
       "stored_sha256": "481c580b3fc8f2163008d0c5e26e9541f18c1133d6a767f781f58d71e38aa5b0",
       "width": 196,
-      "height": 196
+      "height": 156
     },
     {
       "resource": "wallet_issuer_cn_f9d2c9509592",
@@ -6181,7 +6203,7 @@
       "source_sha256": "37ab9e6b8b342824c00147c4ba63b128ca34eea1a80188a6c2b384a30594b8af",
       "stored_sha256": "bf472e64d141441f89af83bce646806e74ce423d8affc390b6f4a1a54d787eab",
       "width": 196,
-      "height": 196
+      "height": 195
     },
     {
       "resource": "wallet_issuer_cn_6dc7aa5f5663",
@@ -6205,7 +6227,7 @@
       "source_sha256": "6bc7d45d676053bab886e4483ae039b3d1bf32d7d16874894fb3730261a23407",
       "stored_sha256": "97d6f15394526299f8d7ea5fff1324a7da88f9cdf33f0b83b0143b8cce93c904",
       "width": 196,
-      "height": 196
+      "height": 128
     },
     {
       "resource": "wallet_issuer_cn_f0d0b10ec5f5",
@@ -6221,7 +6243,7 @@
       "source_sha256": "9c4226224d1b3ee514dc4d32e1a0c9274e41042fad46883c312632f818fc1cfe",
       "stored_sha256": "9b8c65fe3bc246e7fa7c89f320b6bae7acb3126ca2eea92dec2841901007509d",
       "width": 196,
-      "height": 196
+      "height": 193
     },
     {
       "resource": "wallet_issuer_cn_cc44a3e3c534",
@@ -6253,7 +6275,7 @@
       "source_sha256": "559b28be055e4512b9732314982b18cb6bdccf37ae22ab739b2010024f5b0b76",
       "stored_sha256": "60acb4134274c38e4a8c5fcf34c0c22626abf484262855101e275f3205cd8251",
       "width": 196,
-      "height": 196
+      "height": 79
     },
     {
       "resource": "wallet_issuer_cn_895bcf7a4f76",
@@ -6261,7 +6283,7 @@
       "source_sha256": "478361bf7890f246db643b702e4d0b54022013fe3a7966cfe4e8f11cf7da4377",
       "stored_sha256": "02105e9af8d8990b33fe872864be39f4ecf2be3383c6396c448c9b5addffef64",
       "width": 196,
-      "height": 196
+      "height": 67
     },
     {
       "resource": "wallet_issuer_cn_7a17ea7550e6",
@@ -6285,7 +6307,7 @@
       "source_sha256": "ba494969a9afb8e699b218b369d7caf33038fb3e7efb0a7f99c115405d07ae72",
       "stored_sha256": "1017fb5a5b22b717797f4ae284061e0aee21fcf796be2143926f4e4fe21fdbdc",
       "width": 196,
-      "height": 196
+      "height": 194
     },
     {
       "resource": "wallet_issuer_cn_80558f8f6dba",
@@ -6293,7 +6315,7 @@
       "source_sha256": "d4e8ab5fd393ec9ac3b5f0348560877e336f1f1652aeacf6f0c383740127c6f4",
       "stored_sha256": "97a8e102107199960a149a5bd68b2e8fc2e6e46fc0fe847afbe458051b8d9c28",
       "width": 196,
-      "height": 196
+      "height": 132
     },
     {
       "resource": "wallet_issuer_cn_9cab9ee7aaf4",
@@ -6301,7 +6323,7 @@
       "source_sha256": "749d71ba1f9b1efcf1eac459a5cebdc283b7a3e536972eab7f78f71d2b97248c",
       "stored_sha256": "8b6c359a5df62eba6a2c12c0ae712a50e927e25f5ba67c90f1b2a5d5439148ff",
       "width": 196,
-      "height": 196
+      "height": 173
     },
     {
       "resource": "wallet_issuer_cn_d2782514a1f3",
@@ -6309,7 +6331,7 @@
       "source_sha256": "423854f5ddb279ed80e5adb46e8daabe41b77cf57e99d21b600b43f1c4ab3fe4",
       "stored_sha256": "e8faa22148eca99f9e18562be709c8635ccde105482ebd8f7af2cf849db9159b",
       "width": 196,
-      "height": 196
+      "height": 100
     },
     {
       "resource": "wallet_issuer_cn_a82aa0b5634d",
@@ -6332,7 +6354,7 @@
       "url": "https://github.com/icongo/bank-logos/blob/ffca539a043900fbf2a4fd6a5d32f1706ae5dfd1/other/广东揭阳农商logo.svg",
       "source_sha256": "a904a3aae8d7f67e8aea69eee340dabcf4b8f504fca7e08a97d0a3d9043a1687",
       "stored_sha256": "0fa271124d2d118660088a844defbe4afbe670ac3b2212f4adb666cd94766e18",
-      "width": 196,
+      "width": 194,
       "height": 196
     },
     {
@@ -6340,7 +6362,7 @@
       "url": "https://github.com/icongo/bank-logos/blob/ffca539a043900fbf2a4fd6a5d32f1706ae5dfd1/other/开封市商业银行logo.svg",
       "source_sha256": "1e2011bd6b848de7348da15a322e81c88013ec59cbcd6270d35c4f20bb9545cf",
       "stored_sha256": "942ccedf1bf956e8700ab1a9d1d1101def4ecf7a2d538ec2cb9a0d652f3c9aa1",
-      "width": 196,
+      "width": 191,
       "height": 196
     },
     {
@@ -6365,7 +6387,7 @@
       "source_sha256": "725f2a94547a207882fb3d37bb34b60b03a5736291a9d5058ac25978b0608d19",
       "stored_sha256": "1c060017ab827437f06c3cd5b047a3ef55374e0c4bdfd50a46147beee84e5014",
       "width": 196,
-      "height": 196
+      "height": 170
     },
     {
       "resource": "wallet_issuer_cn_405c21dcbde2",
@@ -6373,14 +6395,14 @@
       "source_sha256": "f22f911a9e1ae3269fd9d612c10e176290474a8dc0832f146466afb77b1e779b",
       "stored_sha256": "8c027daf289d75b54e4fb7e12b8ea0077113a38ae60b4a7db881c8734e7b0403",
       "width": 196,
-      "height": 196
+      "height": 41
     },
     {
       "resource": "wallet_issuer_cn_fc3970d278ec",
       "url": "https://github.com/icongo/bank-logos/blob/ffca539a043900fbf2a4fd6a5d32f1706ae5dfd1/other/攀枝花市商业银行logo.svg",
       "source_sha256": "b48830be82c4768718a54acf44bc9090f83cf44e657de02fbf1513393ded4a4c",
       "stored_sha256": "81456526001ddedc0745123945376f2f798cda82ccd6718d420a4be857e622c8",
-      "width": 196,
+      "width": 194,
       "height": 196
     },
     {
@@ -6397,14 +6419,14 @@
       "source_sha256": "6e8591756c26b303c553b0db64ce68978c7eb0d9ffab18146aa3bed66e658dcb",
       "stored_sha256": "a7c8b3210b99eb75b381ddc11051582ab23f4fd8f68989ab5f4616e038e4912a",
       "width": 196,
-      "height": 196
+      "height": 194
     },
     {
       "resource": "wallet_issuer_shinhan",
       "url": "https://github.com/icongo/bank-logos/blob/ffca539a043900fbf2a4fd6a5d32f1706ae5dfd1/other/新韩银行logo.svg",
       "source_sha256": "ba669d6b6bbe1c8dc426590abd8af216ce6a24aa4c0f92b6a700e2aedca32483",
       "stored_sha256": "92d3e9b0870b383818f0090bad58a2eb33075a4aaede2c6e7642d31acdc57a02",
-      "width": 196,
+      "width": 195,
       "height": 196
     },
     {
@@ -6421,7 +6443,7 @@
       "source_sha256": "8a21bc6784ef375b58c817b6244cc207861281fe365dcba0da9983f9d81b0f9e",
       "stored_sha256": "d2732044f059696c5c8099cfc1f39de45c91700776d0adc0b01d20b9e9470b9c",
       "width": 196,
-      "height": 196
+      "height": 191
     },
     {
       "resource": "wallet_issuer_cn_bfbaad7b803f",
@@ -6429,7 +6451,7 @@
       "source_sha256": "264aa7b4951f99450c2bcc10369b213a570c5a65578f3bc3ea15f0423b335e44",
       "stored_sha256": "25b492982b73a924e6ee341b510cb3d4c95369b8de51bf166cd4fdc55b1aa1af",
       "width": 196,
-      "height": 196
+      "height": 106
     },
     {
       "resource": "wallet_issuer_cn_d2c84af17648",
@@ -6437,7 +6459,7 @@
       "source_sha256": "80fa5bd9bd8cfaf0339dd5a9e7fbe5235481a582dbe3f6e07ecadcfd5d9eb823",
       "stored_sha256": "957cb7c38fa24f746cc5f2921baba92773c1cb16be265441be2248741302b31b",
       "width": 196,
-      "height": 196
+      "height": 195
     },
     {
       "resource": "wallet_issuer_cn_18d4358ba8c5",
@@ -6445,7 +6467,7 @@
       "source_sha256": "7b61251bcb78c241591e4d2e113a1d986cb4a810d46bcb21ab324d2f1002c162",
       "stored_sha256": "0e2b74049221fbff3d59f5afeacab26af60c8f10fb4578ebe55c5b47ef4c9235",
       "width": 196,
-      "height": 196
+      "height": 91
     },
     {
       "resource": "wallet_issuer_cn_adcab5c89892",
@@ -6469,7 +6491,7 @@
       "source_sha256": "5bfeee490df2437f1ac30c7c1f1c8427f0685110f420b32fbb8017a17f25d320",
       "stored_sha256": "6ece6af6e87295958b5be66310ec447435dbe9893428408e412129a3ced0e0e4",
       "width": 196,
-      "height": 196
+      "height": 166
     },
     {
       "resource": "wallet_issuer_cn_3f009ff4176b",
@@ -6477,7 +6499,7 @@
       "source_sha256": "2a6f8a7c50512faccc0033ea491d6064ceb428ff4e4764b979ca35d52ad5c8c2",
       "stored_sha256": "02b77ebdb6b3a5178224640e334b6471b033a38f5996376b81fa58bc54d55973",
       "width": 196,
-      "height": 196
+      "height": 139
     },
     {
       "resource": "wallet_issuer_cn_5e9d1ca03dad",
@@ -6485,7 +6507,7 @@
       "source_sha256": "9af2d11f367503a42bb5694b779a4bb9c24b985db224eaaff0c32604186a4ed1",
       "stored_sha256": "e6c2808b22d46cc4eab1c7c55dfb1121be59eb9ba05b318f90b8359d1b65a67b",
       "width": 196,
-      "height": 196
+      "height": 193
     },
     {
       "resource": "wallet_issuer_bnp",
@@ -6493,7 +6515,7 @@
       "source_sha256": "faed76be65b2aa0f51fa3e4f46a5c9bc809cb9f18d7ab6c1834b566ef7d71266",
       "stored_sha256": "0990e2275726a92b2f1a2970eee63befc46f7dc377804eccea5bab15625e3391",
       "width": 196,
-      "height": 196
+      "height": 76
     },
     {
       "resource": "wallet_issuer_cn_253c9ae64bcc",
@@ -6501,7 +6523,7 @@
       "source_sha256": "ed5279701ead959a4b63b1f00d9984ce6f36b88991d30d7ae3c107f03f2822ae",
       "stored_sha256": "b76c17e3a21e985dea0f267e566ab31393c3170dc1d11f5fe8d40f3f6c770687",
       "width": 196,
-      "height": 196
+      "height": 138
     },
     {
       "resource": "wallet_issuer_cn_59919b79b5fb",
@@ -6517,14 +6539,14 @@
       "source_sha256": "63416d076fda88da57988914f4ad929d3a96a0df157400b2ff598a53d5a67a7d",
       "stored_sha256": "26bb0b0c42217e332a0e0bcefac8631bc5784e2925c604f912f34fdbec70bebf",
       "width": 196,
-      "height": 196
+      "height": 159
     },
     {
       "resource": "wallet_issuer_cn_3782697fe73d",
       "url": "https://github.com/icongo/bank-logos/blob/ffca539a043900fbf2a4fd6a5d32f1706ae5dfd1/other/泰州农村商业银行logo.svg",
       "source_sha256": "184e4d585070d1895c893c4e46524ca001148fefaee8693bb1946ca948e479e9",
       "stored_sha256": "4ef8064cbeaba620c38cdaf9c2fbdc3a286cc8a123550c049f29ec8bde657d85",
-      "width": 196,
+      "width": 195,
       "height": 196
     },
     {
@@ -6541,7 +6563,7 @@
       "source_sha256": "5a0b3ed2e489cad8f715b009352a8c787c9988a87807cf267fe446f02746f80d",
       "stored_sha256": "f977c7ae131c68e0f63e7c93a7d183f65022271504c7ffd081ad9ea7c57a7cec",
       "width": 196,
-      "height": 196
+      "height": 171
     },
     {
       "resource": "wallet_issuer_cn_82ee6c840b13",
@@ -6565,14 +6587,14 @@
       "source_sha256": "264aa7b4951f99450c2bcc10369b213a570c5a65578f3bc3ea15f0423b335e44",
       "stored_sha256": "25b492982b73a924e6ee341b510cb3d4c95369b8de51bf166cd4fdc55b1aa1af",
       "width": 196,
-      "height": 196
+      "height": 106
     },
     {
       "resource": "wallet_issuer_cn_13c708b4ed82",
       "url": "https://github.com/icongo/bank-logos/blob/ffca539a043900fbf2a4fd6a5d32f1706ae5dfd1/other/焦作市商业银行logo.svg",
       "source_sha256": "9b6ef15370b319e9a127cd9a1b7b229d85476488b91b68dfa24bbb9b5446f3c1",
       "stored_sha256": "fe6e73f64a2b0dc5ea907f605c1a6276b88cedaaf6d19613532efd115398e898",
-      "width": 196,
+      "width": 193,
       "height": 196
     },
     {
@@ -6581,7 +6603,7 @@
       "source_sha256": "3296e98921fe851dc4c341199635bc4f010eaa014f21124ee830affb9c44898f",
       "stored_sha256": "950b5ad2409de51e6651154b3df9948a77d3bfaad6e909b4437ea40d3e513e69",
       "width": 196,
-      "height": 196
+      "height": 26
     },
     {
       "resource": "wallet_issuer_cn_f091a0ee24b4",
@@ -6596,7 +6618,7 @@
       "url": "https://github.com/icongo/bank-logos/blob/ffca539a043900fbf2a4fd6a5d32f1706ae5dfd1/other/紫金农商logo.svg",
       "source_sha256": "b9c1fe6af1db7d4f7999c3c15f528ced4509936937e5c0b7a154e00f56778377",
       "stored_sha256": "ebb697508f5be6657218ee21cc65ada6c5d9018237855f02bf4d7f74be04ca5f",
-      "width": 196,
+      "width": 176,
       "height": 196
     },
     {
@@ -6605,7 +6627,7 @@
       "source_sha256": "6b7752078efbce9c35feaaa3265a5e0c34ab082e483468e1dabf731cf3c023e9",
       "stored_sha256": "538c9e99482e9de1e4139a0af45cc07746404a947cbe5754d847f07748aa1735",
       "width": 196,
-      "height": 196
+      "height": 49
     },
     {
       "resource": "wallet_issuer_cn_88952e5b892f",
@@ -6613,7 +6635,7 @@
       "source_sha256": "ce1d4a72d2833988ddfa66d99458ceaca8fe73a20a535fb820837e5463c0a0d1",
       "stored_sha256": "dcdea768f6041b3f269729eb8f2b22126bb559889ee5a2b87fbaed41a362f843",
       "width": 196,
-      "height": 196
+      "height": 195
     },
     {
       "resource": "wallet_issuer_cn_a542e0f25594",
@@ -6621,7 +6643,7 @@
       "source_sha256": "b7ca00d2b2d997a154f34da48bec53c40fbe9bd713d17320dfb2c790bdde596f",
       "stored_sha256": "28c687b7d2cfd95a147131e7fe3ff9356125f773a2ac4446591e13fbdfea59c4",
       "width": 196,
-      "height": 196
+      "height": 194
     },
     {
       "resource": "wallet_issuer_cn_2e71425803cd",
@@ -6629,7 +6651,7 @@
       "source_sha256": "ae66e7dac8a62f29e2a54a5c703221b1076bb7e06b888bdf7951c26c6ec57996",
       "stored_sha256": "6849409251c611fbced6832c3d684c0215567c3d17f5699c7f2697b72f4fdc60",
       "width": 196,
-      "height": 196
+      "height": 94
     },
     {
       "resource": "wallet_issuer_cn_09371ad2d6c4",
@@ -6653,7 +6675,7 @@
       "source_sha256": "264aa7b4951f99450c2bcc10369b213a570c5a65578f3bc3ea15f0423b335e44",
       "stored_sha256": "25b492982b73a924e6ee341b510cb3d4c95369b8de51bf166cd4fdc55b1aa1af",
       "width": 196,
-      "height": 196
+      "height": 106
     },
     {
       "resource": "wallet_issuer_cn_0b28f6bfe074",
@@ -6685,7 +6707,7 @@
       "source_sha256": "ff2ab215be3c47a524cc141f175d0b17363151356b7c1481031d17dfa2c18e02",
       "stored_sha256": "2a59c9ff859cc0b1b6bc156db78b6c5527adb4cdfcfb687088c7aecc6a1c6e10",
       "width": 196,
-      "height": 196
+      "height": 70
     },
     {
       "resource": "wallet_issuer_cn_7ea02e13b47b",
@@ -6717,7 +6739,7 @@
       "source_sha256": "a715bf81b4944a99c7af01612f6e05845b0b138545a002cec93d37f74f543aef",
       "stored_sha256": "1e5b9146c4b69c7a7b977b102ca196c45939b2eac2ec3adf48741373306e49ca",
       "width": 196,
-      "height": 196
+      "height": 143
     },
     {
       "resource": "wallet_issuer_cn_25663810b047",
@@ -6725,7 +6747,7 @@
       "source_sha256": "4d20c558c617c392a3d98cfe7c9db569d354bd4ecd60922a2589c56105b8f64c",
       "stored_sha256": "cc86ce44fe47506472c1dc21028687fed27855e523a5442d4de473d5e448b50c",
       "width": 196,
-      "height": 196
+      "height": 169
     },
     {
       "resource": "wallet_issuer_cn_e82d7b98c10b",
@@ -6740,7 +6762,7 @@
       "url": "https://github.com/icongo/bank-logos/blob/ffca539a043900fbf2a4fd6a5d32f1706ae5dfd1/other/韩国外换银行logo.svg",
       "source_sha256": "e51f5b3ec43599c23dcf239e6801fb38a5fb8f79664b99d604790301e6f39bf4",
       "stored_sha256": "71d0d04a85a0627c2b33626bb4175fa3c17304cf9fe6602f81111ce98725329d",
-      "width": 196,
+      "width": 174,
       "height": 196
     },
     {
@@ -6749,7 +6771,7 @@
       "source_sha256": "5a3c9fa566c2aac986d1533d493e57cd36d303d1167c1fe9557a70519c0bc0b9",
       "stored_sha256": "810ceb723053fd7f0809b4ceb9bfa58163fb2ca670aac44f14546743fa662be0",
       "width": 196,
-      "height": 196
+      "height": 188
     },
     {
       "resource": "wallet_issuer_cn_072b7c76dd03",
@@ -6757,7 +6779,7 @@
       "source_sha256": "7971eace5dfc090454de8b43f64b62940a09ca60449ed786da88f86d951121c6",
       "stored_sha256": "617b2785a546495cae4f926fc9832e420a9385d6d85974b6985723cc33394894",
       "width": 196,
-      "height": 196
+      "height": 185
     },
     {
       "resource": "wallet_issuer_global_axis",
@@ -7113,11 +7135,11 @@
     },
     {
       "resource": "wallet_issuer_amex",
-      "url": "https://github.com/auraveni/global-bank-logos/blob/ad33060ca976397a9fcb46dd40c2d77bce5ce7e1/assets/bank/international-bank/american-express.svg",
-      "source_sha256": "54a18a92ff05bb6cbdb2efa1dbf0ee45e02b5463e160d0798dcc90c3aaf26c60",
-      "stored_sha256": "54a18a92ff05bb6cbdb2efa1dbf0ee45e02b5463e160d0798dcc90c3aaf26c60",
+      "url": "https://github.com/aaronfagan/svg-credit-card-payment-icons/blob/6dd023ae32415ed7b01bf809f15a25613a52098c/logo/amex.svg",
+      "source_sha256": "c9e69fc83a307407c427b0dbb759aeac0f801302aa093b283bb2331227550408",
+      "stored_sha256": "7060546f4259d5c078c2c34f9559976eb83c3d7f7c84b0986d19c6dd24c3af14",
       "width": 196,
-      "height": 196
+      "height": 72
     },
     {
       "resource": "wallet_issuer_wells",
@@ -7384,6 +7406,30 @@
       "height": 84
     },
     {
+      "resource": "wallet_issuer_capitalone",
+      "url": "https://upload.wikimedia.org/wikipedia/commons/9/98/Capital_One_logo.svg",
+      "source_sha256": "69d918170633be70ec4c0fd57f421ad7b70c59641580a0ee77e929964a157c96",
+      "stored_sha256": "69d918170633be70ec4c0fd57f421ad7b70c59641580a0ee77e929964a157c96",
+      "width": 196,
+      "height": 73
+    },
+    {
+      "resource": "wallet_issuer_sofi",
+      "url": "https://upload.wikimedia.org/wikipedia/commons/1/16/SoFi_logo.svg",
+      "source_sha256": "cb8a7fd636013ef7f56d733531e75bfb543454f612898a0600a03ef36f6ac4e8",
+      "stored_sha256": "cb8a7fd636013ef7f56d733531e75bfb543454f612898a0600a03ef36f6ac4e8",
+      "width": 196,
+      "height": 55
+    },
+    {
+      "resource": "wallet_issuer_charlesschwab",
+      "url": "https://upload.wikimedia.org/wikipedia/commons/4/4b/Charles_Schwab_Corporation_logo.svg",
+      "source_sha256": "3a02e0bacb9ed9243562a47a0c65d329e3f0167cc29a360601848ba82c29845b",
+      "stored_sha256": "b97278e331b9c98822f223a9f03e8446df7f9edfb3ce7ab3a832a02507b4a8b5",
+      "width": 196,
+      "height": 103
+    },
+    {
       "resource": "wallet_network_visa",
       "url": "https://github.com/aaronfagan/svg-credit-card-payment-icons/blob/6dd023ae32415ed7b01bf809f15a25613a52098c/logo/visa.svg",
       "source_sha256": "8d837bb887be5ac1a959c8bfc8874dc35d1571d5953efa560b1f317ed6f56bb4",
@@ -7441,7 +7487,7 @@
     }
   ],
   "excluded": [],
-  "issuer_count": 372,
+  "issuer_count": 374,
   "network_count": 7,
-  "resource_bytes": 3341560
+  "resource_bytes": 4368776
 }

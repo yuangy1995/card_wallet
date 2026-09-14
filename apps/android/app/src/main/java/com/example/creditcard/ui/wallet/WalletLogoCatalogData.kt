@@ -53,6 +53,7 @@ internal object WalletLogoCatalogData {
         WalletIssuerLogo("boy", "横滨银行", R.drawable.wallet_issuer_boy, R.drawable.wallet_issuer_boy_card, 0xFF394B80, listOf("横滨银行")),
         WalletIssuerLogo("bunq", "bunq", R.drawable.wallet_issuer_bunq, R.drawable.wallet_issuer_bunq_card, 0xFF6F3859, listOf("bunq")),
         WalletIssuerLogo("cacib", "Crédit Agricole CIB", R.drawable.wallet_issuer_cacib, R.drawable.wallet_issuer_cacib_card, 0xFF79412E, listOf("Credit Agricole", "Crédit Agricole", "Crédit Agricole CIB", "法国农业信贷银行")),
+        WalletIssuerLogo("capitalone", "Capital One", R.drawable.wallet_issuer_capitalone, R.drawable.wallet_issuer_capitalone_card, 0xFF244B6B, listOf("Capital One", "第一資本銀行", "第一资本银行", "美国第一资本银行")),
         WalletIssuerLogo("cathaybk", "国泰世华银行", R.drawable.wallet_issuer_cathaybk, R.drawable.wallet_issuer_cathaybk_card, 0xFF246977, listOf("国泰世华银行")),
         WalletIssuerLogo("cbhb", "渤海银行", R.drawable.wallet_issuer_cbhb, R.drawable.wallet_issuer_cbhb_card, 0xFF394B80, listOf("China Bohai Bank", "渤海银行")),
         WalletIssuerLogo("ccabchina", "长安银行", R.drawable.wallet_issuer_ccabchina, R.drawable.wallet_issuer_ccabchina_card, 0xFF6F3859, listOf("Bank of Changan", "长安银行")),
@@ -61,6 +62,7 @@ internal object WalletLogoCatalogData {
         WalletIssuerLogo("cdb", "国家开发银行", R.drawable.wallet_issuer_cdb, R.drawable.wallet_issuer_cdb_card, 0xFF79412E, listOf("国家开发银行")),
         WalletIssuerLogo("cebbank", "中国光大银行", R.drawable.wallet_issuer_cebbank, R.drawable.wallet_issuer_cebbank_card, 0xFF69517D, listOf("ceb", "chinaeverbright", "中国光大银行", "光大銀行", "光大银行")),
         WalletIssuerLogo("cgbchina", "广发银行", R.drawable.wallet_issuer_cgbchina, R.drawable.wallet_issuer_cgbchina_card, 0xFF923642, listOf("cgb", "chinaguangfa", "广发银行", "廣發銀行")),
+        WalletIssuerLogo("charlesschwab", "Charles Schwab", R.drawable.wallet_issuer_charlesschwab, R.drawable.wallet_issuer_charlesschwab_card, 0xFF226285, listOf("Charles Schwab", "Schwab", "嘉信", "嘉信理财")),
         WalletIssuerLogo("chase", "摩根大通银行", R.drawable.wallet_issuer_chase, R.drawable.wallet_issuer_chase_card, 0xFF30598D, listOf("Chase", "J.P. Morgan Chase", "JPMorgan Chase", "chase", "大通銀行", "大通银行", "摩根大通银行")),
         WalletIssuerLogo("chengdebank", "承德银行", R.drawable.wallet_issuer_chengdebank, R.drawable.wallet_issuer_chengdebank_card, 0xFF315D52, listOf("承德银行")),
         WalletIssuerLogo("cib", "兴业银行", R.drawable.wallet_issuer_cib, R.drawable.wallet_issuer_cib_card, 0xFF374D83, listOf("cib", "industrialbank", "兴业银行", "興業銀行")),
@@ -71,10 +73,10 @@ internal object WalletLogoCatalogData {
         WalletIssuerLogo("cmbchina", "招商银行", R.drawable.wallet_issuer_cmbchina, R.drawable.wallet_issuer_cmbchina_card, 0xFFA93643, listOf("China Merchants Bank", "chinamerchantsbank", "cmb", "招商銀行", "招商银行", "招行")),
         WalletIssuerLogo("cmbcn", "华商银行", R.drawable.wallet_issuer_cmbcn, R.drawable.wallet_issuer_cmbcn_card, 0xFF79412E, listOf("华商银行")),
         WalletIssuerLogo("cn_00128270f10e", "浦发硅谷银行", R.drawable.wallet_issuer_cn_00128270f10e, R.drawable.wallet_issuer_cn_00128270f10e_card, 0xFF394B80, listOf("浦发硅谷银行")),
-        WalletIssuerLogo("cn_023fab480bec", "张家口银行", R.drawable.wallet_issuer_cn_023fab480bec, R.drawable.wallet_issuer_cn_023fab480bec_card, 0xFF79412E, listOf("张家口银行")),
-        WalletIssuerLogo("cn_06e81ea7ab55", "北京顺义银座村镇银行", R.drawable.wallet_issuer_cn_06e81ea7ab55, R.drawable.wallet_issuer_cn_06e81ea7ab55_card, 0xFF244B6B, listOf("北京顺义银座村镇银行")),
     )
     private fun part1() = listOf(
+        WalletIssuerLogo("cn_023fab480bec", "张家口银行", R.drawable.wallet_issuer_cn_023fab480bec, R.drawable.wallet_issuer_cn_023fab480bec_card, 0xFF79412E, listOf("张家口银行")),
+        WalletIssuerLogo("cn_06e81ea7ab55", "北京顺义银座村镇银行", R.drawable.wallet_issuer_cn_06e81ea7ab55, R.drawable.wallet_issuer_cn_06e81ea7ab55_card, 0xFF244B6B, listOf("北京顺义银座村镇银行")),
         WalletIssuerLogo("cn_072b7c76dd03", "鹤壁银行", R.drawable.wallet_issuer_cn_072b7c76dd03, R.drawable.wallet_issuer_cn_072b7c76dd03_card, 0xFF79412E, listOf("鹤壁银行")),
         WalletIssuerLogo("cn_09371ad2d6c4", "西藏银行", R.drawable.wallet_issuer_cn_09371ad2d6c4, R.drawable.wallet_issuer_cn_09371ad2d6c4_card, 0xFF246977, listOf("西藏银行")),
         WalletIssuerLogo("cn_0b0e76ff3e7c", "台湾玉山银行", R.drawable.wallet_issuer_cn_0b0e76ff3e7c, R.drawable.wallet_issuer_cn_0b0e76ff3e7c_card, 0xFF79412E, listOf("台湾玉山银行")),
@@ -110,7 +112,6 @@ internal object WalletLogoCatalogData {
         WalletIssuerLogo("cn_718f5809cc87", "湖滨农商", R.drawable.wallet_issuer_cn_718f5809cc87, R.drawable.wallet_issuer_cn_718f5809cc87_card, 0xFF244B6B, listOf("湖滨农商", "湖滨农商银行", "湖滨农村商业银行")),
         WalletIssuerLogo("cn_7a17ea7550e6", "大同银行", R.drawable.wallet_issuer_cn_7a17ea7550e6, R.drawable.wallet_issuer_cn_7a17ea7550e6_card, 0xFF394B80, listOf("大同银行")),
         WalletIssuerLogo("cn_7b047165711c", "深圳农商", R.drawable.wallet_issuer_cn_7b047165711c, R.drawable.wallet_issuer_cn_7b047165711c_card, 0xFF246977, listOf("深圳农商", "深圳农商银行", "深圳农村商业银行")),
-        WalletIssuerLogo("cn_7c8811fb22c8", "中国银行业监督", R.drawable.wallet_issuer_cn_7c8811fb22c8, R.drawable.wallet_issuer_cn_7c8811fb22c8_card, 0xFF6F3859, listOf("中国银行业监督")),
         WalletIssuerLogo("cn_7ea02e13b47b", "长春农商", R.drawable.wallet_issuer_cn_7ea02e13b47b, R.drawable.wallet_issuer_cn_7ea02e13b47b_card, 0xFF315D52, listOf("长春农商", "长春农商银行", "长春农村商业银行")),
         WalletIssuerLogo("cn_7fec0344aab1", "凉山商业银行", R.drawable.wallet_issuer_cn_7fec0344aab1, R.drawable.wallet_issuer_cn_7fec0344aab1_card, 0xFF6F3859, listOf("凉山商业银行")),
         WalletIssuerLogo("cn_80558f8f6dba", "威海商业银行", R.drawable.wallet_issuer_cn_80558f8f6dba, R.drawable.wallet_issuer_cn_80558f8f6dba_card, 0xFF315D52, listOf("威海商业银行")),
@@ -134,9 +135,9 @@ internal object WalletLogoCatalogData {
         WalletIssuerLogo("cn_bfbaad7b803f", "栾川农商", R.drawable.wallet_issuer_cn_bfbaad7b803f, R.drawable.wallet_issuer_cn_bfbaad7b803f_card, 0xFF246977, listOf("栾川农商", "栾川农商银行", "栾川农村商业银行")),
         WalletIssuerLogo("cn_c2d3f86a7988", "三菱UFJ银行（日联）", R.drawable.wallet_issuer_cn_c2d3f86a7988, R.drawable.wallet_issuer_cn_c2d3f86a7988_card, 0xFF394B80, listOf("三菱UFJ银行（日联）")),
         WalletIssuerLogo("cn_c7ab0b0172a5", "北欧斯安银行", R.drawable.wallet_issuer_cn_c7ab0b0172a5, R.drawable.wallet_issuer_cn_c7ab0b0172a5_card, 0xFF79412E, listOf("北欧斯安银行")),
-        WalletIssuerLogo("cn_cb46bbb9afeb", "高明农商", R.drawable.wallet_issuer_cn_cb46bbb9afeb, R.drawable.wallet_issuer_cn_cb46bbb9afeb_card, 0xFF246977, listOf("高明农商", "高明农商银行", "高明农村商业银行")),
     )
     private fun part2() = listOf(
+        WalletIssuerLogo("cn_cb46bbb9afeb", "高明农商", R.drawable.wallet_issuer_cn_cb46bbb9afeb, R.drawable.wallet_issuer_cn_cb46bbb9afeb_card, 0xFF246977, listOf("高明农商", "高明农商银行", "高明农村商业银行")),
         WalletIssuerLogo("cn_cb94de0f3c21", "大庆市商业银行", R.drawable.wallet_issuer_cn_cb94de0f3c21, R.drawable.wallet_issuer_cn_cb94de0f3c21_card, 0xFF244B6B, listOf("大庆市商业银行")),
         WalletIssuerLogo("cn_cbc95fdba110", "阳泉市商业银行", R.drawable.wallet_issuer_cn_cbc95fdba110, R.drawable.wallet_issuer_cn_cbc95fdba110_card, 0xFF244B6B, listOf("阳泉市商业银行")),
         WalletIssuerLogo("cn_cc44a3e3c534", "台湾银行", R.drawable.wallet_issuer_cn_cc44a3e3c534, R.drawable.wallet_issuer_cn_cc44a3e3c534_card, 0xFF244B6B, listOf("台湾银行")),
@@ -196,9 +197,9 @@ internal object WalletLogoCatalogData {
         WalletIssuerLogo("global_bbk", "Bank of Bahrain and Kuwait", R.drawable.wallet_issuer_global_bbk, R.drawable.wallet_issuer_global_bbk_card, 0xFF79412E, listOf("Bank of Bahrain and Kuwait")),
         WalletIssuerLogo("global_bob", "Bank of Baroda", R.drawable.wallet_issuer_global_bob, R.drawable.wallet_issuer_global_bob_card, 0xFF246977, listOf("Bank of Baroda")),
         WalletIssuerLogo("global_boi", "Bank of India", R.drawable.wallet_issuer_global_boi, R.drawable.wallet_issuer_global_boi_card, 0xFF246977, listOf("Bank of India")),
-        WalletIssuerLogo("global_bom", "Bank of Maharashtra", R.drawable.wallet_issuer_global_bom, R.drawable.wallet_issuer_global_bom_card, 0xFF79412E, listOf("Bank of Maharashtra")),
     )
     private fun part3() = listOf(
+        WalletIssuerLogo("global_bom", "Bank of Maharashtra", R.drawable.wallet_issuer_global_bom, R.drawable.wallet_issuer_global_bom_card, 0xFF79412E, listOf("Bank of Maharashtra")),
         WalletIssuerLogo("global_canara", "Canara Bank", R.drawable.wallet_issuer_global_canara, R.drawable.wallet_issuer_global_canara_card, 0xFF394B80, listOf("Canara Bank")),
         WalletIssuerLogo("global_cbi", "Central Bank of India", R.drawable.wallet_issuer_global_cbi, R.drawable.wallet_issuer_global_cbi_card, 0xFF6F3859, listOf("Central Bank of India")),
         WalletIssuerLogo("global_ceylon-bank", "Bank of Ceylon", R.drawable.wallet_issuer_global_ceylon_bank, R.drawable.wallet_issuer_global_ceylon_bank_card, 0xFF315D52, listOf("Bank of Ceylon")),
@@ -258,9 +259,9 @@ internal object WalletLogoCatalogData {
         WalletIssuerLogo("hebbank", "河北银行", R.drawable.wallet_issuer_hebbank, R.drawable.wallet_issuer_hebbank_card, 0xFF246977, listOf("河北银行")),
         WalletIssuerLogo("hfbank", "恒丰银行", R.drawable.wallet_issuer_hfbank, R.drawable.wallet_issuer_hfbank_card, 0xFF79412E, listOf("恒丰银行")),
         WalletIssuerLogo("hfrcbc", "合肥科技农商", R.drawable.wallet_issuer_hfrcbc, R.drawable.wallet_issuer_hfrcbc_card, 0xFF79412E, listOf("合肥科技农商", "合肥科技农商银行", "合肥科技农村商业银行")),
-        WalletIssuerLogo("hkbchina", "汉口银行", R.drawable.wallet_issuer_hkbchina, R.drawable.wallet_issuer_hkbchina_card, 0xFF315D52, listOf("汉口银行")),
     )
     private fun part4() = listOf(
+        WalletIssuerLogo("hkbchina", "汉口银行", R.drawable.wallet_issuer_hkbchina, R.drawable.wallet_issuer_hkbchina_card, 0xFF315D52, listOf("汉口银行")),
         WalletIssuerLogo("hnnxs", "湖南省农村信用社", R.drawable.wallet_issuer_hnnxs, R.drawable.wallet_issuer_hnnxs_card, 0xFF394B80, listOf("湖南省农村信用社")),
         WalletIssuerLogo("hrbb", "哈尔滨银行", R.drawable.wallet_issuer_hrbb, R.drawable.wallet_issuer_hrbb_card, 0xFF394B80, listOf("哈尔滨银行")),
         WalletIssuerLogo("hrxjbank", "华融湘江银行", R.drawable.wallet_issuer_hrxjbank, R.drawable.wallet_issuer_hrxjbank_card, 0xFF394B80, listOf("华融湘江银行")),
@@ -320,9 +321,9 @@ internal object WalletLogoCatalogData {
         WalletIssuerLogo("ncbchina", "南洋商业银行", R.drawable.wallet_issuer_ncbchina, R.drawable.wallet_issuer_ncbchina_card, 0xFF394B80, listOf("南洋商业银行")),
         WalletIssuerLogo("njcb", "南京银行", R.drawable.wallet_issuer_njcb, R.drawable.wallet_issuer_njcb_card, 0xFF315D52, listOf("Bank of Nanjing", "南京银行")),
         WalletIssuerLogo("nubank", "Nubank", R.drawable.wallet_issuer_nubank, R.drawable.wallet_issuer_nubank_card, 0xFF394B80, listOf("Nu Bank", "Nubank")),
-        WalletIssuerLogo("o-bank", "王道银行", R.drawable.wallet_issuer_o_bank, R.drawable.wallet_issuer_o_bank_card, 0xFF315D52, listOf("王道银行")),
     )
     private fun part5() = listOf(
+        WalletIssuerLogo("o-bank", "王道银行", R.drawable.wallet_issuer_o_bank, R.drawable.wallet_issuer_o_bank_card, 0xFF315D52, listOf("王道银行")),
         WalletIssuerLogo("ocbc", "华侨永亨银行", R.drawable.wallet_issuer_ocbc, R.drawable.wallet_issuer_ocbc_card, 0xFF394B80, listOf("OCBC", "OCBC Bank", "Oversea-Chinese Banking Corporation", "华侨永亨银行", "华侨银行")),
         WalletIssuerLogo("ordosbank", "鄂尔多斯银行", R.drawable.wallet_issuer_ordosbank, R.drawable.wallet_issuer_ordosbank_card, 0xFF244B6B, listOf("鄂尔多斯银行")),
         WalletIssuerLogo("paypal", "PayPal", R.drawable.wallet_issuer_paypal, R.drawable.wallet_issuer_paypal_card, 0xFF394B80, listOf("PayPal")),
@@ -351,6 +352,7 @@ internal object WalletLogoCatalogData {
         WalletIssuerLogo("snccb", "遂宁银行", R.drawable.wallet_issuer_snccb, R.drawable.wallet_issuer_snccb_card, 0xFF6F3859, listOf("遂宁银行")),
         WalletIssuerLogo("societe_generale", "Société Générale", R.drawable.wallet_issuer_societe_generale, R.drawable.wallet_issuer_societe_generale_card, 0xFF394B80, listOf("Societe Generale", "Société Générale", "法国兴业银行")),
         WalletIssuerLogo("societegenerale", "法兴银行", R.drawable.wallet_issuer_societegenerale, R.drawable.wallet_issuer_societegenerale_card, 0xFF6F3859, listOf("法兴银行")),
+        WalletIssuerLogo("sofi", "SoFi", R.drawable.wallet_issuer_sofi, R.drawable.wallet_issuer_sofi_card, 0xFF196774, listOf("SoFi", "SoFi Bank")),
         WalletIssuerLogo("spdb", "浦发银行", R.drawable.wallet_issuer_spdb, R.drawable.wallet_issuer_spdb_card, 0xFF375987, listOf("shanghaipudongdevelopment", "spdb", "浦发银行", "浦發銀行")),
         WalletIssuerLogo("srbank", "上饶银行", R.drawable.wallet_issuer_srbank, R.drawable.wallet_issuer_srbank_card, 0xFF394B80, listOf("上饶银行")),
         WalletIssuerLogo("srcb", "上海农商", R.drawable.wallet_issuer_srcb, R.drawable.wallet_issuer_srcb_card, 0xFF315D52, listOf("Shanghai Rural Commercial Bank", "上海农商", "上海农商银行", "上海农村商业银行")),
@@ -381,10 +383,10 @@ internal object WalletLogoCatalogData {
         WalletIssuerLogo("xacbank", "西安银行", R.drawable.wallet_issuer_xacbank, R.drawable.wallet_issuer_xacbank_card, 0xFF246977, listOf("西安银行")),
         WalletIssuerLogo("xib", "厦门国际银行", R.drawable.wallet_issuer_xib, R.drawable.wallet_issuer_xib_card, 0xFF246977, listOf("厦门国际银行")),
         WalletIssuerLogo("xjkccb", "库尔勒市商业银行", R.drawable.wallet_issuer_xjkccb, R.drawable.wallet_issuer_xjkccb_card, 0xFF79412E, listOf("库尔勒市商业银行")),
-        WalletIssuerLogo("xmbankonline", "厦门银行", R.drawable.wallet_issuer_xmbankonline, R.drawable.wallet_issuer_xmbankonline_card, 0xFF394B80, listOf("Bank of Xiamen", "厦门银行")),
-        WalletIssuerLogo("xynsh", "新沂农商", R.drawable.wallet_issuer_xynsh, R.drawable.wallet_issuer_xynsh_card, 0xFF315D52, listOf("新沂农商", "新沂农商银行", "新沂农村商业银行")),
     )
     private fun part6() = listOf(
+        WalletIssuerLogo("xmbankonline", "厦门银行", R.drawable.wallet_issuer_xmbankonline, R.drawable.wallet_issuer_xmbankonline_card, 0xFF394B80, listOf("Bank of Xiamen", "厦门银行")),
+        WalletIssuerLogo("xynsh", "新沂农商", R.drawable.wallet_issuer_xynsh, R.drawable.wallet_issuer_xynsh_card, 0xFF315D52, listOf("新沂农商", "新沂农商银行", "新沂农村商业银行")),
         WalletIssuerLogo("yamaguchibank", "山口银行", R.drawable.wallet_issuer_yamaguchibank, R.drawable.wallet_issuer_yamaguchibank_card, 0xFF6F3859, listOf("山口银行")),
         WalletIssuerLogo("yantaibank", "烟台银行", R.drawable.wallet_issuer_yantaibank, R.drawable.wallet_issuer_yantaibank_card, 0xFF244B6B, listOf("烟台银行")),
         WalletIssuerLogo("z-bank", "武汉众邦银行", R.drawable.wallet_issuer_z_bank, R.drawable.wallet_issuer_z_bank_card, 0xFF394B80, listOf("武汉众邦银行")),

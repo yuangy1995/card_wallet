@@ -1,12 +1,12 @@
 # 实际离线标识覆盖
 
-372 个去重机构条目、7 类卡组织。包含历史名称，不代表所有地区全部在营银行。未覆盖或匹配有歧义时显示中性缩写。
+374 个去重机构条目、7 类卡组织。包含历史名称，不代表所有地区全部在营银行。未覆盖或匹配有歧义时显示中性缩写。
 
 | 机构 | 别名 | 来源 |
 |---|---|---|
 | 中国农业银行 | Agricultural Bank of China / abc / agriculturalbank / 中国农业银行 / 农业银行 / 农行 / 農業銀行 | banks |
 | 荷兰银行 | ABN AMRO / 荷兰银行 | banks |
-| American Express | AMEX / American Express / American Express National Bank / americanexpress / amex / 美国运通 / 美國運通 | global |
+| American Express | AMEX / American Express / American Express National Bank / americanexpress / amex / 美国运通 / 美國運通 | networks |
 | 澳新银行 | ANZ / ANZ Banking Group / Australia & New Zealand Banking Group / 澳新银行 | banks |
 | 盘谷银行 | 盘谷银行 | banks |
 | 交通银行 | bankofcommunications / bcm / bocom / 交通銀行 / 交通银行 | banks |
@@ -44,6 +44,7 @@
 | 横滨银行 | 横滨银行 | banks |
 | bunq | bunq | simple |
 | Crédit Agricole CIB | Credit Agricole / Crédit Agricole / Crédit Agricole CIB / 法国农业信贷银行 | global |
+| Capital One | Capital One / 第一資本銀行 / 第一资本银行 / 美国第一资本银行 | supplement |
 | 国泰世华银行 | 国泰世华银行 | banks |
 | 渤海银行 | China Bohai Bank / 渤海银行 | banks |
 | 长安银行 | Bank of Changan / 长安银行 | banks |
@@ -52,6 +53,7 @@
 | 国家开发银行 | 国家开发银行 | banks |
 | 中国光大银行 | ceb / chinaeverbright / 中国光大银行 / 光大銀行 / 光大银行 | banks |
 | 广发银行 | cgb / chinaguangfa / 广发银行 / 廣發銀行 | banks |
+| Charles Schwab | Charles Schwab / Schwab / 嘉信 / 嘉信理财 | supplement |
 | 摩根大通银行 | Chase / J.P. Morgan Chase / JPMorgan Chase / chase / 大通銀行 / 大通银行 / 摩根大通银行 | banks |
 | 承德银行 | 承德银行 | banks |
 | 兴业银行 | cib / industrialbank / 兴业银行 / 興業銀行 | banks |
@@ -99,7 +101,6 @@
 | 湖滨农商 | 湖滨农商 / 湖滨农商银行 / 湖滨农村商业银行 | banks |
 | 大同银行 | 大同银行 | banks |
 | 深圳农商 | 深圳农商 / 深圳农商银行 / 深圳农村商业银行 | banks |
-| 中国银行业监督 | 中国银行业监督 | banks |
 | 长春农商 | 长春农商 / 长春农商银行 / 长春农村商业银行 | banks |
 | 凉山商业银行 | 凉山商业银行 | banks |
 | 威海商业银行 | 威海商业银行 | banks |
@@ -332,6 +333,7 @@
 | 遂宁银行 | 遂宁银行 | banks |
 | Société Générale | Societe Generale / Société Générale / 法国兴业银行 | global |
 | 法兴银行 | 法兴银行 | banks |
+| SoFi | SoFi / SoFi Bank | supplement |
 | 浦发银行 | shanghaipudongdevelopment / spdb / 浦发银行 / 浦發銀行 | banks |
 | 上饶银行 | 上饶银行 | banks |
 | 上海农商 | Shanghai Rural Commercial Bank / 上海农商 / 上海农商银行 / 上海农村商业银行 | banks |

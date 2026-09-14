@@ -471,7 +471,7 @@ fun MainScreen(
         Box(
             modifier = modifier
                 .fillMaxSize()
-                .padding(innerPadding),
+                .padding(innerPadding).consumeWindowInsets(innerPadding),
             contentAlignment = Alignment.TopCenter
         ) {
             // 只保留当前页面的组合，切换时仅做短暂透明度过渡；列表位置独立保存。
