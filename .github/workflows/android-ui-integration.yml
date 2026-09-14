@@ -2,7 +2,7 @@ name: Android UI integration
 on:
   push:
     branches: [feat/android-wallet-card-list-favorites]
-    paths: [tools/android_ui_integration.py]
+    paths: [tools/android_ui_integration.py, .github/workflows/android-ui-integration.yml]
 permissions:
   contents: write
 concurrency:
@@ -20,7 +20,19 @@ jobs:
       - name: Install asset conversion tools
         run: python3 -m pip install 'CairoSVG==2.8.2' 'Pillow==11.3.0'
       - name: Apply reviewed UI changes
-        run: python3 tools/android_ui_integration.py
+        run: |
+          python3 tools/android_ui_integration.py
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib, json
+          folder = Path('apps/android/branding')
+          manifest = json.loads((folder / 'sources.json').read_text())
+          for record in manifest:
+              path = folder / 'sources' / (record['resource'] + '.svg')
+              path.write_text('\n'.join(line.rstrip() for line in path.read_text().splitlines()) + '\n')
+              record['normalized_file_sha256'] = hashlib.sha256(path.read_bytes()).hexdigest()
+          (folder / 'sources.json').write_text(json.dumps(manifest, ensure_ascii=False, indent=2) + '\n')
+          PY
       - name: Commit UI integration to feature branch
         run: |
           git config user.name 'github-actions[bot]'
