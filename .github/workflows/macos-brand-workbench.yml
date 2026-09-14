@@ -1,0 +1,33 @@
+name: macOS brand workbench
+on:
+  push:
+    branches: [feat/macos-wallet-brand-logos]
+    paths: [.github/workflows/macos-brand-workbench.yml]
+permissions:
+  contents: read
+jobs:
+  sources:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Export relevant source and branding files only
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import zipfile
+          selected = [Path('AGENTS.md')]
+          for root in ['apps/macos', 'apps/android/branding', 'apps/android/app/src/main/assets/licenses', 'apps/android/app/src/main/java/com/example/creditcard/ui/wallet', 'apps/android/app/src/main/res/drawable-nodpi', '.github/workflows']:
+              for p in Path(root).rglob('*'):
+                  if not p.is_file() or any(part in ['build','.build','.git','DerivedData'] for part in p.parts): continue
+                  if p.suffix not in ['.swift','.strings','.json','.yml','.yaml','.pbxproj','.xcscheme','.sh','.py','.md','.txt','.kt','.webp','.png','.plist','.entitlements']: continue
+                  selected.append(p)
+          with zipfile.ZipFile('macos-brand-sources.zip','w',zipfile.ZIP_DEFLATED) as z:
+              for p in sorted(set(selected)): z.write(p,str(p))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: macos-brand-sources
+          path: macos-brand-sources.zip
+          retention-days: 3
