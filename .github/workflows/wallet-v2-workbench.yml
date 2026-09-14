@@ -26,7 +26,7 @@ jobs:
             git add apps/android
             git diff --cached --check
             if ! git diff --cached --quiet; then
-              git commit -m '重构原生卡包排版、透明品牌资产与同步设置'
+              git commit -m '完成原生卡包接入、透明品牌资源和同步设置'
               git push origin HEAD:feat/android-wallet-redesign-v2
             fi
           fi
