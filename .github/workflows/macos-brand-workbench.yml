@@ -1,0 +1,59 @@
+name: macOS brand workbench
+on:
+  push:
+    branches: [feat/macos-wallet-brand-logos]
+    paths: ['apps/macos/**', '.github/workflows/macos-brand-workbench.yml']
+permissions:
+  contents: write
+concurrency:
+  group: macos-brand-workbench
+  cancel-in-progress: false
+jobs:
+  verify:
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/macos-wallet-brand-logos
+      - name: Verify assets and update project membership
+        run: |
+          python3 -m venv /tmp/wallet-brand-venv
+          /tmp/wallet-brand-venv/bin/pip install Pillow==11.3.0
+          /tmp/wallet-brand-venv/bin/python apps/macos/scripts/import-android-branding.py --check
+          if ! command -v xcodegen >/dev/null; then brew install xcodegen; fi
+          (cd apps/macos && xcodegen generate)
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add apps/macos/CreditCardMac.xcodeproj
+          git diff --cached --check
+          if ! git diff --cached --quiet; then
+            git commit -m '保持 Mac 项目格式兼容并登记品牌资源和测试'
+            git push origin HEAD:feat/macos-wallet-brand-logos
+          fi
+          mkdir -p apps/macos/build
+          git rev-parse HEAD > apps/macos/build/source-commit.txt
+          xcodebuild -version
+      - name: Build and run macOS regression tests
+        working-directory: apps/macos
+        run: |
+          set -o pipefail
+          xcodebuild test -project CreditCardMac.xcodeproj -scheme CreditCardMac -destination 'platform=macOS' -derivedDataPath build/DerivedData -resultBundlePath build/BrandTests.xcresult CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM= ENABLE_APP_SANDBOX=NO WALLET_CODE_SIGN_ENTITLEMENTS=Resources/CreditCardMacAdHoc.entitlements 2>&1 | tee build/brand-tests.log
+      - name: Summarize XCTest results
+        if: always()
+        run: |
+          if test -d apps/macos/build/BrandTests.xcresult; then
+            xcrun xcresulttool get test-results summary --path apps/macos/build/BrandTests.xcresult > apps/macos/build/test-summary.json || true
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: macos-brand-validation-${{ github.run_id }}
+          retention-days: 7
+          path: |
+            apps/macos/build/brand-tests.log
+            apps/macos/build/source-commit.txt
+            apps/macos/build/test-summary.json
+            apps/macos/build/brand-review/
+            apps/macos/build/BrandTests.xcresult/
+            apps/macos/CreditCardMac.xcodeproj/project.pbxproj
