@@ -27,7 +27,7 @@ internal fun WalletAddFab(onAddCredit: () -> Unit, onAddDebit: () -> Unit) {
     Box {
         ExtendedFloatingActionButton(onClick = { expanded = true },
             modifier = Modifier.testTag("wallet_add_fab"),
-            icon = { Icon(Icons.Default.Add, null) },
+            icon = { Icon(Icons.Default.Add, stringResource(R.string.add_card)) },
             text = { Text(stringResource(R.string.add_card)) })
         DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false },
             modifier = Modifier.testTag("wallet_add_menu")) {

@@ -29,7 +29,10 @@ jobs:
         working-directory: apps/android
         run: bash gradlew :app:assembleDebug :app:testDebugUnitTest :app:lintDebug --continue --stacktrace --max-workers=2
       - name: Build isolated preview APK
+        id: preview
+        if: ${{ !cancelled() }}
         working-directory: apps/android
+        shell: bash
         run: |
           bash gradlew :app:assembleDebug -PwalletPreview=true --stacktrace --max-workers=2
           APK=app/build/outputs/apk/debug/app-debug.apk
@@ -37,14 +40,21 @@ jobs:
           grep -qx 'com.applist.cardwallet.preview' app/build/outputs/apk/debug/package-id.txt
           git rev-parse HEAD > app/build/outputs/apk/debug/BUILD_COMMIT
           sha256sum "$APK" > app/build/outputs/apk/debug/SHA256SUMS
-      - name: Upload preview APK, native screenshots and reports
-        if: always()
+      - name: Upload verified preview APK
+        if: ${{ !cancelled() && steps.preview.outcome == 'success' }}
         uses: actions/upload-artifact@v4
         with:
           name: android-wallet-ui-checks-${{ github.run_id }}
           retention-days: 7
+          if-no-files-found: error
+          path: apps/android/app/build/outputs/apk/debug/
+      - name: Upload native screenshots and reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-wallet-ui-reports-${{ github.run_id }}
+          retention-days: 7
           path: |
-            apps/android/app/build/outputs/apk/debug/
             apps/android/app/build/outputs/ui-review/
             apps/android/app/build/reports/
             apps/android/app/build/test-results/

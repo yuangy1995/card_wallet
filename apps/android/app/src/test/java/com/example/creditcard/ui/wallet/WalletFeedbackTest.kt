@@ -71,6 +71,16 @@ class WalletFeedbackTest {
         capture("feedback-empty-light")
     }
 
+    @Test
+    @Config(qualifiers = "en-rUS-w393dp-h852dp-xhdpi")
+    fun emptyWalletAddActionHasEnglishAccessibilityLabel() {
+        home()
+        compose.onNodeWithTag("wallet_add_fab").assertContentDescriptionEquals("Add card")
+        compose.onAllNodesWithContentDescription("Add card").assertCountEquals(1)
+        compose.onNodeWithContentDescription("Add card").assertIsDisplayed().assertHasClickAction().performClick()
+        compose.onNodeWithTag("wallet_add_menu").assertIsDisplayed()
+    }
+
     @Test fun filteredEmptyWalletKeepsHeaderAddAndResetAction() {
         home()
         compose.runOnIdle { SyncCoordinator.commitCardChanges(context, listOf(card)) }
