@@ -80,7 +80,7 @@ xcodebuild -project CreditCardMac.xcodeproj -scheme CreditCardMac \
 
 1. 固定使用 Ad-Hoc 临时签名，不使用 Developer ID 或公证。`build.sh` 在 Xcode 归档阶段完成临时签名，保持旧打包脚本产物的非沙盒运行方式，即使设置了 `DEVELOPMENT_TEAM` 环境变量也不切换签名方式。对外发布统一使用该脚本，不要混用 Xcode 默认沙盒构建。
 2. 为允许临时签名的应用加载 Sparkle，保留 Hardened Runtime 并关闭库验证（`disable-library-validation`）。这不等于获得 Apple 信任：首次从 GitHub 下载后仍可能被 Gatekeeper 拦截，用户需将应用移入 Applications，并按系统提示在「隐私与安全性」中确认打开。不应要求用户关闭系统全局安全检查。
-3. 2026-09-14 按维护者要求重新开始正式公开发布：当前版本为 1.0.0（构建号 4），已更换 Sparkle 更新签名密钥。当前钥匙串账户为 `com.applist.cardwallet.mac.public`，与早期版本使用的账户分开，未修改应用标识。私钥保存在创建它的 Mac 登录钥匙串和私有源码仓库的 `SPARKLE_PRIVATE_KEY` Secret 中，代码仓库只保存公钥。早期版本必须手动下载安装本次正式版；后续版本必须沿用本次新密钥。请通过安全渠道备份，不要把私钥、GitHub 令牌或 Apple 凭证写进应用或提交仓库。
+3. 2026-09-14 按维护者要求重新开始正式公开发布：首发版本为 1.0.0（构建号 4），已更换 Sparkle 更新签名密钥。当前钥匙串账户为 `com.applist.cardwallet.mac.public`，与早期版本使用的账户分开，未修改应用标识。私钥保存在创建它的 Mac 登录钥匙串和私有源码仓库的 `SPARKLE_PRIVATE_KEY` Secret 中，代码仓库只保存公钥。早期版本必须手动下载安装本次正式版；后续版本必须沿用本次新密钥。请通过安全渠道备份，不要把私钥、GitHub 令牌或 Apple 凭证写进应用或提交仓库。
 
 ### GitHub Actions 打包并发布（推荐）
 
@@ -149,9 +149,11 @@ bash prepare-update.sh "$(pwd)/dist/卡包.app"
 
 首个含自动更新功能的版本需要用户手动安装一次。正式发布前，用两个构建号的 Ad-Hoc 签名应用在独立 macOS 测试账户中验证发现新版、下载安装、重启后版本与数据保留；不要拿真实卡包数据进行升级测试。
 
-当前正式公开首发为 [1.0.0（构建号 4）](https://github.com/yuangy1995/card-wallet-releases/releases/tag/mac-v1.0.0-4)，包含原计划 1.0.2 的改进。旧 Mac 发布 `mac-v1.0.0-2` 和 `mac-v1.0.1-3` 在新包发布验证后移除，Android 发布保留。公开安装说明和版本说明的维护副本位于 `releases/`。
+当前最新正式版为 [1.0.1（构建号 5）](https://github.com/yuangy1995/card-wallet-releases/releases/tag/mac-v1.0.1-5)。[GitHub Actions 运行 34865188410](https://github.com/yuangy1995/card_wallet/actions/runs/34865188410) 从源码提交 `978e9a4` 完成 76 项应用回归测试、更新包校验、双架构构建与签名、上传草稿及正式发布；公开下载的大小、SHA-256、EdDSA 签名、应用标识、版本和架构已独立核验，Latest 更新清单一致。此版沿用 1.0.0（4）的更新公钥，可供该正式版检查升级；安装替换、重启及真实数据保留仍需用户实机确认。
 
-本次首发由 [GitHub Actions 运行 34849361587](https://github.com/yuangy1995/card_wallet/actions/runs/34849361587) 从源码提交 `f863ffe` 完成构建与签名：72 项应用回归测试、13 项更新包校验测试通过；Apple Silicon + Intel 通用 Ad-Hoc 归档和拆分后嵌套签名完整性检查通过；更新附件生成及 EdDSA 签名验证通过。此次未配置跨仓库发布令牌，使用工作流的 `publish=false` 模式构建，维护者下载签名产物后核对并上传至公开仓库。仍需在独立测试账户中完成安装替换及重启的端到端验证。
+2026-09-15 按维护者要求清理旧 Mac Release `mac-v1.0.0-4`，保留其标签和已校验的本地备份 `dist/release-backups/mac-v1.0.0-4/`（含说明、元数据与三个附件，可用于重建发布）。清理后再次核对 Latest 更新入口正常，公开仓库保留 Mac 1.0.1（5）和 Android 1.2.0（4）。旧 Mac 发布 `mac-v1.0.0-2` 和 `mac-v1.0.1-3` 已在此前首发重置时移除。公开安装说明和版本说明的维护副本位于 `releases/`。
+
+历史首发 1.0.0（4）由 [GitHub Actions 运行 34849361587](https://github.com/yuangy1995/card_wallet/actions/runs/34849361587) 从源码提交 `f863ffe` 完成构建与签名：72 项应用回归测试、13 项更新包校验测试通过；Apple Silicon + Intel 通用 Ad-Hoc 归档和拆分后嵌套签名完整性检查通过；更新附件生成及 EdDSA 签名验证通过。当时未配置跨仓库发布令牌，使用工作流的 `publish=false` 模式构建，维护者下载签名产物后核对并上传；当前已改为 GitHub 全自动上传和发布。
 
 ## 调试提示（本地功能）
 
