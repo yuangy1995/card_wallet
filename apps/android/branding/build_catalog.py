@@ -105,6 +105,20 @@ for key,item in manual.items():
 # Use the transparent wordmark instead of turning a blue Amex tile into a white tile.
 records['amex']['origin']='networks'
 records['amex']['path']='logo/amex.svg'
+def card_variant(image):
+    pixels=list(image.getdata())
+    opaque=[(r,g,b) for r,g,b,a in pixels if a>200 and min(r,g,b)<240]
+    from collections import Counter
+    bins=Counter((r//40,g//40,b//40) for r,g,b in opaque)
+    multicolour=sum(count>len(opaque)*0.05 for count in bins.values())>=2
+    coverage=sum(a>200 for r,g,b,a in pixels)/len(pixels)
+    if multicolour and coverage>0.70:
+        return image.copy()
+    result=Image.new('RGBA',image.size)
+    result.putdata([(255,255,255,0 if min(r,g,b)>245 else a) for r,g,b,a in pixels])
+    if result.getchannel('A').getbbox() is None: result.putalpha(image.getchannel('A'))
+    return result
+
 assets=[]; excluded=[]
 def export(resource,origin,path,mono=False):
     raw=archives[origin][path];root=ET.fromstring(raw)
@@ -129,10 +143,7 @@ def export(resource,origin,path,mono=False):
     pad=Image.new('RGBA',(image.width+4,image.height+4));pad.alpha_composite(image,(2,2));image=pad
     image.save(RES/f'{resource}.webp',lossless=True)
     if mono:
-        white=Image.new('RGBA',image.size)
-        white.putdata([(255,255,255,0 if min(r,g,b)>245 else a) for r,g,b,a in image.getdata()])
-        if white.getchannel('A').getbbox() is None: white.putalpha(image.getchannel('A'))
-        white.save(RES/f'{resource}_card.webp',lossless=True)
+        card_variant(image).save(RES/f'{resource}_card.webp',lossless=True)
     normalized='\n'.join(s.rstrip() for s in raw.decode().splitlines())+'\n'
     (SOURCES/f'{resource}.svg').write_text(normalized)
     source_url=manual[Path(path).stem]['url'] if origin=='supplement' else 'https://github.com/{}/blob/{}/{}'.format(*UPSTREAMS[origin],path)
@@ -161,7 +172,7 @@ for i,chunk in enumerate(chunks):
         code+=f'        WalletIssuerLogo({quote(r["id"])}, {quote(r["name"])}, R.drawable.{r["resource"]}, R.drawable.{r["resource"]}_card, 0xFF{r["accent"]}, listOf('+', '.join(quote(a) for a in sorted(r['aliases']))+')),\n'
     code+='    )\n'
 (JAVA/'WalletLogoCatalogData.kt').write_text(code+'}\n')
-manifest={'asset_revision':2,'upstreams':UPSTREAMS,'issuers':[dict(r,aliases=sorted(r['aliases'])) for r in rows],'assets':assets,'excluded':excluded,
+manifest={'asset_revision':3,'upstreams':UPSTREAMS,'issuers':[dict(r,aliases=sorted(r['aliases'])) for r in rows],'assets':assets,'excluded':excluded,
  'issuer_count':len(rows),'network_count':7,'resource_bytes':sum(p.stat().st_size for p in RES.glob('wallet_issuer_*.webp'))}
 (BRAND/'catalog.json').write_text(json.dumps(manifest,ensure_ascii=False,indent=2)+'\n')
 (BRAND/'COVERAGE.md').write_text('# 实际离线标识覆盖\n\n'+str(len(rows))+' 个去重机构条目、7 类卡组织。包含历史名称，不代表所有地区全部在营银行。未覆盖或匹配有歧义时显示中性缩写。\n\n| 机构 | 别名 | 来源 |\n|---|---|---|\n'+''.join('| '+r['name']+' | '+' / '.join(sorted(r['aliases']))+' | '+r['origin']+' |\n' for r in rows))
