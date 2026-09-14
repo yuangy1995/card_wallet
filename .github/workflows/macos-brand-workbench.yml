@@ -2,7 +2,7 @@ name: macOS brand workbench
 on:
   push:
     branches: [feat/macos-wallet-brand-logos]
-    paths: ['apps/macos/**', 'tools/macos-brand.patch', '.github/workflows/macos-brand-workbench.yml']
+    paths: ['apps/macos/**', '.github/workflows/macos-brand-workbench.yml']
 permissions:
   contents: write
 concurrency:
@@ -10,37 +10,30 @@ concurrency:
   cancel-in-progress: false
 jobs:
   verify:
-    runs-on: macos-14
+    runs-on: macos-15
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
         with:
           ref: feat/macos-wallet-brand-logos
-      - name: Prepare offline native assets
+      - name: Verify assets and update project membership
         run: |
           python3 -m venv /tmp/wallet-brand-venv
           /tmp/wallet-brand-venv/bin/pip install Pillow==11.3.0
-          if test -f tools/macos-brand.patch; then
-            git apply --check tools/macos-brand.patch
-            git apply tools/macos-brand.patch
-            rm tools/macos-brand.patch
-          fi
-          /tmp/wallet-brand-venv/bin/python apps/macos/scripts/import-android-branding.py
+          /tmp/wallet-brand-venv/bin/python apps/macos/scripts/import-android-branding.py --check
           if ! command -v xcodegen >/dev/null; then brew install xcodegen; fi
           (cd apps/macos && xcodegen generate)
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add apps/macos
-          if git ls-files --error-unmatch tools/macos-brand.patch >/dev/null 2>&1; then git add -u tools/macos-brand.patch; fi
+          git add apps/macos/CreditCardMac.xcodeproj
           git diff --cached --check
           if ! git diff --cached --quiet; then
-            git commit -m '为 Mac 接入 Android 离线银行与卡组织品牌标识'
+            git commit -m '保持 Mac 项目格式兼容并登记品牌资源和测试'
             git push origin HEAD:feat/macos-wallet-brand-logos
           fi
           mkdir -p apps/macos/build
           git rev-parse HEAD > apps/macos/build/source-commit.txt
-      - name: Verify catalogue parity
-        run: /tmp/wallet-brand-venv/bin/python apps/macos/scripts/import-android-branding.py --check
+          xcodebuild -version
       - name: Build and run macOS regression tests
         working-directory: apps/macos
         run: |
