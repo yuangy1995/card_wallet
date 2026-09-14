@@ -25,6 +25,14 @@ struct WalletBrandImage: View {
     var whiteTemplate = false
     let width: CGFloat
     let height: CGFloat
+    @Environment(\.colorScheme) private var colorScheme
+
+    private var markOpacity: Double {
+        if colorScheme == .dark {
+            return lightMark ? 0.90 : 0.78
+        }
+        return lightMark ? 0.90 : 1.0
+    }
 
     var body: some View {
         Group {
@@ -34,11 +42,12 @@ struct WalletBrandImage: View {
                     .resizable()
                     .scaledToFit()
                     .foregroundStyle(.white)
+                    .opacity(whiteTemplate || resource.hasSuffix("_card") ? markOpacity : 1.0)
             } else {
                 Image(systemName: "creditcard")
                     .resizable().scaledToFit()
                     .padding(4)
-                    .foregroundStyle(lightMark ? Color.white.opacity(0.9) : Color.secondary)
+                    .foregroundStyle(lightMark ? Color.white.opacity(0.92) : Color.secondary)
             }
         }
         .frame(width: width, height: height)

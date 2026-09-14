@@ -24,12 +24,26 @@ if [ "$BUNDLE_ID" != "$ACCOUNT" ]; then
     echo '请选择卡包 macOS 客户端。' >&2
     exit 1
 fi
-PUBLIC_KEY=$("$SPARKLE_BIN/generate_keys" --account "$ACCOUNT" -p)
-APP_KEY=$(/usr/libexec/PlistBuddy -c 'Print :SUPublicEDKey' "$PLIST")
-if [ "$APP_KEY" != "$PUBLIC_KEY" ]; then
-    echo '应用的更新公钥与本机签名密钥不匹配。' >&2
-    exit 1
+if [ -z "${SPARKLE_PRIVATE_KEY:-}" ]; then
+    if ! PUBLIC_KEY=$("$SPARKLE_BIN/generate_keys" --account "$ACCOUNT" -p); then
+        echo '未找到原有 Sparkle 更新签名密钥；本地请恢复钥匙串，CI 请配置 SPARKLE_PRIVATE_KEY。' >&2
+        exit 1
+    fi
+    APP_KEY=$(/usr/libexec/PlistBuddy -c 'Print :SUPublicEDKey' "$PLIST")
+    if [ "$APP_KEY" != "$PUBLIC_KEY" ]; then
+        echo '应用的更新公钥与本机签名密钥不匹配。' >&2
+        exit 1
+    fi
 fi
+
+# CI 仅通过标准输入传入原有私钥，不写文件、不放进命令行参数。
+generate_appcast() {
+    if [ -n "${SPARKLE_PRIVATE_KEY:-}" ]; then
+        printf '%s' "$SPARKLE_PRIVATE_KEY" | "$SPARKLE_BIN/generate_appcast" --ed-key-file - "$@"
+    else
+        "$SPARKLE_BIN/generate_appcast" --account "$ACCOUNT" "$@"
+    fi
+}
 
 # 固定使用 Ad-Hoc 签名，不要求 Developer ID 或公证。
 codesign --verify --deep --strict "$APP_PATH"
@@ -64,8 +78,7 @@ for ARCH in arm64 x86_64; do
     test "$(lipo -archs "$ARCH_APP/Contents/MacOS/CreditCardMac")" = "$ARCH"
     ARCHIVE="CardWallet-${VERSION}-${BUILD}-${ARCH}.zip"
     ditto -c -k --sequesterRsrc --keepParent "$ARCH_APP" "$OUTPUT/$ARCH/$ARCHIVE"
-"$SPARKLE_BIN/generate_appcast" \
-    --account "$ACCOUNT" \
+generate_appcast \
     --maximum-deltas 0 \
     --download-url-prefix "https://github.com/$REPOSITORY/releases/download/$TAG/" \
     --link "https://github.com/$REPOSITORY/releases/tag/$TAG" \
@@ -73,5 +86,6 @@ for ARCH in arm64 x86_64; do
     mv "$OUTPUT/$ARCH/$ARCHIVE" "$OUTPUT/$ARCHIVE"
 done
 swift scripts/merge-update-feeds.swift "$OUTPUT/arm64/appcast.xml" "$OUTPUT/x86_64/appcast.xml" "$OUTPUT/appcast.xml"
+swift scripts/verify-update.swift "$APP_PATH" "$OUTPUT"
 echo "已生成发布附件：$OUTPUT"
 echo "Release 标签必须使用：${TAG}；请一并上传 ZIP 和 appcast.xml。"
