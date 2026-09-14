@@ -16,59 +16,63 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: feat/android-wallet-redesign-v2
-      - name: Apply revision if present
+      - name: Apply reviewed Android changes
         run: |
-          if test -f tools/wallet_v2_apply.py; then
-            python3 -m pip install 'CairoSVG==2.8.2' 'Pillow==11.3.0'
-            python3 tools/wallet_v2_apply.py
-            git config user.name 'github-actions[bot]'
-            git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-            git add apps/android
-            git diff --cached --check
-            if ! git diff --cached --quiet; then
-              git commit -m '完成原生卡包接入、透明品牌资源和同步设置'
-              git push origin HEAD:feat/android-wallet-redesign-v2
-            fi
-          fi
-      - name: Export review sources without signing material
-        if: always()
-        run: |
+          python3 -m pip install 'CairoSVG==2.8.2' 'Pillow==11.3.0'
+          python3 tools/wallet_v2_apply.py
           python3 - <<'PY'
-          import pathlib, zipfile
-          root = pathlib.Path('.')
-          with zipfile.ZipFile('wallet-v2-sources.zip','w',zipfile.ZIP_DEFLATED) as z:
-            for path in [root/'AGENTS.md', *sorted((root/'apps/android').rglob('*'))]:
-              if not path.is_file() or any(x in path.parts for x in ['build','.gradle','.kotlin']): continue
-              if path.suffix in ['.jks','.keystore','.apk'] or path.name in ['local.properties']: continue
-              z.write(path, str(path))
+          from pathlib import Path
+          p=Path('apps/android/app/src/test/java/com/example/creditcard/ui/wallet/WalletV2VisualTest.kt')
+          s=p.read_text()
+          s=s.replace('compose.onNodeWithTag("wallet_theme_picker").assertHeightIsAtMost(100.dp)', 'val picker = compose.onNodeWithTag("wallet_theme_picker").getUnclippedBoundsInRoot()\n        assertTrue((picker.bottom - picker.top).value < 100f)')
+          p.write_text(s)
           PY
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: wallet-v2-sources-${{ github.run_id }}
-          path: wallet-v2-sources.zip
-          retention-days: 3
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add apps/android
+          git diff --cached --check
+          if ! git diff --cached --quiet; then
+            git commit -m '修正原生截图测试的布局尺寸测量'
+            git push origin HEAD:feat/android-wallet-redesign-v2
+          fi
       - uses: actions/setup-java@v4
-        if: hashFiles('tools/wallet_v2_apply.py') != ''
         with:
           distribution: temurin
           java-version: '17'
-          cache: gradle
-          cache-dependency-path: |
-            apps/android/**/*.gradle.kts
-            apps/android/gradle/libs.versions.toml
-      - name: Native build and tests
-        if: hashFiles('tools/wallet_v2_apply.py') != ''
+      - uses: actions/cache/restore@v5
+        id: gradle-cache
+        with:
+          key: wallet-v2-gradle-${{ runner.os }}-${{ hashFiles('apps/android/**/*.gradle.kts', 'apps/android/gradle/libs.versions.toml') }}-${{ github.run_id }}
+          restore-keys: |
+            wallet-v2-gradle-${{ runner.os }}-${{ hashFiles('apps/android/**/*.gradle.kts', 'apps/android/gradle/libs.versions.toml') }}-
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+      - name: Native regression tests and screenshots
         working-directory: apps/android
-        run: bash gradlew :app:assembleDebug :app:testDebugUnitTest :app:lintDebug --continue --stacktrace --max-workers=2
+        run: bash gradlew :app:testDebugUnitTest --continue --stacktrace --max-workers=2
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: wallet-v2-native-tests-${{ github.run_id }}
+          retention-days: 7
+          path: |
+            apps/android/app/build/outputs/ui-review/
+            apps/android/app/build/reports/tests/
+            apps/android/app/build/test-results/
+      - name: Debug build and full Lint
+        if: always()
+        working-directory: apps/android
+        run: bash gradlew :app:assembleDebug :app:lintDebug --continue --stacktrace --max-workers=2
       - name: Build isolated preview APK
-        if: always() && hashFiles('apps/android/app/src/main/java/com/example/creditcard/ui/wallet/WalletLogoCatalogData.kt') != ''
+        if: always()
         working-directory: apps/android
         run: |
           bash gradlew :app:assembleDebug -PwalletPreview=true --stacktrace --max-workers=2
           APK=app/build/outputs/apk/debug/app-debug.apk
           "$ANDROID_HOME/cmdline-tools/latest/bin/apkanalyzer" manifest application-id "$APK" | tee app/build/outputs/apk/debug/package-id.txt
           grep -qx 'com.applist.cardwallet.preview' app/build/outputs/apk/debug/package-id.txt
+          git rev-parse HEAD > app/build/outputs/apk/debug/BUILD_COMMIT
           sha256sum "$APK" > app/build/outputs/apk/debug/SHA256SUMS
       - uses: actions/upload-artifact@v4
         if: always()
@@ -80,3 +84,10 @@ jobs:
             apps/android/app/build/outputs/ui-review/
             apps/android/app/build/reports/
             apps/android/app/build/test-results/
+      - uses: actions/cache/save@v5
+        if: always()
+        with:
+          key: ${{ steps.gradle-cache.outputs.cache-primary-key }}
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
