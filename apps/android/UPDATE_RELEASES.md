@@ -22,6 +22,35 @@
 | 签名 | 沿用当前正式版签名，不更换 applicationId 或签名身份 |
 | 编号 | 每次正式更新必须递增，不能只改 versionName |
 
+### GitHub Actions 自动打包并发布（推荐）
+
+私有源码仓库的 `Publish Android release` 工作流（`.github/workflows/android-release.yml`）从 `main` 手动触发，一次触发后自动完成测试、正式签名构建、APK 校验、上传草稿、远端 SHA-256 核验及正式发布。不需要下载产物后再手工上传，也不会因普通提交或 PR 自动发布。
+
+两端共用私有源码仓库的 `RELEASES_TOKEN` Secret：使用 Fine-grained personal access token，仅选择公开产物仓库 `yuangy1995/card-wallet-releases`，授予 Contents: Read and write，Metadata 只读。不要把本机全权限登录令牌复制到 CI，也不要把令牌写入客户端、源码或日志。令牌到期前须更新此 Secret；缺少权限时正式发布会停止，不自动改走人工上传。
+
+Android 沿用私有仓库现有签名配置与签名身份，不新增或轮换签名材料。工作流以已发布的 1.2.0（4）签名证书 SHA-256 为基准，验证 APK 应用标识、版本、最低系统版本、非调试状态及 v1/v2 签名；校验失败不得发布。公开附件仅包含 APK，不包含源码、签名文件、测试报告或本地配置。
+
+每次发布：
+
+1. 修改 `app/build.gradle.kts` 的默认 `releaseVersionName`、`releaseVersionCode`，版本编号必须递增；准备 `release-notes/<版本>.md`，只写新增功能与修复问题。提交到私有仓库 `main`。
+2. 在 Actions → **Publish Android release** 中选择 `main`，填写与工程一致的版本和版本编号，保留默认开启的 `publish`。例如：
+
+   ```bash
+   gh workflow run android-release.yml --repo yuangy1995/card_wallet --ref main \
+     -f version=1.2.0 -f version_code=4 -f publish=true
+   ```
+
+   示例中的 1.2.0（4）已发布，不能重复发布；实际使用下一次递增后的版本。
+3. 工作流拒绝已有标签和未递增版本；测试、签名、上传及公开下载校验全部成功后，才视为发布完成。上传或校验失败可能保留草稿，不覆盖、删除或重建已有发布。
+
+关闭 `publish` 可进行演练：完成相同的测试、签名构建和 APK 校验，仅把 APK 存为私有工作流附件，保留 14 天，不上传公开仓库。演练允许使用当前已发布版本，但不能据此认定公开发布链路已验证。
+
+两端发布使用同一并发组串行执行。Mac 发布设为 Latest；Android 始终使用 `--latest=false`，避免破坏 Mac 的固定更新地址。Android 客户端仍按自己的版本编号筛选正式版，不依赖 Latest。
+
+旧 Release 仅在明确要求清理时删除，不随每次发布自动删除。清理前备份其说明、附件和校验值，确认新版本与对应更新入口可用，至少保留每个平台最新正式版。必要时可从备份恢复发布；删除旧 Release 不会让已安装新版自动降级。
+
+### 本地生成发布附件（备用）
+
 在 Android 客户端目录执行：
 
 ```bash
