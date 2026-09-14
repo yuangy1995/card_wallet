@@ -226,8 +226,8 @@ public struct StatisticsView: View {
     }
     private func cardRow(_ card: SharedCard, detail: String) -> some View {
         HStack(spacing: 14) {
-            Text(String(card.bank.prefix(1))).font(.system(size: 14, weight: .semibold)).foregroundStyle(palette.accent)
-                .frame(width: 32, height: 34).background(palette.selection, in: RoundedRectangle(cornerRadius: 8)).accessibilityHidden(true)
+            WalletBankLogo(bank: card.bank, country: card.country, width: 32, height: 32)
+                .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 5) {
                 Text("\(card.bank) · \(String(card.cardNumber.suffix(4)))").font(.system(size: 12, weight: .medium))
                 if let alias = card.alias, !alias.isEmpty { Text(alias).font(.caption).foregroundStyle(.secondary).lineLimit(1) }

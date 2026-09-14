@@ -46,24 +46,30 @@ struct WalletCardFace: View {
                     .allowsHitTesting(false).accessibilityHidden(true)
                 }
             VStack(alignment: .leading, spacing: 6) {
-                HStack {
-                    Text(card.bank).font(.system(size: 13, weight: .medium)).lineLimit(1)
-                    Spacer(minLength: 8)
+                HStack(spacing: 9) {
+                    WalletBankLogo(bank: card.bank, country: card.country, onCard: true, width: 34, height: 29)
+                        .accessibilityHidden(true)
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text(card.bank).font(.system(size: 13, weight: .medium)).lineLimit(1)
+                        Text(card.level?.isEmpty == false ? card.level! : (card.cardCategory == "debit" ? String(localized: "储蓄卡") : String(localized: "信用卡")))
+                            .font(.system(size: 11)).foregroundStyle(.white.opacity(0.9)).lineLimit(1)
+                    }
+                    Spacer(minLength: 4)
                     Image(systemName: "wave.3.right").font(.system(size: 13))
+                        .accessibilityHidden(true)
                 }
-                Text(card.level?.isEmpty == false ? card.level! : (card.cardCategory == "debit" ? String(localized: "储蓄卡") : String(localized: "信用卡")))
-                    .font(.system(size: 11)).foregroundStyle(.white.opacity(0.9))
-                Spacer(minLength: 10)
+                Spacer(minLength: 4)
                 Text("••••   ••••   \(String(card.cardNumber.suffix(4)))")
                     .font(.system(size: 14, weight: .medium, design: .monospaced)).tracking(1)
-                Spacer(minLength: 6)
+                    .lineLimit(1).minimumScaleFactor(0.75)
+                Spacer(minLength: 4)
                 HStack {
                     Text(card.valid ?? "—").font(.system(size: 10, design: .monospaced))
                     Spacer()
-                    Text(brandName).font(.system(size: 11, weight: .medium)).tracking(0.8)
+                    CardBrandIcon(brand: CardBrand.detect(from: card.cardNumber, level: card.level), onCard: true, width: 42, height: 24)
                 }
             }
-            .padding(17)
+            .padding(14)
             .foregroundStyle(.white)
         }
         .clipShape(RoundedRectangle(cornerRadius: 13))
@@ -71,18 +77,7 @@ struct WalletCardFace: View {
         .accessibilityElement(children: .ignore)
         .accessibilityLabel(Text("\(card.bank)，尾号 \(String(card.cardNumber.suffix(4)))"))
     }
-    private var brandName: String {
-        switch CardBrand.detect(from: card.cardNumber, level: card.level) {
-        case .visa: return "VISA"
-        case .mastercard: return "Mastercard"
-        case .amex: return "AMEX"
-        case .unionpay: return "UnionPay"
-        case .discover: return "Discover"
-        case .dinersClub: return "Diners Club"
-        case .jcb: return "JCB"
-        case .unknown: return ""
-        }
-    }
+
 }
 
 struct CardDetailView: View {
