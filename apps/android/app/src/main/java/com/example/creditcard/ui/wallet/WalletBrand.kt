@@ -30,15 +30,25 @@ internal enum class WalletBank(val code: String, val accent: Long, vararg val al
     UNKNOWN("unknown", 0xFF465768);
 
     companion object {
+        private val wordPattern = Regex("[a-z0-9]+")
+
         fun fromName(name: String): WalletBank {
-            val normalized = name.lowercase(Locale.ROOT).filter(Char::isLetterOrDigit)
+            val lower = name.lowercase(Locale.ROOT)
+            val normalized = lower.filter(Char::isLetterOrDigit)
             if (normalized.isEmpty()) return UNKNOWN
-            return entries.firstOrNull { bank ->
-                bank.aliases.any { alias ->
-                    normalized == alias || (alias.length >= 4 && normalized.contains(alias)) ||
-                        (alias.any { it.code > 127 } && normalized.contains(alias))
-                }
-            } ?: UNKNOWN
+            val words = wordPattern.findAll(lower).map { it.value }.toSet()
+            // A longer issuer name beats a shared suffix: "Agricultural Bank of China"
+            // must not resolve to BOC. Short English aliases require whole-word matching
+            // so "Citizens Bank" never borrows the Citi mark.
+            val matches = entries.mapNotNull { bank ->
+                val score = bank.aliases.filter { alias ->
+                    normalized == alias || alias in words ||
+                        ((alias.length >= 8 || alias.any { it.code > 127 }) && normalized.contains(alias))
+                }.maxOfOrNull { alias -> alias.length + if (normalized == alias) 1000 else 0 }
+                score?.let { bank to it }
+            }
+            val bestScore = matches.maxOfOrNull { it.second } ?: return UNKNOWN
+            return matches.filter { it.second == bestScore }.singleOrNull()?.first ?: UNKNOWN
         }
     }
 }
@@ -56,13 +66,14 @@ internal enum class WalletNetwork(val code: String, val label: String) {
             val two = digits.take(2).toIntOrNull() ?: return UNKNOWN
             val three = digits.take(3).toIntOrNull() ?: return UNKNOWN
             val four = digits.take(4).toIntOrNull() ?: return UNKNOWN
-            val six = digits.take(6).toIntOrNull() ?: 0
             return when {
                 digits.length == 15 && two in setOf(34, 37) -> AMEX
                 digits.length == 16 && (two in 51..55 || four in 2221..2720) -> MASTERCARD
                 digits.length in 16..19 && four in 3528..3589 -> JCB
-                digits.length in 16..19 && (four == 6011 || two == 65 || three in 644..649 || six in 622126..622925) -> DISCOVER
+                digits.length in 16..19 && (four == 6011 || two == 65 || three in 644..649) -> DISCOVER
                 digits.length in setOf(13, 16, 19) && digits.startsWith('4') -> VISA
+                // Keep the app's UnionPay display convention for 62/81. A shared
+                // acceptance range alone cannot establish Discover co-branding.
                 digits.length in 16..19 && two in setOf(62, 81) -> UNIONPAY
                 digits.length == 14 && (three in 300..305 || two in setOf(36, 38, 39)) -> DINERS
                 else -> UNKNOWN
