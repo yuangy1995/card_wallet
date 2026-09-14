@@ -86,6 +86,8 @@ xcodebuild -project CreditCardMac.xcodeproj -scheme CreditCardMac \
 
 私有源码仓库的 `Publish macOS release` 工作流（`.github/workflows/macos-release.yml`）从 `main` 手动触发，在 GitHub 的 macOS 执行器上测试、打包和签名，再发布到 `yuangy1995/card-wallet-releases`。不会向公开仓库推送源码、Git 历史或签名材料，也不会因普通提交或 PR 自动发布。
 
+默认开启 `publish`，一次触发后自动完成上传、远端附件核验和正式发布，不需要下载后再手工上传；缺少发布权限时会停止，不自动降级成人工上传。Android 的 **Publish Android release** 工作流共用 `RELEASES_TOKEN` 和发布并发组；Mac 设为 Latest，Android 不更改 Latest，避免影响固定更新地址。关闭 `publish` 仅用于明确选择的构建演练或备用流程。
+
 #### 一次性配置
 
 在**私有源码仓库 `yuangy1995/card_wallet`** 的 Settings → Secrets and variables → Actions 中添加：

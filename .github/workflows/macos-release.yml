@@ -16,7 +16,7 @@ permissions:
   contents: read
 
 concurrency:
-  group: macos-release
+  group: card-wallet-public-release
   cancel-in-progress: false
 
 jobs:

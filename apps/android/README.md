@@ -4,6 +4,8 @@ Kotlin + Jetpack Compose 的原生 Android 卡包客户端，用于本地管理�
 
 仓库总览见根目录 `README.md`；Android 在线更新与发布步骤见 [更新发布说明](UPDATE_RELEASES.md)。过期设计说明不再作为实现依据，实际行为以当前代码和 SyncV4 数据语义为准。
 
+正式发布使用私有仓库的 **Publish Android release** 工作流：一次触发后自动测试、打包、签名校验并上传公开产物仓库，与 Mac 共用受限的 `RELEASES_TOKEN`，不抢占 Mac 使用的 Latest 更新入口。
+
 ## 当前架构
 
 - 平台：Android 原生应用，`minSdk 23`，`targetSdk 36`，Java/Kotlin 17。
