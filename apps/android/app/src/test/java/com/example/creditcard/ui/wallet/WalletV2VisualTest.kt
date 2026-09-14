@@ -11,6 +11,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.SemanticsActions
 import androidx.compose.ui.semantics.SemanticsProperties
+import androidx.compose.ui.semantics.getOrNull
 import androidx.compose.ui.test.*
 import androidx.compose.ui.test.junit4.createAndroidComposeRule
 import androidx.compose.ui.text.TextLayoutResult
@@ -65,7 +66,7 @@ class WalletV2VisualTest {
         home()
         compose.onNodeWithTag("wallet_header").assertIsDisplayed()
         val header = compose.onNodeWithTag("wallet_header").getUnclippedBoundsInRoot()
-        assertTrue("Toolbar must not consume most of the phone", header.height.value < 230f)
+        assertTrue("Toolbar must not consume most of the phone", (header.bottom - header.top).value < 230f)
         compose.onNodeWithTag("wallet_card_demo-0").assertIsDisplayed()
         val instantiated = compose.onAllNodes(SemanticsMatcher("wallet card") {
             it.config.getOrNull(SemanticsProperties.TestTag)?.startsWith("wallet_card_demo-") == true
@@ -141,7 +142,7 @@ class WalletV2VisualTest {
             SettingsMainPanel(false, {}, {}, {}, {}, {}, {}, {})
         } }
         compose.onNodeWithTag("wallet_theme_LIGHT").assertIsSelected()
-        assertTrue(compose.onNodeWithTag("wallet_theme_picker").getUnclippedBoundsInRoot().height.value < 100f)
+        compose.onNodeWithTag("wallet_theme_picker").assertHeightIsAtMost(100.dp)
         capture("v2-settings-light")
     }
 

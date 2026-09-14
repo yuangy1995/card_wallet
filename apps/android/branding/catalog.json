@@ -1,5 +1,5 @@
 {
-  "asset_revision": 2,
+  "asset_revision": 3,
   "upstreams": {
     "banks": [
       "icongo/bank-logos",
@@ -7489,5 +7489,5 @@
   "excluded": [],
   "issuer_count": 374,
   "network_count": 7,
-  "resource_bytes": 4368776
+  "resource_bytes": 4716366
 }
