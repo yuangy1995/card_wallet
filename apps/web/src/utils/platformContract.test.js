@@ -25,3 +25,17 @@ describe('four-platform contract v1', () => {
     expect(summarize(mergeRecords(JSON.parse(JSON.stringify(merged))))).toEqual(fixture.expected)
   })
 })
+
+import searchCases from '../../../../contracts/card-wallet/fixtures/search.json'
+import sortCases from '../../../../contracts/card-wallet/fixtures/sorting.json'
+import { matchesCard, sortCards } from './cardCatalog'
+describe('shared search and sorting contract', () => {
+  for (const item of searchCases) it(item.name, () => {
+    expect(item.cards.filter(card => matchesCard(card, item.query)).map(card => card.id).sort()).toEqual(item.expected)
+  })
+  for (const item of sortCases) it(item.name, () => {
+    const [y, m, d] = item.today.split('-').map(Number)
+    const today = new Date(y, m - 1, d)
+    for (const cards of [item.cards, [...item.cards].reverse()]) expect(sortCards(cards, item.key, today).map(card => card.id)).toEqual(item.expected)
+  })
+})

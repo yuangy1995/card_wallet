@@ -243,8 +243,12 @@ private final class CardSystemNotificationCenter {
     }
 
     private func replaceScheduledNotifications(cards: [SharedCard]) async {
-        let pending = await center.pendingNotificationRequests()
-        let staleIDs = pending.map(\.identifier).filter { $0.hasPrefix(scheduledPrefix) }
+        let identifiers: [String] = await withCheckedContinuation { continuation in
+            center.getPendingNotificationRequests { requests in
+                continuation.resume(returning: requests.map(\.identifier))
+            }
+        }
+        let staleIDs = identifiers.filter { $0.hasPrefix(scheduledPrefix) }
         if !staleIDs.isEmpty {
             center.removePendingNotificationRequests(withIdentifiers: staleIDs)
         }
@@ -403,15 +407,20 @@ private final class CardSystemNotificationCenter {
     }
 
     private func requestAuthorizationIfNeeded() async -> Bool {
-        let settings = await center.notificationSettings()
-        switch settings.authorizationStatus {
+        let status: Int = await withCheckedContinuation { continuation in
+            center.getNotificationSettings { settings in
+                continuation.resume(returning: settings.authorizationStatus.rawValue)
+            }
+        }
+        guard let authorization = UNAuthorizationStatus(rawValue: status) else { return false }
+        switch authorization {
         case .authorized, .provisional, .ephemeral:
             return true
         case .denied:
             return false
         case .notDetermined:
             return (try? await center.requestAuthorization(options: [.alert, .sound, .badge])) ?? false
-        @unknown default:
+        default:
             return false
         }
     }

@@ -1,6 +1,7 @@
 package com.example.creditcard.ui.main
 
 import com.example.creditcard.utils.WalletCardRules
+import com.example.creditcard.utils.normalizeBankNameForMatch
 
 import android.Manifest
 import android.content.Context
@@ -128,24 +129,25 @@ private const val CARD_LIST_PREFS = "card_list_preferences"
 private const val CARD_LIST_GROUP_KEY = "card_list_group"
 private const val CARD_LIST_SORT_KEY = "card_list_sort"
 
-private enum class CardListGroupOption(val storedValue: String, val label: String) {
-    NONE("none", "不分组"),
-    BANK("bank", "按银行"),
-    BRAND("brand", "按卡组织"),
-    LEVEL("level", "按卡级别"),
-    COUNTRY("country", "按国家/地区");
+private enum class CardListGroupOption(val storedValue: String, val labelRes: Int) {
+    NONE("none", R.string.group_none),
+    BANK("bank", R.string.group_bank),
+    BRAND("brand", R.string.group_brand),
+    LEVEL("level", R.string.group_level),
+    COUNTRY("country", R.string.group_country);
 
     companion object {
         fun from(value: String?): CardListGroupOption = entries.firstOrNull { it.storedValue == value } ?: NONE
     }
 }
 
-private enum class CardListSortOption(val storedValue: String, val label: String) {
-    LIMIT_DESC("limit_desc", "额度从高到低"),
-    LIMIT_ASC("limit_asc", "额度从低到高"),
-    INTEREST_DESC("interest_desc", "当前免息期从长到短"),
-    MODIFIED_DESC("modified_desc", "最近修改"),
-    BANK_ASC("bank_asc", "银行名称");
+private enum class CardListSortOption(val storedValue: String, val labelRes: Int) {
+    LIMIT_DESC("limit_desc", R.string.sort_limit_desc),
+    LIMIT_ASC("limit_asc", R.string.sort_limit_asc),
+    INTEREST_DESC("interest_desc", R.string.sort_interest_desc),
+    INTEREST_ASC("interest_asc", R.string.sort_interest_asc),
+    MODIFIED_DESC("modified_desc", R.string.sort_modified),
+    BANK_ASC("bank_asc", R.string.sort_bank);
 
     companion object {
         fun from(value: String?): CardListSortOption = entries.firstOrNull { it.storedValue == value } ?: MODIFIED_DESC
@@ -189,6 +191,17 @@ fun MainScreen(
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
+    var calendarDay by remember { mutableStateOf(LocalDate.now()) }
+    DisposableEffect(context) {
+        val receiver = object : android.content.BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) { calendarDay = LocalDate.now() }
+        }
+        val filter = android.content.IntentFilter().apply {
+            addAction(Intent.ACTION_DATE_CHANGED); addAction(Intent.ACTION_TIME_CHANGED); addAction(Intent.ACTION_TIMEZONE_CHANGED)
+        }
+        androidx.core.content.ContextCompat.registerReceiver(context, receiver, filter, androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED)
+        onDispose { context.unregisterReceiver(receiver) }
+    }
     
     // 监听全局核心状态
     val cards by SyncCoordinator.cardsFlow.collectAsState()
@@ -258,20 +271,9 @@ fun MainScreen(
         selectedCardIDs = selectedCardIDs.intersect(cards.map { it.id }.toSet())
     }
 
-    val searchFilteredCards = remember(cards, searchQuery) {
-        if (searchQuery.isBlank()) {
-            cards
-        } else {
-            cards.filter { card ->
-                val categoryText = if (card.cardCategory == "debit") "储蓄卡 debit" else "信用卡 credit"
-                card.bank.contains(searchQuery, ignoreCase = true) ||
-                card.alias.contains(searchQuery, ignoreCase = true) ||
-                card.cardNumber.replace(" ", "").contains(searchQuery.replace(" ", "")) ||
-                card.remark.contains(searchQuery, ignoreCase = true) ||
-                getCardBrand(card.cardNumber).contains(searchQuery, ignoreCase = true) ||
-                categoryText.contains(searchQuery, ignoreCase = true)
-            }
-        }
+    val searchIndex = remember(cards) { cards.associate { it.id to WalletCardRules.searchText(it) } }
+    val searchFilteredCards = remember(cards, searchQuery, searchIndex) {
+        cards.filter { WalletCardRules.matches(it, searchQuery, searchIndex.getValue(it.id)) }
     }
 
     val creditCardCount = remember(searchFilteredCards) { searchFilteredCards.count { it.cardCategory != "debit" } }
@@ -307,20 +309,15 @@ fun MainScreen(
     }
     val allVisibleCardsSelected = filteredCards.isNotEmpty() && filteredCards.all { it.id in selectedCardIDs }
 
-    val groupedCards = remember(filteredCards, groupOption, sortOption) {
-        val sortedCards = when (sortOption) {
-            CardListSortOption.LIMIT_DESC -> filteredCards.sortedByDescending { if (it.cardCategory == "debit") 0.0 else it.limit }
-            CardListSortOption.LIMIT_ASC -> filteredCards.sortedBy { if (it.cardCategory == "debit") 0.0 else it.limit }
-            CardListSortOption.INTEREST_DESC -> filteredCards.sortedByDescending { calculateInterestFreeDays(it) }
-            CardListSortOption.MODIFIED_DESC -> filteredCards.sortedByDescending { it.lastModifyTime }
-            CardListSortOption.BANK_ASC -> filteredCards.sortedWith(compareBy({ it.bank }, { it.alias }))
-        }
+    val groupedCards = remember(filteredCards, groupOption, sortOption, calendarDay) {
+        val key = if (sortOption == CardListSortOption.MODIFIED_DESC) "modifyTime" else sortOption.storedValue.replace('_', '-')
+        val sortedCards = WalletCardRules.sorted(filteredCards, key, calendarDay)
         if (groupOption == CardListGroupOption.NONE) {
             listOf("" to sortedCards)
         } else {
             val grouped = sortedCards.groupBy { card ->
                 when (groupOption) {
-                    CardListGroupOption.BANK -> card.bank.ifBlank { "未设置银行" }
+                    CardListGroupOption.BANK -> normalizeBankNameForMatch(card.bank).ifBlank { "未设置银行" }
                     CardListGroupOption.BRAND -> getCardBrand(card.cardNumber)
                     CardListGroupOption.LEVEL -> card.level.ifBlank { "未设置级别" }
                     CardListGroupOption.COUNTRY -> card.country.ifBlank { "未设置国家/地区" }
@@ -770,12 +767,12 @@ private fun CardManagementPanel(
                 ) {
                     Icon(Icons.Filled.ViewAgenda, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text(groupOption.label, maxLines = 1)
+                    Text(stringResource(groupOption.labelRes), maxLines = 1)
                 }
                 DropdownMenu(expanded = showGroupMenu, onDismissRequest = { onShowGroupMenuChange(false) }) {
                     CardListGroupOption.entries.forEach { option ->
                         DropdownMenuItem(
-                            text = { Text(option.label) },
+                            text = { Text(stringResource(option.labelRes)) },
                             trailingIcon = { if (groupOption == option) Icon(Icons.Filled.Check, contentDescription = null) },
                             onClick = {
                                 onGroupOptionChange(option)
@@ -793,12 +790,12 @@ private fun CardManagementPanel(
                 ) {
                     Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text(sortOption.label, maxLines = 1)
+                    Text(stringResource(sortOption.labelRes), maxLines = 1)
                 }
                 DropdownMenu(expanded = showSortMenu, onDismissRequest = { onShowSortMenuChange(false) }) {
                     CardListSortOption.entries.forEach { option ->
                         DropdownMenuItem(
-                            text = { Text(option.label) },
+                            text = { Text(stringResource(option.labelRes)) },
                             trailingIcon = { if (sortOption == option) Icon(Icons.Filled.Check, contentDescription = null) },
                             onClick = {
                                 onSortOptionChange(option)

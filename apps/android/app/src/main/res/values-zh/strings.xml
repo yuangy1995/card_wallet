@@ -106,4 +106,15 @@
     <string name="scan_waiting">正在准备相机…</string>
     <string name="scan_permission_hint">允许使用相机，帮助你快速填写卡号和有效期。</string>
     <string name="scan_allow">允许使用相机</string>
+    <string name="group_none">不分组</string>
+    <string name="group_bank">按银行</string>
+    <string name="group_brand">按卡组织</string>
+    <string name="group_level">按卡级别</string>
+    <string name="group_country">按国家/地区</string>
+    <string name="sort_limit_desc">额度从高到低</string>
+    <string name="sort_limit_asc">额度从低到高</string>
+    <string name="sort_interest_desc">当前免息期从长到短</string>
+    <string name="sort_interest_asc">当前免息期从短到长</string>
+    <string name="sort_modified">最近修改</string>
+    <string name="sort_bank">银行名称</string>
 </resources>

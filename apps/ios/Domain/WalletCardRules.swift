@@ -60,4 +60,48 @@ public enum WalletCardRules {
               let target = cal.date(byAdding: .day, value: min(due, dueRange.count) - 1, to: dueMonth) else { return -1 }
         return max(0, cal.dateComponents([.day], from: day, to: target).day ?? 0)
     }
+
+    /// Display fields only: never index CVV, image data, passwords or sync credentials.
+    public static func searchText(_ card: SharedCard) -> String {
+        let category = card.cardCategory == "debit" ? "储蓄卡 儲蓄卡 debit" : "信用卡 credit"
+        return [card.bank, card.alias ?? "", card.cardNumber, card.level ?? "", card.type ?? "",
+                card.country, card.equity ?? "", card.remark ?? "", String(card.limit ?? 0), category,
+                CardBrand.detect(from: card.cardNumber, level: card.level).displayName]
+            .joined(separator: "\n").lowercased()
+    }
+
+    public static func matches(_ card: SharedCard, query: String, index: String? = nil) -> Bool {
+        let text = query.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+        if text.isEmpty { return true }
+        let compact = text.replacingOccurrences(of: "[\\s-]", with: "", options: .regularExpression)
+        guard !compact.isEmpty else { return false }
+        let isNumber = compact.unicodeScalars.allSatisfy { (48...57).contains($0.value) }
+        let number = card.cardNumber.replacingOccurrences(of: "[\\s-]", with: "", options: .regularExpression)
+        return (index ?? searchText(card)).contains(text) || (isNumber && number.contains(compact))
+    }
+
+    public static func sorted(_ cards: [SharedCard], key: String, today: Date = Date(), timeZone: TimeZone = .current) -> [SharedCard] {
+        let rows = cards.map { card in
+            (card: card, days: key.hasPrefix("interest-") ? interestFreeDays(card, today: today, timeZone: timeZone) : 0)
+        }
+        return rows.sorted { a, b in
+            switch key {
+            case "limit-asc", "limit-desc":
+                let left = a.card.cardCategory == "debit" ? 0 : max(0, a.card.limit ?? 0)
+                let right = b.card.cardCategory == "debit" ? 0 : max(0, b.card.limit ?? 0)
+                if left != right { return key == "limit-asc" ? left < right : left > right }
+            case "interest-asc", "interest-desc":
+                if a.days < 0 && b.days >= 0 { return false }
+                if a.days >= 0 && b.days < 0 { return true }
+                if a.days != b.days { return key == "interest-asc" ? a.days < b.days : a.days > b.days }
+            case "modifyTime":
+                if a.card.lastModifyTime != b.card.lastModifyTime { return a.card.lastModifyTime > b.card.lastModifyTime }
+            default:
+                for (left, right) in [(a.card.country, b.card.country), (a.card.bank, b.card.bank), (a.card.alias ?? "", b.card.alias ?? "")] {
+                    if left != right { return left < right }
+                }
+            }
+            return a.card.id < b.card.id
+        }.map { $0.card }
+    }
 }

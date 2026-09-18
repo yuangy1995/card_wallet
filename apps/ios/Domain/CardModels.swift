@@ -254,6 +254,16 @@ public enum SortOption: String, CaseIterable, Identifiable, Sendable {
     case daysAsc = "免息期从短到长"
     case lastModify = "最近修改时间"
 
+    public var contractKey: String {
+        switch self {
+        case .limitDesc: return "limit-desc"
+        case .limitAsc: return "limit-asc"
+        case .daysDesc: return "interest-desc"
+        case .daysAsc: return "interest-asc"
+        case .lastModify: return "modifyTime"
+        }
+    }
+
     public var id: String { rawValue }
 
     public var icon: String {

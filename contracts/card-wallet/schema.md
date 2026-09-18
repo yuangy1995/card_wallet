@@ -17,3 +17,8 @@
 ## 运行
 
 Web：在 apps/web 执行 pnpm test:run。Android：在 apps/android 执行 bash gradlew :app:testDebugUnitTest。Apple：先在各自目录 xcodegen generate，再执行对应 scheme 的 xcodebuild test。测试目标打包本目录 fixtures 原文件；不维护四份不同期望值。
+
+## 搜索、分组和排序
+
+搜索字段为银行、别名、规范化卡号、等级、币种、地区、权益、备注、额度、类别；原有卡组织搜索保留。大小写和首尾空白不影响匹配，卡号容忍空格及短横线；仅分隔符不匹配任何卡片。不索引 CVV、图片或同步凭证。
+额度和免息期均有双向排序；储蓄卡不计入信用额度，未知免息期始终在末尾；所有平局以稳定卡 ID 升序结束。各端使用同一份 search/sorting 样例。各端保留已存分组/排序键；iOS、macOS 使用新的本机偏好键保存原先页面局部选项，不改卡片时间戳或同步内容。

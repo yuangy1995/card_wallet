@@ -1,5 +1,6 @@
 package com.example.creditcard.utils
 
+import com.example.creditcard.ui.main.getCardBrand
 import com.example.creditcard.data.SharedCard
 import java.math.BigDecimal
 import java.math.RoundingMode
@@ -40,5 +41,45 @@ object WalletCardRules {
         val dueMonth = month.plusMonths(if (due <= bill) 1 else 0)
         val target = dueMonth.withDayOfMonth(minOf(due, dueMonth.lengthOfMonth()))
         return ChronoUnit.DAYS.between(today, target).toInt().coerceAtLeast(0)
+    }
+
+    fun searchText(card: SharedCard): String = listOf(card.bank, card.alias, card.cardNumber,
+        card.level, card.type, card.country, card.equity, card.remark, card.limit.toString(),
+        if (card.cardCategory == "debit") "储蓄卡 儲蓄卡 debit" else "信用卡 credit",
+        getCardBrand(card.cardNumber)).joinToString("\n").lowercase(Locale.ROOT)
+
+    fun matches(card: SharedCard, query: String, index: String = searchText(card)): Boolean {
+        val text = query.trim().lowercase(Locale.ROOT)
+        if (text.isEmpty()) return true
+        val compact = text.replace(Regex("[\\s-]"), "")
+        if (compact.isEmpty()) return false
+        val number = card.cardNumber.replace(Regex("[\\s-]"), "")
+        return index.contains(text) || (compact.all { it in '0'..'9' } && number.contains(compact))
+    }
+
+    fun sorted(cards: List<SharedCard>, key: String, today: LocalDate = LocalDate.now()): List<SharedCard> {
+        val days = if (key.startsWith("interest-")) cards.associate { it.id to interestFreeDays(it, today) } else emptyMap()
+        return cards.sortedWith { a, b ->
+            val order = when (key) {
+                "limit-desc", "limit-asc" -> {
+                    val left = if (a.cardCategory == "debit") 0.0 else a.limit.coerceAtLeast(0.0)
+                    val right = if (b.cardCategory == "debit") 0.0 else b.limit.coerceAtLeast(0.0)
+                    if (key == "limit-asc") left.compareTo(right) else right.compareTo(left)
+                }
+                "interest-desc", "interest-asc" -> {
+                    val left = days.getValue(a.id); val right = days.getValue(b.id)
+                    when {
+                        left < 0 && right >= 0 -> 1
+                        left >= 0 && right < 0 -> -1
+                        key == "interest-asc" -> left.compareTo(right)
+                        else -> right.compareTo(left)
+                    }
+                }
+                "modifyTime" -> b.lastModifyTime.compareTo(a.lastModifyTime)
+                "bank-asc" -> compareValuesBy(a, b, { it.bank }, { it.alias })
+                else -> compareValuesBy(a, b, { it.country }, { it.bank }, { it.alias })
+            }
+            if (order != 0) order else a.id.compareTo(b.id)
+        }
     }
 }
