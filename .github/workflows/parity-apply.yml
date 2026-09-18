@@ -18,24 +18,34 @@ jobs:
         with:
           ref: codex/four-platform-parity-20260918
       - id: patch
-        name: Verify and apply source patch
+        name: Verify and apply source delta
         run: |
           python3 - <<'PY'
-          import pathlib, base64, gzip, hashlib, subprocess
-          names = ['01','02a','02b','02c','02d','03a','03b','04a','04c','04d']
-          parts = [pathlib.Path(f'.parity-transfer/stage2-{n}.b64') for n in names]
+          import pathlib, base64, lzma, hashlib, json
+          parts = [pathlib.Path(f'.parity-transfer/s3-{i:02}.b64') for i in range(1,21)]
           for p in parts: print(p.name, len(p.read_text().strip()), hashlib.sha256(p.read_bytes()).hexdigest())
-          data = gzip.decompress(base64.b64decode(''.join(p.read_text().strip() for p in parts), validate=True))
-          assert hashlib.sha256(data).hexdigest() == '76e914a6ccf5b4f0a78b9f0f23ed9cd51d905baa540d2617a2aa97fdb7e9dc5e', 'Source patch checksum mismatch'
-          pathlib.Path('/tmp/verified.patch').write_bytes(data)
-          subprocess.run(['git','apply','--check','/tmp/verified.patch'],check=True)
-          subprocess.run(['git','apply','/tmp/verified.patch'],check=True)
+          data = lzma.decompress(base64.b64decode(''.join(p.read_text().strip() for p in parts), validate=True))
+          assert hashlib.sha256(data).hexdigest() == '2c138bbee3afc8f3b979c6818dce546d354bef448fa78dd76c24ce7ef27e09af', 'Source checksum mismatch'
+          writes = []
+          for name, before, after, operations in json.loads(data):
+            path = pathlib.Path(name)
+            assert name.startswith(('apps/', 'contracts/')) and '..' not in path.parts
+            old = path.read_bytes() if path.exists() else b''
+            assert hashlib.sha256(old).hexdigest() == before, name + ' base changed'
+            lines = old.decode().splitlines(keepends=True)
+            for start, end, text in reversed(operations): lines[start:end] = [text]
+            new = ''.join(lines).encode()
+            assert hashlib.sha256(new).hexdigest() == after, name + ' result mismatch'
+            writes.append((path, new))
+          for path, data in writes:
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_bytes(data)
           PY
           git config user.name 'lovelife'
           git config user.email '32153802+yuangy1995@users.noreply.github.com'
           git add apps contracts
           git rm -r .parity-transfer
-          git commit -m '第二阶段：对齐四端搜索排序及偏好保存并修复通知并发构建'
+          git commit -m '第三阶段：补齐本机收藏图片规则并保护原生本地数据与锁定生命周期'
           git push origin HEAD:codex/four-platform-parity-20260918
           echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
   quality:
