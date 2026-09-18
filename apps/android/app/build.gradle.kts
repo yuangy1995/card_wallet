@@ -1,7 +1,26 @@
+import java.io.File
+
 plugins {
   alias(libs.plugins.android.application)
   alias(libs.plugins.compose.compiler)
   alias(libs.plugins.kotlin.serialization)
+}
+
+// Release 凭据只从环境读取；Debug 构建和 IDE 同步不需要发布密钥。
+val releaseSigningVariables = listOf(
+    "ANDROID_KEYSTORE_PATH", "ANDROID_KEYSTORE_PASSWORD", "ANDROID_KEY_ALIAS", "ANDROID_KEY_PASSWORD"
+)
+val releaseSigningValues = releaseSigningVariables.associateWith { providers.environmentVariable(it).orNull }
+val validateReleaseSigningEnvironment by tasks.registering {
+    doLast {
+        val missing = releaseSigningVariables.filter { releaseSigningValues[it].isNullOrBlank() }
+        check(missing.isEmpty()) { "Release 签名缺少环境变量：${missing.joinToString()}。参见 docs/signing-security.md。" }
+        val keystore = File(releaseSigningValues.getValue("ANDROID_KEYSTORE_PATH")!!)
+        check(keystore.isAbsolute && keystore.isFile) { "ANDROID_KEYSTORE_PATH 必须指向存在的绝对路径。" }
+    }
+}
+tasks.matching { it.name == "preReleaseBuild" || it.name == "validateSigningRelease" }.configureEach {
+    dependsOn(validateReleaseSigningEnvironment)
 }
 
 android {
@@ -13,16 +32,17 @@ android {
         applicationId = "com.applist.cardwallet"
         minSdk = 23
         targetSdk = 36
-        versionCode = providers.gradleProperty("releaseVersionCode").orElse("4").get().toInt()
-        versionName = providers.gradleProperty("releaseVersionName").orElse("1.2.0").get()
+        versionCode = providers.gradleProperty("releaseVersionCode").orElse("5").get().toInt()
+        versionName = providers.gradleProperty("releaseVersionName").orElse("1.3.0").get()
     }
 
     signingConfigs {
         create("release") {
-            storeFile = file("release.jks")
-            storePassword = "REMOVED_EXPOSED_SIGNING_PASSWORD"
-            keyAlias = "releasekey"
-            keyPassword = "REMOVED_EXPOSED_SIGNING_PASSWORD"
+            storeFile = releaseSigningValues["ANDROID_KEYSTORE_PATH"]?.let { file(it) }
+            storeType = "PKCS12"
+            storePassword = releaseSigningValues["ANDROID_KEYSTORE_PASSWORD"]
+            keyAlias = releaseSigningValues["ANDROID_KEY_ALIAS"]
+            keyPassword = releaseSigningValues["ANDROID_KEY_PASSWORD"]
             isV1SigningEnabled = true
             isV2SigningEnabled = true
         }
