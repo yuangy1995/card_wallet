@@ -1031,3 +1031,14 @@ body.dark,
   color: #007780 !important;
   box-shadow: -1px 0 0 0 rgba(0, 168, 180, 0.35) !important;
 }
+
+.wallet-pagination {
+  flex-shrink: 0; justify-content: center; padding: 12px 8px;
+  border-top: 1px solid var(--el-border-color-lighter);
+  background: var(--el-bg-color);
+}
+@media (prefers-reduced-motion: reduce) {
+  .physics-card-wrapper, .card-item-wrapper, .card-flip-list-move, .shine-overlay, .radar-line {
+    animation: none !important; transition: none !important;
+  }
+}

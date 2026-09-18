@@ -21,6 +21,7 @@ export class MemoryCache {
   set(key, value, customTtl = null) {
     const expireTime = Date.now() + (customTtl || this.ttl)
     
+    this.cache.delete(key)
     // 如果缓存已满，删除最旧的项
     if (this.cache.size >= this.maxSize) {
       const firstKey = this.cache.keys().next().value
@@ -183,9 +184,3 @@ export class CardDataCache {
 
 // 全局卡片数据缓存实例
 export const cardDataCache = new CardDataCache()
-
-// 定期清理过期缓存
-setInterval(() => {
-  globalCache.cleanup()
-  cardDataCache.cache.cleanup()
-}, 5 * 60 * 1000) // 每5分钟清理一次

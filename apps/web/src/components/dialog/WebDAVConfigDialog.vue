@@ -71,35 +71,35 @@
           show-password
         />
         <div class="form-tip">
-          三端必须使用同一个同步密钥。它用于加密 WebDAV 上的云同步文件，请单独妥善保存。
+          四端必须使用同一个同步密钥。它用于加密 WebDAV 上的云同步文件，请单独妥善保存。
         </div>
       </el-form-item>
 
-      <el-form-item v-if="form.protocol === 'https'" label="忽略证书" prop="ignoreCert">
-        <el-switch
-          v-model="form.ignoreCert"
-          active-text="忽略证书验证"
-          inactive-text="验证证书"
-        />
-      </el-form-item>
+
     </el-form>
     <template #footer>
       <span class="dialog-footer">
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="testConnection">测试连接</el-button>
-        <el-button type="success" @click="saveConfig">保存设置</el-button>
+        <el-button :disabled="saving" @click="dialogVisible = false">取消</el-button>
+        <el-button type="primary" :loading="testing" :disabled="saving" @click="testConnection">测试连接</el-button>
+        <el-button type="success" :loading="saving" :disabled="testing" @click="saveConfig">保存设置</el-button>
       </span>
     </template>
   </el-dialog>
 </template>
 
 <script setup>
-import { ref, reactive, computed, inject, watch } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { webdavClient } from '../../utils/webdav'
+import { ref, reactive, computed, inject, watch, onBeforeUnmount } from 'vue'
+import { ElMessage } from 'element-plus'
+import { webdavClient, WebDAVClient } from '../../utils/webdav'
 import { useAutoLock } from '@/composables/useAutoLock'
 
 const dialogVisible = ref(false)
+const testing = ref(false)
+const saving = ref(false)
+const connectionProbe = new WebDAVClient()
+let active = true
+onBeforeUnmount(() => { active = false; connectionProbe.disconnect() })
+watch(dialogVisible, visible => { if (!visible) connectionProbe.disconnect() })
 const formRef = ref(null)
 const emit = defineEmits(['saved'])
 const providedAutoLock = inject('autoLock', null)
@@ -113,7 +113,6 @@ const form = reactive({
   username: '',
   password: '',
   syncPassword: '',
-  ignoreCert: false
 })
 
 // 计算完整的URL
@@ -137,10 +136,6 @@ const fullUrl = computed(() => {
 const handleProtocolChange = (protocol) => {
   if (form.port === 80 || form.port === 443) {
     form.port = protocol === 'https' ? 443 : 80
-  }
-  // 如果切换到 HTTP，关闭证书验证选项
-  if (protocol === 'http') {
-    form.ignoreCert = false
   }
 }
 
@@ -203,7 +198,6 @@ const loadSavedConfig = () => {
       form.username = config.username
       form.password = config.password
       form.syncPassword = config.syncPassword || ''
-      form.ignoreCert = config.ignoreCert
     } catch (error) {
       // 配置可能不完整或格式错误，忽略错误继续
     }
@@ -212,64 +206,35 @@ const loadSavedConfig = () => {
 
 // 测试连接
 const testConnection = async () => {
+  if (testing.value || saving.value) return
+  testing.value = true
   try {
     await formRef.value.validate()
-    
-    // 初始化客户端
-    const initialized = await webdavClient.initialize({
-      url: fullUrl.value,
-      username: form.username,
-      password: form.password,
-      syncPassword: form.syncPassword.trim(),
-      ignoreCert: form.ignoreCert
+    if (!active || !dialogVisible.value) return
+    // 连接测试不替换正在同步的客户端，避免把在途快照发送到尚未保存的地址。
+    await connectionProbe.initialize({
+      url: fullUrl.value, username: form.username, password: form.password,
+      syncPassword: form.syncPassword.trim()
     })
-
-    if (!initialized) {
-      ElMessage.error('初始化失败，请检查配置')
-      return
-    }
-
-    // 测试连接
-    const result = await webdavClient.testConnection()
-    if (result.success) {
-      ElMessage.success(result.message || '连接成功')
-    } else {
-      if (result.isCertError && !form.ignoreCert) {
-        // 证书错误且未开启忽略证书，询问用户是否继续
-        try {
-          await ElMessageBox.confirm(
-            `云端证书验证失败：${result.originalError}\n\n` +
-            '是否忽略证书验证并继续连接？\n' +
-            '注意：继续连接可能存在安全风险。',
-            '证书警告',
-            {
-              confirmButtonText: '继续连接',
-              cancelButtonText: '取消',
-              type: 'warning',
-              dangerouslyUseHTMLString: true
-            }
-          )
-          // 用户选择继续连接
-          form.ignoreCert = true
-          // 重新测试连接
-          return await testConnection()
-        } catch {
-          // 用户取消
-          return
-        }
-      }
-      ElMessage.error(result.message)
-    }
+    const result = await connectionProbe.testConnection()
+    if (!active || !dialogVisible.value) return
+    if (result.success) ElMessage.success(result.message || '连接成功')
+    else ElMessage.error(result.message || '连接失败，请检查服务器证书和跨域设置')
   } catch (error) {
-    ElMessage.error(error?.message ? `连接失败：${error.message}` : '表单验证失败，请检查输入')
+    if (active && dialogVisible.value) ElMessage.error(error?.message ? `连接失败：${error.message}` : '表单验证失败，请检查输入')
+  } finally {
+    connectionProbe.disconnect()
+    testing.value = false
   }
 }
 
 // 保存配置
 const saveConfig = async () => {
+  if (testing.value || saving.value) return
+  saving.value = true
   try {
     const valid = await formRef.value.validate()
-    if (!valid) {
+    if (!valid || !active || !dialogVisible.value) {
       return
     }
 
@@ -278,9 +243,9 @@ const saveConfig = async () => {
       username: form.username,
       password: form.password,
       syncPassword: form.syncPassword.trim(),
-      ignoreCert: form.ignoreCert
     })
 
+    if (!active) return
     if (saved) {
       ElMessage.success('云同步设置已保存')
       emit('saved')
@@ -290,9 +255,9 @@ const saveConfig = async () => {
       return false
     }
   } catch (error) {
-    ElMessage.error('保存配置失败：' + error.message)
+    if (active) ElMessage.error('保存配置失败：' + error.message)
     return false
-  }
+  } finally { saving.value = false }
 }
 
 // 显示对话框

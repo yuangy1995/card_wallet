@@ -23,6 +23,11 @@ export const createIndexedDbMock = () => {
         onabort: null,
         onerror: null,
         objectStore: () => ({
+          get: (key) => {
+            const request = requestSuccess(store.has(key) ? { key, value: store.get(key) } : undefined)
+            queueMicrotask(() => transaction.oncomplete?.())
+            return request
+          },
           getAll: () => {
             const request = requestSuccess([...store.entries()].map(([key, value]) => ({ key, value })))
             queueMicrotask(() => transaction.oncomplete?.())

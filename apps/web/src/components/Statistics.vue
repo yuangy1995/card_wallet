@@ -164,11 +164,12 @@
           <el-col :xs="24" :lg="12">
             <div class="limit-section">
               <h4>💼 共享额度银行</h4>
+              <el-pagination v-if="sharedLimitStats.length > 50" v-model:current-page="sharedLimitStatsPage" :page-size="50" :total="sharedLimitStats.length" layout="prev, pager, next" small class="wallet-pagination" />
               <div v-if="sharedLimitStats.length === 0" class="empty-state">
                 暂无共享额度的银行
               </div>
               <div v-else class="limit-list">
-                <div v-for="item in sharedLimitStats" :key="item.key" class="limit-item shared">
+                <div v-for="item in sharedLimitStatsRows" :key="item.key" class="limit-item shared">
                   <div class="bank-info">
                     <div class="bank-name">{{ item.country }} - {{ item.bank }}</div>
                     <div class="card-count">{{ item.cardCount }} 张卡片共享</div>
@@ -183,11 +184,12 @@
           <el-col :xs="24" :lg="12">
             <div class="limit-section">
               <h4>📋 独立额度卡片</h4>
+              <el-pagination v-if="independentLimitStats.length > 50" v-model:current-page="independentLimitStatsPage" :page-size="50" :total="independentLimitStats.length" layout="prev, pager, next" small class="wallet-pagination" />
               <div v-if="independentLimitStats.length === 0" class="empty-state">
                 暂无独立额度的卡片
               </div>
               <div v-else class="limit-list">
-                <div v-for="item in independentLimitStats" :key="item.key" class="limit-item independent">
+                <div v-for="item in independentLimitStatsRows" :key="item.key" class="limit-item independent">
                   <div class="bank-info">
                     <div class="bank-name">{{ item.country }} - {{ item.bank }}</div>
                     <div class="card-alias">{{ item.alias }}</div>
@@ -379,7 +381,7 @@
         </div>
       </template>
       <div v-show="!collapsedPanels.detailedTable">
-        <el-table :data="detailedStats" stripe>
+        <el-table :data="detailedStatsRows" stripe>
           <el-table-column prop="country" label="国家" width="100" />
           <el-table-column prop="bank" label="银行" width="150" />
           <el-table-column prop="currency" label="币种" width="80" />
@@ -403,6 +405,7 @@
             </template>
           </el-table-column>
         </el-table>
+        <el-pagination v-if="detailedStats.length > 50" v-model:current-page="detailedStatsPage" :page-size="50" :total="detailedStats.length" layout="prev, pager, next" class="wallet-pagination" />
       </div>
     </el-card>
     </template>
@@ -410,10 +413,17 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, nextTick, watch } from 'vue'
+import { ref, computed, onMounted, onBeforeUnmount, nextTick, watch, inject } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { QuestionFilled, Download, WarningFilled, Clock, Check, ArrowDown } from '@element-plus/icons-vue'
-import * as echarts from 'echarts'
+import * as echarts from 'echarts/core'
+import { PieChart } from 'echarts/charts'
+import { TooltipComponent } from 'echarts/components'
+import { CanvasRenderer } from 'echarts/renderers'
+import { creditLimitMetrics, formatCreditAmount, sharedLimitKey } from '@/utils/cardMetrics'
+import { toCSV } from '@/utils/safeExport'
+import { usePagedCards } from '@/composables/usePagedCards'
+echarts.use([PieChart, TooltipComponent, CanvasRenderer])
 import {
   AnnualFeeReminderKind,
   getAnnualFeeDetection,
@@ -463,28 +473,7 @@ const creditCards = computed(() => filteredCardData.value.filter(card => normali
 const debitCards = computed(() => filteredCardData.value.filter(card => normalizeCardCategory(card) === 'debit'))
 
 // 货币格式化
-const formatCurrency = (amount, currency) => {
-  const symbols = {
-    'CNY': '¥',
-    'USD': '$',
-    'EUR': '€', 
-    'GBP': '£',
-    'JPY': '¥',
-    'HKD': 'HK$',
-    'TWD': 'NT$',
-    'SGD': 'S$',
-    '人民币': '¥',
-    '美元': '$',
-    '欧元': '€',
-    '英镑': '£',
-    '日元': '¥',
-    '港币': 'HK$',
-    '新台币': 'NT$',
-    '新币': 'S$'
-  }
-  const symbol = symbols[currency] || currency
-  return `${symbol}${amount.toLocaleString()}`
-}
+const formatCurrency = formatCreditAmount
 
 // 基础统计
 const totalCards = computed(() => filteredCardData.value.length)
@@ -511,62 +500,14 @@ const debitBankCount = computed(() => new Set(debitCards.value.map(card => card.
 const debitCurrencyCount = computed(() => new Set(debitCards.value.map(card => card.type).filter(Boolean)).size)
 
 // 额度统计分析（考虑共享额度）
-const sharedLimitStats = computed(() => {
-  const sharedGroups = new Map()
-  
-  creditCards.value.forEach(card => {
-    if (card.isSharedLimit) {
-      const key = `${card.country}-${card.bank}-${card.type}`
-      if (!sharedGroups.has(key)) {
-        sharedGroups.set(key, {
-          key,
-          country: card.country,
-          bank: card.bank,
-          currency: card.type,
-          totalLimit: parseFloat(card.limit) || 0,
-          cardCount: 0
-        })
-      }
-      sharedGroups.get(key).cardCount++
-    }
-  })
-  
-  return Array.from(sharedGroups.values()).sort((a, b) => b.totalLimit - a.totalLimit)
-})
-
-const independentLimitStats = computed(() => {
-  return creditCards.value
-    .filter(card => !card.isSharedLimit)
-    .map(card => ({
-      key: card.id,
-      country: card.country,
-      bank: card.bank,
-      alias: card.alias,
-      currency: card.type,
-      limit: parseFloat(card.limit) || 0
-    }))
-    .sort((a, b) => b.limit - a.limit)
-})
-
-// 按币种汇总总额度
-const currencyTotals = computed(() => {
-  const totals = {}
-  
-  // 共享额度统计
-  sharedLimitStats.value.forEach(item => {
-    totals[item.currency] = (totals[item.currency] || 0) + item.totalLimit
-  })
-  
-  // 独立额度统计
-  independentLimitStats.value.forEach(item => {
-    totals[item.currency] = (totals[item.currency] || 0) + item.limit
-  })
-  
-  return totals
-})
+const limitMetrics = computed(() => creditLimitMetrics(creditCards.value))
+const sharedLimitStats = computed(() => [...limitMetrics.value.shared].sort((a, b) => b.totalLimit - a.totalLimit))
+const independentLimitStats = computed(() => [...limitMetrics.value.independent].sort((a, b) => b.limit - a.limit))
+const currencyTotals = computed(() => Object.fromEntries(limitMetrics.value.totals.map(item => [item.currency || '未设置币种', item.amount])))
 
 // 年费状态统计
 const annualFeeStats = computed(() => {
+  day.value
   let qualified = 0, unqualified = 0, warning = 0, lifetime = 0
   
   creditCards.value.forEach(card => {
@@ -620,7 +561,9 @@ const freeAnnualFeeCards = computed(() => {
 })
 
 // 卡片有效期分析
+const day = inject('calendarDay', ref(Date.now()))
 const expiryStats = computed(() => {
+  day.value
   return getCardExpiryStats(filteredCardData.value)
 })
 
@@ -632,6 +575,7 @@ const hasExpiryStats = computed(() => {
 
 // 提额分析统计
 const raiseLimitStats = computed(() => {
+  day.value
   const now = new Date()
   const sixMonthsAgo = new Date()
   sixMonthsAgo.setMonth(now.getMonth() - 6)
@@ -676,7 +620,7 @@ const detailedStats = computed(() => {
   // 独立额度数据按银行分组
   const independentGroups = new Map()
   independentLimitStats.value.forEach(item => {
-    const key = `${item.country}-${item.bank}-${item.currency}`
+    const key = sharedLimitKey({ ...item, type: item.currency })
     if (!independentGroups.has(key)) {
       independentGroups.set(key, {
         country: item.country,
@@ -704,15 +648,21 @@ const detailedStats = computed(() => {
   })
 })
 
+const { page: sharedLimitStatsPage, rows: sharedLimitStatsRows } = usePagedCards(sharedLimitStats, 50)
+
+const { page: independentLimitStatsPage, rows: independentLimitStatsRows } = usePagedCards(independentLimitStats, 50)
+
+const { page: detailedStatsPage, rows: detailedStatsRows } = usePagedCards(detailedStats, 50)
+
 // 初始化图表
 const initCharts = async () => {
   loading.value = true
   
   try {
-    // 模拟分析时间
-    await new Promise(resolve => setTimeout(resolve, 1000))
+
     
     await nextTick()
+    if (disposed) return
     
     const isDark = document.documentElement.classList.contains('dark')
     const textColor = isDark ? '#cbd5e1' : '#1e293b'
@@ -723,7 +673,7 @@ const initCharts = async () => {
       if (!bankInstance) {
         bankInstance = echarts.init(bankChart.value)
       }
-      const bankData = {}
+      const bankData = Object.create(null)
       filteredCardData.value.forEach(card => {
         const bank = card.bank || ''
         bankData[bank] = (bankData[bank] || 0) + 1
@@ -736,6 +686,7 @@ const initCharts = async () => {
       bankInstance.setOption({
         tooltip: {
           trigger: 'item',
+          renderMode: 'richText',
           formatter: '{b}: {c} 张 ({d}%)'
         },
         series: [{
@@ -769,7 +720,7 @@ const initCharts = async () => {
       if (!countryInstance) {
         countryInstance = echarts.init(countryChart.value)
       }
-      const countryData = {}
+      const countryData = Object.create(null)
       filteredCardData.value.forEach(card => {
         countryData[card.country] = (countryData[card.country] || 0) + 1
       })
@@ -781,6 +732,7 @@ const initCharts = async () => {
       countryInstance.setOption({
         tooltip: {
           trigger: 'item',
+          renderMode: 'richText',
           formatter: '{b}: {c} 张 ({d}%)'
         },
         series: [{
@@ -855,26 +807,27 @@ const exportData = () => {
     平均额度: item.avgLimit
   }))
   
-  const csv = [
-    Object.keys(data[0]).join(','),
-    ...data.map(row => Object.values(row).join(','))
-  ].join('\n')
+  const csv = toCSV(data, ['国家', '银行', '币种', '卡片数', '额度类型', '总额度', '平均额度'])
   
   const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' })
   const link = document.createElement('a')
   link.href = URL.createObjectURL(blob)
   link.download = `银行卡统计分析_${new Date().toISOString().split('T')[0]}.csv`
   link.click()
+  setTimeout(() => URL.revokeObjectURL(link.href), 0)
   
   ElMessage.success('数据导出成功')
 }
 
 let resizeHandler = null
+let readyTimer = null
+let disposed = false
 
 onMounted(() => {
-  setTimeout(async () => {
+  readyTimer = setTimeout(async () => {
     isReady.value = true
     await nextTick()
+    if (disposed) return
     await initCharts()
   }, 100)
   
@@ -891,15 +844,22 @@ onMounted(() => {
   window.addEventListener('resize', resizeHandler)
 })
 
-onUnmounted(() => {
+onBeforeUnmount(() => {
+  disposed = true
+  clearTimeout(readyTimer)
+  for (const element of [bankChart.value, countryChart.value]) {
+    if (element) echarts.getInstanceByDom(element)?.dispose()
+  }
   if (resizeHandler) {
     window.removeEventListener('resize', resizeHandler)
   }
 })
 
-watch([() => props.cardData, selectedCategory], () => {
+const theme = inject('theme', null)
+if (theme) watch(theme.isDarkMode, () => initCharts())
+watch([() => props.cardData.map(({ bank, country }) => `${bank}\0${country}`), selectedCategory], () => {
   initCharts()
-}, { deep: true })
+})
 </script>
 
 <style scoped>

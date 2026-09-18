@@ -103,8 +103,8 @@
         <!-- 卡片底部：额度与关键信息 -->
         <div class="card-footer">
           <div class="card-limit-info">
-            <span class="label">{{ isDebitCard ? '币种' : `额度 (${card.type || 'CNY'})` }}</span>
-            <span class="value">{{ isDebitCard ? (card.type || 'CNY') : formatLimit(card.limit) }}</span>
+            <span class="label">{{ isDebitCard ? '币种' : `额度 (${card.type || '未设置币种'})` }}</span>
+            <span class="value">{{ isDebitCard ? (card.type || '未设置币种') : formatLimit(card.limit) }}</span>
             <span v-if="!isDebitCard && card.isSharedLimit" class="shared-limit-badge">共享</span>
           </div>
 
@@ -169,7 +169,7 @@
             </div>
             <div class="info-item">
               <span class="label">币种</span>
-              <span class="value">{{ card.type || 'CNY' }}</span>
+              <span class="value">{{ card.type || '未设置币种' }}</span>
             </div>
           </div>
 
@@ -218,7 +218,9 @@
 </template>
 
 <script setup>
-import { ref, computed, onUnmounted } from 'vue'
+import { ref, computed, inject, onUnmounted } from 'vue'
+import { cardOrganization as detectOrganization } from '@/utils/cardBrand'
+import { calculateCurrentInterestFreeDays } from '@/utils/dateCalculator'
 import { View, Hide, Refresh, Star, Notebook, Delete } from '@element-plus/icons-vue'
 import { getDaysFromNow } from '@/utils/dateCalculator'
 import { ElMessage } from 'element-plus'
@@ -384,33 +386,8 @@ const themeClass = computed(() => {
 })
 
 // 智能识别卡组织品牌
-const cardOrganization = computed(() => {
-  // 1. 优先按卡等级与别名中的显式卡组织识别，对齐 Mac 端表现
-  const level = (props.card.level || '').toLowerCase()
-  const alias = (props.card.alias || '').toLowerCase()
+const cardOrganization = computed(() => detectOrganization(props.card))
 
-  if (level.includes('visa') || alias.includes('visa') || level.includes('维萨')) return 'visa'
-  if (level.includes('mastercard') || level.includes('master') || alias.includes('mastercard') || alias.includes('master') || level.includes('万事达')) return 'mastercard'
-  if (level.includes('amex') || level.includes('american express') || alias.includes('amex') || level.includes('运通') || alias.includes('运通')) return 'amex'
-  if (level.includes('unionpay') || level.includes('银联') || alias.includes('unionpay') || alias.includes('银联')) return 'unionpay'
-  if (level.includes('jcb') || alias.includes('jcb')) return 'jcb'
-  if (level.includes('discover') || level.includes('发现') || alias.includes('discover')) return 'discover'
-
-  // 2. 未明确标注卡组织时，根据卡号 BIN 号正则识别
-  const num = (props.card.cardNumber || '').replace(/\D/g, '')
-  if (num) {
-    if (num.startsWith('4')) return 'visa'
-    if (/^5[1-5]/.test(num) || /^222[1-9]|^22[3-9]|^2[3-6]|^27[0-1]|^2720/.test(num)) return 'mastercard'
-    if (num.startsWith('34') || num.startsWith('37')) return 'amex'
-    if (num.startsWith('62')) return 'unionpay'
-    if (num.startsWith('35')) return 'jcb'
-    if (/^6011|^65/.test(num)) return 'discover'
-  }
-
-  return ''
-})
-
-// 格式化卡号，带眼球防窥
 const formattedCardNumber = computed(() => {
   const num = props.card.cardNumber || ''
   if (!num) return ['****', '****', '****', '****']
@@ -423,7 +400,7 @@ const formattedCardNumber = computed(() => {
     if (clean.length > 8) {
       const start = clean.slice(0, 4)
       const end = clean.slice(-4)
-      const middle = '*'.repeat(clean.length - 8)
+      const middle = '*'.repeat(Math.max(0, clean.length - 8))
       displayed = start + middle + end
     } else {
       displayed = '*'.repeat(clean.length)
@@ -464,18 +441,10 @@ const getDaysCount = (dateStr) => {
 }
 
 // 免息期计算
-const calculateInterestFree = (billStr, dueStr) => {
-  if (!billStr || !dueStr) return '-'
-  const bill = parseInt(billStr)
-  const due = parseInt(dueStr)
-  if (isNaN(bill) || isNaN(due)) return '-'
-
-  if (due > bill) {
-    return due - bill
-  } else {
-    // 跨月，假设按 30 天计算
-    return 30 - bill + due
-  }
+const day = inject('calendarDay', ref(Date.now()))
+const calculateInterestFree = () => {
+  const days = calculateCurrentInterestFreeDays(props.card, new Date(day.value))
+  return days < 0 ? '-' : days
 }
 </script>
 

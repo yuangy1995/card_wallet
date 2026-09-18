@@ -47,6 +47,7 @@
             <el-option label="无分组" value="none" />
             <el-option label="按发卡行" value="bank" />
             <el-option label="按地区" value="country" />
+            <el-option label="按卡等级" value="level" />
             <el-option label="按卡组织" value="organization" />
           </el-select>
         </div>
@@ -58,6 +59,8 @@
             <el-option label="额度：从低到高" value="limit-asc" />
             <el-option label="下次年费时间" value="annualFee" />
             <el-option label="最近修改时间" value="modifyTime" />
+            <el-option label="免息期：从长到短" value="interest-desc" />
+            <el-option label="免息期：从短到长" value="interest-asc" />
           </el-select>
         </div>
       </div>
@@ -72,17 +75,17 @@
         <div class="empty-text">雷达未扫描到符合筛选条件的银行卡</div>
         <div class="empty-sub">请尝试调整上方查询条件或新增一张卡片</div>
       </div>
-      
+
       <!-- 根据分组渲染卡片 -->
       <div v-else class="card-groups-wrapper">
-        <div 
-          v-for="group in groupedCards" 
+        <div
+          v-for="group in visibleGroups"
           :key="group.key"
           class="card-group-container"
         >
           <!-- 分组头部 (高档太空舱半透明磨砂药丸，支持点击折叠) -->
-          <div 
-            class="card-group-header" 
+          <div
+            class="card-group-header"
             v-if="groupBy !== 'none'"
             @click="toggleGroup(group.key)"
             :class="{ 'is-collapsed': isGroupCollapsed(group.key) }"
@@ -96,24 +99,26 @@
                 <component :is="getGroupIcon(groupBy)" />
               </el-icon>
               <span class="group-title">{{ group.title }}</span>
-              <span class="group-badge">{{ group.cards.length }}张</span>
+              <span class="group-badge">{{ group.fullCount }}张</span>
             </div>
             <div class="group-limit-pill">
-              本组信用额度 <span class="limit-value">¥{{ group.limitSum.toLocaleString('zh-CN', { minimumFractionDigits: 0, maximumFractionDigits: 0 }) }}</span>
+              本组总额度
+              <span v-for="entry in group.limits" :key="entry.currency" class="limit-value">{{ formatCreditAmount(entry.amount, entry.currency) }}</span>
+              <span v-if="group.limits.length === 0">—</span>
             </div>
           </div>
 
           <!-- 分组内的卡片网格 (支持折叠与收缩过渡动画) -->
           <el-collapse-transition>
-            <div v-show="!isGroupCollapsed(group.key)">
-              <TransitionGroup 
-                name="card-flip-list" 
-                tag="div" 
+            <div v-if="!isGroupCollapsed(group.key)">
+              <TransitionGroup
+                name="card-flip-list"
+                tag="div"
                 class="card-grid"
               >
-                <div 
-                  v-for="card in group.cards" 
-                  :key="card.id" 
+                <div
+                  v-for="card in group.cards"
+                  :key="card.id"
                   class="card-item-wrapper"
                   :class="{ 'is-selected': isCardSelected(card.id) }"
                   @contextmenu.prevent="handleContextMenu(card, $event)"
@@ -145,6 +150,8 @@
         </div>
       </div>
     </div>
+
+    <el-pagination v-if="tableData.length > 24" v-model:current-page="page" :page-size="24" :total="tableData.length" layout="total, prev, pager, next" class="wallet-pagination" />
 
     <!-- 右键快捷菜单 (太空舱半透明磨砂) -->
     <div
@@ -179,7 +186,13 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, toRef, onUnmounted, inject } from 'vue'
+import { creditLimitMetrics, formatCreditAmount } from '@/utils/cardMetrics'
+import { cardOrganization, cardOrganizationName } from '@/utils/cardBrand'
+import { calculateCurrentInterestFreeDays } from '@/utils/dateCalculator'
+import { pageGroups } from '@/utils/cardPagination'
+import { usePagedCards } from '@/composables/usePagedCards'
+import { StorageManager } from '@/utils/storage'
 import { Edit, Delete, View, Check, Refresh, OfficeBuilding, Location, CreditCard, ArrowDown, ArrowUp } from '@element-plus/icons-vue'
 import CreditCardPhysicsCard from './CreditCardPhysicsCard.vue'
 
@@ -217,7 +230,7 @@ watch(sortBy, (newVal) => {
 })
 
 // 分组折叠缓存持久化逻辑
-const collapsedGroups = ref(JSON.parse(localStorage.getItem('creditCardCollapsedGroups') || '{}'))
+const collapsedGroups = ref(StorageManager.get('creditCardCollapsedGroups', {}) || {})
 
 const isGroupCollapsed = (groupKey) => {
   return !!collapsedGroups.value[groupKey]
@@ -264,78 +277,28 @@ const getGroupIcon = (type) => {
   return null
 }
 
-// 智能捕获卡片品牌（用于分组）
-const getCardOrganization = (card) => {
-  const num = (card.cardNumber || '').replace(/\D/g, '')
-  if (num) {
-    if (num.startsWith('4')) return 'visa'
-    if (/^5[1-5]/.test(num) || /^222[1-9]|^22[3-9]|^2[3-6]|^27[0-1]|^2720/.test(num)) return 'mastercard'
-    if (num.startsWith('34') || num.startsWith('37')) return 'amex'
-    if (num.startsWith('62')) return 'unionpay'
-    if (num.startsWith('35')) return 'jcb'
-    if (/^6011|^65/.test(num)) return 'discover'
-  }
-  const level = (card.level || '').toLowerCase()
-  const alias = (card.alias || '').toLowerCase()
-  if (level.includes('visa') || alias.includes('visa') || level.includes('维萨')) return 'visa'
-  if (level.includes('mastercard') || level.includes('master') || alias.includes('mastercard') || alias.includes('master') || level.includes('万事达')) return 'mastercard'
-  if (level.includes('amex') || level.includes('american express') || alias.includes('amex') || level.includes('运通') || alias.includes('运通')) return 'amex'
-  if (level.includes('unionpay') || level.includes('银联') || alias.includes('unionpay') || alias.includes('银联')) return 'unionpay'
-  if (level.includes('jcb') || alias.includes('jcb')) return 'jcb'
-  if (level.includes('discover') || level.includes('发现') || alias.includes('discover')) return 'discover'
-  return 'other'
-}
-
-// 获取卡组织美观名称
-const getCardOrganizationDisplayName = (org) => {
-  const mapping = {
-    'visa': 'VISA 卡',
-    'mastercard': 'MasterCard 卡',
-    'unionpay': '银联 (UnionPay) 卡',
-    'amex': '美国运通 (AMEX) 卡',
-    'jcb': 'JCB 国际卡',
-    'discover': 'Discover 发现卡',
-    'other': '其他卡组织卡'
-  }
-  return mapping[org] || '其他卡组织卡'
-}
-
-// 共享授信计算机制（同一银行共享额度合并取最大值，独立额度累加）
-const calculateLimitSum = (cards) => {
-  let total = 0
-  const sharedPools = {}
-  
-  cards.forEach(card => {
-    const limit = parseFloat(card.limit || 0)
-    if (isNaN(limit)) return
-
-    if (card.cardCategory === 'debit') return
-
-    if (card.isSharedLimit) {
-      const bankKey = (card.bank || 'unknown').trim()
-      sharedPools[bankKey] = Math.max(sharedPools[bankKey] || 0, limit)
-    } else {
-      total += limit
-    }
-  })
-
-  // 加总所有的共享额度最大授信
-  Object.values(sharedPools).forEach(limit => {
-    total += limit
-  })
-
-  return total
-}
+const getCardOrganization = cardOrganization
+const getCardOrganizationDisplayName = cardOrganizationName
+const calculateLimits = cards => creditLimitMetrics(cards).totals
 
 // 计算属性：对数据源执行多维分组与高级排序
+const day = inject('calendarDay', ref(Date.now()))
 const groupedCards = computed(() => {
+  day.value
   let sortedData = [...props.tableData]
-  
+
   // 1. 进行高级条件排序
   if (sortBy.value === 'limit-desc') {
     sortedData.sort((a, b) => parseFloat(b.limit || 0) - parseFloat(a.limit || 0))
   } else if (sortBy.value === 'limit-asc') {
     sortedData.sort((a, b) => parseFloat(a.limit || 0) - parseFloat(b.limit || 0))
+  } else if (sortBy.value.startsWith('interest-')) {
+    const days = new Map(sortedData.map(card => [card.id, calculateCurrentInterestFreeDays(card)]))
+    sortedData.sort((a, b) => {
+      const left = days.get(a.id), right = days.get(b.id)
+      if (left < 0 || right < 0) return left < 0 ? (right < 0 ? 0 : 1) : -1
+      return sortBy.value === 'interest-asc' ? left - right : right - left
+    })
   } else if (sortBy.value === 'annualFee') {
     sortedData.sort((a, b) => {
       const timeA = a.nextAnnualFeeCollectionTime ? parseInt(a.nextAnnualFeeCollectionTime) : 9999999999999
@@ -356,12 +319,12 @@ const groupedCards = computed(() => {
       key: 'all',
       title: '所有银行卡',
       cards: sortedData,
-      limitSum: calculateLimitSum(sortedData)
+      limits: calculateLimits(sortedData)
     }]
   }
 
   // 3. 执行分组聚合
-  const groups = {}
+  const groups = Object.create(null)
   sortedData.forEach(card => {
     let key = ''
     let title = ''
@@ -372,6 +335,9 @@ const groupedCards = computed(() => {
     } else if (groupBy.value === 'country') {
       key = (card.country || '其他地区').trim()
       title = card.country || '其他地区'
+    } else if (groupBy.value === 'level') {
+      key = String(card.level || '未设置级别')
+      title = key
     } else if (groupBy.value === 'organization') {
       key = getCardOrganization(card)
       title = getCardOrganizationDisplayName(key)
@@ -382,7 +348,7 @@ const groupedCards = computed(() => {
         key,
         title,
         cards: [],
-        limitSum: 0
+        limits: []
       }
     }
     groups[key].cards.push(card)
@@ -391,7 +357,7 @@ const groupedCards = computed(() => {
   // 4. 计算每个分组的共享后实际授信总额并转换为数组
   const groupList = Object.values(groups)
   groupList.forEach(g => {
-    g.limitSum = calculateLimitSum(g.cards)
+    g.limits = calculateLimits(g.cards)
   })
 
   // 5. 对分组本身进行逻辑排序（卡数多的排前面，或按拼音排序）
@@ -399,6 +365,10 @@ const groupedCards = computed(() => {
 
   return groupList
 })
+
+const { page } = usePagedCards(toRef(props, 'tableData'), 24)
+const visibleGroups = computed(() => pageGroups(groupedCards.value, page.value, 24))
+watch([groupBy, sortBy], () => { page.value = 1 })
 
 // 动态收集子卡片组件实例以支持联动操作
 const cardRefs = ref({})
@@ -453,9 +423,8 @@ const handleContextMenuAction = (action) => {
 }
 
 // 判断单张卡片是否已勾选
-const isCardSelected = (id) => {
-  return props.selectedRows.some(item => item.id === id)
-}
+const selectedIds = computed(() => new Set(props.selectedRows.map(item => item.id)))
+const isCardSelected = id => selectedIds.value.has(id)
 
 // 勾选单张卡片
 const handleCardSelect = (card, checked) => {
@@ -491,14 +460,12 @@ const handleSelectAllChange = (checked) => {
 }
 
 // 监听外界数据变化（当数据在表格外被删除时，同步清理选中状态）
-watch(() => props.tableData, (newData) => {
-  const newSelection = props.selectedRows.filter(selected =>
-    newData.some(card => card.id === selected.id)
-  )
-  if (newSelection.length !== props.selectedRows.length) {
-    emit('selection-change', newSelection)
-  }
-}, { deep: true })
+watch(() => props.tableData.map(card => card.id), ids => {
+  const available = new Set(ids)
+  const selection = props.selectedRows.filter(card => available.has(card.id))
+  if (selection.length !== props.selectedRows.length) emit('selection-change', selection)
+})
+onUnmounted(() => { document.removeEventListener('click', closeContextMenu); contextMenuRow.value = null })
 
 // 暴露清理勾选的方法（配合 App.vue 的 clearSelection 触发，主要用于向后兼容）
 const clearSelection = () => {
@@ -663,7 +630,7 @@ defineExpose({
         color: #fff !important;
         font-size: 12px;
       }
-      
+
       :deep(.el-select__caret) {
         color: rgba(255, 255, 255, 0.6) !important;
       }
@@ -774,6 +741,7 @@ defineExpose({
     display: flex;
     align-items: center;
     gap: 4px;
+    flex-wrap: wrap;
     letter-spacing: 0.5px;
 
     .limit-value {

@@ -133,8 +133,8 @@ export function calculateInterestFreePeriod(accountBillDate, dueDate) {
  */
 export function calculateCurrentInterestFreeDays(card, today = new Date()) {
   if (!card || card.cardCategory === 'debit') return -1
-  const billDay = Number.parseInt(card.accountBillDate, 10)
-  const dueDay = Number.parseInt(card.dueDate, 10)
+  const billDay = Number(card.accountBillDate)
+  const dueDay = Number(card.dueDate)
   if (!Number.isInteger(billDay) || billDay < 1 || billDay > 31 ||
       !Number.isInteger(dueDay) || dueDay < 1 || dueDay > 31) {
     return -1
@@ -142,9 +142,10 @@ export function calculateCurrentInterestFreeDays(card, today = new Date()) {
 
   const base = new Date(today.getFullYear(), today.getMonth(), today.getDate(), 12)
   const spendDay = base.getDate()
+  const actualBillDay = Math.min(billDay, new Date(base.getFullYear(), base.getMonth() + 1, 0).getDate())
   const movesToNextBill = card.billingDaySpendingToNextBill !== false
-    ? spendDay >= billDay
-    : spendDay > billDay
+    ? spendDay >= actualBillDay
+    : spendDay > actualBillDay
 
   const billMonth = base.getMonth() + (movesToNextBill ? 1 : 0)
   const billMonthStart = new Date(base.getFullYear(), billMonth, 1, 12)

@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const mocks = vi.hoisted(() => {
   const snapshot = {
@@ -58,9 +58,14 @@ import { webdavSyncService } from './webdavSyncService'
 import { localDataStore } from './indexedDbStorage'
 import { createIndexedDbMock } from './indexedDbStorage.testUtils'
 import { STORAGE_KEYS } from '@/config/constants'
+import { cardSyncLedger } from './syncLedger'
+import { activeCards } from './syncProtocol'
 
 describe('webdav sync service', () => {
+  afterEach(() => { webdavSyncService.stop(); vi.useRealTimers() })
   beforeEach(async () => {
+    webdavSyncService.stop()
+    webdavSyncService.stopped = false
     const values = new Map()
     vi.stubGlobal('localStorage', {
       getItem: (key) => values.has(key) ? values.get(key) : null,
@@ -130,7 +135,7 @@ describe('webdav sync service', () => {
     )
 
     resolveBackupList({ success: true, data: [] })
-    await Promise.resolve()
+    await vi.waitFor(() => expect(webdavSyncService.isSyncing).toBe(false))
   })
 
   it('does not download or upload when a manual sync sees the same latest cloud snapshot', async () => {
@@ -143,4 +148,66 @@ describe('webdav sync service', () => {
     expect(mocks.decryptSyncEnvelopeV4).not.toHaveBeenCalled()
     expect(mocks.webdavClient.uploadSyncSnapshot).not.toHaveBeenCalled()
   })
+  it('does not upload or delete backups when any selected snapshot cannot be decrypted', async () => {
+    mocks.webdavClient.getBackupList.mockResolvedValue({ success: true, data: [
+      { filename: 'a[SyncV4][自].json' }, { filename: 'b[SyncV4][自].json' }
+    ] })
+    mocks.decryptSyncEnvelopeV4.mockResolvedValueOnce(mocks.snapshot).mockRejectedValueOnce(new Error('bad ciphertext'))
+    await webdavSyncService.synchronize(true)
+    expect(mocks.webdavClient.uploadSyncSnapshot).not.toHaveBeenCalled()
+    expect(mocks.webdavClient.deleteBackup).not.toHaveBeenCalled()
+    expect(cardSyncLedger.load()).toEqual([])
+  })
+
+  it('preserves a newer local edit made while downloading cloud snapshots', async () => {
+    await cardSyncLedger.initialize([])
+    let finish
+    mocks.webdavClient.restoreBackup.mockReturnValue(new Promise(resolve => { finish = resolve }))
+    const syncing = webdavSyncService.synchronize(true)
+    await vi.waitFor(() => expect(finish).toBeTypeOf('function'))
+    await cardSyncLedger.commit([{ ...mocks.snapshot.records[0].card, bank: 'EDITED WHILE DOWNLOADING' }])
+    finish({ success: true, data: mocks.envelopeObject })
+    await syncing
+    expect(activeCards(cardSyncLedger.load())[0].bank).toBe('EDITED WHILE DOWNLOADING')
+    expect(mocks.webdavClient.uploadSyncSnapshot.mock.calls[0][0].records[0].card.bank).toBe('EDITED WHILE DOWNLOADING')
+  })
+
+  it('drops callbacks and further network actions if locked during a download', async () => {
+    let finish
+    mocks.webdavClient.restoreBackup.mockReturnValue(new Promise(resolve => { finish = resolve }))
+    const changed = vi.fn()
+    webdavSyncService.onCardsChanged = changed
+    const syncing = webdavSyncService.synchronize(true)
+    await vi.waitFor(() => expect(finish).toBeTypeOf('function'))
+    webdavSyncService.stop()
+    finish({ success: true, data: mocks.envelopeObject })
+    await syncing
+    expect(changed).not.toHaveBeenCalled()
+    expect(mocks.webdavClient.uploadSyncSnapshot).not.toHaveBeenCalled()
+    expect(mocks.webdavClient.deleteBackup).not.toHaveBeenCalled()
+    expect(webdavSyncService.syncHistory).toEqual([])
+    expect(webdavSyncService.syncTimer).toBeNull()
+  })
+
+  it('saves a burst of edits immediately but coalesces uploads', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    const synchronize = vi.spyOn(webdavSyncService, 'synchronize').mockResolvedValue(undefined)
+    try {
+      for (let i = 0; i < 10; i++) await webdavSyncService.commitCards([{ id: 'local', bank: String(i), country: 'CN', cardNumber: '1234' }])
+      expect(activeCards(cardSyncLedger.load())[0].bank).toBe('9')
+      expect(synchronize).not.toHaveBeenCalled()
+      await vi.advanceTimersByTimeAsync(800)
+      expect(synchronize).toHaveBeenCalledTimes(1)
+    } finally { synchronize.mockRestore() }
+  })
+
+  it('does not clear a pending edit when acknowledging an older upload', async () => {
+    await cardSyncLedger.initialize([])
+    await cardSyncLedger.commit([{ id: 'a', bank: 'first' }])
+    const revision = cardSyncLedger.revision()
+    await cardSyncLedger.commit([{ id: 'a', bank: 'second' }])
+    expect(await cardSyncLedger.acknowledgeUpload('snapshot.json', revision)).toBe(true)
+    expect(cardSyncLedger.isPending()).toBe(true)
+  })
+
 })

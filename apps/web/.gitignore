@@ -45,3 +45,6 @@ coverage
 *.sw?
 
 stats.html
+
+# Synthetic browser regression artifacts
+browser-results/

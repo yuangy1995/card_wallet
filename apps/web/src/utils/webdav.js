@@ -1,343 +1,152 @@
-import { createClient } from 'webdav';
-import { encryptData, decryptData } from './encryption';
-import { encryptSyncEnvelopeV4 } from './syncCryptoV4';
-
+import { encryptSyncEnvelopeV4 } from './syncCryptoV4'
 import { STORAGE_KEYS } from '@/config/constants'
+import { localDataStore } from './indexedDbStorage'
 
+const BACKUP_DIR = '/credit-card-backup'
+const REQUEST_TIMEOUT = 60000
+const aborted = () => new DOMException('同步已取消', 'AbortError')
 export class WebDAVClient {
   constructor() {
-    this.client = null;
-    this.config = null;
-    this.progressCallback = null;
+    this.client = null
+    this.config = null
+    this.progressCallback = null
+    this.controllers = new Set()
+    this.requests = new Set()
+    this.generation = 0
   }
-
-  // 设置进度回调
-  setProgressCallback(callback) {
-    this.progressCallback = callback;
+  setProgressCallback(callback) { this.progressCallback = callback }
+  disconnect() {
+    this.generation++
+    this.controllers.forEach(controller => controller.abort())
+    this.requests.forEach(xhr => xhr.abort())
+    this.controllers.clear()
+    this.requests.clear()
+    this.client = null
+    this.config = null
+    this.progressCallback = null
   }
-
-  // 初始化客户端
+  assertCurrent(generation) { if (generation !== this.generation || !this.client) throw aborted() }
+  async request(operation) {
+    const generation = this.generation
+    this.assertCurrent(generation)
+    const controller = new AbortController()
+    this.controllers.add(controller)
+    const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT)
+    try {
+      const result = await operation(this.client, controller.signal)
+      this.assertCurrent(generation)
+      return result
+    } finally { clearTimeout(timeout); this.controllers.delete(controller) }
+  }
   async initialize(config) {
+    this.disconnect()
+    const generation = this.generation
+    const url = new URL(config.url)
+    if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.hash || url.search) throw new Error('请填写不含账号、查询参数的 HTTP 或 HTTPS WebDAV 地址。')
+    const { createClient } = await import('webdav')
+    if (generation !== this.generation) throw aborted()
+    this.client = createClient(url.href, { username: config.username, password: config.password })
+    this.config = { ...config, url: url.href }
     try {
-      const clientOptions = {
-        username: config.username,
-        password: config.password,
-      };
-
-      // 自定义请求处理
-      clientOptions.fetcher = async (url, options) => {
-        try {
-          // 构建基本认证头
-          const authHeader = 'Basic ' + btoa(`${config.username}:${config.password}`);
-          
-          // 合并请求头
-          const headers = {
-            ...options.headers,
-            'Authorization': authHeader,
-          };
-
-          // 创建 AbortController 实例
-          const controller = new AbortController();
-          const signal = controller.signal;
-
-          // 使用fetch API
-          const response = await fetch(url, {
-            ...options,
-            headers,
-            signal,
-          });
-
-          if (!response.ok) {
-            throw new Error(`请求失败：${response.status} ${response.statusText}`);
-          }
-
-          // 如果是下载操作，处理进度
-          if (options.method === 'GET' && this.progressCallback) {
-            const reader = response.body.getReader();
-            const contentLength = +response.headers.get('Content-Length') || 0;
-            let receivedLength = 0;
-            const progressCallback = this.progressCallback;
-
-            const stream = new ReadableStream({
-              start: async (controller) => {
-                try {
-                  while (true) {
-                    const { done, value } = await reader.read();
-                    if (done) break;
-                    receivedLength += value.length;
-                    controller.enqueue(value);
-                    // 报告进度
-                    if (contentLength > 0 && progressCallback) {
-                      progressCallback('download', (receivedLength / contentLength) * 100);
-                    }
-                  }
-                  controller.close();
-                } catch (e) {
-                  controller.error(e);
-                }
-              }
-            });
-
-            return new Response(stream, { headers: response.headers });
-          }
-
-          return response;
-        } catch (error) {
-          throw error;
-        }
-      };
-
-      // 创建WebDAV客户端
-      this.client = createClient(config.url, clientOptions);
-      this.config = config;
-
-      // 确保备份目录存在
-      const backupDir = '/credit-card-backup';
-      if (!await this.client.exists(backupDir)) {
-        await this.client.createDirectory(backupDir);
+      if (!await this.request((client, signal) => client.exists(BACKUP_DIR, { signal }))) {
+        await this.request((client, signal) => client.createDirectory(BACKUP_DIR, { signal }))
       }
-
-      return true;
+      return true
     } catch (error) {
-      throw new Error(`初始化失败：${error.message}`);
+      if (generation === this.generation) this.disconnect()
+      throw error
     }
   }
-
-  // 测试连接
   async testConnection() {
-    if (!this.client) {
-      return {
-        success: false,
-        message: '请先配置 WebDAV 连接信息'
-      };
-    }
-
-    try {
-      // 尝试列出根目录内容来测试连接
-      await this.client.getDirectoryContents('/');
-      return {
-        success: true,
-        message: '连接成功'
-      };
-    } catch (error) {
-      return { success: false, message: error.message };
-    }
+    try { await this.request((client, signal) => client.getDirectoryContents('/', { signal })); return { success: true, message: '连接成功' } }
+    catch (error) { return { success: false, message: error.message } }
   }
-
-  // 保存配置
-  saveConfig(config) {
-    try {
-      const encryptedConfig = encryptData(JSON.stringify(config));
-      localStorage.setItem(STORAGE_KEYS.WEBDAV_CONFIG, encryptedConfig);
-      this.config = config;
-      this.client = null;
-      return true;
-    } catch (error) {
-      throw new Error(`保存配置失败：${error.message}`);
-    }
+  async saveConfig(config) {
+    if (!localDataStore.isUnlocked) throw new Error('请先解锁再保存同步设置。')
+    await localDataStore.set(STORAGE_KEYS.WEBDAV_CONFIG, config)
+    this.disconnect()
+    return true
   }
-
-  // 加载配置
   loadConfig() {
-    try {
-      const encryptedConfig = localStorage.getItem(STORAGE_KEYS.WEBDAV_CONFIG);
-      if (!encryptedConfig) {
-        return null;
-      }
-      const config = JSON.parse(decryptData(encryptedConfig));
-      this.config = config;
-      return config;
-    } catch (error) {
-      throw new Error(`加载配置失败：${error.message}`);
-    }
+    if (!localDataStore.isUnlocked) return null
+    return localDataStore.get(STORAGE_KEYS.WEBDAV_CONFIG, null)
   }
-
-  async uploadSyncSnapshot(snapshot, syncPassword) {
-    if (!this.client) {
-      throw new Error('云同步服务还没有准备好');
-    }
-    const normalizedSyncPassword = String(syncPassword || '').trim();
-    if (!normalizedSyncPassword) {
-      throw new Error('请先设置同步密钥');
-    }
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-    const activeCount = snapshot.records.filter(record => record.state === 'active').length;
-    const filename = `${timestamp}---(${activeCount})[SyncV4][Web][自].json`;
-    const encryptedSnapshot = await encryptSyncEnvelopeV4(snapshot, normalizedSyncPassword);
-    if (typeof XMLHttpRequest !== 'undefined') {
-      await this.putTextWithProgress(
-        `/credit-card-backup/${filename}`,
-        encryptedSnapshot,
-        this.progressCallback
-          ? (loaded, total) => this.progressCallback('upload', loaded, total)
-          : null
-      );
-    } else {
-      await this.client.putFileContents(`/credit-card-backup/${filename}`, encryptedSnapshot, {
-        overwrite: true,
-        contentLength: true
-      });
-      this.progressCallback?.('upload', encryptedSnapshot.length, encryptedSnapshot.length);
-    }
-    return filename;
+  async uploadSyncSnapshot(snapshot, password) {
+    const generation = this.generation
+    this.assertCurrent(generation)
+    const syncPassword = String(password || '').trim()
+    if (!syncPassword) throw new Error('请先设置同步密钥')
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
+    const activeCount = snapshot.records.filter(record => record.state === 'active').length
+    const filename = `${timestamp}---(${activeCount})[SyncV4][Web][自].json`
+    const content = await encryptSyncEnvelopeV4(snapshot, syncPassword)
+    this.assertCurrent(generation)
+    const path = this.filePath(filename)
+    if (typeof XMLHttpRequest !== 'undefined') await this.putTextWithProgress(path, content, (loaded, total) => this.progressCallback?.('upload', loaded, total))
+    else await this.request((client, signal) => client.putFileContents(path, content, { signal, overwrite: true }))
+    this.assertCurrent(generation)
+    return filename
   }
-
-  // 获取备份列表
   async getBackupList() {
-    if (!this.client) {
-      return {
-        success: false,
-        message: '云同步服务还没有准备好'
-      };
-    }
-
     try {
-      // 检查并创建备份目录
-      const backupDir = '/credit-card-backup';
-      if (!await this.client.exists(backupDir)) {
-        await this.client.createDirectory(backupDir);
-      }
-
-      const files = await this.client.getDirectoryContents('/credit-card-backup', {
-        deep: false,
-        glob: '*.json'
-      });
-
-      // 先处理文件名，再排序
-      const processedFiles = files.map(file => ({
-        filename: file.basename,
-        basename: file.basename,
-        lastmod: file.lastmod,
-        lastModified: file.lastmod ? new Date(file.lastmod).getTime() : 0,
-        size: file.size
-      }));
-
-      // 按时间倒序排序
-      processedFiles.sort((a, b) => new Date(b.lastmod) - new Date(a.lastmod));
-
-      return {
-        success: true,
-        data: processedFiles
-      };
-    } catch (error) {
-      return { success: false, message: error.message };
-    }
+      const files = await this.request((client, signal) => client.getDirectoryContents(BACKUP_DIR, { signal, deep: false, glob: '*.json' }))
+      const data = files.filter(file => file.type !== 'directory').map(file => ({ filename: file.basename, basename: file.basename, lastmod: file.lastmod,
+        lastModified: Date.parse(file.lastmod) || 0, size: file.size })).sort((a, b) => b.lastModified - a.lastModified)
+      return { success: true, data }
+    } catch (error) { return { success: false, message: error.message } }
   }
-
-  // 恢复备份
+  filePath(filename) {
+    if (!filename || /[\/\\]/.test(filename) || filename === '.' || filename === '..') throw new Error('备份文件名无效。')
+    return `${BACKUP_DIR}/${filename}`
+  }
   async restoreBackup(filename, onProgress = null) {
-    if (!this.client) {
-      throw new Error('云同步服务还没有准备好');
-    }
-
     try {
-      const filepath = `/credit-card-backup/${filename}`;
-      
-      const progressHandler = onProgress || (
-        this.progressCallback
-          ? (loaded, total) => this.progressCallback('download', loaded, total)
-          : null
-      );
+      const path = this.filePath(filename)
       const content = typeof XMLHttpRequest !== 'undefined'
-        ? await this.getTextWithProgress(filepath, progressHandler)
-        : await this.client.getFileContents(filepath, { format: 'text' });
-
-      // 尝试解析 JSON
-      try {
-        const jsonData = JSON.parse(content);
-        return {
-          success: true,
-          data: jsonData
-        };
-      } catch (error) {
-        // 如果解析失败，可能是加密数据，直接返回
-        return {
-          success: true,
-          data: content
-        };
-      }
-    } catch (error) {
-      return { success: false, message: error.message };
-    }
+        ? await this.getTextWithProgress(path, onProgress || ((loaded, total) => this.progressCallback?.('download', loaded, total)))
+        : await this.request((client, signal) => client.getFileContents(path, { signal, format: 'text' }))
+      try { return { success: true, data: JSON.parse(content) } }
+      catch { return { success: true, data: content } }
+    } catch (error) { return { success: false, message: error.message } }
   }
-
-  // 删除备份
   async deleteBackup(filename) {
-    if (!this.client) {
-      throw new Error('云同步服务还没有准备好');
-    }
-
-    try {
-      const filepath = `/credit-card-backup/${filename}`;
-      await this.client.deleteFile(filepath);
-      return {
-        success: true,
-        message: '删除成功'
-      };
-    } catch (error) {
-      return { success: false, message: error.message };
-    }
+    try { await this.request((client, signal) => client.deleteFile(this.filePath(filename), { signal })); return { success: true } }
+    catch (error) { return { success: false, message: error.message } }
   }
-
   buildAuthHeader() {
-    if (!this.config) return '';
-    return 'Basic ' + btoa(`${this.config.username}:${this.config.password}`);
+    if (!this.config) throw aborted()
+    const bytes = new TextEncoder().encode(`${this.config.username}:${this.config.password}`)
+    return 'Basic ' + btoa(Array.from(bytes, byte => String.fromCharCode(byte)).join(''))
   }
-
-  backupFileUrl(filepath) {
-    const baseUrl = String(this.config?.url || '').replace(/\/+$/, '');
-    const normalizedPath = String(filepath || '').startsWith('/') ? filepath : `/${filepath}`;
-    return `${baseUrl}${normalizedPath.split('/').map((segment) => encodeURIComponent(segment)).join('/')}`;
+  backupFileUrl(path) {
+    return String(this.config?.url || '').replace(/\/+$/, '') + path.split('/').map(encodeURIComponent).join('/')
   }
-
-  getTextWithProgress(filepath, onProgress = null) {
+  transfer(method, path, content, progress) {
+    const generation = this.generation
+    this.assertCurrent(generation)
     return new Promise((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-      xhr.open('GET', this.backupFileUrl(filepath), true);
-      xhr.setRequestHeader('Authorization', this.buildAuthHeader());
-      xhr.responseType = 'text';
-      onProgress?.(0, 0);
-      xhr.onprogress = (event) => {
-        onProgress?.(event.loaded || 0, event.lengthComputable ? event.total : 0);
-      };
+      const xhr = new XMLHttpRequest()
+      this.requests.add(xhr)
+      const finish = (error, result) => { this.requests.delete(xhr); error ? reject(error) : resolve(result) }
+      xhr.open(method, this.backupFileUrl(path), true)
+      xhr.timeout = REQUEST_TIMEOUT
+      xhr.setRequestHeader('Authorization', this.buildAuthHeader())
+      if (method === 'PUT') xhr.setRequestHeader('Content-Type', 'application/json; charset=utf-8')
+      xhr.responseType = 'text'
+      const target = method === 'PUT' ? xhr.upload : xhr
+      target.onprogress = event => { if (generation === this.generation) progress?.(event.loaded, event.lengthComputable ? event.total : 0) }
+      xhr.onerror = () => finish(new Error('连接失败，请检查网络、服务器证书与跨域设置。'))
+      xhr.ontimeout = () => finish(new Error('连接超时，请稍后重试。'))
+      xhr.onabort = () => finish(aborted())
       xhr.onload = () => {
-        if (xhr.status >= 200 && xhr.status < 300) {
-          onProgress?.(xhr.responseText?.length || 0, xhr.responseText?.length || 0);
-          resolve(xhr.responseText || '');
-        } else {
-          reject(new Error(`下载失败：HTTP ${xhr.status}`));
-        }
-      };
-      xhr.onerror = () => reject(new Error('下载失败：网络连接中断'));
-      xhr.send();
-    });
+        if (generation !== this.generation) { finish(aborted()); return }
+        if (xhr.status < 200 || xhr.status >= 300) { finish(new Error(`服务器返回 ${xhr.status}`)); return }
+        finish(null, xhr.responseText)
+      }
+      try { xhr.send(content) } catch (error) { finish(error) }
+    })
   }
-
-  putTextWithProgress(filepath, content, onProgress = null) {
-    return new Promise((resolve, reject) => {
-      const xhr = new XMLHttpRequest();
-      xhr.open('PUT', this.backupFileUrl(filepath), true);
-      xhr.setRequestHeader('Authorization', this.buildAuthHeader());
-      xhr.setRequestHeader('Content-Type', 'text/plain; charset=utf-8');
-      const totalBytes = new TextEncoder().encode(content).length;
-      onProgress?.(0, totalBytes);
-      xhr.upload.onprogress = (event) => {
-        onProgress?.(event.loaded || 0, event.lengthComputable ? event.total : totalBytes);
-      };
-      xhr.onload = () => {
-        if (xhr.status >= 200 && xhr.status < 300) {
-          onProgress?.(totalBytes, totalBytes);
-          resolve();
-        } else {
-          reject(new Error(`上传失败：HTTP ${xhr.status}`));
-        }
-      };
-      xhr.onerror = () => reject(new Error('上传失败：网络连接中断'));
-      xhr.send(content);
-    });
-  }
-
+  getTextWithProgress(path, progress = null) { return this.transfer('GET', path, null, progress) }
+  putTextWithProgress(path, content, progress = null) { return this.transfer('PUT', path, content, progress) }
 }
-
-// 导出单例实例
-export const webdavClient = new WebDAVClient();
+export const webdavClient = new WebDAVClient()
