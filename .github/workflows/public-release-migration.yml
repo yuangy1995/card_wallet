@@ -1,0 +1,82 @@
+name: Public release migration preparation
+
+on:
+  push:
+    branches: [codex/public-release-migration-20260918]
+    paths: [.github/workflows/public-release-migration.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  prepare:
+    if: github.repository == 'yuangy1995/card_wallet' && github.ref == 'refs/heads/codex/public-release-migration-20260918'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Migrate source and test URLs and record branch ancestry
+        shell: bash
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import json, os, pathlib, subprocess
+          def git(*args):
+              return subprocess.check_output(['git', *args], text=True).strip()
+          old = 'yuangy1995/card-wallet-releases'
+          new = 'yuangy1995/card_wallet'
+          changed = []
+          for name in git('ls-files', '-z').split('\0'):
+              if not name or name.startswith('.github/'):
+                  continue
+              path = pathlib.Path(name)
+              if path.is_symlink():
+                  continue
+              try:
+                  text = path.read_text(encoding='utf-8')
+              except UnicodeDecodeError:
+                  continue
+              if old in text:
+                  path.write_text(text.replace(old, new), encoding='utf-8')
+                  changed.append(name)
+          print('Migrated update repository in:')
+          print('\n'.join(changed))
+          report = []
+          for line in git('for-each-ref', '--format=%(refname:short) %(objectname)', 'refs/remotes/origin/').splitlines():
+              ref, sha = line.split()
+              if ref in ('origin/main', 'origin/HEAD') or ref.endswith('/public-release-migration-20260918'):
+                  continue
+              ancestor = subprocess.run(['git', 'merge-base', '--is-ancestor', sha, 'origin/main']).returncode == 0
+              cherry = git('cherry', 'origin/main', sha).splitlines() if not ancestor else []
+              report.append({'branch': ref.removeprefix('origin/'), 'sha': sha, 'merged_by_ancestry': ancestor,
+                             'unique_patch_commits': [x[2:] for x in cherry if x.startswith('+ ')],
+                             'equivalent_patch_commits': [x[2:] for x in cherry if x.startswith('- ')]})
+          out = pathlib.Path(os.environ['RUNNER_TEMP']) / 'branch-audit.json'
+          out.write_text(json.dumps({'main': git('rev-parse', 'origin/main'), 'branches': report}, indent=2))
+          print(out.read_text())
+          PY
+          git diff --check
+      - name: Commit URL migration to the migration branch only
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -u -- apps docs README.md AGENTS.md scripts
+          if ! git diff --cached --quiet; then
+            git commit -m '将客户端、校验脚本和文档的更新来源迁移到当前公开仓库'
+            git -c credential.helper= -c 'credential.helper=!gh auth git-credential' push origin HEAD:refs/heads/codex/public-release-migration-20260918
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: branch-ancestry-audit
+          path: ${{ runner.temp }}/branch-audit.json
+          retention-days: 3
+          if-no-files-found: error
