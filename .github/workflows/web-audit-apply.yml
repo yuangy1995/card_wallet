@@ -1,0 +1,98 @@
+name: Apply verified Web audit
+on:
+  pull_request:
+    types: [synchronize]
+    paths: ['.github/workflows/web-audit-apply.yml']
+permissions:
+  contents: write
+concurrency:
+  group: apply-verified-web-audit
+  cancel-in-progress: false
+jobs:
+  apply-and-verify:
+    if: github.repository == 'yuangy1995/card_wallet' && github.event.pull_request.head.repo.full_name == github.repository && github.head_ref == 'codex/web-security-performance-completion'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          persist-credentials: true
+      - name: Verify and apply exact local changes
+        run: |
+          python - <<'PY'
+          import base64, hashlib, json, lzma, subprocess
+          from pathlib import Path
+          root = Path.cwd().resolve()
+          parts = [root / f'.github/web-audit-transfer/part{i}.b64' for i in range(1,6)]
+          for p in parts:
+              print(p.name, len(p.read_text().strip()), hashlib.sha256(p.read_text().strip().encode()).hexdigest())
+          compressed = base64.b64decode(''.join(p.read_text().strip() for p in parts), validate=True)
+          assert hashlib.sha256(compressed).hexdigest() == '2546b08a434520cb23778cdab1312865d4b22434315dadf4d6594feef08b2212', 'Transfer checksum mismatch; no changes applied'
+          changes = json.loads(lzma.decompress(compressed))
+          prepared = []
+          for entry in changes:
+              relative = entry['path']
+              assert relative.startswith(('apps/web/', 'docs/', '.github/workflows/'))
+              assert '..' not in Path(relative).parts
+              path = root / relative
+              assert path.resolve().is_relative_to(root) and not path.is_symlink()
+              before = path.read_bytes() if path.exists() else None
+              assert (hashlib.sha256(before).hexdigest() if before is not None else None) == entry['before'], f'Base changed: {relative}'
+              result = None
+              if entry['after'] is not None:
+                  lines = (before or b'').decode().splitlines(keepends=True)
+                  for start, end, replacement in reversed(entry['edits']):
+                      assert 0 <= start <= end <= len(lines)
+                      lines[start:end] = [replacement]
+                  result = ''.join(lines).encode()
+                  assert hashlib.sha256(result).hexdigest() == entry['after'], f'Output mismatch: {relative}'
+              prepared.append((path,result))
+          for path,result in prepared:
+              if result is None: path.unlink()
+              else:
+                  path.parent.mkdir(parents=True, exist_ok=True)
+                  path.write_bytes(result)
+          for p in parts: p.unlink()
+          (root / '.github/web-audit-transfer').rmdir()
+          (root / '.github/workflows/web-audit-apply.yml').unlink()
+          paths = [entry['path'] for entry in changes] + [str(p.relative_to(root)) for p in parts] + ['.github/workflows/web-audit-apply.yml']
+          subprocess.run(['git','add','-A','--',*paths],check=True)
+          subprocess.run(['git','diff','--cached','--check'],check=True)
+          print(f'Validated and staged {len(changes)} source changes; temporary workflows and transfer files removed.')
+          PY
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Install locked dependencies
+        run: pnpm --dir apps/web install --frozen-lockfile
+      - name: All Web regression tests
+        run: pnpm --dir apps/web test:run
+      - name: Production build
+        run: pnpm --dir apps/web build
+      - name: Commit only to the requested feature branch
+        run: |
+          set -eu
+          expected=$(git rev-parse HEAD)
+          actual=$(git ls-remote origin refs/heads/codex/web-security-performance-completion | cut -f1)
+          test "$expected" = "$actual"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m '修复 Web 本地保险库、额度口径、同步竞态及大列表性能，补充四端对齐方案'
+          git push origin HEAD:refs/heads/codex/web-security-performance-completion
+          git log -1 --format='%H %s'
+      - name: Install isolated browser regression runner
+        run: |
+          python -m pip install playwright==1.57.0
+          python -m playwright install --with-deps chromium
+      - name: Production browser regressions
+        run: cd apps/web && python scripts/browser-regression.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: web-browser-regressions
+          path: apps/web/browser-results
+          retention-days: 7
