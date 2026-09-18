@@ -1,0 +1,38 @@
+[
+  {
+    "id": "leap",
+    "cardCategory": "credit",
+    "isQualified": "2",
+    "nextAnnualFeeCollectionTime": 1709208000000,
+    "now": 1706788800000,
+    "expectedDate": 1740744000000,
+    "expectedStatus": "1"
+  },
+  {
+    "id": "already-future",
+    "cardCategory": "credit",
+    "isQualified": "1",
+    "nextAnnualFeeCollectionTime": 1809172800000,
+    "now": 1789732800000,
+    "expectedDate": 1809172800000,
+    "expectedStatus": "1"
+  },
+  {
+    "id": "current-cycle",
+    "cardCategory": "credit",
+    "isQualified": "1",
+    "nextAnnualFeeCollectionTime": 1790856000000,
+    "now": 1789732800000,
+    "expectedDate": 1822392000000,
+    "expectedStatus": "1"
+  },
+  {
+    "id": "debit",
+    "cardCategory": "debit",
+    "isQualified": "2",
+    "nextAnnualFeeCollectionTime": 1790856000000,
+    "now": 1789732800000,
+    "expectedDate": 1790856000000,
+    "expectedStatus": "2"
+  }
+]

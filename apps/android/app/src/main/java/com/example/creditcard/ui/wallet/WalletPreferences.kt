@@ -13,6 +13,7 @@ import androidx.compose.ui.platform.LocalContext
 /** Presentation preferences only: never changes card timestamps or the shared SyncV4 schema. */
 internal data class WalletPreferenceState(
     val isList: Boolean = false,
+    val favoritesOnly: Boolean = false,
     val favorites: Set<String> = emptySet()
 )
 
@@ -22,12 +23,13 @@ internal class WalletPreferences(private val preferences: SharedPreferences) {
 
     private fun read() = WalletPreferenceState(
         isList = preferences.getBoolean(LIST_KEY, false),
+        favoritesOnly = preferences.getBoolean(ONLY_FAVORITES_KEY, false),
         // SharedPreferences owns the returned set; never mutate it.
         favorites = preferences.getStringSet(FAVORITES_KEY, emptySet()).orEmpty().toSet()
     )
 
     private val listener = SharedPreferences.OnSharedPreferenceChangeListener { _, key ->
-        if (key == null || key == LIST_KEY || key == FAVORITES_KEY) state = read()
+        if (key == null || key == LIST_KEY || key == FAVORITES_KEY || key == ONLY_FAVORITES_KEY) state = read()
     }
 
     fun start() {
@@ -36,6 +38,11 @@ internal class WalletPreferences(private val preferences: SharedPreferences) {
     }
 
     fun stop() = preferences.unregisterOnSharedPreferenceChangeListener(listener)
+
+    fun setFavoritesOnly(value: Boolean) {
+        preferences.edit().putBoolean(ONLY_FAVORITES_KEY, value).apply()
+        state = read()
+    }
 
     fun setListMode(isList: Boolean) {
         preferences.edit().putBoolean(LIST_KEY, isList).apply()
@@ -52,6 +59,7 @@ internal class WalletPreferences(private val preferences: SharedPreferences) {
     }
 
     companion object {
+        const val ONLY_FAVORITES_KEY = "wallet_favorites_only"
         const val FILE = "card_list_preferences"
         const val LIST_KEY = "card_is_compact_view"
         const val FAVORITES_KEY = "wallet_favorite_card_ids"

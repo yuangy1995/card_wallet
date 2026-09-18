@@ -9,7 +9,7 @@
           @change="handleSelectAllChange"
           class="tech-checkbox"
         >
-          全选所有卡片 (已选择 {{ selectedRows.length }} / {{ tableData.length }})
+          全选当前结果 (已选择 {{ selectedRows.length }} / {{ tableData.length }})
         </el-checkbox>
         <div class="actions-tips" v-if="selectedRows.length > 0">
           <span class="pulse-dot"></span>
@@ -132,6 +132,9 @@
                     />
                   </div>
 
+                  <el-button class="card-favorite-control" text circle :aria-label="favoriteIds.has(card.id) ? '取消收藏' : '收藏卡片'" :aria-pressed="favoriteIds.has(card.id)" @click.stop="$emit('toggle-favorite', card.id)">
+                    <el-icon><StarFilled v-if="favoriteIds.has(card.id)" /><Star v-else /></el-icon>
+                  </el-button>
                   <!-- 物理 3D 悬浮卡片 -->
                   <CreditCardPhysicsCard
                     :card="card"
@@ -186,6 +189,7 @@
 </template>
 
 <script setup>
+import { Star, StarFilled } from '@element-plus/icons-vue'
 import { ref, computed, watch, toRef, onUnmounted, inject } from 'vue'
 import { sortCards } from '@/utils/cardCatalog'
 import { normalizeBankNameForMatch } from '@/utils/bankName'
@@ -199,6 +203,7 @@ import { Edit, Delete, View, Check, Refresh, OfficeBuilding, Location, CreditCar
 import CreditCardPhysicsCard from './CreditCardPhysicsCard.vue'
 
 const props = defineProps({
+  favoriteIds: { type: Set, default: () => new Set() },
   sortMode: { type: String, default: undefined },
   tableData: {
     type: Array,
@@ -211,7 +216,7 @@ const props = defineProps({
 })
 
 const emit = defineEmits([
-  'update:sortMode',
+  'update:sortMode', 'toggle-favorite',
   'edit',
   'delete',
   'view-details',

@@ -14,9 +14,6 @@ struct CreditCardIOSApp: App {
             RootView()
                 .environmentObject(syncCoordinator)
                 .environmentObject(lockManager)
-                .onAppear {
-                    syncCoordinator.bootstrap()
-                }
                 .preferredColorScheme(appColorScheme)
             }
         }

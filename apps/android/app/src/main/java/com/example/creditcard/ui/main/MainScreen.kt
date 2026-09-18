@@ -253,7 +253,7 @@ fun MainScreen(
     val walletPreferences = rememberWalletPreferences()
     val isCompactView = walletPreferences.state.isList
     val favoriteCardIDs = walletPreferences.state.favorites
-    var favoritesOnly by rememberSaveable { mutableStateOf(false) }
+    val favoritesOnly = walletPreferences.state.favoritesOnly
     var showGroupMenu by remember { mutableStateOf(false) }
     var showSortMenu by remember { mutableStateOf(false) }
     var selectionMode by remember { mutableStateOf(false) }
@@ -369,6 +369,7 @@ fun MainScreen(
                             when {
                                 update.status == "3" -> null
                                 update.nextAnnualFeeTime != null -> update.nextAnnualFeeTime
+                                update.status == "1" -> CardReminderRules.confirmAnnualFeeQualified(card.copy(cardCategory = nextCategory)).nextAnnualFeeCollectionTime
                                 else -> card.nextAnnualFeeCollectionTime
                             }
                         } else card.nextAnnualFeeCollectionTime,
@@ -509,7 +510,7 @@ fun MainScreen(
                                 onListModeChange = walletPreferences::setListMode,
                                 favoritesOnly = favoritesOnly,
                                 favoriteCount = favoriteCount,
-                                onFavoritesChange = { favoritesOnly = it },
+                                onFavoritesChange = walletPreferences::setFavoritesOnly,
                                 isSyncing = syncStatus.isSyncing,
                                 syncType = syncStatus.type,
                                 syncReady = syncConfig.isReadyForSync,
@@ -557,7 +558,7 @@ fun MainScreen(
                             item(key = "empty_state", contentType = "empty") {
                                 WalletEmptyState(
                                     hasCards = cards.isNotEmpty(), favoritesOnly = favoritesOnly,
-                                    onReset = { searchQuery = ""; cardCategoryFilter = "all"; favoritesOnly = false }
+                                    onReset = { searchQuery = ""; cardCategoryFilter = "all"; walletPreferences.setFavoritesOnly(false) }
                                 )
                             }
                         } else {

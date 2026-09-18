@@ -39,11 +39,19 @@ public class CryptoManager {
         return bytes
     }
 
-    private static func localDataKey() throws -> SymmetricKey {
-        if let data = KeychainManager.loadData(key: localEncryptionKeychainKey), data.count == localEncryptionKeyBytes {
+    private static let localKeyLock = NSLock()
+    private static func localDataKey(allowCreation: Bool) throws -> SymmetricKey {
+        localKeyLock.lock(); defer { localKeyLock.unlock() }
+        if let data = try KeychainManager.loadDataResult(key: localEncryptionKeychainKey).get() {
+            guard data.count == localEncryptionKeyBytes else { throw CryptoError.decryptionFailed }
             return SymmetricKey(data: data)
         }
 
+        guard allowCreation else { throw CryptoError.decryptionFailed }
+        let directory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("CardWallet")
+        for name in ["cards.json", "sync_ledger.json", "sync-history.enc"] {
+            if FileManager.default.fileExists(atPath: directory.appendingPathComponent(name).path) { throw CryptoError.decryptionFailed }
+        }
         let keyBytes = try randomBytes(count: localEncryptionKeyBytes)
         let keyData = Data(keyBytes)
         switch KeychainManager.saveData(key: localEncryptionKeychainKey, data: keyData) {
@@ -55,7 +63,7 @@ public class CryptoManager {
     }
 
     public static func encryptLocalData(_ data: Data) throws -> Data {
-        let key = try localDataKey()
+        let key = try localDataKey(allowCreation: true)
         let nonceBytes = try randomBytes(count: localEncryptionNonceBytes)
         let nonce = try CryptoKit.AES.GCM.Nonce(data: Data(nonceBytes))
         let sealedBox = try CryptoKit.AES.GCM.seal(data, using: key, nonce: nonce)
@@ -84,7 +92,7 @@ public class CryptoManager {
             ciphertext: Data(ciphertext),
             tag: Data(tag)
         )
-        return try CryptoKit.AES.GCM.open(sealedBox, using: try localDataKey())
+        return try CryptoKit.AES.GCM.open(sealedBox, using: try localDataKey(allowCreation: false))
     }
 
     private static func deriveSyncV4Key(password: String, salt: [UInt8], iterations: Int) throws -> [UInt8] {

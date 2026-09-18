@@ -116,4 +116,5 @@
     <string name="sort_interest_asc">Interest-free days: shortest first</string>
     <string name="sort_modified">Recently modified</string>
     <string name="sort_bank">Bank name</string>
+    <string name="wallet_image_import_error">Add up to 20 images per card, with each original up to 10 MB. New images are compressed; existing images are unchanged.</string>
 </resources>

@@ -20,6 +20,9 @@ struct AllCardsView: View {
     @EnvironmentObject private var appearance: WalletAppearance
     @Environment(\.walletPalette) private var palette
     @Environment(\.walletAnimation) private var animation
+    @AppStorage("wallet_favorite_card_ids_v1") private var favoriteStorage = ""
+    @AppStorage("wallet_only_favorites_v1") private var onlyFavorites = false
+    private var favoriteIDs: Set<String> { LocalCardPreferences.favoriteIDs(favoriteStorage) }
     @AppStorage("wallet_card_layout") private var layout = "list"
     @State private var preparedCards: [CardCatalogItem] = []
     @State private var groups: [CardCatalogGroup] = []
@@ -59,7 +62,7 @@ struct AllCardsView: View {
                         if cards.isEmpty {
                             Button("添加卡片", action: addCard).buttonStyle(.borderedProminent)
                         } else {
-                            Button("清除筛选") { searchText = ""; selectedBank = ""; cardCategoryFilter = .all }
+                            Button("清除筛选") { searchText = ""; selectedBank = ""; cardCategoryFilter = .all; onlyFavorites = false }
                         }
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -97,6 +100,8 @@ struct AllCardsView: View {
         .onChange(of: cards) { _, _ in prepare() }
         .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged)) { _ in prepare() }
         .onChange(of: query) { _, _ in refreshGroups() }
+        .onChange(of: favoriteStorage) { _, _ in refreshGroups() }
+        .onChange(of: onlyFavorites) { _, _ in refreshGroups() }
         .onDisappear { catalogTask?.cancel() }
         .task(id: searchFocusRequest) { if searchFocusRequest > 0 { searchFocused = true } }
         .sheet(isPresented: $showingBatchEditor) {
@@ -152,6 +157,13 @@ struct AllCardsView: View {
                     WalletChoice(value: "list", title: "列表视图", icon: "list.bullet"),
                     WalletChoice(value: "grid", title: "卡片视图", icon: "square.grid.2x2")
                 ], iconOnly: true)
+                Button { onlyFavorites.toggle() } label: {
+                    Image(systemName: onlyFavorites ? "star.fill" : "star")
+                        .foregroundStyle(onlyFavorites ? palette.accent : Color.secondary)
+                }
+                .buttonStyle(.borderless)
+                .help(onlyFavorites ? "显示全部卡片" : "只看收藏")
+                .accessibilityLabel(onlyFavorites ? "显示全部卡片" : "只看收藏")
                 Menu {
                     Picker("分组", selection: $groupBy) {
                         ForEach(GroupOption.allCases) { option in Label(LocalizedStringKey(option.rawValue), systemImage: option.icon).tag(option) }
@@ -191,7 +203,7 @@ struct AllCardsView: View {
     private var batchBar: some View {
         HStack(spacing: 10) {
             Text("已选 \(selectedCardIDs.count) 张").font(.caption)
-            Button(selectedCardIDs.isSuperset(of: Set(visibleItems.map(\.id))) ? "取消全选" : "全选") {
+            Button(selectedCardIDs.isSuperset(of: Set(visibleItems.map(\.id))) ? "取消全选" : "全选当前结果") {
                 let ids = Set(visibleItems.map(\.id))
                 if selectedCardIDs.isSuperset(of: ids) { selectedCardIDs.subtract(ids) } else { selectedCardIDs.formUnion(ids) }
             }.buttonStyle(.borderless)
@@ -248,7 +260,10 @@ struct AllCardsView: View {
                 withAnimation(animation) { selectedCardID = item.id }
             }
         } label: {
-            WalletCatalogRow(item: item, grid: grid, selected: isSelectionMode ? selectedCardIDs.contains(item.id) : selectedCardID == item.id, selectionMode: isSelectionMode, compact: appearance.compactList)
+            HStack(spacing: 5) {
+                if favoriteIDs.contains(item.id) { Image(systemName: "star.fill").foregroundStyle(palette.accent).accessibilityLabel("已收藏") }
+                WalletCatalogRow(item: item, grid: grid, selected: isSelectionMode ? selectedCardIDs.contains(item.id) : selectedCardID == item.id, selectionMode: isSelectionMode, compact: appearance.compactList)
+            }
         }
         .buttonStyle(.plain)
         .focusable()
@@ -258,6 +273,9 @@ struct AllCardsView: View {
         .onKeyPress(.upArrow) { moveSelection(from: item.id, step: -1, scrollTo: scrollTo); return .handled }
         .onKeyPress(.downArrow) { moveSelection(from: item.id, step: 1, scrollTo: scrollTo); return .handled }
         .contextMenu {
+            Button { LocalCardPreferences.toggle(item.id) } label: {
+                Label(favoriteIDs.contains(item.id) ? "取消收藏" : "收藏卡片", systemImage: favoriteIDs.contains(item.id) ? "star.slash" : "star")
+            }
             Button("查看完整详情") { detailCard = item.card }
             Button("编辑卡片") { edit(item.card) }
             if item.card.cardCategory != "debit" {
@@ -292,11 +310,13 @@ struct AllCardsView: View {
         let cardsSnapshot = cards
         let cachedItems = preparedCards
         let querySnapshot = query
+        let favorites = favoriteIDs
+        let favoritesOnly = onlyFavorites
         let rebuildItems = needsPreparation
         catalogTask = Task { @MainActor in
             let result = await Task.detached(priority: .userInitiated) {
                 let items = rebuildItems ? cardsSnapshot.map(CardCatalogItem.init) : cachedItems
-                return (items, CardCatalog.groups(items: items, query: querySnapshot))
+                return (items, CardCatalog.groups(items: favoritesOnly ? items.filter { favorites.contains($0.id) } : items, query: querySnapshot))
             }.value
             guard !Task.isCancelled else { return }
             preparedCards = result.0

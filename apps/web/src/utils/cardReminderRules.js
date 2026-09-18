@@ -319,3 +319,19 @@ export const analyzeCardDataIssues = (cards) => {
   const severityWeight = { error: 0, warning: 1, info: 2 }
   return issues.sort((a, b) => severityWeight[a.severity] - severityWeight[b.severity])
 }
+
+export const timestampByAddingOneYear = value => {
+  if (!value) return value
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  const year = date.getFullYear() + 1, month = date.getMonth(), day = date.getDate()
+  date.setDate(1); date.setFullYear(year); date.setMonth(month)
+  date.setDate(Math.min(day, new Date(year, month + 1, 0).getDate()))
+  return date.getTime()
+}
+export const settingAnnualStatus = (card, status, now = new Date()) => {
+  if (!isCreditCard(card)) return card
+  if (status === '1' && card.isQualified === '1' && !getAnnualFeeDetection(card, 60, now)) return card
+  return { ...card, isQualified: status, lastModifyTime: now.getTime(),
+    nextAnnualFeeCollectionTime: status === '3' ? null : status === '1' ? timestampByAddingOneYear(card.nextAnnualFeeCollectionTime) : card.nextAnnualFeeCollectionTime }
+}

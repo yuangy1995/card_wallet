@@ -15,9 +15,9 @@ public final class SyncCoordinator: ObservableObject {
 
     private init() {}
 
-    public func bootstrap(localCards: [SharedCard]) -> [SharedCard] {
+    public func bootstrap(localCards: [SharedCard]) throws -> [SharedCard] {
         guard !hasBootstrapped else { return currentCards }
-        ledger = SyncLedgerStore.shared.load(seeding: localCards)
+        ledger = try SyncLedgerStore.shared.load(seeding: localCards)
         if ledger.records.isEmpty && !localCards.isEmpty {
             ledger.records = localCards.map(CardSyncRecord.legacyActive)
             SyncLedgerStore.shared.save(ledger)
@@ -28,7 +28,7 @@ public final class SyncCoordinator: ObservableObject {
         WebDAVBridgeService.shared.configure(
             recordsProvider: { [weak self] in self?.ledger.records ?? [] },
             onMergedRecords: { [weak self] records in
-                self?.mergeRemote(records)
+                self?.mergeRemote(records) ?? false
             }
         )
         pendingStatus = "同步准备完成"
@@ -50,10 +50,10 @@ public final class SyncCoordinator: ObservableObject {
             if let existing = existingByID[card.id], existing.state == .active, existing.card == card {
                 continue
             }
-            events.append(.active(card))
+            events.append(.active(card, changedAt: CardSyncRecord.nextTimestamp(after: existingByID[card.id])))
         }
         for cardID in deletedCardIDs where !inputIDs.contains(cardID) {
-            events.append(.deleted(cardId: cardID))
+            events.append(.deleted(cardId: cardID, changedAt: CardSyncRecord.nextTimestamp(after: existingByID[cardID])))
         }
         return writeLocal(events: events)
     }
@@ -63,12 +63,14 @@ public final class SyncCoordinator: ObservableObject {
         let normalizedCards = cards.map(normalizedCard)
         let restoredIDs = Set(normalizedCards.map(\.id))
         let existingActiveIDs = Set(ledger.records.filter { $0.state == .active }.map(\.cardId))
-        var events = normalizedCards.map { CardSyncRecord.active($0) }
-        events.append(contentsOf: existingActiveIDs.subtracting(restoredIDs).map { CardSyncRecord.deleted(cardId: $0) })
+        let existingByID = latestRecordsByID(ledger.records)
+        var events = normalizedCards.map { CardSyncRecord.active($0, changedAt: CardSyncRecord.nextTimestamp(after: existingByID[$0.id])) }
+        events.append(contentsOf: existingActiveIDs.subtracting(restoredIDs).map { CardSyncRecord.deleted(cardId: $0, changedAt: CardSyncRecord.nextTimestamp(after: existingByID[$0])) })
         return writeLocal(events: events)
     }
 
     public func setSuspended(isLocked: Bool) {
+        WebDAVClient.shared.setSuspended(isLocked)
         if isLocked {
             pendingWebDAVUploadWorkItem?.cancel()
             pendingWebDAVUploadWorkItem = nil
@@ -86,24 +88,35 @@ public final class SyncCoordinator: ObservableObject {
         }
     }
 
-    private func mergeRemote(_ records: [CardSyncRecord]) {
+    @discardableResult
+    private func mergeRemote(_ records: [CardSyncRecord]) -> Bool {
+        guard hasBootstrapped, !AutoLockManager.shared.isLocked else { return false }
         let merged = CardSyncMergeEngine.merge([ledger.records, records])
-        guard merged != ledger.records else { return }
-        ledger.records = merged
-        SyncLedgerStore.shared.save(ledger)
+        guard merged != ledger.records else { return true }
+        var candidate = ledger
+        candidate.records = merged
+        guard SyncLedgerStore.shared.save(candidate) else {
+            pendingStatus = "未能保存卡片，请重试；已有数据没有被更改"
+            return false
+        }
+        ledger = candidate
         persistActiveView()
-        let cards = currentCards
-        onCardsChanged?(cards)
+        onCardsChanged?(currentCards)
         lastConvergenceAt = Date()
         pendingStatus = "已更新云端变化"
-
+        return true
     }
 
     private func writeLocal(events: [CardSyncRecord]) -> [SharedCard] {
-        guard !events.isEmpty else { return currentCards }
-        ledger.records = CardSyncMergeEngine.merge([ledger.records, events])
-        ledger.pendingWebDAVUpload = true
-        SyncLedgerStore.shared.save(ledger)
+        guard hasBootstrapped, !AutoLockManager.shared.isLocked, !events.isEmpty else { return currentCards }
+        var candidate = ledger
+        candidate.records = CardSyncMergeEngine.merge([ledger.records, events])
+        candidate.pendingWebDAVUpload = true
+        guard SyncLedgerStore.shared.save(candidate) else {
+            pendingStatus = "未能保存卡片，请重试；已有数据没有被更改"
+            return currentCards
+        }
+        ledger = candidate
         persistActiveView()
         pendingStatus = "正在同步最新修改"
         scheduleWebDAVUpload()
@@ -112,6 +125,7 @@ public final class SyncCoordinator: ObservableObject {
 
     private func persistActiveView() {
         LocalStorageManager.write(cards: currentCards)
+        LocalCardPreferences.retain(Set(currentCards.map(\.id)))
     }
 
     private func latestRecordsByID(_ records: [CardSyncRecord]) -> [String: CardSyncRecord] {

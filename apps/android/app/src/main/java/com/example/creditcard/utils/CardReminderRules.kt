@@ -73,10 +73,11 @@ object CardReminderRules {
     }
 
     /** 确认当前年费周期达标，并同步顺延下一次年费日期。 */
-    fun confirmAnnualFeeQualified(card: SharedCard): SharedCard = card.copy(
-        isQualified = "1",
-        nextAnnualFeeCollectionTime = timestampByAddingOneYear(card.nextAnnualFeeCollectionTime)
-    )
+    fun confirmAnnualFeeQualified(card: SharedCard, nowMillis: Long = System.currentTimeMillis()): SharedCard {
+        if (card.cardCategory == "debit") return card
+        if (card.isQualified == "1" && annualFeeDetection(card, nowMillis = nowMillis) == null) return card
+        return card.copy(isQualified = "1", nextAnnualFeeCollectionTime = timestampByAddingOneYear(card.nextAnnualFeeCollectionTime))
+    }
 
     fun annualFeeDetection(
         card: SharedCard,

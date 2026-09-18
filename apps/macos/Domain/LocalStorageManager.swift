@@ -17,7 +17,7 @@ public class LocalStorageManager {
         return appSupportDirectory
     }
     
-    /// 100% 稳健的加密数据写入 cards.json
+    /// 使用本机随机密钥保存 cards.json；不改变导出或云同步格式。
     /// - Parameters:
     ///   - cards: 卡片数据数组
     ///   - password: 自定义密码（可选）
@@ -29,16 +29,11 @@ public class LocalStorageManager {
             encoder.outputFormatting = .prettyPrinted
             let jsonData = try encoder.encode(cards)
             
-            guard let jsonString = String(data: jsonData, encoding: .utf8) else {
-                return false
-            }
-            
-            // 采用与 Web 端 100% 互通的 AES 默认/自定义密码加密
-            let cipherText = try CryptoManager.encrypt(plainText: jsonString, password: password)
-            
+            let ciphertext = try LocalDataCipher.shared.seal(jsonData)
             let fileURL = getAppSupportDirectory().appendingPathComponent(cardFileName)
-            try cipherText.write(to: fileURL, atomically: true, encoding: .utf8)
-            
+            try ciphertext.write(to: fileURL, options: .atomic)
+            try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: fileURL.path)
+
             return true
         } catch {
             print("写入本地加密卡片数据失败: \(error.localizedDescription)")
@@ -48,7 +43,7 @@ public class LocalStorageManager {
     
     /// 从 sandboxed cards.json 安全读取、解密并清洗卡片数据
     /// - Parameter password: 自定义密码（若数据非 default: 前缀则必填）
-    /// - Returns: 100% 清洗、健壮的卡片数组，如果无文件返回空数组
+    /// - Returns: 无文件返回空数组；读取或解密失败保留原文件并返回错误。
     public static func read(password: String? = nil) -> Result<[SharedCard], Error> {
         let fileURL = getAppSupportDirectory().appendingPathComponent(cardFileName)
         
@@ -57,16 +52,9 @@ public class LocalStorageManager {
         }
         
         do {
-            let cipherText = try String(contentsOf: fileURL, encoding: .utf8)
-            
-            // 1. 解密获得 JSON 原始串
-            let jsonString = try CryptoManager.decrypt(cipherText: cipherText, password: password)
-            
-            // 2. 将 JSON 解析为基础 Any 字典数组，进行数据降级强力迁移洗涤
-            guard let jsonData = jsonString.data(using: .utf8) else {
-                return .failure(CryptoError.utf8DecodingFailed)
-            }
-            
+            let data = try Data(contentsOf: fileURL)
+            let jsonData = try LocalDataCipher.shared.open(data, legacyPassword: password)
+
             guard let rawObjects = try? JSONSerialization.jsonObject(with: jsonData, options: []) as? [[String: Any]] else {
                 // 如果是对象外壳格式，尝试特殊兼容解析 {"cards": [...]}
                 if let rawDict = try? JSONSerialization.jsonObject(with: jsonData, options: []) as? [String: Any],

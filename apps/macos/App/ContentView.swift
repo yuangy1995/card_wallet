@@ -176,10 +176,18 @@ struct ContentView: View {
         }
         .onChange(of: lockManager.isLocked) { _, isLocked in
             if !isLocked {
+                SyncCoordinator.shared.setSuspended(isLocked: false)
                 runInitialAnnualFeeCheckIfNeeded()
                 refreshSystemNotifications(for: cards)
             } else {
                 notificationRefreshTask?.cancel()
+                cardEditRequest = nil
+                detailCard = nil
+                showingFilterPopover = false
+                selectedCardID = nil
+                activeAppAlert = nil
+                alertQueue.removeAll()
+                SyncCoordinator.shared.setSuspended(isLocked: true)
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .walletNewCard)) { _ in
@@ -303,10 +311,15 @@ struct ContentView: View {
         let result = LocalStorageManager.read()
         switch result {
         case .success(let loadedCards):
-            loadingFailed = false
-            hasLoadedCards = true
-            self.cards = syncCoordinator.bootstrap(localCards: loadedCards)
-            refreshSystemNotifications(for: self.cards)
+            do {
+                self.cards = try syncCoordinator.bootstrap(localCards: loadedCards)
+                loadingFailed = false
+                hasLoadedCards = true
+                refreshSystemNotifications(for: self.cards)
+            } catch {
+                loadingFailed = true
+                hasLoadedCards = false
+            }
         case .failure(let error):
             print("读取本地数据失败，可能密码错误或数据损坏: \(error.localizedDescription)")
             loadingFailed = true

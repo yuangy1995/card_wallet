@@ -356,6 +356,8 @@
 </template>
 
 <script>
+import { canAppendImages, importCardImage } from '@/utils/cardImageImport'
+
 import { existingSharedLimitCard as findSharedLimitCard } from '@/utils/cardMetrics'
 import { ref, computed, watch, inject } from 'vue'
 import { ElMessage } from 'element-plus'
@@ -807,6 +809,7 @@ export default {
             }
           }
           return {
+            ...item,
             id: item.id || crypto.randomUUID(),
             mimeType: item.mimeType || 'image/jpeg',
             data: item.data || '',
@@ -851,34 +854,30 @@ export default {
     const cardImagesTotalSize = computed(() => normalizeCardImages(formData.value.cardImages)
       .reduce((total, image) => total + dataUrlByteSize(image.data), 0))
 
-    const fileToCardImage = (file) => new Promise((resolve, reject) => {
-      const reader = new FileReader()
-      reader.onload = () => {
-        resolve({
-          id: crypto.randomUUID(),
-          mimeType: file.type || 'image/jpeg',
-          data: String(reader.result || ''),
-          createdAt: Date.now(),
-          source: 'web_upload',
-          name: file.name
-        })
-      }
-      reader.onerror = reject
-      reader.readAsDataURL(file)
-    })
-
+    let imageImportGeneration = 0
+    let importingImages = false
+    watch(dialogVisible, () => { imageImportGeneration++; importingImages = false })
     const handleCardImageInput = async (event) => {
-      const files = Array.from(event.target.files || []).filter(file => file.type.startsWith('image/'))
-      if (!files.length) return
+      const files = Array.from(event.target.files || [])
+      if (!files.length || importingImages) return
+      const generation = imageImportGeneration
+      if (!canAppendImages(formData.value.cardImages.length, files.length)) {
+        ElMessage.error('每张卡最多添加20张图片，原有图片不受影响'); event.target.value = ''; return
+      }
+      importingImages = true
       try {
-        const images = await Promise.all(files.map(fileToCardImage))
+        const images = []
+        for (const file of files) {
+          if (generation !== imageImportGeneration || !dialogVisible.value) return
+          images.push(await importCardImage(file))
+        }
+        if (generation !== imageImportGeneration || !dialogVisible.value) return
+        if (!canAppendImages(formData.value.cardImages.length, images.length)) throw new Error('每张卡最多添加20张图片')
         formData.value.cardImages = normalizeCardImages(formData.value.cardImages).concat(images)
         ElMessage.success(`已添加 ${images.length} 张卡片图片`)
       } catch (error) {
-        ElMessage.error('图片读取失败')
-      } finally {
-        event.target.value = ''
-      }
+        if (generation === imageImportGeneration && dialogVisible.value) ElMessage.error(error.message || '图片读取失败')
+      } finally { if (generation === imageImportGeneration) importingImages = false; event.target.value = '' }
     }
 
     const removeCardImage = (imageId) => {
@@ -887,6 +886,7 @@ export default {
 
     // 处理提交
     const handleSubmit = () => {
+      if (importingImages) { ElMessage.warning('图片正在处理，请完成后保存'); return }
       formRef.value.validate((valid) => {
         if (!valid) return
         if(!formData.value.id){

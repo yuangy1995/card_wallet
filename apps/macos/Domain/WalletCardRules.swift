@@ -61,13 +61,29 @@ public enum WalletCardRules {
         return max(0, cal.dateComponents([.day], from: day, to: target).day ?? 0)
     }
 
+    public static func settingAnnualStatus(_ status: String, for card: SharedCard, now: Date = Date()) -> SharedCard {
+        guard card.cardCategory != "debit" else { return card }
+        if status == "1", card.isQualified == "1", DateCalculator.annualFeeDetection(for: card, now: now) == nil { return card }
+        var result = card
+        result.isQualified = status
+        if status == "1" { result.nextAnnualFeeCollectionTime = DateCalculator.timestampByAddingOneYear(card.nextAnnualFeeCollectionTime) }
+        if status == "3" { result.nextAnnualFeeCollectionTime = nil }
+        result.lastModifyTime = now.timeIntervalSince1970 * 1000
+        return result
+    }
+
     /// Display fields only: never index CVV, image data, passwords or sync credentials.
     public static func searchText(_ card: SharedCard) -> String {
         let category = card.cardCategory == "debit" ? "储蓄卡 儲蓄卡 debit" : "信用卡 credit"
-        return [card.bank, card.alias ?? "", card.cardNumber, card.level ?? "", card.type ?? "",
-                card.country, card.equity ?? "", card.remark ?? "", String(card.limit ?? 0), category,
-                CardBrand.detect(from: card.cardNumber, level: card.level).displayName]
-            .joined(separator: "\n").lowercased()
+        var fields: [String] = [card.bank, card.cardNumber, card.country, category]
+        fields.append(card.alias ?? "")
+        fields.append(card.level ?? "")
+        fields.append(card.type ?? "")
+        fields.append(card.equity ?? "")
+        fields.append(card.remark ?? "")
+        fields.append(String(card.limit ?? 0))
+        fields.append(CardBrand.detect(from: card.cardNumber, level: card.level).displayName)
+        return fields.joined(separator: "\n").lowercased()
     }
 
     public static func matches(_ card: SharedCard, query: String, index: String? = nil) -> Bool {

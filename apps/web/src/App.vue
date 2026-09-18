@@ -201,6 +201,10 @@
         </el-collapse-transition>
       </div>
 
+      <div class="wallet-favorites-filter">
+        <el-checkbox v-model="onlyFavorites">只看收藏</el-checkbox>
+        <span>收藏仅保存在本机</span>
+      </div>
       <!-- 批量操作工具栏 -->
       <BatchOperationToolbar
         :selected-rows="selectedRows"
@@ -226,6 +230,8 @@
           :table-data="tableData"
           :visible-columns="visibleColumns"
           :selected-rows="selectedRows"
+          :favorite-ids="favoriteIDs"
+          @toggle-favorite="toggleFavorite"
           @edit="editCreditCard"
           @delete="deleteCard"
           @card-number-visibility="handleCardNumberVisibility"
@@ -241,6 +247,8 @@
           v-model:sort-mode="cardSortMode"
           :table-data="tableData"
           :selected-rows="selectedRows"
+          :favorite-ids="favoriteIDs"
+          @toggle-favorite="toggleFavorite"
           @edit="editCreditCard"
           @delete="deleteCard"
           @view-details="viewDetails"
@@ -481,6 +489,7 @@ import { generateMockData } from '@/utils/mockData'
 import { formatDate, daysBetween } from '@/utils/dateUtils'
 import { getCurrentTimestamp } from '@/utils/dateFormatter'
 import { BACKUP_CONSTANTS, STORAGE_KEYS } from '@/config/constants'
+import { useLocalFavorites } from '@/composables/useLocalFavorites'
 import { saveCardData, saveTableColumns, getTableColumns, CardDataStorage, initializeLocalDatabase } from '@/utils/storage'
 import { useDebouncedRef } from '@/composables/useDebounce'
 import { useKeyboardShortcuts } from '@/composables/useKeyboardShortcuts'
@@ -497,6 +506,8 @@ import {
   analyzeCardDataIssues,
   CardExpiryStatus,
   getAnnualFeeDetection,
+  timestampByAddingOneYear,
+  settingAnnualStatus,
   getAnnualFeeReminderGroups,
   getBillingCycleReminderGroups,
   getCardExpiryReminderCards,
@@ -515,6 +526,11 @@ const { isDarkMode, toggleTheme } = inject('theme') || useTheme()
 // 状态管理
 let disposed = false
 const cardData = ref([])
+const favoritesReady = ref(false)
+const onlyFavorites = ref(localStorage.getItem('walletOnlyFavoritesV1') === 'true')
+watch(onlyFavorites, value => { try { localStorage.setItem('walletOnlyFavoritesV1', String(value)) } catch {} })
+const { favoriteIDs, toggleFavorite } = useLocalFavorites(cardData, favoritesReady, () => ElMessage.error('收藏未能保存，请重试'))
+
 const syncStatus = ref({
   message: '正在准备云同步...',
   type: 'info',
@@ -805,29 +821,8 @@ const disablePastMonths = (time) => {
   return time.getTime() < firstDayOfCurrentMonth.getTime()
 }
 
-// 以卡片中保存的年费日期为基准增加一个日历年，并统一处理闰日。
-const timestampByAddingOneYear = (value) => {
-  if (!value) return value
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-
-  const targetYear = date.getFullYear() + 1
-  const month = date.getMonth()
-  const day = date.getDate()
-  const lastDay = new Date(targetYear, month + 1, 0).getDate()
-  date.setDate(1)
-  date.setFullYear(targetYear)
-  date.setMonth(month)
-  date.setDate(Math.min(day, lastDay))
-  return date.getTime()
-}
-
-// 确认当前年费周期达标，状态与下一次年费日期必须作为一次操作更新。
-const confirmAnnualFeeQualifiedForCard = (card) => {
-  card.isQualified = '1'
-  card.nextAnnualFeeCollectionTime = timestampByAddingOneYear(card.nextAnnualFeeCollectionTime)
-  card.lastModifyTime = getCurrentTimestamp()
-}
+// The same pure operation is exercised by the four-platform annual-fee fixtures.
+const confirmAnnualFeeQualifiedForCard = card => Object.assign(card, settingAnnualStatus(card, '1'))
 
 const resetBatchAnnualFeeForm = () => {
   batchAnnualFeeForm.value = {
@@ -957,7 +952,7 @@ const tableData = computed(() => {
                           form.cardCategory.includes(normalizeCardCategory(card));
     }
 
-    return matchCategoryFilter && matchFormCategory
+    return matchCategoryFilter && matchFormCategory && (!onlyFavorites.value || favoriteIDs.value.has(card.id))
   })
 
   return sortCards(filtered, cardSortMode.value, new Date(calendarDay.value))
@@ -1083,6 +1078,7 @@ onMounted(async () => {
       await saveCardData(cardData.value)
     }
 
+    favoritesReady.value = true
     await webdavSyncService.start(cardData.value, applySyncedCards, handleSyncStatusChanged, handleSyncHistoryChanged)
     if (disposed || !localDataStore.isUnlocked) return
 
