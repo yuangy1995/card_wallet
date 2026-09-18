@@ -1,0 +1,138 @@
+name: Audit remaining security migration
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/security-finalize-audit.yml']
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    if: github.repository == 'yuangy1995/card_wallet' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Install isolated maintenance dependencies
+        run: python3 -m pip install --disable-pip-version-check --target "$RUNNER_TEMP/maintenance-python" cryptography==46.0.3 git-filter-repo==2.47.0
+      - name: Create encrypted backup of all available Git references
+        env:
+          PYTHONPATH: ${{ runner.temp }}/maintenance-python
+        run: |
+          set -euo pipefail
+          umask 077
+          git fetch origin '+refs/pull/*/head:refs/pull/*/head'
+          git bundle create "$RUNNER_TEMP/card-wallet-before-cleanup.bundle" --all
+          git bundle verify "$RUNNER_TEMP/card-wallet-before-cleanup.bundle" >/dev/null 2>&1
+          python3 - <<'PY'
+          import base64, hashlib, json, os, shutil, subprocess
+          from pathlib import Path
+          import git_filter_repo
+          from cryptography.hazmat.primitives import hashes, serialization
+          from cryptography.hazmat.primitives.asymmetric import padding
+          from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+          public_pem = b'''-----BEGIN PUBLIC KEY-----
+          MIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEArRHesDUVG4cBMGShjTrt
+          +aBT+Hg2SYmA/ppJyWnJPhj/cPoCbJYtDK/GukB3pfmpFNEZSVsTcZI6lC7ufwDK
+          kNhAtVMR6lPD6FrCSCtaLrFoHX6DpXY9tPjva/GtBU2LCeO2/h6GkcrJketxt/kF
+          g9OGBuIDzk778CtROUtOfaWb/6dqPvPqWtg8AZ7lKQBos/5s519JfqtRiQ+6fDAh
+          gpnDQrvZsPvstHCDiLfdG3dBQ9an9fdpYPvX6ATB5QAlg/7Xl7jrXFdgAmeyLMf0
+          lbne90ORa0zRN4OGzVVZ2YIW1Ybq/K/UhAmxd+cQsLVlFcMBWYHi4VNoRXUmlRXA
+          1LrC7h2wRt+ZnOyblSFnIsaZQjRYRKJVUemj+361CisLfmMzIusV250PJtChSZFz
+          4YVWAH6jhWISc4wgRNoyN923QacbWVHCX/qxaoMR3c1pGGH5WTYkMws1mwK2iSKS
+          lk4Suvs6ZFFuVp1qctYeYZzlC5XH0IdUUdqLSAMc5UmruAGfV0AsUfvM+Rtw830D
+          Fm2O8BTxspwN5Lb3CxUTr478tpmH4IYNYYOxZz4B92eLg9KHCtw4JbBd+D8ceFOr
+          ppjk9whb1iazLi5oUj7yAYT5/wls+8PeTj1X0at1UpNcTPc+rrQrrecgyXYZxujF
+          xP8xkhslaUvt4ePZhWki11kCAwEAAQ==
+          -----END PUBLIC KEY-----'''
+          root = Path(os.environ['RUNNER_TEMP'])
+          output = root / 'security-audit'
+          output.mkdir(mode=0o700)
+          original = root / 'card-wallet-before-cleanup.bundle'
+          data = original.read_bytes()
+          key, nonce = AESGCM.generate_key(bit_length=256), os.urandom(12)
+          aad = b'card-wallet-git-backup-v1'
+          ciphertext = AESGCM(key).encrypt(nonce, data, aad)
+          public = serialization.load_pem_public_key(public_pem)
+          wrapped = public.encrypt(key, padding.OAEP(mgf=padding.MGF1(hashes.SHA256()), algorithm=hashes.SHA256(), label=None))
+          (output / 'history.bundle.aesgcm').write_bytes(ciphertext)
+          manifest = {'format': 'card-wallet-git-backup-v1', 'head': os.environ['GITHUB_SHA'],
+                      'nonce': base64.b64encode(nonce).decode(), 'wrapped_key': base64.b64encode(wrapped).decode(),
+                      'plaintext_sha256': hashlib.sha256(data).hexdigest(),
+                      'ciphertext_sha256': hashlib.sha256(ciphertext).hexdigest(),
+                      'refs': subprocess.check_output(['git', 'for-each-ref', '--format=%(refname) %(objectname)'], text=True).splitlines()}
+          (output / 'envelope.json').write_text(json.dumps(manifest, indent=2) + '\n')
+          shutil.copyfile(git_filter_repo.__file__, output / 'git_filter_repo.py')
+          original.unlink()
+          print('Encrypted history backup prepared; no decryption key or plaintext history is uploaded.')
+          PY
+      - name: Verify signing readiness without printing credentials
+        env:
+          PYTHONPATH: ${{ runner.temp }}/maintenance-python
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_SIGNING_CERT_SHA256: ${{ secrets.ANDROID_SIGNING_CERT_SHA256 }}
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+        run: |
+          python3 - <<'PY'
+          import base64, hashlib, json, os, plistlib, re, subprocess
+          from pathlib import Path
+          from cryptography.hazmat.primitives import serialization
+          from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
+          root = Path(os.environ['RUNNER_TEMP'])
+          names = ('ANDROID_KEYSTORE_BASE64', 'ANDROID_KEYSTORE_PASSWORD', 'ANDROID_KEY_ALIAS', 'ANDROID_KEY_PASSWORD', 'ANDROID_SIGNING_CERT_SHA256', 'SPARKLE_PRIVATE_KEY')
+          result = {'head': os.environ['GITHUB_SHA'], 'secrets': {name: ('present' if os.environ.get(name, '').strip() else 'missing') for name in names}, 'android_matches': False, 'macos_matches': False}
+          if all(os.environ.get(name, '').strip() for name in names[:5]):
+              target = root / 'audit-signing.p12'
+              try:
+                  with os.fdopen(os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600), 'wb') as output:
+                      output.write(base64.b64decode(os.environ['ANDROID_KEYSTORE_BASE64'], validate=True))
+                  cert = subprocess.run(['keytool', '-exportcert', '-keystore', str(target), '-storetype', 'PKCS12', '-storepass:env', 'ANDROID_KEYSTORE_PASSWORD', '-alias', os.environ['ANDROID_KEY_ALIAS']], check=True, capture_output=True).stdout
+                  expected = Path('apps/android/signing-certificate.sha256').read_text().strip().lower()
+                  supplied = re.sub(r'[:\s]', '', os.environ['ANDROID_SIGNING_CERT_SHA256']).lower()
+                  result['android_matches'] = hashlib.sha256(cert).hexdigest() == expected == supplied
+                  if not result['android_matches']:
+                      result['android_error'] = 'configured_certificate_mismatch'
+              except Exception:
+                  result['android_error'] = 'invalid_signing_configuration'
+              finally:
+                  target.unlink(missing_ok=True)
+          if os.environ.get('SPARKLE_PRIVATE_KEY', '').strip():
+              try:
+                  seed = base64.b64decode(os.environ['SPARKLE_PRIVATE_KEY'].strip(), validate=True)
+                  public = Ed25519PrivateKey.from_private_bytes(seed).public_key().public_bytes(serialization.Encoding.Raw, serialization.PublicFormat.Raw)
+                  expected = plistlib.loads(Path('apps/macos/Resources/Info.plist').read_bytes())['SUPublicEDKey']
+                  result['macos_matches'] = base64.b64encode(public).decode() == expected
+                  if not result['macos_matches']:
+                      result['macos_error'] = 'configured_public_key_mismatch'
+              except Exception:
+                  result['macos_error'] = 'invalid_signing_configuration'
+          result['ready_to_release'] = result['android_matches'] and result['macos_matches']
+          (root / 'security-audit' / 'signing-status.json').write_text(json.dumps(result, indent=2) + '\n')
+          print(json.dumps(result, indent=2))
+          PY
+      - name: Verify current source protections
+        run: |
+          set -euo pipefail
+          python3 scripts/check-signing-secrets.py
+          python3 -m unittest discover -s scripts -p 'test_*security.py'
+          python3 -m unittest discover -s scripts -p 'test_public_release_migration.py'
+          python3 -m unittest discover -s apps/android/scripts -p 'test_*.py'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: encrypted-security-audit
+          path: ${{ runner.temp }}/security-audit/
+          if-no-files-found: error
+          retention-days: 7
