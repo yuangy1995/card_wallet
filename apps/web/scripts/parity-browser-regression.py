@@ -57,7 +57,11 @@ with sync_playwright() as pw:
         favorite = page.get_by_role('button', name='收藏卡片', exact=True).first
         favorite.click()
         expect(page.get_by_role('button', name='取消收藏', exact=True)).to_have_count(1)
-        page.get_by_role('checkbox', name='只看收藏', exact=True).check()
+        checkbox = page.get_by_role('checkbox', name='只看收藏', exact=True)
+        expect(checkbox).not_to_be_checked()
+        # Element Plus intentionally hides the native input; click its visible label.
+        page.locator('.wallet-favorites-filter .el-checkbox').click()
+        expect(checkbox).to_be_checked()
         expect(page.locator('.credit-card-table .el-table__body tr')).to_have_count(1)
         row_text = page.locator('.credit-card-table .el-table__body tr').inner_text()
         page.reload(wait_until='networkidle')
@@ -69,7 +73,8 @@ with sync_playwright() as pw:
         results['favorite_survives_reload_and_unlock'] = True
         page.get_by_role('button', name='取消收藏', exact=True).click()
         expect(page.locator('.credit-card-table .el-table__body tr')).to_have_count(0)
-        page.get_by_role('checkbox', name='只看收藏', exact=True).uncheck()
+        page.locator('.wallet-favorites-filter .el-checkbox').click()
+        expect(checkbox).not_to_be_checked()
         expect(page.locator('.credit-card-table .el-table__body tr')).to_have_count(50)
         results['removing_favorite_updates_filtered_results'] = True
         page.locator('.el-radio-button').filter(has=page.get_by_role('radio', name='卡片', exact=True)).click()
