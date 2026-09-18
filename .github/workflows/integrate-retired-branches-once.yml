@@ -23,30 +23,31 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - name: Prepare reviewed integration on an isolated branch
+      - name: Prepare corrected integration on an isolated branch
         id: integration
         env:
           GH_TOKEN: ${{ github.token }}
+          REVIEWED_COMMIT: 0d0de82ff307be8d25cb2513affcb29f1db8893c
         run: |
           set -euo pipefail
           git fetch origin '+refs/heads/*:refs/remotes/origin/*'
           test "$(git rev-parse origin/main)" = "$GITHUB_SHA"
+          test "$(git rev-parse origin/codex/public-migration-finish-20260918)" = "$REVIEWED_COMMIT"
           test "$(git rev-parse origin/codex/four-platform-parity-completion-20260918)" = e8b8333b778927d9206b2f7a5d2a93ec52cf6bec
           test "$(git rev-parse origin/codex/four-platform-parity-stages)" = 6948ec4e68eb54a6bda743c697e1e47c3affbbb1
-          python3 .migration/integrate-reviewed.py
-          git add -- apps contracts docs
+          git config user.name 'lovelife'
+          git config user.email '32153802+yuangy1995@users.noreply.github.com'
+          git merge --no-ff --no-commit "$REVIEWED_COMMIT"
           git diff --cached --check
           python3 scripts/check-signing-secrets.py
           python3 -m unittest discover -s scripts -p 'test_*security.py'
           python3 -m unittest discover -s scripts -p 'test_signing_scan_scope.py'
           python3 -m unittest discover -s scripts -p 'test_public_release_migration.py'
           python3 -m unittest discover -s apps/android/scripts -p 'test_*.py'
-          git config user.name 'lovelife'
-          git config user.email '32153802+yuangy1995@users.noreply.github.com'
-          tree=$(git write-tree)
-          commit=$(git commit-tree "$tree" -p "$GITHUB_SHA" -p e8b8333b778927d9206b2f7a5d2a93ec52cf6bec -p 6948ec4e68eb54a6bda743c697e1e47c3affbbb1 -m '整合两个旧对齐分支：保留未知字段，保留主线加密存储和品牌实现')
+          git commit -m '整合两个旧对齐分支并修正 macOS 同步回归测试'
+          commit=$(git rev-parse HEAD)
           gh auth setup-git
-          git push --force-with-lease=refs/heads/codex/public-migration-finish-20260918: origin "$commit:refs/heads/codex/public-migration-finish-20260918"
+          git push --force-with-lease="refs/heads/codex/public-migration-finish-20260918:$REVIEWED_COMMIT" origin "$commit:refs/heads/codex/public-migration-finish-20260918"
           echo "commit=$commit" >> "$GITHUB_OUTPUT"
   quality:
     needs: integrate
