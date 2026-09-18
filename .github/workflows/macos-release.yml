@@ -4,11 +4,11 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: '发布版本，必须与 apps/macos/project.yml 一致（例如 1.0.0）'
+        description: '版本号，必须与 apps/macos/project.yml 一致'
         required: true
         type: string
       publish:
-        description: '自动发布到公开仓库；关闭时仅保存签名产物，由维护者下载并上传'
+        description: '发布到当前公开仓库；关闭时仅验证并保存更新附件'
         type: boolean
         default: true
 
@@ -22,6 +22,8 @@ concurrency:
 jobs:
   release:
     if: github.repository == 'yuangy1995/card_wallet' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
     runs-on: macos-15
     timeout-minutes: 45
     defaults:
@@ -29,72 +31,67 @@ jobs:
         shell: bash
         working-directory: apps/macos
     env:
-      RELEASE_REPOSITORY: yuangy1995/card-wallet-releases
+      RELEASE_REPOSITORY: yuangy1995/card_wallet
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-
-      - name: Check release configuration
+      - name: Check release configuration and inject new public key
         id: metadata
         env:
           REQUESTED_VERSION: ${{ inputs.version }}
-          PUBLISH_RELEASE: ${{ inputs.publish }}
           SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
-          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+          SPARKLE_PUBLIC_KEY: ${{ secrets.SPARKLE_PUBLIC_KEY }}
         run: |
           set -euo pipefail
-          test -n "$SPARKLE_PRIVATE_KEY" || { echo '::error::请配置当前发布系列的 SPARKLE_PRIVATE_KEY'; exit 1; }
-          if [ "$PUBLISH_RELEASE" = true ]; then
-            test -n "$GH_TOKEN" || { echo '::error::自动发布需要 RELEASES_TOKEN，也可关闭 publish 仅构建签名包'; exit 1; }
-            test "$(gh api "repos/$RELEASE_REPOSITORY" --jq .full_name)" = "$RELEASE_REPOSITORY"
-          fi
+          python3 ../../scripts/check-signing-secrets.py
+          test -n "$SPARKLE_PRIVATE_KEY" || { echo '::error::缺少 SPARKLE_PRIVATE_KEY'; exit 1; }
+          python3 scripts/configure-sparkle.py
           ruby -ryaml -e '
             settings = YAML.load_file("project.yml").fetch("targets").fetch("CreditCardMac").fetch("settings").fetch("base")
             version = settings.fetch("MARKETING_VERSION").to_s
             build = settings.fetch("CURRENT_PROJECT_VERSION").to_s
-            abort "版本输入必须与 project.yml 一致" unless version == ENV.fetch("REQUESTED_VERSION") && version.match?(/\A\d+\.\d+\.\d+\z/)
+            abort "版本输入必须与工程一致" unless version == ENV.fetch("REQUESTED_VERSION") && version.match?(/\A\d+\.\d+\.\d+\z/)
             abort "构建号必须为正整数" unless build.match?(/\A[1-9]\d*\z/)
             abort "缺少发布说明" unless File.file?("releases/#{version}.md")
             File.open(ENV.fetch("GITHUB_OUTPUT"), "a") { |f| f.puts "version=#{version}", "build=#{build}", "tag=mac-v#{version}-#{build}" }
           '
-
       - name: Reject existing releases and older builds
+        if: ${{ inputs.publish }}
         env:
-          GH_TOKEN: ${{ secrets.RELEASES_TOKEN || github.token }}
+          GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ steps.metadata.outputs.tag }}
           RELEASE_BUILD: ${{ steps.metadata.outputs.build }}
         run: |
           set -euo pipefail
           gh api --paginate "repos/$RELEASE_REPOSITORY/releases?per_page=100" |
             jq -se --arg tag "$RELEASE_TAG" --argjson build "$RELEASE_BUILD" '
-              add | all(.[];
-                .tag_name != $tag and
+              add | all(.[]; .tag_name != $tag and
                 (if (.draft or .prerelease) then true
                  elif (.tag_name | test("^mac-v[0-9]+\\.[0-9]+\\.[0-9]+-[0-9]+$"))
                  then ((.tag_name | split("-") | last | tonumber) < $build)
                  else true end))
-            ' || { echo '::error::无法确认发布状态，或标签已存在，或构建号未递增；停止发布。'; exit 1; }
-
+            ' || { echo '::error::标签已存在、构建号未递增或发布状态无法确认'; exit 1; }
       - name: Generate Xcode project
         run: |
+          set -euo pipefail
           if ! command -v xcodegen >/dev/null; then brew install xcodegen; fi
           xcodegen generate
           xcodebuild -version
-
       - name: Run release verification tests
         run: |
           set -euo pipefail
+          python3 -m unittest discover -s scripts -p 'test_*.py'
           swift scripts/test-verify-update.swift
           xcodebuild test -project CreditCardMac.xcodeproj -scheme CreditCardMac \
             -configuration Release ENABLE_TESTABILITY=YES \
             -destination 'platform=macOS' -derivedDataPath build/DerivedData \
             -parallel-testing-enabled NO CODE_SIGNING_ALLOWED=NO \
             CODE_SIGNING_REQUIRED=NO CODE_SIGN_ENTITLEMENTS=''
-
       - name: Build universal Ad-Hoc application
+        env:
+          SPARKLE_PUBLIC_KEY: ${{ secrets.SPARKLE_PUBLIC_KEY }}
         run: ./build.sh
-
       - name: Sign and verify update archives
         env:
           SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
@@ -105,55 +102,48 @@ jobs:
           test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' dist/卡包.app/Contents/Info.plist)" = "$RELEASE_VERSION"
           test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleVersion' dist/卡包.app/Contents/Info.plist)" = "$RELEASE_BUILD"
           bash prepare-update.sh "$PWD/dist/卡包.app"
-
-      - name: Save signed release assets for maintainer upload
+      - uses: actions/upload-artifact@v4
         if: ${{ !inputs.publish }}
-        uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.metadata.outputs.tag }}
-          retention-days: 14
+          retention-days: 7
           if-no-files-found: error
           path: |
             apps/macos/dist/updates/${{ steps.metadata.outputs.tag }}/CardWallet-${{ steps.metadata.outputs.version }}-${{ steps.metadata.outputs.build }}-arm64.zip
             apps/macos/dist/updates/${{ steps.metadata.outputs.tag }}/CardWallet-${{ steps.metadata.outputs.version }}-${{ steps.metadata.outputs.build }}-x86_64.zip
             apps/macos/dist/updates/${{ steps.metadata.outputs.tag }}/appcast.xml
-
-      - name: Upload release draft and verify remote assets
+      - name: Upload and verify draft assets
         if: ${{ inputs.publish }}
         env:
-          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
           RELEASE_VERSION: ${{ steps.metadata.outputs.version }}
           RELEASE_BUILD: ${{ steps.metadata.outputs.build }}
           RELEASE_TAG: ${{ steps.metadata.outputs.tag }}
         run: |
           set -euo pipefail
           output="dist/updates/$RELEASE_TAG"
-          gh release create "$RELEASE_TAG" --repo "$RELEASE_REPOSITORY" --draft \
+          gh release create "$RELEASE_TAG" --repo "$RELEASE_REPOSITORY" --target "$GITHUB_SHA" --draft \
             --title "卡包 ${RELEASE_VERSION}（Mac）" --notes-file "releases/$RELEASE_VERSION.md" \
             "$output/CardWallet-$RELEASE_VERSION-$RELEASE_BUILD-arm64.zip" \
-            "$output/CardWallet-$RELEASE_VERSION-$RELEASE_BUILD-x86_64.zip" \
-            "$output/appcast.xml"
-          gh release view "$RELEASE_TAG" --repo "$RELEASE_REPOSITORY" \
-            --json isDraft,assets > "$RUNNER_TEMP/macos-release-assets.json"
+            "$output/CardWallet-$RELEASE_VERSION-$RELEASE_BUILD-x86_64.zip" "$output/appcast.xml"
+          gh release view "$RELEASE_TAG" --repo "$RELEASE_REPOSITORY" --json isDraft,assets > "$RUNNER_TEMP/macos-assets.json"
           python3 - <<'PY'
           import hashlib, json, os
           from pathlib import Path
-          release = json.loads((Path(os.environ["RUNNER_TEMP"]) / "macos-release-assets.json").read_text())
-          version, build, tag = (os.environ[k] for k in ("RELEASE_VERSION", "RELEASE_BUILD", "RELEASE_TAG"))
-          expected = {f"CardWallet-{version}-{build}-{arch}.zip" for arch in ("arm64", "x86_64")} | {"appcast.xml"}
-          assert release["isDraft"], "发布必须仍为草稿"
-          assert len(release["assets"]) == 3 and {a["name"] for a in release["assets"]} == expected, "远端附件不完整或包含多余文件"
-          for asset in release["assets"]:
-              data = (Path("dist/updates") / tag / asset["name"]).read_bytes()
-              assert asset["state"] == "uploaded" and asset["size"] == len(data), "远端附件上传未完成"
-              assert asset["digest"] == "sha256:" + hashlib.sha256(data).hexdigest(), "远端附件 SHA-256 不一致"
-          print("三个远端附件的大小和 SHA-256 全部匹配。")
+          release = json.loads((Path(os.environ['RUNNER_TEMP']) / 'macos-assets.json').read_text())
+          version, build, tag = (os.environ[k] for k in ('RELEASE_VERSION', 'RELEASE_BUILD', 'RELEASE_TAG'))
+          expected = {f'CardWallet-{version}-{build}-{arch}.zip' for arch in ('arm64', 'x86_64')} | {'appcast.xml'}
+          assert release['isDraft'] and len(release['assets']) == 3
+          assert {a['name'] for a in release['assets']} == expected
+          for asset in release['assets']:
+              data = (Path('dist/updates') / tag / asset['name']).read_bytes()
+              assert asset['state'] == 'uploaded' and asset['size'] == len(data)
+              assert asset['digest'] == 'sha256:' + hashlib.sha256(data).hexdigest()
           PY
-
-      - name: Publish as latest and verify update feed
+      - name: Publish as latest and verify public feed
         if: ${{ inputs.publish }}
         env:
-          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ steps.metadata.outputs.tag }}
         run: |
           set -euo pipefail
