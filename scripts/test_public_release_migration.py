@@ -68,7 +68,8 @@ class PublicReleaseMigrationTests(unittest.TestCase):
             self.assertIn(required, text)
         self.assertNotIn('contents: write', text)
         for retired in ('android-ui-integration.yml', 'web-quality.yml',
-                        'macos-brand-workbench.yml', 'wallet-feedback-build.yml'):
+                        'macos-brand-workbench.yml', 'wallet-feedback-build.yml',
+                        'release-completion-once.yml'):
             self.assertFalse((ROOT / '.github/workflows' / retired).exists())
 
 if __name__ == '__main__':

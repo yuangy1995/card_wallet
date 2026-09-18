@@ -9,7 +9,11 @@
 | `android-release.yml` | 仅维护者从 main 手动发布 Android 正式版，或关闭 publish 演练。 |
 | `macos-release.yml` | 仅维护者从 main 手动发布 Mac 正式版，或关闭 publish 演练。 |
 
+日常提交只自动运行 Platform quality 和 Signing security；两个 Publish 工作流只在手动发布或演练时运行，不随普通提交发布。需要 Android 预览包时手动运行 Platform quality，无需另外建立测试包工作流。
+
 `android-ui-integration.yml` 和 `web-quality.yml` 的重复检查合并进 Platform quality；Android 独立预览包和全部原有回归测试保留。`macos-brand-workbench.yml`、`wallet-feedback-build.yml` 只服务已结束的旧分支并会回写代码，已删除。
+
+`release-completion-once.yml` 已在 Android 1.3.0（5）和 Mac 1.1.0（7）正式发布成功、附件及公开下载校验通过后删除。当前 `.github/workflows/` 只保留上表四个文件，不再保留一次性发布触发器。后续发布直接使用两个长期发布入口。
 
 Actions 左栏可能继续列出已删除定义的历史工作流；这不代表它们仍在执行。保留历史发布、失败日志和迁移审计，不为了清空侧栏删除追溯证据。上述四个文件才是当前维护入口。
 
