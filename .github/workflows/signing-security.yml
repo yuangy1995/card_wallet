@@ -27,3 +27,85 @@ jobs:
         run: python3 -m unittest discover -s apps/android/scripts -p 'test_*.py'
       - name: Test public release channel configuration
         run: python3 -m unittest discover -s scripts -p 'test_public_release_migration.py'
+
+  cleanup-retired-history:
+    # 仅本次明确授权的清理；收尾时删除本 job，不增加第五个工作流入口。
+    if: >-
+      github.repository == 'yuangy1995/card_wallet' &&
+      github.event_name == 'push' && github.ref == 'refs/heads/main' &&
+      github.event.before == '1bb8efbe7c49d855c2cc104d80c36d40e4292989' &&
+      github.run_attempt == 1
+    needs: check
+    permissions:
+      contents: read
+      actions: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Delete only completed runs of retired workflow files
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          import collections, json, os, re, subprocess
+          from pathlib import Path
+          repo = 'repos/yuangy1995/card_wallet'
+          keep = {'.github/workflows/' + name for name in (
+              'android-release.yml', 'macos-release.yml', 'platform-quality.yml', 'signing-security.yml')}
+          current = set(subprocess.check_output(['git', 'ls-files', '.github/workflows/'], text=True).splitlines())
+          assert current == keep, '当前工作流与四个保留入口不一致，停止清理'
+          def get(endpoint):
+              return json.loads(subprocess.check_output(['gh', 'api', repo + endpoint], text=True))
+          def pages(endpoint):
+              return json.loads(subprocess.check_output(['gh', 'api', '--paginate', '--slurp', repo + endpoint], text=True))
+          assert get('/git/ref/heads/main')['object']['sha'] == os.environ['GITHUB_SHA'], '主线已移动，停止清理'
+          def release_snapshot():
+              return sorted((r['id'], r['tag_name'], r['draft'], r['prerelease'],
+                  sorted((a['id'], a['name'], a['size'], a.get('digest')) for a in r['assets']))
+                  for page in pages('/releases?per_page=100') for r in page)
+          before = release_snapshot()
+          all_runs = [r for page in pages('/actions/runs?per_page=100') for r in page['workflow_runs']]
+          targets = []
+          for run in all_runs:
+              path = run['path'].split('@', 1)[0]
+              if path in keep:
+                  continue
+              assert re.fullmatch(r'\.github/workflows/[A-Za-z0-9_.-]+\.ya?ml', path), '未知工作流路径，停止清理'
+              assert path not in current and run['status'] == 'completed', '退役工作流仍在运行，停止清理'
+              assert run['id'] != int(os.environ['GITHUB_RUN_ID'])
+              targets.append(run)
+          counts = collections.Counter(r['path'].split('@', 1)[0] for r in targets)
+          print('计划清理已退役工作流历史：' + json.dumps(dict(counts), ensure_ascii=False), flush=True)
+          # 先收集全部分页结果，再删除，避免分页移动漏删；不调用任何 Release/标签/Secrets 写入接口。
+          for run in targets:
+              latest = get('/actions/runs/' + str(run['id']))
+              assert latest['path'] == run['path'] and latest['status'] == 'completed'
+              subprocess.run(['gh', 'api', '--method', 'DELETE', repo + '/actions/runs/' + str(run['id'])], check=True)
+          remaining = [r for page in pages('/actions/runs?per_page=100') for r in page['workflow_runs']
+                       if r['path'].split('@', 1)[0] not in keep]
+          assert not remaining, '仍有退役工作流运行记录，需要检查'
+          assert release_snapshot() == before, '正式发布列表发生变化，需要检查'
+          result = {'source': os.environ['GITHUB_SHA'], 'deleted_runs': len(targets),
+                    'retired_workflows': dict(counts), 'remaining_retired_runs': 0,
+                    'releases_unchanged': True, 'preserved_workflows': sorted(keep)}
+          Path('cleanup-result.json').write_text(json.dumps(result, ensure_ascii=False, indent=2))
+          print(json.dumps(result, ensure_ascii=False, indent=2))
+          with open(os.environ['GITHUB_STEP_SUMMARY'], 'a') as out:
+              out.write('已删除 ' + str(len(targets)) + ' 次退役工作流运行；保留四个长期入口的全部历史和正式 Release。\n')
+          PY
+      - name: Export checked public source for regression work
+        run: |
+          python3 scripts/check-signing-secrets.py
+          git archive --format=tar.gz HEAD > public-source.tar.gz
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web-table-cleanup-source
+          retention-days: 3
+          if-no-files-found: error
+          path: |
+            public-source.tar.gz
+            cleanup-result.json
