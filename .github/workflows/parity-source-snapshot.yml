@@ -1,0 +1,37 @@
+name: Parity source snapshot
+on:
+  push:
+    branches: [codex/four-platform-parity-stages]
+    paths: [.github/workflows/parity-source-snapshot.yml]
+permissions:
+  contents: read
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 430f9336240a98d1e95c69fc04a483b151fd1169
+          persist-credentials: false
+      - name: Pack source and artwork only
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          import subprocess, tarfile
+          extensions = {'.swift','.kt','.kts','.js','.mjs','.cjs','.ts','.vue','.css','.scss','.html','.json','.yaml','.yml','.md','.xml','.xcstrings','.plist','.entitlements','.pbxproj','.xcscheme','.xcworkspacedata','.xcsettings','.properties','.gradle','.sh','.png','.jpg','.jpeg','.webp','.svg','.pdf','.jar'}
+          with tarfile.open('/tmp/parity-source.tgz','w:gz') as archive:
+              for name in subprocess.check_output(['git','ls-files','-z']).decode().split('\0'):
+                  if not name: continue
+                  p=Path(name)
+                  if not (name.startswith(('apps/','docs/','scripts/','.github/workflows/')) or name in ('AGENTS.md','README.md','Makefile','.gitignore')): continue
+                  if any(part in ('build','.gradle','releases','dist','node_modules') for part in p.parts): continue
+                  if p.name in ('local.properties','key.properties','keystore.properties','signing.properties'): continue
+                  if p.suffix.lower() in extensions or p.name in ('gradlew','.gitignore','Makefile'):
+                      archive.add(p,arcname=name,recursive=False)
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: parity-source
+          path: /tmp/parity-source.tgz
+          retention-days: 1
