@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""检查 Git 索引中的签名材料和常见凭据；只输出文件名，不输出匹配值。不是全历史扫描。"""
+"""检查整个 Git 索引中的签名材料和常见凭据；只输出文件名，不输出匹配值。不是全历史扫描。"""
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -18,6 +19,9 @@ def git_paths(*args):
 
 
 def check():
+    # 发布脚本可能在 apps/android 或 apps/macos 中调用，扫描范围不能随工作目录缩小。
+    root = subprocess.check_output(["git", "rev-parse", "--show-toplevel"], text=True, stderr=subprocess.PIPE).strip()
+    os.chdir(root)
     paths = git_paths("ls-files", "-z")
     blocked = set()
     for name in paths:
@@ -36,6 +40,6 @@ def check():
 if __name__ == "__main__":
     try:
         sys.exit(0 if check() else 1)
-    except (OSError, RuntimeError):
+    except (OSError, RuntimeError, subprocess.CalledProcessError):
         print("签名安全检查无法完成，停止检查。", file=sys.stderr)
         sys.exit(2)
