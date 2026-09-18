@@ -84,6 +84,13 @@ jobs:
           SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
         run: swift scripts/check-signing-key.swift Resources/Info.plist
 
+      - name: Pin release tag to the checked-out source
+        if: ${{ inputs.publish }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.metadata.outputs.tag }}
+        run: python3 ../../scripts/release-tag.py pin "$RELEASE_TAG" "$GITHUB_SHA"
+
       - name: Generate Xcode project
         run: |
           if ! command -v xcodegen >/dev/null; then brew install xcodegen; fi
@@ -136,7 +143,8 @@ jobs:
         run: |
           set -euo pipefail
           output="dist/updates/$RELEASE_TAG"
-          gh release create "$RELEASE_TAG" --repo "$RELEASE_REPOSITORY" --target "$GITHUB_SHA" --draft \
+          python3 ../../scripts/release-tag.py verify "$RELEASE_TAG" "$GITHUB_SHA"
+          gh release create "$RELEASE_TAG" --repo "$RELEASE_REPOSITORY" --verify-tag --draft \
             --title "卡包 ${RELEASE_VERSION}（Mac）" --notes-file "releases/$RELEASE_VERSION.md" \
             "$output/CardWallet-$RELEASE_VERSION-$RELEASE_BUILD-arm64.zip" \
             "$output/CardWallet-$RELEASE_VERSION-$RELEASE_BUILD-x86_64.zip" \
@@ -165,7 +173,8 @@ jobs:
           RELEASE_TAG: ${{ steps.metadata.outputs.tag }}
         run: |
           set -euo pipefail
-          gh release edit "$RELEASE_TAG" --repo "$RELEASE_REPOSITORY" --target "$GITHUB_SHA" --draft=false --latest
+          python3 ../../scripts/release-tag.py verify "$RELEASE_TAG" "$GITHUB_SHA"
+          gh release edit "$RELEASE_TAG" --repo "$RELEASE_REPOSITORY" --draft=false --latest
           test "$(gh api "repos/$RELEASE_REPOSITORY/releases/latest" --jq .tag_name)" = "$RELEASE_TAG"
           curl --fail --silent --show-error --location --retry 3 \
             "https://github.com/$RELEASE_REPOSITORY/releases/latest/download/appcast.xml" \

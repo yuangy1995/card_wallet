@@ -22,7 +22,11 @@ class PublicReleaseMigrationTests(unittest.TestCase):
                 self.assertIn(f'RELEASE_REPOSITORY: {REPOSITORY}', text)
                 self.assertIn('contents: write', text)
                 self.assertIn('${{ github.token }}', text)
-                self.assertIn('--target "$GITHUB_SHA"', text)
+                self.assertIn('--verify-tag', text)
+                self.assertNotIn('--target', text)
+                self.assertIn('release-tag.py pin "$RELEASE_TAG" "$GITHUB_SHA"', text)
+                self.assertEqual(text.count('release-tag.py verify "$RELEASE_TAG" "$GITHUB_SHA"'), 2)
+                self.assertLess(text.index('Pin release tag'), text.index('Run release verification tests'))
                 self.assertNotIn('secrets.RELEASES_TOKEN', text)
                 self.assertNotIn('card-wallet-releases', text)
                 self.assertIn("github.ref == 'refs/heads/main'", text)
@@ -53,6 +57,19 @@ class PublicReleaseMigrationTests(unittest.TestCase):
         self.assertRegex(value, r'^[0-9a-f]{64}$')
         self.assertNotEqual(value, 'e09a2af6d581dd247df0d4ae3ba08b957fee69cfbdd1b0b89dc37c958559a1cf')
         self.assertFalse((ROOT / 'apps/android/app/release.jks').exists())
+
+    def test_consolidated_quality_keeps_regressions_and_preview(self):
+        text = (ROOT / '.github/workflows/platform-quality.yml').read_text()
+        for required in ('workflow_dispatch:', 'workflow_call:', 'pnpm test:run',
+                         'browser-regression.py', 'parity-browser-regression.py',
+                         ':app:testDebugUnitTest', ':app:lintDebug', ':app:connectedDebugAndroidTest',
+                         '-PwalletPreview=true', 'com.applist.cardwallet.preview',
+                         'platform: [ios, macos]', 'persist-credentials: false'):
+            self.assertIn(required, text)
+        self.assertNotIn('contents: write', text)
+        for retired in ('android-ui-integration.yml', 'web-quality.yml',
+                        'macos-brand-workbench.yml', 'wallet-feedback-build.yml'):
+            self.assertFalse((ROOT / '.github/workflows' / retired).exists())
 
 if __name__ == '__main__':
     unittest.main()

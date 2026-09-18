@@ -89,6 +89,13 @@ jobs:
                  else true end))
             ' || { echo '::error::无法确认发布状态，或标签已存在，或版本编号未递增；停止发布。'; exit 1; }
 
+      - name: Pin release tag to the checked-out source
+        if: ${{ inputs.publish }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_TAG: ${{ steps.metadata.outputs.tag }}
+        run: python3 ../../scripts/release-tag.py pin "$RELEASE_TAG" "$GITHUB_SHA"
+
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
@@ -183,7 +190,8 @@ jobs:
           RELEASE_TAG: ${{ steps.metadata.outputs.tag }}
         run: |
           set -euo pipefail
-          gh release create "$RELEASE_TAG" --repo "$RELEASE_REPOSITORY" --target "$GITHUB_SHA" --draft --latest=false \
+          python3 ../../scripts/release-tag.py verify "$RELEASE_TAG" "$GITHUB_SHA"
+          gh release create "$RELEASE_TAG" --repo "$RELEASE_REPOSITORY" --verify-tag --draft --latest=false \
             --title "卡包 ${RELEASE_VERSION}（Android）" --notes-file "release-notes/$RELEASE_VERSION.md" \
             "dist/updates/$RELEASE_TAG/CardWallet-Android-$RELEASE_BUILD.apk"
           gh release view "$RELEASE_TAG" --repo "$RELEASE_REPOSITORY" \
@@ -212,7 +220,8 @@ jobs:
         run: |
           set -euo pipefail
           # Mac 的更新地址依赖 Latest，Android 不得抢占它。
-          gh release edit "$RELEASE_TAG" --repo "$RELEASE_REPOSITORY" --target "$GITHUB_SHA" --draft=false --latest=false
+          python3 ../../scripts/release-tag.py verify "$RELEASE_TAG" "$GITHUB_SHA"
+          gh release edit "$RELEASE_TAG" --repo "$RELEASE_REPOSITORY" --draft=false --latest=false
           gh release view "$RELEASE_TAG" --repo "$RELEASE_REPOSITORY" --json isDraft,isPrerelease \
             --jq '.isDraft == false and .isPrerelease == false' | grep -qx true
           curl --fail --silent --show-error --location --retry 3 \

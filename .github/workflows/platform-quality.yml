@@ -1,10 +1,11 @@
 name: Platform quality
 on:
   pull_request:
-    paths: ['apps/**', 'contracts/**', 'scripts/**', '.github/workflows/platform-quality.yml']
+    paths: ['apps/**', 'contracts/**', 'scripts/**', '.github/workflows/**']
   push:
     branches: [main]
-    paths: ['apps/**', 'contracts/**', 'scripts/**', '.github/workflows/platform-quality.yml']
+    paths: ['apps/**', 'contracts/**', 'scripts/**', '.github/workflows/**']
+  workflow_dispatch:
   workflow_call:
     inputs:
       checkout_ref:
@@ -12,6 +13,9 @@ on:
         required: true
 permissions:
   contents: read
+concurrency:
+  group: platform-quality-${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 jobs:
   web:
     runs-on: ubuntu-latest
@@ -67,6 +71,25 @@ jobs:
       - name: Native build and regression suite
         working-directory: apps/android
         run: bash gradlew :app:testDebugUnitTest :app:assembleDebug :app:lintDebug --stacktrace --max-workers=2
+      - name: Build isolated preview APK
+        if: github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch'
+        working-directory: apps/android
+        run: |
+          set -euo pipefail
+          bash gradlew :app:assembleDebug -PwalletPreview=true --max-workers=2
+          APK=app/build/outputs/apk/debug/app-debug.apk
+          "$ANDROID_HOME/cmdline-tools/latest/bin/apkanalyzer" manifest application-id "$APK" | tee app/build/outputs/apk/debug/package-id.txt
+          grep -qx 'com.applist.cardwallet.preview' app/build/outputs/apk/debug/package-id.txt
+          git rev-parse HEAD > app/build/outputs/apk/debug/BUILD_COMMIT
+          sha256sum "$APK" > app/build/outputs/apk/debug/SHA256SUMS
+      - name: Upload isolated preview APK
+        if: success() && (github.event_name == 'pull_request' || github.event_name == 'workflow_dispatch')
+        uses: actions/upload-artifact@v4
+        with:
+          name: android-wallet-preview-${{ github.run_id }}
+          retention-days: 7
+          if-no-files-found: error
+          path: apps/android/app/build/outputs/apk/debug/
       - uses: actions/upload-artifact@v4
         if: always()
         with:
