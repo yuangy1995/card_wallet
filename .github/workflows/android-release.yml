@@ -4,15 +4,15 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: '发布版本，必须与 apps/android/app/build.gradle.kts 一致'
+        description: '版本号，必须与工程一致'
         required: true
         type: string
       version_code:
-        description: '递增版本编号，必须与工程 versionCode 一致'
+        description: '递增版本编号，必须与工程一致'
         required: true
         type: string
       publish:
-        description: '自动发布到公开仓库；关闭时仅测试、打包并保存签名产物'
+        description: '发布到当前公开仓库；关闭时仅验证并保存 APK'
         type: boolean
         default: true
 
@@ -26,6 +26,8 @@ concurrency:
 jobs:
   release:
     if: github.repository == 'yuangy1995/card_wallet' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
     timeout-minutes: 45
     defaults:
@@ -33,7 +35,7 @@ jobs:
         shell: bash
         working-directory: apps/android
     env:
-      RELEASE_REPOSITORY: yuangy1995/card-wallet-releases
+      RELEASE_REPOSITORY: yuangy1995/card_wallet
     steps:
       - uses: actions/checkout@v4
         with:
@@ -44,134 +46,140 @@ jobs:
         env:
           RELEASE_VERSION: ${{ inputs.version }}
           RELEASE_BUILD: ${{ inputs.version_code }}
-          PUBLISH_RELEASE: ${{ inputs.publish }}
-          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
         run: |
           set -euo pipefail
-          if [ "$PUBLISH_RELEASE" = true ]; then
-            test -n "$GH_TOKEN" || { echo '::error::自动发布需要配置 RELEASES_TOKEN'; exit 1; }
-            test "$(gh api "repos/$RELEASE_REPOSITORY" --jq .full_name)" = "$RELEASE_REPOSITORY"
-          fi
+          python3 ../../scripts/check-signing-secrets.py
           python3 - <<'PY'
           import os, re
           from pathlib import Path
-          version, build = (os.environ[k] for k in ("RELEASE_VERSION", "RELEASE_BUILD"))
-          assert re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", version), "版本格式错误"
-          assert re.fullmatch(r"[1-9][0-9]*", build), "版本编号格式错误"
-          config = Path("app/build.gradle.kts").read_text()
-          for property_name, expected in [("releaseVersionName", version), ("releaseVersionCode", build)]:
-              match = re.search(r'gradleProperty\("' + property_name + r'"\)\.orElse\("([^"]+)"\)', config)
-              assert match and match[1] == expected, "输入版本必须与工程默认版本一致"
-          assert Path(f"release-notes/{version}.md").is_file(), "缺少发布说明"
-          with open(os.environ["GITHUB_OUTPUT"], "a") as output:
-              output.write(f"version={version}\nbuild={build}\ntag=android-v{version}-{build}\n")
+          version, build = (os.environ[k] for k in ('RELEASE_VERSION', 'RELEASE_BUILD'))
+          assert re.fullmatch(r'[0-9]+\.[0-9]+\.[0-9]+', version), '版本格式错误'
+          assert re.fullmatch(r'[1-9][0-9]*', build), '版本编号格式错误'
+          config = Path('app/build.gradle.kts').read_text()
+          for prop, expected in [('releaseVersionName', version), ('releaseVersionCode', build)]:
+              match = re.search(r'gradleProperty\("' + prop + r'"\)\.orElse\("([^"]+)"\)', config)
+              assert match and match[1] == expected, '输入版本必须与工程一致'
+          assert Path(f'release-notes/{version}.md').is_file(), '缺少发布说明'
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as out:
+              out.write(f'version={version}\nbuild={build}\ntag=android-v{version}-{build}\n')
           PY
 
       - name: Reject existing releases and older builds
         if: ${{ inputs.publish }}
         env:
-          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ steps.metadata.outputs.tag }}
           RELEASE_BUILD: ${{ steps.metadata.outputs.build }}
         run: |
           set -euo pipefail
           gh api --paginate "repos/$RELEASE_REPOSITORY/releases?per_page=100" |
             jq -se --arg tag "$RELEASE_TAG" --argjson build "$RELEASE_BUILD" '
-              add | all(.[];
-                .tag_name != $tag and
+              add | all(.[]; .tag_name != $tag and
                 (if (.draft or .prerelease) then true
                  elif (.tag_name | test("^android-v[0-9]+\\.[0-9]+\\.[0-9]+-[0-9]+$"))
                  then ((.tag_name | split("-") | last | tonumber) < $build)
                  else true end))
-            ' || { echo '::error::无法确认发布状态，或标签已存在，或版本编号未递增；停止发布。'; exit 1; }
+            ' || { echo '::error::标签已存在、版本编号未递增或发布状态无法确认'; exit 1; }
 
       - uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: '17'
-          cache: gradle
-          cache-dependency-path: |
-            apps/android/**/*.gradle.kts
-            apps/android/gradle/libs.versions.toml
-            apps/android/gradle/wrapper/gradle-wrapper.properties
-
       - uses: android-actions/setup-android@v3
-
-      - name: Install Android SDK components
+      - name: Install SDK components
         run: sdkmanager 'platforms;android-36' 'build-tools;36.0.0'
-
-      - name: Run release verification tests
+      - name: Run verification tests
         run: |
           set -euo pipefail
           python3 -m unittest discover -s scripts -p 'test_*.py'
-          bash gradlew :app:testDebugUnitTest --max-workers=2
+          bash gradlew :app:testDebugUnitTest --max-workers=2 --no-daemon --no-configuration-cache
 
-      - name: Build signed release APK
+      - name: Restore new signing key outside checkout
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_SIGNING_CERT_SHA256: ${{ secrets.ANDROID_SIGNING_CERT_SHA256 }}
+        run: |
+          python3 - <<'PY'
+          import base64, importlib.util, os
+          from pathlib import Path
+          names = ('ANDROID_KEYSTORE_BASE64', 'ANDROID_KEYSTORE_PASSWORD', 'ANDROID_KEY_ALIAS', 'ANDROID_KEY_PASSWORD', 'ANDROID_SIGNING_CERT_SHA256')
+          missing = [name for name in names if not os.environ.get(name, '').strip()]
+          if missing:
+              raise SystemExit('Missing GitHub Secrets: ' + ', '.join(missing))
+          spec = importlib.util.spec_from_file_location('verifier', 'scripts/verify-release.py')
+          module = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(module)
+          module.expected_certificate()
+          try:
+              data = base64.b64decode(os.environ['ANDROID_KEYSTORE_BASE64'], validate=True)
+          except ValueError:
+              raise SystemExit('Invalid ANDROID_KEYSTORE_BASE64')
+          if not data:
+              raise SystemExit('Empty signing key')
+          path = Path(os.environ['RUNNER_TEMP']) / 'card-wallet-release.p12'
+          fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+          with os.fdopen(fd, 'wb') as out:
+              out.write(data)
+          PY
+      - name: Build signed APK
         env:
           RELEASE_VERSION: ${{ steps.metadata.outputs.version }}
           RELEASE_BUILD: ${{ steps.metadata.outputs.build }}
+          ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/card-wallet-release.p12
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: bash prepare-update.sh "$RELEASE_VERSION" "$RELEASE_BUILD"
-
-      - name: Verify APK identity, version and signing certificate
+      - name: Remove temporary signing file
+        if: always()
+        run: rm -f -- "$RUNNER_TEMP/card-wallet-release.p12"
+      - name: Verify APK
         env:
           RELEASE_VERSION: ${{ steps.metadata.outputs.version }}
           RELEASE_BUILD: ${{ steps.metadata.outputs.build }}
           RELEASE_TAG: ${{ steps.metadata.outputs.tag }}
+          ANDROID_SIGNING_CERT_SHA256: ${{ secrets.ANDROID_SIGNING_CERT_SHA256 }}
         run: |
-          python3 scripts/verify-release.py \
-            "dist/updates/$RELEASE_TAG/CardWallet-Android-$RELEASE_BUILD.apk" \
+          python3 scripts/verify-release.py "dist/updates/$RELEASE_TAG/CardWallet-Android-$RELEASE_BUILD.apk" \
             "$RELEASE_VERSION" "$RELEASE_BUILD" "$ANDROID_HOME/build-tools/36.0.0"
-
-      - name: Save signed release asset for verification
+      - uses: actions/upload-artifact@v4
         if: ${{ !inputs.publish }}
-        uses: actions/upload-artifact@v4
         with:
           name: ${{ steps.metadata.outputs.tag }}
-          retention-days: 14
+          retention-days: 7
           if-no-files-found: error
           path: apps/android/dist/updates/${{ steps.metadata.outputs.tag }}/CardWallet-Android-${{ steps.metadata.outputs.build }}.apk
-
-      - name: Upload release draft and verify remote asset
+      - name: Publish verified release in this repository
         if: ${{ inputs.publish }}
         env:
-          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
           RELEASE_VERSION: ${{ steps.metadata.outputs.version }}
           RELEASE_BUILD: ${{ steps.metadata.outputs.build }}
           RELEASE_TAG: ${{ steps.metadata.outputs.tag }}
         run: |
           set -euo pipefail
-          gh release create "$RELEASE_TAG" --repo "$RELEASE_REPOSITORY" --draft --latest=false \
+          # 标签绑定本次实际构建的源码，不使用可能已经前进的 main。
+          gh release create "$RELEASE_TAG" --repo "$RELEASE_REPOSITORY" --target "$GITHUB_SHA" --draft --latest=false \
             --title "卡包 ${RELEASE_VERSION}（Android）" --notes-file "release-notes/$RELEASE_VERSION.md" \
             "dist/updates/$RELEASE_TAG/CardWallet-Android-$RELEASE_BUILD.apk"
-          gh release view "$RELEASE_TAG" --repo "$RELEASE_REPOSITORY" \
-            --json isDraft,assets > "$RUNNER_TEMP/android-release-assets.json"
+          gh release view "$RELEASE_TAG" --repo "$RELEASE_REPOSITORY" --json isDraft,assets > "$RUNNER_TEMP/android-assets.json"
           python3 - <<'PY'
           import hashlib, json, os
           from pathlib import Path
-          release = json.loads((Path(os.environ["RUNNER_TEMP"]) / "android-release-assets.json").read_text())
-          build, tag = (os.environ[k] for k in ("RELEASE_BUILD", "RELEASE_TAG"))
-          name = f"CardWallet-Android-{build}.apk"
-          assert release["isDraft"], "发布必须仍为草稿"
-          assert len(release["assets"]) == 1 and release["assets"][0]["name"] == name, "远端附件不符合预期"
-          asset = release["assets"][0]
-          data = (Path("dist/updates") / tag / name).read_bytes()
-          assert asset["state"] == "uploaded" and asset["size"] == len(data), "远端附件上传未完成"
-          assert asset["digest"] == "sha256:" + hashlib.sha256(data).hexdigest(), "远端附件 SHA-256 不一致"
-          print("远端 APK 的大小和 SHA-256 匹配。")
+          release = json.loads((Path(os.environ['RUNNER_TEMP']) / 'android-assets.json').read_text())
+          tag, build = os.environ['RELEASE_TAG'], os.environ['RELEASE_BUILD']
+          name = f'CardWallet-Android-{build}.apk'
+          assert release['isDraft'] and len(release['assets']) == 1
+          asset = release['assets'][0]
+          data = (Path('dist/updates') / tag / name).read_bytes()
+          assert asset['name'] == name and asset['state'] == 'uploaded' and asset['size'] == len(data)
+          assert asset['digest'] == 'sha256:' + hashlib.sha256(data).hexdigest()
           PY
-
-      - name: Publish and verify public download
-        if: ${{ inputs.publish }}
-        env:
-          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
-          RELEASE_BUILD: ${{ steps.metadata.outputs.build }}
-          RELEASE_TAG: ${{ steps.metadata.outputs.tag }}
-        run: |
-          set -euo pipefail
-          # Mac 的更新地址依赖 Latest，Android 不得抢占它。
+          # Mac 的 appcast 依赖 Latest，Android 不抢占 Latest。
           gh release edit "$RELEASE_TAG" --repo "$RELEASE_REPOSITORY" --draft=false --latest=false
-          gh release view "$RELEASE_TAG" --repo "$RELEASE_REPOSITORY" --json isDraft,isPrerelease \
-            --jq '.isDraft == false and .isPrerelease == false' | grep -qx true
           curl --fail --silent --show-error --location --retry 3 \
             "https://github.com/$RELEASE_REPOSITORY/releases/download/$RELEASE_TAG/CardWallet-Android-$RELEASE_BUILD.apk" \
             -o "$RUNNER_TEMP/android-published.apk"
