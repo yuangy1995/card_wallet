@@ -1,0 +1,3296 @@
+[
+  {
+    "id": "abchina",
+    "name": "中国农业银行",
+    "aliases": [
+      "Agricultural Bank of China",
+      "abc",
+      "agriculturalbank",
+      "中国农业银行",
+      "农业银行",
+      "农行",
+      "農業銀行"
+    ],
+    "resource": "wallet_issuer_abchina"
+  },
+  {
+    "id": "abnamro",
+    "name": "荷兰银行",
+    "aliases": [
+      "ABN AMRO",
+      "荷兰银行"
+    ],
+    "resource": "wallet_issuer_abnamro"
+  },
+  {
+    "id": "amex",
+    "name": "American Express",
+    "aliases": [
+      "AMEX",
+      "American Express",
+      "American Express National Bank",
+      "americanexpress",
+      "amex",
+      "美国运通",
+      "美國運通"
+    ],
+    "resource": "wallet_issuer_amex"
+  },
+  {
+    "id": "anz",
+    "name": "澳新银行",
+    "aliases": [
+      "ANZ",
+      "ANZ Banking Group",
+      "Australia & New Zealand Banking Group",
+      "澳新银行"
+    ],
+    "resource": "wallet_issuer_anz"
+  },
+  {
+    "id": "bangkokbank",
+    "name": "盘谷银行",
+    "aliases": [
+      "盘谷银行"
+    ],
+    "resource": "wallet_issuer_bangkokbank"
+  },
+  {
+    "id": "bankcomm",
+    "name": "交通银行",
+    "aliases": [
+      "bankofcommunications",
+      "bcm",
+      "bocom",
+      "交通銀行",
+      "交通银行"
+    ],
+    "resource": "wallet_issuer_bankcomm"
+  },
+  {
+    "id": "bankcz",
+    "name": "沧州银行",
+    "aliases": [
+      "沧州银行"
+    ],
+    "resource": "wallet_issuer_bankcz"
+  },
+  {
+    "id": "bankgy",
+    "name": "贵阳银行",
+    "aliases": [
+      "贵阳银行"
+    ],
+    "resource": "wallet_issuer_bankgy"
+  },
+  {
+    "id": "bankofamerica",
+    "name": "美国银行",
+    "aliases": [
+      "Bank of America",
+      "BofA",
+      "bankofamerica",
+      "boa",
+      "bofa",
+      "美国银行",
+      "美國銀行"
+    ],
+    "resource": "wallet_issuer_bankofamerica"
+  },
+  {
+    "id": "bankofas",
+    "name": "鞍山银行",
+    "aliases": [
+      "鞍山银行"
+    ],
+    "resource": "wallet_issuer_bankofas"
+  },
+  {
+    "id": "bankofbbg",
+    "name": "广西北部湾银行",
+    "aliases": [
+      "广西北部湾银行"
+    ],
+    "resource": "wallet_issuer_bankofbbg"
+  },
+  {
+    "id": "bankofbeijing",
+    "name": "北京银行",
+    "aliases": [
+      "BOB",
+      "Bank of Beijing",
+      "北京银行"
+    ],
+    "resource": "wallet_issuer_bankofbeijing"
+  },
+  {
+    "id": "bankofdl",
+    "name": "大连银行",
+    "aliases": [
+      "大连银行"
+    ],
+    "resource": "wallet_issuer_bankofdl"
+  },
+  {
+    "id": "bankoffs",
+    "name": "抚顺银行",
+    "aliases": [
+      "抚顺银行"
+    ],
+    "resource": "wallet_issuer_bankoffs"
+  },
+  {
+    "id": "bankofhld",
+    "name": "葫芦岛银行",
+    "aliases": [
+      "葫芦岛银行"
+    ],
+    "resource": "wallet_issuer_bankofhld"
+  },
+  {
+    "id": "bankofnx",
+    "name": "宁夏银行",
+    "aliases": [
+      "宁夏银行"
+    ],
+    "resource": "wallet_issuer_bankofnx"
+  },
+  {
+    "id": "bankofpj",
+    "name": "盘锦银行",
+    "aliases": [
+      "盘锦银行"
+    ],
+    "resource": "wallet_issuer_bankofpj"
+  },
+  {
+    "id": "bankofrizhao",
+    "name": "日照银行",
+    "aliases": [
+      "日照银行"
+    ],
+    "resource": "wallet_issuer_bankofrizhao"
+  },
+  {
+    "id": "bankoftianjin",
+    "name": "天津银行",
+    "aliases": [
+      "Bank of Tianjin",
+      "天津银行"
+    ],
+    "resource": "wallet_issuer_bankoftianjin"
+  },
+  {
+    "id": "bankoftieling",
+    "name": "铁岭银行",
+    "aliases": [
+      "铁岭银行"
+    ],
+    "resource": "wallet_issuer_bankoftieling"
+  },
+  {
+    "id": "bankofyk",
+    "name": "营口银行",
+    "aliases": [
+      "营口银行"
+    ],
+    "resource": "wallet_issuer_bankofyk"
+  },
+  {
+    "id": "bankqh",
+    "name": "青海银行",
+    "aliases": [
+      "青海银行"
+    ],
+    "resource": "wallet_issuer_bankqh"
+  },
+  {
+    "id": "bankwf",
+    "name": "潍坊银行",
+    "aliases": [
+      "潍坊银行"
+    ],
+    "resource": "wallet_issuer_bankwf"
+  },
+  {
+    "id": "bankyellowriver",
+    "name": "黄河农商",
+    "aliases": [
+      "黄河农商",
+      "黄河农商银行",
+      "黄河农村商业银行"
+    ],
+    "resource": "wallet_issuer_bankyellowriver"
+  },
+  {
+    "id": "barclays",
+    "name": "巴克莱银行",
+    "aliases": [
+      "Barclays",
+      "Barclays Bank",
+      "巴克莱银行"
+    ],
+    "resource": "wallet_issuer_barclays"
+  },
+  {
+    "id": "bcm",
+    "name": "澳门商业银行",
+    "aliases": [
+      "澳门商业银行"
+    ],
+    "resource": "wallet_issuer_bcm"
+  },
+  {
+    "id": "bd-bank",
+    "name": "保定银行",
+    "aliases": [
+      "保定银行"
+    ],
+    "resource": "wallet_issuer_bd_bank"
+  },
+  {
+    "id": "bea",
+    "name": "东亚银行",
+    "aliases": [
+      "Bank of East Asia",
+      "东亚银行",
+      "東亞銀行"
+    ],
+    "resource": "wallet_issuer_bea"
+  },
+  {
+    "id": "bgzchina",
+    "name": "贵州银行",
+    "aliases": [
+      "贵州银行"
+    ],
+    "resource": "wallet_issuer_bgzchina"
+  },
+  {
+    "id": "bjrcb",
+    "name": "北京农商银行",
+    "aliases": [
+      "北京农商银行"
+    ],
+    "resource": "wallet_issuer_bjrcb"
+  },
+  {
+    "id": "bmo",
+    "name": "蒙特利尔银行",
+    "aliases": [
+      "BMO",
+      "Bank of Montreal",
+      "蒙特利尔银行"
+    ],
+    "resource": "wallet_issuer_bmo"
+  },
+  {
+    "id": "bnp",
+    "name": "法国巴黎银行",
+    "aliases": [
+      "BNP Paribas",
+      "法国巴黎银行"
+    ],
+    "resource": "wallet_issuer_bnp"
+  },
+  {
+    "id": "boc",
+    "name": "中国银行",
+    "aliases": [
+      "Bank of China",
+      "bankofchina",
+      "boc",
+      "bochk",
+      "中国银行",
+      "中國銀行",
+      "中銀香港",
+      "中银香港"
+    ],
+    "resource": "wallet_issuer_boc"
+  },
+  {
+    "id": "bocd",
+    "name": "成都银行",
+    "aliases": [
+      "Bank of Chengdu",
+      "成都银行"
+    ],
+    "resource": "wallet_issuer_bocd"
+  },
+  {
+    "id": "bohuihe",
+    "name": "汇和银行",
+    "aliases": [
+      "汇和银行"
+    ],
+    "resource": "wallet_issuer_bohuihe"
+  },
+  {
+    "id": "bolz",
+    "name": "柳州银行",
+    "aliases": [
+      "柳州银行"
+    ],
+    "resource": "wallet_issuer_bolz"
+  },
+  {
+    "id": "bosc",
+    "name": "上海银行",
+    "aliases": [
+      "Bank of Shanghai",
+      "上海银行"
+    ],
+    "resource": "wallet_issuer_bosc"
+  },
+  {
+    "id": "boy",
+    "name": "横滨银行",
+    "aliases": [
+      "横滨银行"
+    ],
+    "resource": "wallet_issuer_boy"
+  },
+  {
+    "id": "bunq",
+    "name": "bunq",
+    "aliases": [
+      "bunq"
+    ],
+    "resource": "wallet_issuer_bunq"
+  },
+  {
+    "id": "cacib",
+    "name": "Crédit Agricole CIB",
+    "aliases": [
+      "Credit Agricole",
+      "Crédit Agricole",
+      "Crédit Agricole CIB",
+      "法国农业信贷银行"
+    ],
+    "resource": "wallet_issuer_cacib"
+  },
+  {
+    "id": "capitalone",
+    "name": "Capital One",
+    "aliases": [
+      "Capital One",
+      "第一資本銀行",
+      "第一资本银行",
+      "美国第一资本银行"
+    ],
+    "resource": "wallet_issuer_capitalone"
+  },
+  {
+    "id": "cathaybk",
+    "name": "国泰世华银行",
+    "aliases": [
+      "国泰世华银行"
+    ],
+    "resource": "wallet_issuer_cathaybk"
+  },
+  {
+    "id": "cbhb",
+    "name": "渤海银行",
+    "aliases": [
+      "China Bohai Bank",
+      "渤海银行"
+    ],
+    "resource": "wallet_issuer_cbhb"
+  },
+  {
+    "id": "ccabchina",
+    "name": "长安银行",
+    "aliases": [
+      "Bank of Changan",
+      "长安银行"
+    ],
+    "resource": "wallet_issuer_ccabchina"
+  },
+  {
+    "id": "ccb",
+    "name": "中国建设银行",
+    "aliases": [
+      "China Construction Bank",
+      "ccb",
+      "chinaconstructionbank",
+      "中国建设银行",
+      "建行",
+      "建設銀行",
+      "建设银行"
+    ],
+    "resource": "wallet_issuer_ccb"
+  },
+  {
+    "id": "ccqtgb",
+    "name": "重庆三峡银行",
+    "aliases": [
+      "重庆三峡银行"
+    ],
+    "resource": "wallet_issuer_ccqtgb"
+  },
+  {
+    "id": "cdb",
+    "name": "国家开发银行",
+    "aliases": [
+      "国家开发银行"
+    ],
+    "resource": "wallet_issuer_cdb"
+  },
+  {
+    "id": "cebbank",
+    "name": "中国光大银行",
+    "aliases": [
+      "ceb",
+      "chinaeverbright",
+      "中国光大银行",
+      "光大銀行",
+      "光大银行"
+    ],
+    "resource": "wallet_issuer_cebbank"
+  },
+  {
+    "id": "cgbchina",
+    "name": "广发银行",
+    "aliases": [
+      "cgb",
+      "chinaguangfa",
+      "广发银行",
+      "廣發銀行"
+    ],
+    "resource": "wallet_issuer_cgbchina"
+  },
+  {
+    "id": "charlesschwab",
+    "name": "Charles Schwab",
+    "aliases": [
+      "Charles Schwab",
+      "Schwab",
+      "嘉信",
+      "嘉信理财"
+    ],
+    "resource": "wallet_issuer_charlesschwab"
+  },
+  {
+    "id": "chase",
+    "name": "摩根大通银行",
+    "aliases": [
+      "Chase",
+      "J.P. Morgan Chase",
+      "JPMorgan Chase",
+      "chase",
+      "大通銀行",
+      "大通银行",
+      "摩根大通银行"
+    ],
+    "resource": "wallet_issuer_chase"
+  },
+  {
+    "id": "chengdebank",
+    "name": "承德银行",
+    "aliases": [
+      "承德银行"
+    ],
+    "resource": "wallet_issuer_chengdebank"
+  },
+  {
+    "id": "cib",
+    "name": "兴业银行",
+    "aliases": [
+      "cib",
+      "industrialbank",
+      "兴业银行",
+      "興業銀行"
+    ],
+    "resource": "wallet_issuer_cib"
+  },
+  {
+    "id": "citibank",
+    "name": "花旗银行",
+    "aliases": [
+      "Citi",
+      "Citibank",
+      "citi",
+      "citibank",
+      "花旗",
+      "花旗银行"
+    ],
+    "resource": "wallet_issuer_citibank"
+  },
+  {
+    "id": "citicbank",
+    "name": "中信银行",
+    "aliases": [
+      "citic",
+      "中信銀行",
+      "中信银行"
+    ],
+    "resource": "wallet_issuer_citicbank"
+  },
+  {
+    "id": "cjccb",
+    "name": "江苏长江商业银行",
+    "aliases": [
+      "江苏长江商业银行"
+    ],
+    "resource": "wallet_issuer_cjccb"
+  },
+  {
+    "id": "cmbc",
+    "name": "中国民生银行",
+    "aliases": [
+      "chinaminsheng",
+      "cmbc",
+      "中国民生银行",
+      "民生銀行",
+      "民生银行"
+    ],
+    "resource": "wallet_issuer_cmbc"
+  },
+  {
+    "id": "cmbchina",
+    "name": "招商银行",
+    "aliases": [
+      "China Merchants Bank",
+      "chinamerchantsbank",
+      "cmb",
+      "招商銀行",
+      "招商银行",
+      "招行"
+    ],
+    "resource": "wallet_issuer_cmbchina"
+  },
+  {
+    "id": "cmbcn",
+    "name": "华商银行",
+    "aliases": [
+      "华商银行"
+    ],
+    "resource": "wallet_issuer_cmbcn"
+  },
+  {
+    "id": "cn_00128270f10e",
+    "name": "浦发硅谷银行",
+    "aliases": [
+      "浦发硅谷银行"
+    ],
+    "resource": "wallet_issuer_cn_00128270f10e"
+  },
+  {
+    "id": "cn_023fab480bec",
+    "name": "张家口银行",
+    "aliases": [
+      "张家口银行"
+    ],
+    "resource": "wallet_issuer_cn_023fab480bec"
+  },
+  {
+    "id": "cn_06e81ea7ab55",
+    "name": "北京顺义银座村镇银行",
+    "aliases": [
+      "北京顺义银座村镇银行"
+    ],
+    "resource": "wallet_issuer_cn_06e81ea7ab55"
+  },
+  {
+    "id": "cn_072b7c76dd03",
+    "name": "鹤壁银行",
+    "aliases": [
+      "鹤壁银行"
+    ],
+    "resource": "wallet_issuer_cn_072b7c76dd03"
+  },
+  {
+    "id": "cn_09371ad2d6c4",
+    "name": "西藏银行",
+    "aliases": [
+      "西藏银行"
+    ],
+    "resource": "wallet_issuer_cn_09371ad2d6c4"
+  },
+  {
+    "id": "cn_0b0e76ff3e7c",
+    "name": "台湾玉山银行",
+    "aliases": [
+      "台湾玉山银行"
+    ],
+    "resource": "wallet_issuer_cn_0b0e76ff3e7c"
+  },
+  {
+    "id": "cn_0b28f6bfe074",
+    "name": "路程农村合作银行",
+    "aliases": [
+      "路程农村合作银行"
+    ],
+    "resource": "wallet_issuer_cn_0b28f6bfe074"
+  },
+  {
+    "id": "cn_13c708b4ed82",
+    "name": "焦作市商业银行",
+    "aliases": [
+      "焦作市商业银行"
+    ],
+    "resource": "wallet_issuer_cn_13c708b4ed82"
+  },
+  {
+    "id": "cn_18d4358ba8c5",
+    "name": "江苏兴化农商",
+    "aliases": [
+      "江苏兴化农商",
+      "江苏兴化农商银行",
+      "江苏兴化农村商业银行"
+    ],
+    "resource": "wallet_issuer_cn_18d4358ba8c5"
+  },
+  {
+    "id": "cn_253c9ae64bcc",
+    "name": "法国汇理银行",
+    "aliases": [
+      "法国汇理银行"
+    ],
+    "resource": "wallet_issuer_cn_253c9ae64bcc"
+  },
+  {
+    "id": "cn_25663810b047",
+    "name": "雅安市商业银行",
+    "aliases": [
+      "雅安市商业银行"
+    ],
+    "resource": "wallet_issuer_cn_25663810b047"
+  },
+  {
+    "id": "cn_2dc42d631407",
+    "name": "南通农商银行",
+    "aliases": [
+      "南通农商银行"
+    ],
+    "resource": "wallet_issuer_cn_2dc42d631407"
+  },
+  {
+    "id": "cn_2e71425803cd",
+    "name": "萧山农村合作银行",
+    "aliases": [
+      "萧山农村合作银行"
+    ],
+    "resource": "wallet_issuer_cn_2e71425803cd"
+  },
+  {
+    "id": "cn_30d405b9d231",
+    "name": "韩国外换银行",
+    "aliases": [
+      "韩国外换银行"
+    ],
+    "resource": "wallet_issuer_cn_30d405b9d231"
+  },
+  {
+    "id": "cn_370deb434461",
+    "name": "辽阳银行",
+    "aliases": [
+      "辽阳银行"
+    ],
+    "resource": "wallet_issuer_cn_370deb434461"
+  },
+  {
+    "id": "cn_3782697fe73d",
+    "name": "泰州农村商业银行",
+    "aliases": [
+      "泰州农商",
+      "泰州农商银行",
+      "泰州农村商业银行"
+    ],
+    "resource": "wallet_issuer_cn_3782697fe73d"
+  },
+  {
+    "id": "cn_3afe256d07c4",
+    "name": "瑞典银行",
+    "aliases": [
+      "瑞典银行"
+    ],
+    "resource": "wallet_issuer_cn_3afe256d07c4"
+  },
+  {
+    "id": "cn_3f009ff4176b",
+    "name": "池州九华农商",
+    "aliases": [
+      "池州九华农商",
+      "池州九华农商银行",
+      "池州九华农村商业银行"
+    ],
+    "resource": "wallet_issuer_cn_3f009ff4176b"
+  },
+  {
+    "id": "cn_3f4932c6c3ff",
+    "name": "湖州市商业银行",
+    "aliases": [
+      "湖州市商业银行"
+    ],
+    "resource": "wallet_issuer_cn_3f4932c6c3ff"
+  },
+  {
+    "id": "cn_405c21dcbde2",
+    "name": "摩根士丹利国际银行",
+    "aliases": [
+      "摩根士丹利国际银行"
+    ],
+    "resource": "wallet_issuer_cn_405c21dcbde2"
+  },
+  {
+    "id": "cn_42b69ae7787b",
+    "name": "新会农商",
+    "aliases": [
+      "新会农商",
+      "新会农商银行",
+      "新会农村商业银行"
+    ],
+    "resource": "wallet_issuer_cn_42b69ae7787b"
+  },
+  {
+    "id": "cn_505336886585",
+    "name": "洪都农商",
+    "aliases": [
+      "洪都农商",
+      "洪都农商银行",
+      "洪都农村商业银行"
+    ],
+    "resource": "wallet_issuer_cn_505336886585"
+  },
+  {
+    "id": "cn_5385e1fa7932",
+    "name": "鄞州银行",
+    "aliases": [
+      "鄞州银行"
+    ],
+    "resource": "wallet_issuer_cn_5385e1fa7932"
+  },
+  {
+    "id": "cn_551e5f0092ec",
+    "name": "德累斯顿银行",
+    "aliases": [
+      "德累斯顿银行"
+    ],
+    "resource": "wallet_issuer_cn_551e5f0092ec"
+  },
+  {
+    "id": "cn_59919b79b5fb",
+    "name": "法国里昂信贷银行",
+    "aliases": [
+      "法国里昂信贷银行"
+    ],
+    "resource": "wallet_issuer_cn_59919b79b5fb"
+  },
+  {
+    "id": "cn_5bd14b969bb7",
+    "name": "张家港农商",
+    "aliases": [
+      "张家港农商",
+      "张家港农商银行",
+      "张家港农村商业银行"
+    ],
+    "resource": "wallet_issuer_cn_5bd14b969bb7"
+  },
+  {
+    "id": "cn_5c75aa68746a",
+    "name": "景德镇商业银行",
+    "aliases": [
+      "景德镇商业银行"
+    ],
+    "resource": "wallet_issuer_cn_5c75aa68746a"
+  },
+  {
+    "id": "cn_5cc85c2ca746",
+    "name": "太仓农商",
+    "aliases": [
+      "太仓农商",
+      "太仓农商银行",
+      "太仓农村商业银行"
+    ],
+    "resource": "wallet_issuer_cn_5cc85c2ca746"
+  },
+  {
+    "id": "cn_5e9d1ca03dad",
+    "name": "沧州融信农商",
+    "aliases": [
+      "沧州融信农商",
+      "沧州融信农商银行",
+      "沧州融信农村商业银行"
+    ],
+    "resource": "wallet_issuer_cn_5e9d1ca03dad"
+  },
+  {
+    "id": "cn_60409c5b4038",
+    "name": "陆丰农村信用社",
+    "aliases": [
+      "陆丰农村信用社"
+    ],
+    "resource": "wallet_issuer_cn_60409c5b4038"
+  },
+  {
+    "id": "cn_638c513b7a9c",
+    "name": "新乡银行",
+    "aliases": [
+      "新乡银行"
+    ],
+    "resource": "wallet_issuer_cn_638c513b7a9c"
+  },
+  {
+    "id": "cn_638e4d6c6d51",
+    "name": "芜湖扬子农商",
+    "aliases": [
+      "芜湖扬子农商",
+      "芜湖扬子农商银行",
+      "芜湖扬子农村商业银行"
+    ],
+    "resource": "wallet_issuer_cn_638e4d6c6d51"
+  },
+  {
+    "id": "cn_63c428ac6485",
+    "name": "邢台银行",
+    "aliases": [
+      "邢台银行"
+    ],
+    "resource": "wallet_issuer_cn_63c428ac6485"
+  },
+  {
+    "id": "cn_6dc7aa5f5663",
+    "name": "台州农村合作银行",
+    "aliases": [
+      "台州农村合作银行"
+    ],
+    "resource": "wallet_issuer_cn_6dc7aa5f5663"
+  },
+  {
+    "id": "cn_6fad59ae3f0a",
+    "name": "中华开发工业银行",
+    "aliases": [
+      "中华开发工业银行"
+    ],
+    "resource": "wallet_issuer_cn_6fad59ae3f0a"
+  },
+  {
+    "id": "cn_718f5809cc87",
+    "name": "湖滨农商",
+    "aliases": [
+      "湖滨农商",
+      "湖滨农商银行",
+      "湖滨农村商业银行"
+    ],
+    "resource": "wallet_issuer_cn_718f5809cc87"
+  },
+  {
+    "id": "cn_7a17ea7550e6",
+    "name": "大同银行",
+    "aliases": [
+      "大同银行"
+    ],
+    "resource": "wallet_issuer_cn_7a17ea7550e6"
+  },
+  {
+    "id": "cn_7b047165711c",
+    "name": "深圳农商",
+    "aliases": [
+      "深圳农商",
+      "深圳农商银行",
+      "深圳农村商业银行"
+    ],
+    "resource": "wallet_issuer_cn_7b047165711c"
+  },
+  {
+    "id": "cn_7ea02e13b47b",
+    "name": "长春农商",
+    "aliases": [
+      "长春农商",
+      "长春农商银行",
+      "长春农村商业银行"
+    ],
+    "resource": "wallet_issuer_cn_7ea02e13b47b"
+  },
+  {
+    "id": "cn_7fec0344aab1",
+    "name": "凉山商业银行",
+    "aliases": [
+      "凉山商业银行"
+    ],
+    "resource": "wallet_issuer_cn_7fec0344aab1"
+  },
+  {
+    "id": "cn_80558f8f6dba",
+    "name": "威海商业银行",
+    "aliases": [
+      "威海商业银行"
+    ],
+    "resource": "wallet_issuer_cn_80558f8f6dba"
+  },
+  {
+    "id": "cn_82ee6c840b13",
+    "name": "湖南华容农商",
+    "aliases": [
+      "湖南华容农商",
+      "湖南华容农商银行",
+      "湖南华容农村商业银行"
+    ],
+    "resource": "wallet_issuer_cn_82ee6c840b13"
+  },
+  {
+    "id": "cn_833a9902d983",
+    "name": "周口银行",
+    "aliases": [
+      "周口银行"
+    ],
+    "resource": "wallet_issuer_cn_833a9902d983"
+  },
+  {
+    "id": "cn_8634bf23b2c7",
+    "name": "云南红塔银行",
+    "aliases": [
+      "云南红塔银行"
+    ],
+    "resource": "wallet_issuer_cn_8634bf23b2c7"
+  },
+  {
+    "id": "cn_88952e5b892f",
+    "name": "苏格兰皇家银行",
+    "aliases": [
+      "苏格兰皇家银行"
+    ],
+    "resource": "wallet_issuer_cn_88952e5b892f"
+  },
+  {
+    "id": "cn_895bcf7a4f76",
+    "name": "商丘市商业银行",
+    "aliases": [
+      "商丘市商业银行"
+    ],
+    "resource": "wallet_issuer_cn_895bcf7a4f76"
+  },
+  {
+    "id": "cn_8dd89a5f87a6",
+    "name": "伊川农商",
+    "aliases": [
+      "伊川农商",
+      "伊川农商银行",
+      "伊川农村商业银行"
+    ],
+    "resource": "wallet_issuer_cn_8dd89a5f87a6"
+  },
+  {
+    "id": "cn_9062097cf3ec",
+    "name": "开封市商业银行",
+    "aliases": [
+      "开封市商业银行"
+    ],
+    "resource": "wallet_issuer_cn_9062097cf3ec"
+  },
+  {
+    "id": "cn_93d9b6515112",
+    "name": "江门融合农商",
+    "aliases": [
+      "江门融合农商",
+      "江门融合农商银行",
+      "江门融合农村商业银行"
+    ],
+    "resource": "wallet_issuer_cn_93d9b6515112"
+  },
+  {
+    "id": "cn_96d8d823ccd9",
+    "name": "台湾中小企业银行",
+    "aliases": [
+      "台湾中小企业银行"
+    ],
+    "resource": "wallet_issuer_cn_96d8d823ccd9"
+  },
+  {
+    "id": "cn_97401bb60482",
+    "name": "紫金农商",
+    "aliases": [
+      "紫金农商",
+      "紫金农商银行",
+      "紫金农村商业银行"
+    ],
+    "resource": "wallet_issuer_cn_97401bb60482"
+  },
+  {
+    "id": "cn_9cab9ee7aaf4",
+    "name": "安阳银行",
+    "aliases": [
+      "安阳银行"
+    ],
+    "resource": "wallet_issuer_cn_9cab9ee7aaf4"
+  },
+  {
+    "id": "cn_9d7dca5dd6ce",
+    "name": "信阳银行",
+    "aliases": [
+      "信阳银行"
+    ],
+    "resource": "wallet_issuer_cn_9d7dca5dd6ce"
+  },
+  {
+    "id": "cn_a147b0bd0a33",
+    "name": "平顶山银行",
+    "aliases": [
+      "平顶山银行"
+    ],
+    "resource": "wallet_issuer_cn_a147b0bd0a33"
+  },
+  {
+    "id": "cn_a542e0f25594",
+    "name": "菲律宾首都银行",
+    "aliases": [
+      "菲律宾首都银行"
+    ],
+    "resource": "wallet_issuer_cn_a542e0f25594"
+  },
+  {
+    "id": "cn_a82aa0b5634d",
+    "name": "宜宾商业银行",
+    "aliases": [
+      "宜宾商业银行"
+    ],
+    "resource": "wallet_issuer_cn_a82aa0b5634d"
+  },
+  {
+    "id": "cn_adcab5c89892",
+    "name": "江苏如皋农商",
+    "aliases": [
+      "江苏如皋农商",
+      "江苏如皋农商银行",
+      "江苏如皋农村商业银行"
+    ],
+    "resource": "wallet_issuer_cn_adcab5c89892"
+  },
+  {
+    "id": "cn_ba94b79359e9",
+    "name": "江苏扬州农商",
+    "aliases": [
+      "江苏扬州农商",
+      "江苏扬州农商银行",
+      "江苏扬州农村商业银行"
+    ],
+    "resource": "wallet_issuer_cn_ba94b79359e9"
+  },
+  {
+    "id": "cn_bfbaad7b803f",
+    "name": "栾川农商",
+    "aliases": [
+      "栾川农商",
+      "栾川农商银行",
+      "栾川农村商业银行"
+    ],
+    "resource": "wallet_issuer_cn_bfbaad7b803f"
+  },
+  {
+    "id": "cn_c2d3f86a7988",
+    "name": "三菱UFJ银行（日联）",
+    "aliases": [
+      "三菱UFJ银行（日联）"
+    ],
+    "resource": "wallet_issuer_cn_c2d3f86a7988"
+  },
+  {
+    "id": "cn_c7ab0b0172a5",
+    "name": "北欧斯安银行",
+    "aliases": [
+      "北欧斯安银行"
+    ],
+    "resource": "wallet_issuer_cn_c7ab0b0172a5"
+  },
+  {
+    "id": "cn_cb46bbb9afeb",
+    "name": "高明农商",
+    "aliases": [
+      "高明农商",
+      "高明农商银行",
+      "高明农村商业银行"
+    ],
+    "resource": "wallet_issuer_cn_cb46bbb9afeb"
+  },
+  {
+    "id": "cn_cb94de0f3c21",
+    "name": "大庆市商业银行",
+    "aliases": [
+      "大庆市商业银行"
+    ],
+    "resource": "wallet_issuer_cn_cb94de0f3c21"
+  },
+  {
+    "id": "cn_cbc95fdba110",
+    "name": "阳泉市商业银行",
+    "aliases": [
+      "阳泉市商业银行"
+    ],
+    "resource": "wallet_issuer_cn_cbc95fdba110"
+  },
+  {
+    "id": "cn_cc44a3e3c534",
+    "name": "台湾银行",
+    "aliases": [
+      "台湾银行"
+    ],
+    "resource": "wallet_issuer_cn_cc44a3e3c534"
+  },
+  {
+    "id": "cn_d2782514a1f3",
+    "name": "安顺市商业银行",
+    "aliases": [
+      "安顺市商业银行"
+    ],
+    "resource": "wallet_issuer_cn_d2782514a1f3"
+  },
+  {
+    "id": "cn_d2c84af17648",
+    "name": "比利时银行",
+    "aliases": [
+      "比利时银行"
+    ],
+    "resource": "wallet_issuer_cn_d2c84af17648"
+  },
+  {
+    "id": "cn_d3a381d4f562",
+    "name": "广东揭阳农商",
+    "aliases": [
+      "广东揭阳农商",
+      "广东揭阳农商银行",
+      "广东揭阳农村商业银行"
+    ],
+    "resource": "wallet_issuer_cn_d3a381d4f562"
+  },
+  {
+    "id": "cn_db3aa82a331e",
+    "name": "包商银行",
+    "aliases": [
+      "包商银行"
+    ],
+    "resource": "wallet_issuer_cn_db3aa82a331e"
+  },
+  {
+    "id": "cn_deb0f264dc85",
+    "name": "吴江农商",
+    "aliases": [
+      "吴江农商",
+      "吴江农商银行",
+      "吴江农村商业银行"
+    ],
+    "resource": "wallet_issuer_cn_deb0f264dc85"
+  },
+  {
+    "id": "cn_e82d7b98c10b",
+    "name": "韩国友利银行",
+    "aliases": [
+      "韩国友利银行"
+    ],
+    "resource": "wallet_issuer_cn_e82d7b98c10b"
+  },
+  {
+    "id": "cn_e9ecd031a383",
+    "name": "晋城银行",
+    "aliases": [
+      "晋城银行"
+    ],
+    "resource": "wallet_issuer_cn_e9ecd031a383"
+  },
+  {
+    "id": "cn_ea01251165c8",
+    "name": "许昌魏都农商",
+    "aliases": [
+      "许昌魏都农商",
+      "许昌魏都农商银行",
+      "许昌魏都农村商业银行"
+    ],
+    "resource": "wallet_issuer_cn_ea01251165c8"
+  },
+  {
+    "id": "cn_ec06ece75df2",
+    "name": "三和银行",
+    "aliases": [
+      "三和银行"
+    ],
+    "resource": "wallet_issuer_cn_ec06ece75df2"
+  },
+  {
+    "id": "cn_f091a0ee24b4",
+    "name": "瑞穗实业银行",
+    "aliases": [
+      "瑞穗实业银行"
+    ],
+    "resource": "wallet_issuer_cn_f091a0ee24b4"
+  },
+  {
+    "id": "cn_f0d0b10ec5f5",
+    "name": "台湾土地银行",
+    "aliases": [
+      "台湾土地银行"
+    ],
+    "resource": "wallet_issuer_cn_f0d0b10ec5f5"
+  },
+  {
+    "id": "cn_f1c55c4290dd",
+    "name": "波士顿银行",
+    "aliases": [
+      "波士顿银行"
+    ],
+    "resource": "wallet_issuer_cn_f1c55c4290dd"
+  },
+  {
+    "id": "cn_f5fee79339ce",
+    "name": "许昌银行",
+    "aliases": [
+      "许昌银行"
+    ],
+    "resource": "wallet_issuer_cn_f5fee79339ce"
+  },
+  {
+    "id": "cn_f6820954c9e5",
+    "name": "台州银行",
+    "aliases": [
+      "台州银行"
+    ],
+    "resource": "wallet_issuer_cn_f6820954c9e5"
+  },
+  {
+    "id": "cn_f844620a895e",
+    "name": "长治银行",
+    "aliases": [
+      "长治银行"
+    ],
+    "resource": "wallet_issuer_cn_f844620a895e"
+  },
+  {
+    "id": "cn_f9d2c9509592",
+    "name": "南阳银行",
+    "aliases": [
+      "南阳银行"
+    ],
+    "resource": "wallet_issuer_cn_f9d2c9509592"
+  },
+  {
+    "id": "cn_fc3970d278ec",
+    "name": "攀枝花市商业银行",
+    "aliases": [
+      "攀枝花市商业银行"
+    ],
+    "resource": "wallet_issuer_cn_fc3970d278ec"
+  },
+  {
+    "id": "cn_feb73d528440",
+    "name": "哈密市商业银行",
+    "aliases": [
+      "哈密市商业银行"
+    ],
+    "resource": "wallet_issuer_cn_feb73d528440"
+  },
+  {
+    "id": "commerzbank",
+    "name": "Commerzbank",
+    "aliases": [
+      "Commerzbank",
+      "德国商业银行"
+    ],
+    "resource": "wallet_issuer_commerzbank"
+  },
+  {
+    "id": "commonwealth",
+    "name": "Commonwealth Bank",
+    "aliases": [
+      "Commonwealth Bank",
+      "Commonwealth Bank of Australia",
+      "澳大利亚联邦银行"
+    ],
+    "resource": "wallet_issuer_commonwealth"
+  },
+  {
+    "id": "cqbank",
+    "name": "重庆银行",
+    "aliases": [
+      "Bank of Chongqing",
+      "重庆银行"
+    ],
+    "resource": "wallet_issuer_cqbank"
+  },
+  {
+    "id": "cqrcb",
+    "name": "重庆农商",
+    "aliases": [
+      "Chongqing Rural Commercial Bank",
+      "重庆农商",
+      "重庆农商银行",
+      "重庆农村商业银行"
+    ],
+    "resource": "wallet_issuer_cqrcb"
+  },
+  {
+    "id": "crbank",
+    "name": "华润银行",
+    "aliases": [
+      "华润银行"
+    ],
+    "resource": "wallet_issuer_crbank"
+  },
+  {
+    "id": "cscb",
+    "name": "长沙银行",
+    "aliases": [
+      "长沙银行"
+    ],
+    "resource": "wallet_issuer_cscb"
+  },
+  {
+    "id": "csrcbank",
+    "name": "常熟农商",
+    "aliases": [
+      "常熟农商",
+      "常熟农商银行",
+      "常熟农村商业银行"
+    ],
+    "resource": "wallet_issuer_csrcbank"
+  },
+  {
+    "id": "csxbank",
+    "name": "三湘银行",
+    "aliases": [
+      "三湘银行"
+    ],
+    "resource": "wallet_issuer_csxbank"
+  },
+  {
+    "id": "cycb",
+    "name": "朝阳银行",
+    "aliases": [
+      "朝阳银行"
+    ],
+    "resource": "wallet_issuer_cycb"
+  },
+  {
+    "id": "czbank",
+    "name": "浙商银行",
+    "aliases": [
+      "China Zheshang Bank",
+      "浙商银行"
+    ],
+    "resource": "wallet_issuer_czbank"
+  },
+  {
+    "id": "czcb",
+    "name": "浙江稠州商业银行",
+    "aliases": [
+      "浙江稠州商业银行"
+    ],
+    "resource": "wallet_issuer_czcb"
+  },
+  {
+    "id": "dahsing",
+    "name": "大新银行",
+    "aliases": [
+      "大新银行"
+    ],
+    "resource": "wallet_issuer_dahsing"
+  },
+  {
+    "id": "dandongbank",
+    "name": "丹东银行",
+    "aliases": [
+      "丹东银行"
+    ],
+    "resource": "wallet_issuer_dandongbank"
+  },
+  {
+    "id": "dbs",
+    "name": "星展银行",
+    "aliases": [
+      "DBS",
+      "DBS Bank",
+      "dbs",
+      "星展",
+      "星展银行"
+    ],
+    "resource": "wallet_issuer_dbs"
+  },
+  {
+    "id": "deutsche",
+    "name": "德意志银行",
+    "aliases": [
+      "Deutsche Bank",
+      "德意志银行"
+    ],
+    "resource": "wallet_issuer_deutsche"
+  },
+  {
+    "id": "dongguanbank",
+    "name": "东莞银行",
+    "aliases": [
+      "东莞银行"
+    ],
+    "resource": "wallet_issuer_dongguanbank"
+  },
+  {
+    "id": "drcbank",
+    "name": "东莞农商",
+    "aliases": [
+      "东莞农商",
+      "东莞农商银行",
+      "东莞农村商业银行"
+    ],
+    "resource": "wallet_issuer_drcbank"
+  },
+  {
+    "id": "dyccb",
+    "name": "东营银行",
+    "aliases": [
+      "东营银行"
+    ],
+    "resource": "wallet_issuer_dyccb"
+  },
+  {
+    "id": "dzbchina",
+    "name": "德州银行",
+    "aliases": [
+      "德州银行"
+    ],
+    "resource": "wallet_issuer_dzbchina"
+  },
+  {
+    "id": "dzccb",
+    "name": "达州银行",
+    "aliases": [
+      "达州银行"
+    ],
+    "resource": "wallet_issuer_dzccb"
+  },
+  {
+    "id": "eastwestbank",
+    "name": "华美银行",
+    "aliases": [
+      "华美银行"
+    ],
+    "resource": "wallet_issuer_eastwestbank"
+  },
+  {
+    "id": "eximbank",
+    "name": "中国进出口银行",
+    "aliases": [
+      "中国进出口银行"
+    ],
+    "resource": "wallet_issuer_eximbank"
+  },
+  {
+    "id": "firstbank",
+    "name": "第一银行",
+    "aliases": [
+      "第一银行"
+    ],
+    "resource": "wallet_issuer_firstbank"
+  },
+  {
+    "id": "fjhxbank",
+    "name": "福建海峡银行",
+    "aliases": [
+      "福建海峡银行"
+    ],
+    "resource": "wallet_issuer_fjhxbank"
+  },
+  {
+    "id": "foshanbank",
+    "name": "佛山农商",
+    "aliases": [
+      "佛山农商",
+      "佛山农商银行",
+      "佛山农村商业银行"
+    ],
+    "resource": "wallet_issuer_foshanbank"
+  },
+  {
+    "id": "fubonchina",
+    "name": "富邦华一银行",
+    "aliases": [
+      "富邦华一银行"
+    ],
+    "resource": "wallet_issuer_fubonchina"
+  },
+  {
+    "id": "fudian",
+    "name": "富滇银行",
+    "aliases": [
+      "富滇银行"
+    ],
+    "resource": "wallet_issuer_fudian"
+  },
+  {
+    "id": "fuxinbank",
+    "name": "阜新银行",
+    "aliases": [
+      "阜新银行"
+    ],
+    "resource": "wallet_issuer_fuxinbank"
+  },
+  {
+    "id": "gdnybank",
+    "name": "广东南粤银行",
+    "aliases": [
+      "广东南粤银行"
+    ],
+    "resource": "wallet_issuer_gdnybank"
+  },
+  {
+    "id": "ghbank",
+    "name": "广东华兴银行",
+    "aliases": [
+      "广东华兴银行"
+    ],
+    "resource": "wallet_issuer_ghbank"
+  },
+  {
+    "id": "global_adcb",
+    "name": "Abu Dhabi Commercial Bank",
+    "aliases": [
+      "Abu Dhabi Commercial Bank"
+    ],
+    "resource": "wallet_issuer_global_adcb"
+  },
+  {
+    "id": "global_apb",
+    "name": "Airtel Payments Bank Ltd",
+    "aliases": [
+      "Airtel Payments Bank Ltd"
+    ],
+    "resource": "wallet_issuer_global_apb"
+  },
+  {
+    "id": "global_ausfb",
+    "name": "AU Small Finance Bank Ltd",
+    "aliases": [
+      "AU Small Finance Bank Ltd"
+    ],
+    "resource": "wallet_issuer_global_ausfb"
+  },
+  {
+    "id": "global_axis",
+    "name": "Axis Bank Ltd",
+    "aliases": [
+      "Axis Bank Ltd"
+    ],
+    "resource": "wallet_issuer_global_axis"
+  },
+  {
+    "id": "global_bandhan",
+    "name": "Bandhan Bank Ltd",
+    "aliases": [
+      "Bandhan Bank Ltd"
+    ],
+    "resource": "wallet_issuer_global_bandhan"
+  },
+  {
+    "id": "global_bbk",
+    "name": "Bank of Bahrain and Kuwait",
+    "aliases": [
+      "Bank of Bahrain and Kuwait"
+    ],
+    "resource": "wallet_issuer_global_bbk"
+  },
+  {
+    "id": "global_bob",
+    "name": "Bank of Baroda",
+    "aliases": [
+      "Bank of Baroda"
+    ],
+    "resource": "wallet_issuer_global_bob"
+  },
+  {
+    "id": "global_boi",
+    "name": "Bank of India",
+    "aliases": [
+      "Bank of India"
+    ],
+    "resource": "wallet_issuer_global_boi"
+  },
+  {
+    "id": "global_bom",
+    "name": "Bank of Maharashtra",
+    "aliases": [
+      "Bank of Maharashtra"
+    ],
+    "resource": "wallet_issuer_global_bom"
+  },
+  {
+    "id": "global_canara",
+    "name": "Canara Bank",
+    "aliases": [
+      "Canara Bank"
+    ],
+    "resource": "wallet_issuer_global_canara"
+  },
+  {
+    "id": "global_cbi",
+    "name": "Central Bank of India",
+    "aliases": [
+      "Central Bank of India"
+    ],
+    "resource": "wallet_issuer_global_cbi"
+  },
+  {
+    "id": "global_ceylon-bank",
+    "name": "Bank of Ceylon",
+    "aliases": [
+      "Bank of Ceylon"
+    ],
+    "resource": "wallet_issuer_global_ceylon_bank"
+  },
+  {
+    "id": "global_credit-suisse",
+    "name": "Credit Suisse",
+    "aliases": [
+      "Credit Suisse"
+    ],
+    "resource": "wallet_issuer_global_credit_suisse"
+  },
+  {
+    "id": "global_csb",
+    "name": "CSB Bank Limited",
+    "aliases": [
+      "CSB Bank Limited"
+    ],
+    "resource": "wallet_issuer_global_csb"
+  },
+  {
+    "id": "global_cub",
+    "name": "City Union Bank Ltd",
+    "aliases": [
+      "City Union Bank Ltd"
+    ],
+    "resource": "wallet_issuer_global_cub"
+  },
+  {
+    "id": "global_dcb",
+    "name": "DCB Bank Ltd",
+    "aliases": [
+      "DCB Bank Ltd"
+    ],
+    "resource": "wallet_issuer_global_dcb"
+  },
+  {
+    "id": "global_dhanlaxmi",
+    "name": "Dhanlaxmi Bank Ltd",
+    "aliases": [
+      "Dhanlaxmi Bank Ltd"
+    ],
+    "resource": "wallet_issuer_global_dhanlaxmi"
+  },
+  {
+    "id": "global_doha",
+    "name": "Doha Bank",
+    "aliases": [
+      "Doha Bank"
+    ],
+    "resource": "wallet_issuer_global_doha"
+  },
+  {
+    "id": "global_emirates-nbd",
+    "name": "Emirates NBD",
+    "aliases": [
+      "Emirates NBD"
+    ],
+    "resource": "wallet_issuer_global_emirates_nbd"
+  },
+  {
+    "id": "global_esaf",
+    "name": "ESAF Small Finance Bank Ltd",
+    "aliases": [
+      "ESAF Small Finance Bank Ltd"
+    ],
+    "resource": "wallet_issuer_global_esaf"
+  },
+  {
+    "id": "global_fab",
+    "name": "First Abu Dhabi Bank",
+    "aliases": [
+      "First Abu Dhabi Bank"
+    ],
+    "resource": "wallet_issuer_global_fab"
+  },
+  {
+    "id": "global_federal",
+    "name": "Federal Bank Ltd",
+    "aliases": [
+      "Federal Bank Ltd"
+    ],
+    "resource": "wallet_issuer_global_federal"
+  },
+  {
+    "id": "global_fino",
+    "name": "FINO Payments Bank Ltd",
+    "aliases": [
+      "FINO Payments Bank Ltd"
+    ],
+    "resource": "wallet_issuer_global_fino"
+  },
+  {
+    "id": "global_firstrand",
+    "name": "FirstRand Bank",
+    "aliases": [
+      "FirstRand Bank"
+    ],
+    "resource": "wallet_issuer_global_firstrand"
+  },
+  {
+    "id": "global_handelsbanken",
+    "name": "Handelsbanken",
+    "aliases": [
+      "Handelsbanken"
+    ],
+    "resource": "wallet_issuer_global_handelsbanken"
+  },
+  {
+    "id": "global_hdfc",
+    "name": "HDFC Bank Ltd",
+    "aliases": [
+      "HDFC Bank Ltd"
+    ],
+    "resource": "wallet_issuer_global_hdfc"
+  },
+  {
+    "id": "global_icici",
+    "name": "ICICI Bank Ltd",
+    "aliases": [
+      "ICICI Bank Ltd"
+    ],
+    "resource": "wallet_issuer_global_icici"
+  },
+  {
+    "id": "global_idbi",
+    "name": "IDBI Bank Limited",
+    "aliases": [
+      "IDBI Bank Limited"
+    ],
+    "resource": "wallet_issuer_global_idbi"
+  },
+  {
+    "id": "global_idfc",
+    "name": "IDFC FIRST Bank Limited",
+    "aliases": [
+      "IDFC FIRST Bank Limited"
+    ],
+    "resource": "wallet_issuer_global_idfc"
+  },
+  {
+    "id": "global_indian",
+    "name": "Indian Bank",
+    "aliases": [
+      "Indian Bank"
+    ],
+    "resource": "wallet_issuer_global_indian"
+  },
+  {
+    "id": "global_indiapost",
+    "name": "India Post Payments Bank Ltd",
+    "aliases": [
+      "India Post Payments Bank Ltd"
+    ],
+    "resource": "wallet_issuer_global_indiapost"
+  },
+  {
+    "id": "global_indus",
+    "name": "IndusInd Bank Ltd",
+    "aliases": [
+      "IndusInd Bank Ltd"
+    ],
+    "resource": "wallet_issuer_global_indus"
+  },
+  {
+    "id": "global_iob",
+    "name": "Indian Overseas Bank",
+    "aliases": [
+      "Indian Overseas Bank"
+    ],
+    "resource": "wallet_issuer_global_iob"
+  },
+  {
+    "id": "global_jio",
+    "name": "Jio Payments Bank Ltd",
+    "aliases": [
+      "Jio Payments Bank Ltd"
+    ],
+    "resource": "wallet_issuer_global_jio"
+  },
+  {
+    "id": "global_jnk",
+    "name": "Jammu & Kashmir Bank Ltd",
+    "aliases": [
+      "Jammu & Kashmir Bank Ltd"
+    ],
+    "resource": "wallet_issuer_global_jnk"
+  },
+  {
+    "id": "global_karnataka",
+    "name": "Karnataka Bank Ltd",
+    "aliases": [
+      "Karnataka Bank Ltd"
+    ],
+    "resource": "wallet_issuer_global_karnataka"
+  },
+  {
+    "id": "global_korea-bank",
+    "name": "Industrial Bank of Korea",
+    "aliases": [
+      "Industrial Bank of Korea"
+    ],
+    "resource": "wallet_issuer_global_korea_bank"
+  },
+  {
+    "id": "global_kotak",
+    "name": "Kotak Mahindra Bank Ltd",
+    "aliases": [
+      "Kotak Mahindra Bank Ltd"
+    ],
+    "resource": "wallet_issuer_global_kotak"
+  },
+  {
+    "id": "global_krungthai",
+    "name": "Krung Thai Bank",
+    "aliases": [
+      "Krung Thai Bank"
+    ],
+    "resource": "wallet_issuer_global_krungthai"
+  },
+  {
+    "id": "global_kvb",
+    "name": "Karur Vysya Bank Ltd",
+    "aliases": [
+      "Karur Vysya Bank Ltd"
+    ],
+    "resource": "wallet_issuer_global_kvb"
+  },
+  {
+    "id": "global_ntb",
+    "name": "Nainital Bank Ltd",
+    "aliases": [
+      "Nainital Bank Ltd"
+    ],
+    "resource": "wallet_issuer_global_ntb"
+  },
+  {
+    "id": "global_paytm",
+    "name": "Paytm Payments Bank Ltd",
+    "aliases": [
+      "Paytm Payments Bank Ltd"
+    ],
+    "resource": "wallet_issuer_global_paytm"
+  },
+  {
+    "id": "global_pnb",
+    "name": "Punjab National Bank",
+    "aliases": [
+      "Punjab National Bank"
+    ],
+    "resource": "wallet_issuer_global_pnb"
+  },
+  {
+    "id": "global_psb",
+    "name": "Punjab & Sind Bank",
+    "aliases": [
+      "Punjab & Sind Bank"
+    ],
+    "resource": "wallet_issuer_global_psb"
+  },
+  {
+    "id": "global_qnb",
+    "name": "Qatar National Bank",
+    "aliases": [
+      "Qatar National Bank"
+    ],
+    "resource": "wallet_issuer_global_qnb"
+  },
+  {
+    "id": "global_rbl",
+    "name": "RBL Bank Ltd",
+    "aliases": [
+      "RBL Bank Ltd"
+    ],
+    "resource": "wallet_issuer_global_rbl"
+  },
+  {
+    "id": "global_saxo",
+    "name": "Saxo Bank",
+    "aliases": [
+      "Saxo Bank"
+    ],
+    "resource": "wallet_issuer_global_saxo"
+  },
+  {
+    "id": "global_sberbank",
+    "name": "Sberbank",
+    "aliases": [
+      "Sberbank"
+    ],
+    "resource": "wallet_issuer_global_sberbank"
+  },
+  {
+    "id": "global_sbi",
+    "name": "State Bank of India",
+    "aliases": [
+      "State Bank of India"
+    ],
+    "resource": "wallet_issuer_global_sbi"
+  },
+  {
+    "id": "global_sib",
+    "name": "South Indian Bank Ltd",
+    "aliases": [
+      "South Indian Bank Ltd"
+    ],
+    "resource": "wallet_issuer_global_sib"
+  },
+  {
+    "id": "global_sonali",
+    "name": "Sonali Bank",
+    "aliases": [
+      "Sonali Bank"
+    ],
+    "resource": "wallet_issuer_global_sonali"
+  },
+  {
+    "id": "global_tmb",
+    "name": "Tamilnad Mercantile Bank Ltd",
+    "aliases": [
+      "Tamilnad Mercantile Bank Ltd"
+    ],
+    "resource": "wallet_issuer_global_tmb"
+  },
+  {
+    "id": "global_ubi",
+    "name": "Union Bank of India",
+    "aliases": [
+      "Union Bank of India"
+    ],
+    "resource": "wallet_issuer_global_ubi"
+  },
+  {
+    "id": "global_uco",
+    "name": "UCO Bank",
+    "aliases": [
+      "UCO Bank"
+    ],
+    "resource": "wallet_issuer_global_uco"
+  },
+  {
+    "id": "global_ujjivan",
+    "name": "Ujjivan Small Finance Bank Ltd",
+    "aliases": [
+      "Ujjivan Small Finance Bank Ltd"
+    ],
+    "resource": "wallet_issuer_global_ujjivan"
+  },
+  {
+    "id": "global_yes",
+    "name": "YES Bank Ltd",
+    "aliases": [
+      "YES Bank Ltd"
+    ],
+    "resource": "wallet_issuer_global_yes"
+  },
+  {
+    "id": "grcbank",
+    "name": "广东农商",
+    "aliases": [
+      "广东农商",
+      "广东农商银行",
+      "广东农村商业银行"
+    ],
+    "resource": "wallet_issuer_grcbank"
+  },
+  {
+    "id": "gsbankchina",
+    "name": "甘肃银行",
+    "aliases": [
+      "甘肃银行"
+    ],
+    "resource": "wallet_issuer_gsbankchina"
+  },
+  {
+    "id": "guilinbank",
+    "name": "桂林银行",
+    "aliases": [
+      "桂林银行"
+    ],
+    "resource": "wallet_issuer_guilinbank"
+  },
+  {
+    "id": "gx966888",
+    "name": "广西农村信用社",
+    "aliases": [
+      "广西农村信用社"
+    ],
+    "resource": "wallet_issuer_gx966888"
+  },
+  {
+    "id": "gzcb",
+    "name": "广州银行",
+    "aliases": [
+      "广州银行"
+    ],
+    "resource": "wallet_issuer_gzcb"
+  },
+  {
+    "id": "gzccb",
+    "name": "赣州银行",
+    "aliases": [
+      "赣州银行"
+    ],
+    "resource": "wallet_issuer_gzccb"
+  },
+  {
+    "id": "hana",
+    "name": "韩亚银行",
+    "aliases": [
+      "Hana Bank",
+      "KEB Hana Bank",
+      "韩亚银行"
+    ],
+    "resource": "wallet_issuer_hana"
+  },
+  {
+    "id": "hangseng",
+    "name": "恒生银行",
+    "aliases": [
+      "Hang Seng Bank",
+      "hangseng",
+      "恆生",
+      "恆生銀行",
+      "恒生",
+      "恒生银行"
+    ],
+    "resource": "wallet_issuer_hangseng"
+  },
+  {
+    "id": "hdcb",
+    "name": "邯郸银行",
+    "aliases": [
+      "邯郸银行"
+    ],
+    "resource": "wallet_issuer_hdcb"
+  },
+  {
+    "id": "hebbank",
+    "name": "河北银行",
+    "aliases": [
+      "河北银行"
+    ],
+    "resource": "wallet_issuer_hebbank"
+  },
+  {
+    "id": "hfbank",
+    "name": "恒丰银行",
+    "aliases": [
+      "恒丰银行"
+    ],
+    "resource": "wallet_issuer_hfbank"
+  },
+  {
+    "id": "hfrcbc",
+    "name": "合肥科技农商",
+    "aliases": [
+      "合肥科技农商",
+      "合肥科技农商银行",
+      "合肥科技农村商业银行"
+    ],
+    "resource": "wallet_issuer_hfrcbc"
+  },
+  {
+    "id": "hkbchina",
+    "name": "汉口银行",
+    "aliases": [
+      "汉口银行"
+    ],
+    "resource": "wallet_issuer_hkbchina"
+  },
+  {
+    "id": "hnnxs",
+    "name": "湖南省农村信用社",
+    "aliases": [
+      "湖南省农村信用社"
+    ],
+    "resource": "wallet_issuer_hnnxs"
+  },
+  {
+    "id": "hrbb",
+    "name": "哈尔滨银行",
+    "aliases": [
+      "哈尔滨银行"
+    ],
+    "resource": "wallet_issuer_hrbb"
+  },
+  {
+    "id": "hrxjbank",
+    "name": "华融湘江银行",
+    "aliases": [
+      "华融湘江银行"
+    ],
+    "resource": "wallet_issuer_hrxjbank"
+  },
+  {
+    "id": "hsbank",
+    "name": "徽商银行",
+    "aliases": [
+      "Huishang Bank",
+      "徽商银行"
+    ],
+    "resource": "wallet_issuer_hsbank"
+  },
+  {
+    "id": "hsbc",
+    "name": "汇丰银行",
+    "aliases": [
+      "HSBC",
+      "hsbc",
+      "匯豐",
+      "汇丰",
+      "汇丰银行",
+      "滙豐",
+      "滙豐銀行"
+    ],
+    "resource": "wallet_issuer_hsbc"
+  },
+  {
+    "id": "hubeibank",
+    "name": "湖北银行",
+    "aliases": [
+      "湖北银行"
+    ],
+    "resource": "wallet_issuer_hubeibank"
+  },
+  {
+    "id": "hxb",
+    "name": "华夏银行",
+    "aliases": [
+      "huaxiabank",
+      "hxb",
+      "华夏银行",
+      "華夏銀行"
+    ],
+    "resource": "wallet_issuer_hxb"
+  },
+  {
+    "id": "hzbank",
+    "name": "杭州银行",
+    "aliases": [
+      "Bank of Hangzhou",
+      "杭州银行"
+    ],
+    "resource": "wallet_issuer_hzbank"
+  },
+  {
+    "id": "hzccb",
+    "name": "湖州银行",
+    "aliases": [
+      "湖州银行"
+    ],
+    "resource": "wallet_issuer_hzccb"
+  },
+  {
+    "id": "hznsyh",
+    "name": "惠州农商",
+    "aliases": [
+      "惠州农商",
+      "惠州农商银行",
+      "惠州农村商业银行"
+    ],
+    "resource": "wallet_issuer_hznsyh"
+  },
+  {
+    "id": "ibk",
+    "name": "韩国企业银行",
+    "aliases": [
+      "韩国企业银行"
+    ],
+    "resource": "wallet_issuer_ibk"
+  },
+  {
+    "id": "icbc",
+    "name": "中国工商银行",
+    "aliases": [
+      "Industrial & Commercial Bank of China",
+      "Industrial and Commercial Bank of China",
+      "icbc",
+      "industrialandcommercialbank",
+      "中国工商银行",
+      "工商銀行",
+      "工商银行",
+      "工行"
+    ],
+    "resource": "wallet_issuer_icbc"
+  },
+  {
+    "id": "jhccb",
+    "name": "金华银行",
+    "aliases": [
+      "金华银行"
+    ],
+    "resource": "wallet_issuer_jhccb"
+  },
+  {
+    "id": "jhrcbank",
+    "name": "建湖农商",
+    "aliases": [
+      "建湖农商",
+      "建湖农商银行",
+      "建湖农村商业银行"
+    ],
+    "resource": "wallet_issuer_jhrcbank"
+  },
+  {
+    "id": "jinzhoubank",
+    "name": "锦州银行",
+    "aliases": [
+      "锦州银行"
+    ],
+    "resource": "wallet_issuer_jinzhoubank"
+  },
+  {
+    "id": "jjbank",
+    "name": "江苏靖江农商",
+    "aliases": [
+      "江苏靖江农商",
+      "江苏靖江农商银行",
+      "江苏靖江农村商业银行"
+    ],
+    "resource": "wallet_issuer_jjbank"
+  },
+  {
+    "id": "jjccb",
+    "name": "九江银行",
+    "aliases": [
+      "九江银行"
+    ],
+    "resource": "wallet_issuer_jjccb"
+  },
+  {
+    "id": "jlbank",
+    "name": "吉林银行",
+    "aliases": [
+      "吉林银行"
+    ],
+    "resource": "wallet_issuer_jlbank"
+  },
+  {
+    "id": "jmrcb",
+    "name": "江门农商",
+    "aliases": [
+      "江门农商",
+      "江门农商银行",
+      "江门农村商业银行"
+    ],
+    "resource": "wallet_issuer_jmrcb"
+  },
+  {
+    "id": "jn-bank",
+    "name": "济宁银行",
+    "aliases": [
+      "济宁银行"
+    ],
+    "resource": "wallet_issuer_jn_bank"
+  },
+  {
+    "id": "jrnsh",
+    "name": "江苏句容农商",
+    "aliases": [
+      "江苏句容农商",
+      "江苏句容农商银行",
+      "江苏句容农村商业银行"
+    ],
+    "resource": "wallet_issuer_jrnsh"
+  },
+  {
+    "id": "jsbchina",
+    "name": "江苏银行",
+    "aliases": [
+      "Bank of Jiangsu",
+      "江苏银行"
+    ],
+    "resource": "wallet_issuer_jsbchina"
+  },
+  {
+    "id": "jshbank",
+    "name": "晋商银行",
+    "aliases": [
+      "晋商银行"
+    ],
+    "resource": "wallet_issuer_jshbank"
+  },
+  {
+    "id": "jsyxrcb",
+    "name": "江苏宜兴农商",
+    "aliases": [
+      "江苏宜兴农商",
+      "江苏宜兴农商银行",
+      "江苏宜兴农村商业银行"
+    ],
+    "resource": "wallet_issuer_jsyxrcb"
+  },
+  {
+    "id": "jtnsh",
+    "name": "九台农商",
+    "aliases": [
+      "九台农商",
+      "九台农商银行",
+      "九台农村商业银行"
+    ],
+    "resource": "wallet_issuer_jtnsh"
+  },
+  {
+    "id": "jx-bank",
+    "name": "江西银行",
+    "aliases": [
+      "江西银行"
+    ],
+    "resource": "wallet_issuer_jx_bank"
+  },
+  {
+    "id": "jybank",
+    "name": "江阴农商",
+    "aliases": [
+      "江阴农商",
+      "江阴农商银行",
+      "江阴农村商业银行"
+    ],
+    "resource": "wallet_issuer_jybank"
+  },
+  {
+    "id": "kbstarchina",
+    "name": "韩国国民银行",
+    "aliases": [
+      "韩国国民银行"
+    ],
+    "resource": "wallet_issuer_kbstarchina"
+  },
+  {
+    "id": "klb",
+    "name": "昆仑银行",
+    "aliases": [
+      "昆仑银行"
+    ],
+    "resource": "wallet_issuer_klb"
+  },
+  {
+    "id": "kookmin",
+    "name": "Kookmin Bank",
+    "aliases": [
+      "KB Kookmin Bank",
+      "KB国民银行",
+      "Kookmin Bank"
+    ],
+    "resource": "wallet_issuer_kookmin"
+  },
+  {
+    "id": "ksrcb",
+    "name": "昆山农商",
+    "aliases": [
+      "昆山农商",
+      "昆山农商银行",
+      "昆山农村商业银行"
+    ],
+    "resource": "wallet_issuer_ksrcb"
+  },
+  {
+    "id": "lccb",
+    "name": "廊坊银行",
+    "aliases": [
+      "廊坊银行"
+    ],
+    "resource": "wallet_issuer_lccb"
+  },
+  {
+    "id": "lj-bank",
+    "name": "龙江银行",
+    "aliases": [
+      "龙江银行"
+    ],
+    "resource": "wallet_issuer_lj_bank"
+  },
+  {
+    "id": "lqrcb",
+    "name": "路桥农村合作银行",
+    "aliases": [
+      "路桥农村合作银行"
+    ],
+    "resource": "wallet_issuer_lqrcb"
+  },
+  {
+    "id": "lsbankchina",
+    "name": "莱商银行",
+    "aliases": [
+      "莱商银行"
+    ],
+    "resource": "wallet_issuer_lsbankchina"
+  },
+  {
+    "id": "lsbchina",
+    "name": "临商银行",
+    "aliases": [
+      "临商银行"
+    ],
+    "resource": "wallet_issuer_lsbchina"
+  },
+  {
+    "id": "lsccb",
+    "name": "乐山市商业银行",
+    "aliases": [
+      "乐山市商业银行"
+    ],
+    "resource": "wallet_issuer_lsccb"
+  },
+  {
+    "id": "luoyang-szgold",
+    "name": "洛阳银行",
+    "aliases": [
+      "洛阳银行"
+    ],
+    "resource": "wallet_issuer_luoyang_szgold"
+  },
+  {
+    "id": "lygdfrcb",
+    "name": "连云港东方农商",
+    "aliases": [
+      "连云港东方农商",
+      "连云港东方农商银行",
+      "连云港东方农村商业银行"
+    ],
+    "resource": "wallet_issuer_lygdfrcb"
+  },
+  {
+    "id": "lzbank",
+    "name": "兰州银行",
+    "aliases": [
+      "兰州银行"
+    ],
+    "resource": "wallet_issuer_lzbank"
+  },
+  {
+    "id": "lzccb",
+    "name": "泸州银行",
+    "aliases": [
+      "泸州银行"
+    ],
+    "resource": "wallet_issuer_lzccb"
+  },
+  {
+    "id": "masrcb",
+    "name": "马鞍山农商",
+    "aliases": [
+      "马鞍山农商",
+      "马鞍山农商银行",
+      "马鞍山农村商业银行"
+    ],
+    "resource": "wallet_issuer_masrcb"
+  },
+  {
+    "id": "maybank",
+    "name": "马来亚银行",
+    "aliases": [
+      "Bank Maybank Indonesia",
+      "Maybank",
+      "马来亚银行"
+    ],
+    "resource": "wallet_issuer_maybank"
+  },
+  {
+    "id": "megabank",
+    "name": "兆丰国际商业银行",
+    "aliases": [
+      "兆丰国际商业银行"
+    ],
+    "resource": "wallet_issuer_megabank"
+  },
+  {
+    "id": "meigin",
+    "name": "名古屋银行",
+    "aliases": [
+      "名古屋银行"
+    ],
+    "resource": "wallet_issuer_meigin"
+  },
+  {
+    "id": "mintaibank",
+    "name": "浙江民泰商行",
+    "aliases": [
+      "浙江民泰商行"
+    ],
+    "resource": "wallet_issuer_mintaibank"
+  },
+  {
+    "id": "mizuho",
+    "name": "Mizuho Corporate Bank",
+    "aliases": [
+      "Mizuho Bank",
+      "Mizuho Corporate Bank",
+      "瑞穗银行"
+    ],
+    "resource": "wallet_issuer_mizuho"
+  },
+  {
+    "id": "monzo",
+    "name": "Monzo",
+    "aliases": [
+      "Monzo",
+      "Monzo Bank"
+    ],
+    "resource": "wallet_issuer_monzo"
+  },
+  {
+    "id": "mufg",
+    "name": "东京三菱银行",
+    "aliases": [
+      "MUFG",
+      "MUFG Bank",
+      "三菱日联银行",
+      "东京三菱银行"
+    ],
+    "resource": "wallet_issuer_mufg"
+  },
+  {
+    "id": "mycc",
+    "name": "绵阳商业银行",
+    "aliases": [
+      "绵阳商业银行"
+    ],
+    "resource": "wallet_issuer_mycc"
+  },
+  {
+    "id": "n26",
+    "name": "N26",
+    "aliases": [
+      "N26",
+      "N26 Bank"
+    ],
+    "resource": "wallet_issuer_n26"
+  },
+  {
+    "id": "nab",
+    "name": "National Australia Bank",
+    "aliases": [
+      "NAB",
+      "National Australia Bank",
+      "澳大利亚国民银行"
+    ],
+    "resource": "wallet_issuer_nab"
+  },
+  {
+    "id": "nanhaibank",
+    "name": "南海农商",
+    "aliases": [
+      "南海农商",
+      "南海农商银行",
+      "南海农村商业银行"
+    ],
+    "resource": "wallet_issuer_nanhaibank"
+  },
+  {
+    "id": "natwest",
+    "name": "NatWest Group",
+    "aliases": [
+      "NatWest",
+      "NatWest Group",
+      "National Westminster Bank"
+    ],
+    "resource": "wallet_issuer_natwest"
+  },
+  {
+    "id": "nbcb",
+    "name": "宁波银行",
+    "aliases": [
+      "Bank of Ningbo",
+      "宁波银行"
+    ],
+    "resource": "wallet_issuer_nbcb"
+  },
+  {
+    "id": "ncbank",
+    "name": "宁波通商银行",
+    "aliases": [
+      "宁波通商银行"
+    ],
+    "resource": "wallet_issuer_ncbank"
+  },
+  {
+    "id": "ncbchina",
+    "name": "南洋商业银行",
+    "aliases": [
+      "南洋商业银行"
+    ],
+    "resource": "wallet_issuer_ncbchina"
+  },
+  {
+    "id": "njcb",
+    "name": "南京银行",
+    "aliases": [
+      "Bank of Nanjing",
+      "南京银行"
+    ],
+    "resource": "wallet_issuer_njcb"
+  },
+  {
+    "id": "nubank",
+    "name": "Nubank",
+    "aliases": [
+      "Nu Bank",
+      "Nubank"
+    ],
+    "resource": "wallet_issuer_nubank"
+  },
+  {
+    "id": "o-bank",
+    "name": "王道银行",
+    "aliases": [
+      "王道银行"
+    ],
+    "resource": "wallet_issuer_o_bank"
+  },
+  {
+    "id": "ocbc",
+    "name": "华侨永亨银行",
+    "aliases": [
+      "OCBC",
+      "OCBC Bank",
+      "Oversea-Chinese Banking Corporation",
+      "华侨永亨银行",
+      "华侨银行"
+    ],
+    "resource": "wallet_issuer_ocbc"
+  },
+  {
+    "id": "ordosbank",
+    "name": "鄂尔多斯银行",
+    "aliases": [
+      "鄂尔多斯银行"
+    ],
+    "resource": "wallet_issuer_ordosbank"
+  },
+  {
+    "id": "paypal",
+    "name": "PayPal",
+    "aliases": [
+      "PayPal"
+    ],
+    "resource": "wallet_issuer_paypal"
+  },
+  {
+    "id": "pingan",
+    "name": "平安银行",
+    "aliases": [
+      "pinganbank",
+      "平安銀行",
+      "平安银行"
+    ],
+    "resource": "wallet_issuer_pingan"
+  },
+  {
+    "id": "psbc",
+    "name": "中国邮政储蓄银行",
+    "aliases": [
+      "Postal Savings Bank of China",
+      "postalsavingsbank",
+      "psbc",
+      "中国邮政储蓄银行",
+      "邮储银行",
+      "邮政储蓄",
+      "邮政储蓄银行",
+      "郵政儲蓄"
+    ],
+    "resource": "wallet_issuer_psbc"
+  },
+  {
+    "id": "qdccb",
+    "name": "青岛银行",
+    "aliases": [
+      "青岛银行"
+    ],
+    "resource": "wallet_issuer_qdccb"
+  },
+  {
+    "id": "qhdbank",
+    "name": "秦皇岛银行",
+    "aliases": [
+      "秦皇岛银行"
+    ],
+    "resource": "wallet_issuer_qhdbank"
+  },
+  {
+    "id": "qingbank",
+    "name": "清远农商",
+    "aliases": [
+      "清远农商",
+      "清远农商银行",
+      "清远农村商业银行"
+    ],
+    "resource": "wallet_issuer_qingbank"
+  },
+  {
+    "id": "qjccb",
+    "name": "曲靖市商业银行",
+    "aliases": [
+      "曲靖市商业银行"
+    ],
+    "resource": "wallet_issuer_qjccb"
+  },
+  {
+    "id": "qlbchina",
+    "name": "齐鲁银行",
+    "aliases": [
+      "齐鲁银行"
+    ],
+    "resource": "wallet_issuer_qlbchina"
+  },
+  {
+    "id": "qsbank",
+    "name": "齐商银行",
+    "aliases": [
+      "齐商银行"
+    ],
+    "resource": "wallet_issuer_qsbank"
+  },
+  {
+    "id": "qzccbank",
+    "name": "泉州银行",
+    "aliases": [
+      "泉州银行"
+    ],
+    "resource": "wallet_issuer_qzccbank"
+  },
+  {
+    "id": "rabobank",
+    "name": "Rabobank",
+    "aliases": [
+      "Rabobank",
+      "荷兰合作银行"
+    ],
+    "resource": "wallet_issuer_rabobank"
+  },
+  {
+    "id": "rbcroyalbank",
+    "name": "加拿大皇家银行",
+    "aliases": [
+      "RBC",
+      "RBC Royal Bank",
+      "Royal Bank of Canada",
+      "加拿大皇家银行"
+    ],
+    "resource": "wallet_issuer_rbcroyalbank"
+  },
+  {
+    "id": "revolut",
+    "name": "Revolut",
+    "aliases": [
+      "Revolut",
+      "Revolut Bank"
+    ],
+    "resource": "wallet_issuer_revolut"
+  },
+  {
+    "id": "sc",
+    "name": "渣打银行",
+    "aliases": [
+      "Standard Chartered",
+      "Standard Chartered Bank",
+      "standardchartered",
+      "渣打",
+      "渣打银行"
+    ],
+    "resource": "wallet_issuer_sc"
+  },
+  {
+    "id": "scnhh",
+    "name": "安徽舒城农村商业银行",
+    "aliases": [
+      "安徽舒城农商",
+      "安徽舒城农商银行",
+      "安徽舒城农村商业银行"
+    ],
+    "resource": "wallet_issuer_scnhh"
+  },
+  {
+    "id": "scotia",
+    "name": "加拿大丰业银行",
+    "aliases": [
+      "Scotia",
+      "Scotiabank",
+      "加拿大丰业银行"
+    ],
+    "resource": "wallet_issuer_scotia"
+  },
+  {
+    "id": "sdebank",
+    "name": "顺德农商",
+    "aliases": [
+      "顺德农商",
+      "顺德农商银行",
+      "顺德农村商业银行"
+    ],
+    "resource": "wallet_issuer_sdebank"
+  },
+  {
+    "id": "sdnxs",
+    "name": "山东省农村信用社",
+    "aliases": [
+      "山东省农村信用社"
+    ],
+    "resource": "wallet_issuer_sdnxs"
+  },
+  {
+    "id": "sgb",
+    "name": "中德住房储蓄银行",
+    "aliases": [
+      "中德住房储蓄银行"
+    ],
+    "resource": "wallet_issuer_sgb"
+  },
+  {
+    "id": "shengjingbank",
+    "name": "盛京银行",
+    "aliases": [
+      "盛京银行"
+    ],
+    "resource": "wallet_issuer_shengjingbank"
+  },
+  {
+    "id": "shinhan",
+    "name": "新韩银行",
+    "aliases": [
+      "Shinhan Bank",
+      "新韩银行"
+    ],
+    "resource": "wallet_issuer_shinhan"
+  },
+  {
+    "id": "sinopac",
+    "name": "永丰银行",
+    "aliases": [
+      "永丰银行"
+    ],
+    "resource": "wallet_issuer_sinopac"
+  },
+  {
+    "id": "smbc",
+    "name": "三井住友银行",
+    "aliases": [
+      "SMBC",
+      "Sumitomo Mitsui Banking Corporation",
+      "三井住友银行"
+    ],
+    "resource": "wallet_issuer_smbc"
+  },
+  {
+    "id": "snccb",
+    "name": "遂宁银行",
+    "aliases": [
+      "遂宁银行"
+    ],
+    "resource": "wallet_issuer_snccb"
+  },
+  {
+    "id": "societe_generale",
+    "name": "Société Générale",
+    "aliases": [
+      "Societe Generale",
+      "Société Générale",
+      "法国兴业银行"
+    ],
+    "resource": "wallet_issuer_societe_generale"
+  },
+  {
+    "id": "societegenerale",
+    "name": "法兴银行",
+    "aliases": [
+      "法兴银行"
+    ],
+    "resource": "wallet_issuer_societegenerale"
+  },
+  {
+    "id": "sofi",
+    "name": "SoFi",
+    "aliases": [
+      "SoFi",
+      "SoFi Bank"
+    ],
+    "resource": "wallet_issuer_sofi"
+  },
+  {
+    "id": "spdb",
+    "name": "浦发银行",
+    "aliases": [
+      "shanghaipudongdevelopment",
+      "spdb",
+      "浦发银行",
+      "浦發銀行"
+    ],
+    "resource": "wallet_issuer_spdb"
+  },
+  {
+    "id": "srbank",
+    "name": "上饶银行",
+    "aliases": [
+      "上饶银行"
+    ],
+    "resource": "wallet_issuer_srbank"
+  },
+  {
+    "id": "srcb",
+    "name": "上海农商",
+    "aliases": [
+      "Shanghai Rural Commercial Bank",
+      "上海农商",
+      "上海农商银行",
+      "上海农村商业银行"
+    ],
+    "resource": "wallet_issuer_srcb"
+  },
+  {
+    "id": "starlingbank",
+    "name": "Starling Bank",
+    "aliases": [
+      "Starling",
+      "Starling Bank"
+    ],
+    "resource": "wallet_issuer_starlingbank"
+  },
+  {
+    "id": "suzhoubank",
+    "name": "苏州银行",
+    "aliases": [
+      "苏州银行"
+    ],
+    "resource": "wallet_issuer_suzhoubank"
+  },
+  {
+    "id": "sxccb",
+    "name": "绍兴银行",
+    "aliases": [
+      "绍兴银行"
+    ],
+    "resource": "wallet_issuer_sxccb"
+  },
+  {
+    "id": "syrcb",
+    "name": "江苏射阳农商银行",
+    "aliases": [
+      "江苏射阳农商银行"
+    ],
+    "resource": "wallet_issuer_syrcb"
+  },
+  {
+    "id": "szsccb",
+    "name": "石嘴山银行",
+    "aliases": [
+      "石嘴山银行"
+    ],
+    "resource": "wallet_issuer_szsccb"
+  },
+  {
+    "id": "taccb",
+    "name": "泰安银行",
+    "aliases": [
+      "泰安银行"
+    ],
+    "resource": "wallet_issuer_taccb"
+  },
+  {
+    "id": "tcb-bank",
+    "name": "合作金库银行",
+    "aliases": [
+      "合作金库银行"
+    ],
+    "resource": "wallet_issuer_tcb_bank"
+  },
+  {
+    "id": "td",
+    "name": "TD Bank",
+    "aliases": [
+      "TD Bank",
+      "TD Canada Trust",
+      "Toronto-Dominion Bank",
+      "道明银行"
+    ],
+    "resource": "wallet_issuer_td"
+  },
+  {
+    "id": "tf",
+    "name": "四川天府银行",
+    "aliases": [
+      "四川天府银行"
+    ],
+    "resource": "wallet_issuer_tf"
+  },
+  {
+    "id": "tjbhb",
+    "name": "天津滨海农商",
+    "aliases": [
+      "天津滨海农商",
+      "天津滨海农商银行",
+      "天津滨海农村商业银行"
+    ],
+    "resource": "wallet_issuer_tjbhb"
+  },
+  {
+    "id": "trcbank",
+    "name": "天津农商",
+    "aliases": [
+      "天津农商",
+      "天津农商银行",
+      "天津农村商业银行"
+    ],
+    "resource": "wallet_issuer_trcbank"
+  },
+  {
+    "id": "ts-bank",
+    "name": "唐山银行",
+    "aliases": [
+      "唐山银行"
+    ],
+    "resource": "wallet_issuer_ts_bank"
+  },
+  {
+    "id": "ubs",
+    "name": "瑞士银行",
+    "aliases": [
+      "UBS",
+      "瑞士银行",
+      "瑞銀",
+      "瑞银"
+    ],
+    "resource": "wallet_issuer_ubs"
+  },
+  {
+    "id": "uccb",
+    "name": "乌鲁木齐商业银行",
+    "aliases": [
+      "乌鲁木齐商业银行"
+    ],
+    "resource": "wallet_issuer_uccb"
+  },
+  {
+    "id": "uob",
+    "name": "大华银行",
+    "aliases": [
+      "UOB",
+      "United Overseas Bank",
+      "大华银行"
+    ],
+    "resource": "wallet_issuer_uob"
+  },
+  {
+    "id": "urcb",
+    "name": "杭州联合银行",
+    "aliases": [
+      "杭州联合银行"
+    ],
+    "resource": "wallet_issuer_urcb"
+  },
+  {
+    "id": "wells",
+    "name": "Wells Fargo",
+    "aliases": [
+      "Wells Fargo",
+      "Wells Fargo Bank",
+      "富国银行"
+    ],
+    "resource": "wallet_issuer_wells"
+  },
+  {
+    "id": "westpac",
+    "name": "Westpac",
+    "aliases": [
+      "Westpac",
+      "西太平洋银行"
+    ],
+    "resource": "wallet_issuer_westpac"
+  },
+  {
+    "id": "whrcbank",
+    "name": "武汉农商",
+    "aliases": [
+      "武汉农商",
+      "武汉农商银行",
+      "武汉农村商业银行"
+    ],
+    "resource": "wallet_issuer_whrcbank"
+  },
+  {
+    "id": "wise",
+    "name": "Wise",
+    "aliases": [
+      "TransferWise",
+      "Wise"
+    ],
+    "resource": "wallet_issuer_wise"
+  },
+  {
+    "id": "woori",
+    "name": "Woori Bank",
+    "aliases": [
+      "Woori Bank",
+      "友利银行"
+    ],
+    "resource": "wallet_issuer_woori"
+  },
+  {
+    "id": "wrcb",
+    "name": "无锡农商",
+    "aliases": [
+      "无锡农商",
+      "无锡农商银行",
+      "无锡农村商业银行"
+    ],
+    "resource": "wallet_issuer_wrcb"
+  },
+  {
+    "id": "wuhaicb",
+    "name": "乌海银行",
+    "aliases": [
+      "乌海银行"
+    ],
+    "resource": "wallet_issuer_wuhaicb"
+  },
+  {
+    "id": "wzcb",
+    "name": "温州银行",
+    "aliases": [
+      "温州银行"
+    ],
+    "resource": "wallet_issuer_wzcb"
+  },
+  {
+    "id": "xacbank",
+    "name": "西安银行",
+    "aliases": [
+      "西安银行"
+    ],
+    "resource": "wallet_issuer_xacbank"
+  },
+  {
+    "id": "xib",
+    "name": "厦门国际银行",
+    "aliases": [
+      "厦门国际银行"
+    ],
+    "resource": "wallet_issuer_xib"
+  },
+  {
+    "id": "xjkccb",
+    "name": "库尔勒市商业银行",
+    "aliases": [
+      "库尔勒市商业银行"
+    ],
+    "resource": "wallet_issuer_xjkccb"
+  },
+  {
+    "id": "xmbankonline",
+    "name": "厦门银行",
+    "aliases": [
+      "Bank of Xiamen",
+      "厦门银行"
+    ],
+    "resource": "wallet_issuer_xmbankonline"
+  },
+  {
+    "id": "xynsh",
+    "name": "新沂农商",
+    "aliases": [
+      "新沂农商",
+      "新沂农商银行",
+      "新沂农村商业银行"
+    ],
+    "resource": "wallet_issuer_xynsh"
+  },
+  {
+    "id": "yamaguchibank",
+    "name": "山口银行",
+    "aliases": [
+      "山口银行"
+    ],
+    "resource": "wallet_issuer_yamaguchibank"
+  },
+  {
+    "id": "yantaibank",
+    "name": "烟台银行",
+    "aliases": [
+      "烟台银行"
+    ],
+    "resource": "wallet_issuer_yantaibank"
+  },
+  {
+    "id": "z-bank",
+    "name": "武汉众邦银行",
+    "aliases": [
+      "武汉众邦银行"
+    ],
+    "resource": "wallet_issuer_z_bank"
+  },
+  {
+    "id": "zaozhuangbank",
+    "name": "枣庄银行",
+    "aliases": [
+      "枣庄银行"
+    ],
+    "resource": "wallet_issuer_zaozhuangbank"
+  },
+  {
+    "id": "zgbank",
+    "name": "自贡银行",
+    "aliases": [
+      "自贡银行"
+    ],
+    "resource": "wallet_issuer_zgbank"
+  },
+  {
+    "id": "zhnsb",
+    "name": "珠海农商银行",
+    "aliases": [
+      "珠海农商银行"
+    ],
+    "resource": "wallet_issuer_zhnsb"
+  },
+  {
+    "id": "zj96596",
+    "name": "浙江农村信用社联合社",
+    "aliases": [
+      "浙江农村信用社联合社"
+    ],
+    "resource": "wallet_issuer_zj96596"
+  },
+  {
+    "id": "zjtlcb",
+    "name": "泰隆银行",
+    "aliases": [
+      "泰隆银行"
+    ],
+    "resource": "wallet_issuer_zjtlcb"
+  },
+  {
+    "id": "zsebank",
+    "name": "中山农商",
+    "aliases": [
+      "中山农商",
+      "中山农商银行",
+      "中山农村商业银行"
+    ],
+    "resource": "wallet_issuer_zsebank"
+  },
+  {
+    "id": "zxbk",
+    "name": "正信银行",
+    "aliases": [
+      "正信银行"
+    ],
+    "resource": "wallet_issuer_zxbk"
+  },
+  {
+    "id": "zybank",
+    "name": "中原银行",
+    "aliases": [
+      "中原银行"
+    ],
+    "resource": "wallet_issuer_zybank"
+  },
+  {
+    "id": "zzbank",
+    "name": "郑州银行",
+    "aliases": [
+      "郑州银行"
+    ],
+    "resource": "wallet_issuer_zzbank"
+  }
+]

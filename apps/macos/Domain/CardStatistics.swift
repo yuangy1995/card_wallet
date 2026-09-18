@@ -76,7 +76,7 @@ struct CardStatistics {
     static func feeStatus(_ card: SharedCard) -> String { card.isQualified == "1" ? "1" : card.isQualified == "3" ? "3" : "2" }
     static func currency(_ card: SharedCard) -> String {
         let code = (card.type ?? "").trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
-        return code.isEmpty ? "CNY" : code
+        return code
     }
 
     static func csvRow(_ fields: [String]) -> String {

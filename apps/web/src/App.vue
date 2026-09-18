@@ -201,6 +201,10 @@
         </el-collapse-transition>
       </div>
 
+      <div class="wallet-favorites-filter">
+        <el-checkbox v-model="onlyFavorites">只看收藏</el-checkbox>
+        <span>收藏仅保存在本机</span>
+      </div>
       <!-- 批量操作工具栏 -->
       <BatchOperationToolbar
         :selected-rows="selectedRows"
@@ -214,12 +218,20 @@
         @toggle-select-all="toggleSelectAll"
       />
 
+      <div v-if="viewMode === 'table' && tableData.length" class="wallet-table-sort">
+        <span>排序：</span>
+        <el-select v-model="cardSortMode" size="small" aria-label="卡片排序" style="width: 190px">
+          <el-option v-for="[key, label] in sortOptions" :key="key" :label="label" :value="key" />
+        </el-select>
+      </div>
       <Transition name="view-fade" mode="out-in">
         <CreditCardTable
           v-if="viewMode === 'table'"
           :table-data="tableData"
           :visible-columns="visibleColumns"
           :selected-rows="selectedRows"
+          :favorite-ids="favoriteIDs"
+          @toggle-favorite="toggleFavorite"
           @edit="editCreditCard"
           @delete="deleteCard"
           @card-number-visibility="handleCardNumberVisibility"
@@ -232,8 +244,11 @@
         />
         <CreditCardCardList
           v-else
+          v-model:sort-mode="cardSortMode"
           :table-data="tableData"
           :selected-rows="selectedRows"
+          :favorite-ids="favoriteIDs"
+          @toggle-favorite="toggleFavorite"
           @edit="editCreditCard"
           @delete="deleteCard"
           @view-details="viewDetails"
@@ -448,6 +463,7 @@ import {
   Search,
   Wallet
 } from '@element-plus/icons-vue'
+import { cardSearchText, matchesCard, sortCards, sortOptions } from '@/utils/cardCatalog'
 import CreditCardTable from '@/components/table/CreditCardTable.vue'
 import BatchOperationToolbar from '@/components/toolbar/BatchOperationToolbar.vue'
 // 懒加载组件
@@ -473,6 +489,7 @@ import { generateMockData } from '@/utils/mockData'
 import { formatDate, daysBetween } from '@/utils/dateUtils'
 import { getCurrentTimestamp } from '@/utils/dateFormatter'
 import { BACKUP_CONSTANTS, STORAGE_KEYS } from '@/config/constants'
+import { useLocalFavorites } from '@/composables/useLocalFavorites'
 import { saveCardData, saveTableColumns, getTableColumns, CardDataStorage, initializeLocalDatabase } from '@/utils/storage'
 import { useDebouncedRef } from '@/composables/useDebounce'
 import { useKeyboardShortcuts } from '@/composables/useKeyboardShortcuts'
@@ -489,6 +506,8 @@ import {
   analyzeCardDataIssues,
   CardExpiryStatus,
   getAnnualFeeDetection,
+  timestampByAddingOneYear,
+  settingAnnualStatus,
   getAnnualFeeReminderGroups,
   getBillingCycleReminderGroups,
   getCardExpiryReminderCards,
@@ -507,6 +526,11 @@ const { isDarkMode, toggleTheme } = inject('theme') || useTheme()
 // 状态管理
 let disposed = false
 const cardData = ref([])
+const favoritesReady = ref(false)
+const onlyFavorites = ref(localStorage.getItem('walletOnlyFavoritesV1') === 'true')
+watch(onlyFavorites, value => { try { localStorage.setItem('walletOnlyFavoritesV1', String(value)) } catch {} })
+const { favoriteIDs, toggleFavorite } = useLocalFavorites(cardData, favoritesReady, () => ElMessage.error('收藏未能保存，请重试'))
+
 const syncStatus = ref({
   message: '正在准备云同步...',
   type: 'info',
@@ -535,6 +559,12 @@ const selectedRows = ref([])
 const creditCardTableRef = ref(null)
 const creditCardCardListRef = ref(null)
 
+const calendarDay = inject('calendarDay', ref(Date.now()))
+const savedSort = localStorage.getItem('creditCardSortMode')
+const cardSortMode = ref(sortOptions.some(([key]) => key === savedSort) ? savedSort : 'default')
+watch(cardSortMode, value => localStorage.setItem('creditCardSortMode', value))
+const searchIndex = computed(() => new Map(cardData.value.map(card => [card.id, cardSearchText(card)])))
+
 const viewMode = ref(localStorage.getItem('creditCardViewMode') || 'table')
 watch(viewMode, (newValue) => {
   localStorage.setItem('creditCardViewMode', newValue)
@@ -552,28 +582,7 @@ const searchFilteredCards = computed(() => {
   const query = debouncedQuickSearchQuery.value ? debouncedQuickSearchQuery.value.trim().toLowerCase() : ''
 
   if (query) {
-    // 存在万能检索条件时：对卡片所有相关字段执行全局模糊检索
-    return cardData.value.filter(card => {
-      const cardCategoryMatch = (normalizeCardCategory(card) === 'credit' ? '信用卡 credit' : '储蓄卡 debit').includes(query)
-      const bankMatch = card.bank && card.bank.toLowerCase().includes(query)
-      const aliasMatch = card.alias && card.alias.toLowerCase().includes(query)
-
-      // 卡号去除多余的分隔符进行容错检索
-      const cleanQuery = query.replace(/[\s-]/g, '')
-      const cleanCardNumber = card.cardNumber ? card.cardNumber.replace(/[\s-]/g, '').toLowerCase() : ''
-      const cardNumberMatch = cleanQuery.length > 0 && cleanCardNumber.includes(cleanQuery)
-
-      const levelMatch = card.level && card.level.toLowerCase().includes(query)
-      const typeMatch = card.type && card.type.toLowerCase().includes(query)
-      const countryMatch = card.country && card.country.toLowerCase().includes(query)
-      const equityMatch = card.equity && card.equity.toLowerCase().includes(query)
-      const remarkMatch = card.remark && card.remark.toLowerCase().includes(query)
-
-      // 额度检索
-      const limitMatch = card.limit && card.limit.toString().includes(query)
-
-      return cardCategoryMatch || bankMatch || aliasMatch || cardNumberMatch || levelMatch || typeMatch || countryMatch || equityMatch || remarkMatch || limitMatch
-    })
+    return cardData.value.filter(card => matchesCard(card, query, searchIndex.value.get(card.id)))
   } else {
     // 否则，使用高级搜索逻辑（排除类别筛选，以便进行独立计数统计）
     const form = debouncedSearchForm.value
@@ -610,7 +619,7 @@ const searchFilteredCards = computed(() => {
       // 卡号匹配 - 去除空格和其他格式字符进行匹配
       const matchCardNumber = !form.cardNumber ||
                              (card.cardNumber &&
-                              card.cardNumber.replace(/[\s-]/g, '').includes(form.cardNumber.replace(/[\s-]/g, '')));
+                              form.cardNumber.replace(/[\s-]/g, '').length > 0 && card.cardNumber.replace(/[\s-]/g, '').includes(form.cardNumber.replace(/[\s-]/g, '')));
 
       // 额度匹配
       const matchLimit = !form.limit ||
@@ -812,29 +821,8 @@ const disablePastMonths = (time) => {
   return time.getTime() < firstDayOfCurrentMonth.getTime()
 }
 
-// 以卡片中保存的年费日期为基准增加一个日历年，并统一处理闰日。
-const timestampByAddingOneYear = (value) => {
-  if (!value) return value
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-
-  const targetYear = date.getFullYear() + 1
-  const month = date.getMonth()
-  const day = date.getDate()
-  const lastDay = new Date(targetYear, month + 1, 0).getDate()
-  date.setDate(1)
-  date.setFullYear(targetYear)
-  date.setMonth(month)
-  date.setDate(Math.min(day, lastDay))
-  return date.getTime()
-}
-
-// 确认当前年费周期达标，状态与下一次年费日期必须作为一次操作更新。
-const confirmAnnualFeeQualifiedForCard = (card) => {
-  card.isQualified = '1'
-  card.nextAnnualFeeCollectionTime = timestampByAddingOneYear(card.nextAnnualFeeCollectionTime)
-  card.lastModifyTime = getCurrentTimestamp()
-}
+// The same pure operation is exercised by the four-platform annual-fee fixtures.
+const confirmAnnualFeeQualifiedForCard = card => Object.assign(card, settingAnnualStatus(card, '1'))
 
 const resetBatchAnnualFeeForm = () => {
   batchAnnualFeeForm.value = {
@@ -964,24 +952,10 @@ const tableData = computed(() => {
                           form.cardCategory.includes(normalizeCardCategory(card));
     }
 
-    return matchCategoryFilter && matchFormCategory
+    return matchCategoryFilter && matchFormCategory && (!onlyFavorites.value || favoriteIDs.value.has(card.id))
   })
 
-  // 默认排序：先按国家，再按银行
-  const sorted = filtered.sort((a, b) => {
-    // 首先按国家排序
-    const countryCompare = (a.country || '').localeCompare(b.country || '', 'zh-CN');
-    if (countryCompare !== 0) return countryCompare;
-
-    // 然后按银行排序
-    const bankCompare = (a.bank || '').localeCompare(b.bank || '', 'zh-CN');
-    if (bankCompare !== 0) return bankCompare;
-
-    // 最后按别名排序
-    return (a.alias || '').localeCompare(b.alias || '', 'zh-CN');
-  });
-
-  return sorted
+  return sortCards(filtered, cardSortMode.value, new Date(calendarDay.value))
 })
 
 // 显示加载状态
@@ -1104,6 +1078,7 @@ onMounted(async () => {
       await saveCardData(cardData.value)
     }
 
+    favoritesReady.value = true
     await webdavSyncService.start(cardData.value, applySyncedCards, handleSyncStatusChanged, handleSyncHistoryChanged)
     if (disposed || !localDataStore.isUnlocked) return
 

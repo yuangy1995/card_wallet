@@ -6,11 +6,11 @@ struct RootView: View {
     @EnvironmentObject private var lockManager: AutoLockManager
     @EnvironmentObject private var syncCoordinator: SyncCoordinator
     @State private var selectedTab: AppTab = .cards
+    @State private var notificationTask: Task<Void, Never>?
 
     var body: some View {
         ZStack {
-            mainTabView
-                .disabled(lockManager.isLocked)
+            if !lockManager.isLocked { mainTabView }
 
             if lockManager.isLocked {
                 LockScreenView()
@@ -24,25 +24,16 @@ struct RootView: View {
         }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)) { _ in
             lockManager.appDidBecomeActive()
-            Task {
-                await CardSystemNotificationCenter.shared.refresh(cards: syncCoordinator.cards, locked: lockManager.isLocked)
-            }
+            refreshNotifications()
         }
         .onReceive(syncCoordinator.$cards) { cards in
-            Task {
-                await CardSystemNotificationCenter.shared.refresh(cards: cards, locked: lockManager.isLocked)
-            }
+            refreshNotifications()
         }
-        .onChange(of: lockManager.isLocked) { _, isLocked in
-            if !isLocked {
-                Task {
-                    await CardSystemNotificationCenter.shared.refresh(cards: syncCoordinator.cards, locked: false)
-                }
-            }
+        .task(id: lockManager.isLocked) {
+            syncCoordinator.setSuspended(isLocked: lockManager.isLocked)
+            refreshNotifications()
         }
-        .task {
-            await CardSystemNotificationCenter.shared.refresh(cards: syncCoordinator.cards, locked: lockManager.isLocked)
-        }
+        .onDisappear { notificationTask?.cancel() }
         .background {
             WindowTapObserver {
                 lockManager.userInteracted()
@@ -64,6 +55,12 @@ struct RootView: View {
         } message: {
             Text("同步可能会产生流量费用，请确保流量充足！")
         }
+    }
+
+    private func refreshNotifications() {
+        notificationTask?.cancel()
+        guard !lockManager.isLocked else { return }
+        notificationTask = Task { await CardSystemNotificationCenter.shared.refresh(cards: syncCoordinator.cards, locked: false) }
     }
 
     private var mainTabView: some View {
@@ -235,7 +232,7 @@ private final class CardSystemNotificationCenter {
             trigger: UNTimeIntervalNotificationTrigger(timeInterval: 1, repeats: false)
         )
         do {
-            try await center.add(request)
+            try await addNotification(request)
             UserDefaults.standard.set(fingerprint, forKey: notificationKey)
         } catch {
             print("发送系统通知失败: \(error.localizedDescription)")
@@ -243,8 +240,12 @@ private final class CardSystemNotificationCenter {
     }
 
     private func replaceScheduledNotifications(cards: [SharedCard]) async {
-        let pending = await center.pendingNotificationRequests()
-        let staleIDs = pending.map(\.identifier).filter { $0.hasPrefix(scheduledPrefix) }
+        let identifiers: [String] = await withCheckedContinuation { continuation in
+            center.getPendingNotificationRequests { requests in
+                continuation.resume(returning: requests.map(\.identifier))
+            }
+        }
+        let staleIDs = identifiers.filter { $0.hasPrefix(scheduledPrefix) }
         if !staleIDs.isEmpty {
             center.removePendingNotificationRequests(withIdentifiers: staleIDs)
         }
@@ -269,7 +270,7 @@ private final class CardSystemNotificationCenter {
             let trigger = UNCalendarNotificationTrigger(dateMatching: components, repeats: false)
             let request = UNNotificationRequest(identifier: plan.identifier, content: content, trigger: trigger)
             do {
-                try await center.add(request)
+                try await addNotification(request)
             } catch {
                 print("排程系统通知失败: \(error.localizedDescription)")
             }
@@ -402,16 +403,35 @@ private final class CardSystemNotificationCenter {
         return day
     }
 
+    private func addNotification(_ request: UNNotificationRequest) async throws {
+        try Task.checkCancellation()
+        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
+            center.add(request) { error in
+                if let error { continuation.resume(throwing: error) }
+                else { continuation.resume(returning: ()) }
+            }
+        }
+    }
+
     private func requestAuthorizationIfNeeded() async -> Bool {
-        let settings = await center.notificationSettings()
-        switch settings.authorizationStatus {
+        let status: Int = await withCheckedContinuation { continuation in
+            center.getNotificationSettings { settings in
+                continuation.resume(returning: settings.authorizationStatus.rawValue)
+            }
+        }
+        guard let authorization = UNAuthorizationStatus(rawValue: status) else { return false }
+        switch authorization {
         case .authorized, .provisional, .ephemeral:
             return true
         case .denied:
             return false
         case .notDetermined:
-            return (try? await center.requestAuthorization(options: [.alert, .sound, .badge])) ?? false
-        @unknown default:
+            return await withCheckedContinuation { continuation in
+                center.requestAuthorization(options: [.alert, .sound, .badge]) { granted, _ in
+                    continuation.resume(returning: granted)
+                }
+            }
+        default:
             return false
         }
     }

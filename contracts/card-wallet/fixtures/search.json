@@ -1,0 +1,509 @@
+[
+  {
+    "name": "search-bank",
+    "query": " demo bank ",
+    "cards": [
+      {
+        "id": "a",
+        "bank": "Demo Bank",
+        "country": "HK",
+        "alias": "Daily",
+        "cardNumber": "4111 2222-3333 4444",
+        "level": "Platinum",
+        "type": "USD",
+        "limit": 1250.75,
+        "equity": "Airport lounge",
+        "remark": "cashback groceries",
+        "cardCategory": "credit",
+        "accountBillDate": "10",
+        "dueDate": "28",
+        "lastModifyTime": 2000
+      },
+      {
+        "id": "b",
+        "bank": "Other",
+        "country": "JP",
+        "cardNumber": "5555555555554444",
+        "cardCategory": "debit",
+        "limit": 0,
+        "lastModifyTime": 1000
+      }
+    ],
+    "expected": [
+      "a"
+    ]
+  },
+  {
+    "name": "search-alias",
+    "query": "DAILY",
+    "cards": [
+      {
+        "id": "a",
+        "bank": "Demo Bank",
+        "country": "HK",
+        "alias": "Daily",
+        "cardNumber": "4111 2222-3333 4444",
+        "level": "Platinum",
+        "type": "USD",
+        "limit": 1250.75,
+        "equity": "Airport lounge",
+        "remark": "cashback groceries",
+        "cardCategory": "credit",
+        "accountBillDate": "10",
+        "dueDate": "28",
+        "lastModifyTime": 2000
+      },
+      {
+        "id": "b",
+        "bank": "Other",
+        "country": "JP",
+        "cardNumber": "5555555555554444",
+        "cardCategory": "debit",
+        "limit": 0,
+        "lastModifyTime": 1000
+      }
+    ],
+    "expected": [
+      "a"
+    ]
+  },
+  {
+    "name": "search-cardNumber",
+    "query": "4111-2222 3333",
+    "cards": [
+      {
+        "id": "a",
+        "bank": "Demo Bank",
+        "country": "HK",
+        "alias": "Daily",
+        "cardNumber": "4111 2222-3333 4444",
+        "level": "Platinum",
+        "type": "USD",
+        "limit": 1250.75,
+        "equity": "Airport lounge",
+        "remark": "cashback groceries",
+        "cardCategory": "credit",
+        "accountBillDate": "10",
+        "dueDate": "28",
+        "lastModifyTime": 2000
+      },
+      {
+        "id": "b",
+        "bank": "Other",
+        "country": "JP",
+        "cardNumber": "5555555555554444",
+        "cardCategory": "debit",
+        "limit": 0,
+        "lastModifyTime": 1000
+      }
+    ],
+    "expected": [
+      "a"
+    ]
+  },
+  {
+    "name": "search-level",
+    "query": "platinum",
+    "cards": [
+      {
+        "id": "a",
+        "bank": "Demo Bank",
+        "country": "HK",
+        "alias": "Daily",
+        "cardNumber": "4111 2222-3333 4444",
+        "level": "Platinum",
+        "type": "USD",
+        "limit": 1250.75,
+        "equity": "Airport lounge",
+        "remark": "cashback groceries",
+        "cardCategory": "credit",
+        "accountBillDate": "10",
+        "dueDate": "28",
+        "lastModifyTime": 2000
+      },
+      {
+        "id": "b",
+        "bank": "Other",
+        "country": "JP",
+        "cardNumber": "5555555555554444",
+        "cardCategory": "debit",
+        "limit": 0,
+        "lastModifyTime": 1000
+      }
+    ],
+    "expected": [
+      "a"
+    ]
+  },
+  {
+    "name": "search-type",
+    "query": "usd",
+    "cards": [
+      {
+        "id": "a",
+        "bank": "Demo Bank",
+        "country": "HK",
+        "alias": "Daily",
+        "cardNumber": "4111 2222-3333 4444",
+        "level": "Platinum",
+        "type": "USD",
+        "limit": 1250.75,
+        "equity": "Airport lounge",
+        "remark": "cashback groceries",
+        "cardCategory": "credit",
+        "accountBillDate": "10",
+        "dueDate": "28",
+        "lastModifyTime": 2000
+      },
+      {
+        "id": "b",
+        "bank": "Other",
+        "country": "JP",
+        "cardNumber": "5555555555554444",
+        "cardCategory": "debit",
+        "limit": 0,
+        "lastModifyTime": 1000
+      }
+    ],
+    "expected": [
+      "a"
+    ]
+  },
+  {
+    "name": "search-country",
+    "query": "hk",
+    "cards": [
+      {
+        "id": "a",
+        "bank": "Demo Bank",
+        "country": "HK",
+        "alias": "Daily",
+        "cardNumber": "4111 2222-3333 4444",
+        "level": "Platinum",
+        "type": "USD",
+        "limit": 1250.75,
+        "equity": "Airport lounge",
+        "remark": "cashback groceries",
+        "cardCategory": "credit",
+        "accountBillDate": "10",
+        "dueDate": "28",
+        "lastModifyTime": 2000
+      },
+      {
+        "id": "b",
+        "bank": "Other",
+        "country": "JP",
+        "cardNumber": "5555555555554444",
+        "cardCategory": "debit",
+        "limit": 0,
+        "lastModifyTime": 1000
+      }
+    ],
+    "expected": [
+      "a"
+    ]
+  },
+  {
+    "name": "search-equity",
+    "query": "LOUNGE",
+    "cards": [
+      {
+        "id": "a",
+        "bank": "Demo Bank",
+        "country": "HK",
+        "alias": "Daily",
+        "cardNumber": "4111 2222-3333 4444",
+        "level": "Platinum",
+        "type": "USD",
+        "limit": 1250.75,
+        "equity": "Airport lounge",
+        "remark": "cashback groceries",
+        "cardCategory": "credit",
+        "accountBillDate": "10",
+        "dueDate": "28",
+        "lastModifyTime": 2000
+      },
+      {
+        "id": "b",
+        "bank": "Other",
+        "country": "JP",
+        "cardNumber": "5555555555554444",
+        "cardCategory": "debit",
+        "limit": 0,
+        "lastModifyTime": 1000
+      }
+    ],
+    "expected": [
+      "a"
+    ]
+  },
+  {
+    "name": "search-remark",
+    "query": "groceries",
+    "cards": [
+      {
+        "id": "a",
+        "bank": "Demo Bank",
+        "country": "HK",
+        "alias": "Daily",
+        "cardNumber": "4111 2222-3333 4444",
+        "level": "Platinum",
+        "type": "USD",
+        "limit": 1250.75,
+        "equity": "Airport lounge",
+        "remark": "cashback groceries",
+        "cardCategory": "credit",
+        "accountBillDate": "10",
+        "dueDate": "28",
+        "lastModifyTime": 2000
+      },
+      {
+        "id": "b",
+        "bank": "Other",
+        "country": "JP",
+        "cardNumber": "5555555555554444",
+        "cardCategory": "debit",
+        "limit": 0,
+        "lastModifyTime": 1000
+      }
+    ],
+    "expected": [
+      "a"
+    ]
+  },
+  {
+    "name": "search-limit",
+    "query": "1250.75",
+    "cards": [
+      {
+        "id": "a",
+        "bank": "Demo Bank",
+        "country": "HK",
+        "alias": "Daily",
+        "cardNumber": "4111 2222-3333 4444",
+        "level": "Platinum",
+        "type": "USD",
+        "limit": 1250.75,
+        "equity": "Airport lounge",
+        "remark": "cashback groceries",
+        "cardCategory": "credit",
+        "accountBillDate": "10",
+        "dueDate": "28",
+        "lastModifyTime": 2000
+      },
+      {
+        "id": "b",
+        "bank": "Other",
+        "country": "JP",
+        "cardNumber": "5555555555554444",
+        "cardCategory": "debit",
+        "limit": 0,
+        "lastModifyTime": 1000
+      }
+    ],
+    "expected": [
+      "a"
+    ]
+  },
+  {
+    "name": "search-cardCategory",
+    "query": "信用卡",
+    "cards": [
+      {
+        "id": "a",
+        "bank": "Demo Bank",
+        "country": "HK",
+        "alias": "Daily",
+        "cardNumber": "4111 2222-3333 4444",
+        "level": "Platinum",
+        "type": "USD",
+        "limit": 1250.75,
+        "equity": "Airport lounge",
+        "remark": "cashback groceries",
+        "cardCategory": "credit",
+        "accountBillDate": "10",
+        "dueDate": "28",
+        "lastModifyTime": 2000
+      },
+      {
+        "id": "b",
+        "bank": "Other",
+        "country": "JP",
+        "cardNumber": "5555555555554444",
+        "cardCategory": "debit",
+        "limit": 0,
+        "lastModifyTime": 1000
+      }
+    ],
+    "expected": [
+      "a"
+    ]
+  },
+  {
+    "name": "edge-儲蓄卡",
+    "query": "儲蓄卡",
+    "cards": [
+      {
+        "id": "a",
+        "bank": "Demo Bank",
+        "country": "HK",
+        "alias": "Daily",
+        "cardNumber": "4111 2222-3333 4444",
+        "level": "Platinum",
+        "type": "USD",
+        "limit": 1250.75,
+        "equity": "Airport lounge",
+        "remark": "cashback groceries",
+        "cardCategory": "credit",
+        "accountBillDate": "10",
+        "dueDate": "28",
+        "lastModifyTime": 2000
+      },
+      {
+        "id": "b",
+        "bank": "Other",
+        "country": "JP",
+        "cardNumber": "5555555555554444",
+        "cardCategory": "debit",
+        "limit": 0,
+        "lastModifyTime": 1000
+      }
+    ],
+    "expected": [
+      "b"
+    ]
+  },
+  {
+    "name": "edge-debit",
+    "query": "debit",
+    "cards": [
+      {
+        "id": "a",
+        "bank": "Demo Bank",
+        "country": "HK",
+        "alias": "Daily",
+        "cardNumber": "4111 2222-3333 4444",
+        "level": "Platinum",
+        "type": "USD",
+        "limit": 1250.75,
+        "equity": "Airport lounge",
+        "remark": "cashback groceries",
+        "cardCategory": "credit",
+        "accountBillDate": "10",
+        "dueDate": "28",
+        "lastModifyTime": 2000
+      },
+      {
+        "id": "b",
+        "bank": "Other",
+        "country": "JP",
+        "cardNumber": "5555555555554444",
+        "cardCategory": "debit",
+        "limit": 0,
+        "lastModifyTime": 1000
+      }
+    ],
+    "expected": [
+      "b"
+    ]
+  },
+  {
+    "name": "edge- - - ",
+    "query": " - - ",
+    "cards": [
+      {
+        "id": "a",
+        "bank": "Demo Bank",
+        "country": "HK",
+        "alias": "Daily",
+        "cardNumber": "4111 2222-3333 4444",
+        "level": "Platinum",
+        "type": "USD",
+        "limit": 1250.75,
+        "equity": "Airport lounge",
+        "remark": "cashback groceries",
+        "cardCategory": "credit",
+        "accountBillDate": "10",
+        "dueDate": "28",
+        "lastModifyTime": 2000
+      },
+      {
+        "id": "b",
+        "bank": "Other",
+        "country": "JP",
+        "cardNumber": "5555555555554444",
+        "cardCategory": "debit",
+        "limit": 0,
+        "lastModifyTime": 1000
+      }
+    ],
+    "expected": []
+  },
+  {
+    "name": "edge-no matches",
+    "query": "no matches",
+    "cards": [
+      {
+        "id": "a",
+        "bank": "Demo Bank",
+        "country": "HK",
+        "alias": "Daily",
+        "cardNumber": "4111 2222-3333 4444",
+        "level": "Platinum",
+        "type": "USD",
+        "limit": 1250.75,
+        "equity": "Airport lounge",
+        "remark": "cashback groceries",
+        "cardCategory": "credit",
+        "accountBillDate": "10",
+        "dueDate": "28",
+        "lastModifyTime": 2000
+      },
+      {
+        "id": "b",
+        "bank": "Other",
+        "country": "JP",
+        "cardNumber": "5555555555554444",
+        "cardCategory": "debit",
+        "limit": 0,
+        "lastModifyTime": 1000
+      }
+    ],
+    "expected": []
+  },
+  {
+    "name": "edge- ",
+    "query": " ",
+    "cards": [
+      {
+        "id": "a",
+        "bank": "Demo Bank",
+        "country": "HK",
+        "alias": "Daily",
+        "cardNumber": "4111 2222-3333 4444",
+        "level": "Platinum",
+        "type": "USD",
+        "limit": 1250.75,
+        "equity": "Airport lounge",
+        "remark": "cashback groceries",
+        "cardCategory": "credit",
+        "accountBillDate": "10",
+        "dueDate": "28",
+        "lastModifyTime": 2000
+      },
+      {
+        "id": "b",
+        "bank": "Other",
+        "country": "JP",
+        "cardNumber": "5555555555554444",
+        "cardCategory": "debit",
+        "limit": 0,
+        "lastModifyTime": 1000
+      }
+    ],
+    "expected": [
+      "a",
+      "b"
+    ]
+  }
+]

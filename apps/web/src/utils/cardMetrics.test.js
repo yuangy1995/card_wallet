@@ -68,7 +68,7 @@ describe('input safety and shared presentation rules', () => {
     expect(csv).toContain('"\'=1+1"')
     expect(csv).toContain('"a,""b""\nc"')
   })
-  it.each([['222100','mastercard'], ['272000','mastercard'], ['272100','other'], ['358900','jcb'], ['644123','discover'], ['361234','diners'], ['621234','unionpay']])('detects %s as %s', (number, expected) => expect(cardOrganization({ cardNumber: number })).toBe(expected))
+  it.each([['2221000000000000','mastercard'], ['2720000000000000','mastercard'], ['2721000000000000','other'], ['3589000000000000','jcb'], ['6441230000000000','discover'], ['36123400000000','diners'], ['6212340000000000','unionpay']])('detects %s as %s', (number, expected) => expect(cardOrganization({ cardNumber: number })).toBe(expected))
   it('keeps ambiguous textual network hints unknown', () => expect(cardOrganization({ level: 'Visa Mastercard' })).toBe('other'))
   it('respects actual February billing day and the same-day rule', () => {
     const date = new Date(2026, 1, 28, 12)

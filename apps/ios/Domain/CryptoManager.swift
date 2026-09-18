@@ -6,6 +6,7 @@ public enum CryptoError: Error, LocalizedError, Sendable {
     case badMagicNumber
     case utf8DecodingFailed
     case encryptionFailed
+    case decryptionFailed
     case emptyPassword
     case invalidSyncEnvelope
     case keyDerivationFailed
@@ -15,6 +16,7 @@ public enum CryptoError: Error, LocalizedError, Sendable {
         case .badMagicNumber: return "密文损坏：魔数验证失败"
         case .utf8DecodingFailed: return "UTF-8 字符解码失败，请确认解密密码是否正确"
         case .encryptionFailed: return "AES 加密失败"
+        case .decryptionFailed: return NSLocalizedString("无法读取本地加密数据，原始文件已保留。请检查本机钥匙串或从备份恢复。", comment: "")
         case .emptyPassword: return "请输入自定义解密密码"
         case .invalidSyncEnvelope: return "不是有效的云同步加密文件"
         case .keyDerivationFailed: return "同步密钥派生失败"
@@ -39,11 +41,19 @@ public class CryptoManager {
         return bytes
     }
 
-    private static func localDataKey() throws -> SymmetricKey {
-        if let data = KeychainManager.loadData(key: localEncryptionKeychainKey), data.count == localEncryptionKeyBytes {
+    private static let localKeyLock = NSLock()
+    private static func localDataKey(allowCreation: Bool) throws -> SymmetricKey {
+        localKeyLock.lock(); defer { localKeyLock.unlock() }
+        if let data = try KeychainManager.loadDataResult(key: localEncryptionKeychainKey).get() {
+            guard data.count == localEncryptionKeyBytes else { throw CryptoError.decryptionFailed }
             return SymmetricKey(data: data)
         }
 
+        guard allowCreation else { throw CryptoError.decryptionFailed }
+        let directory = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("CardWallet")
+        for name in ["cards.json", "sync_ledger.json", "sync-history.enc"] {
+            if FileManager.default.fileExists(atPath: directory.appendingPathComponent(name).path) { throw CryptoError.decryptionFailed }
+        }
         let keyBytes = try randomBytes(count: localEncryptionKeyBytes)
         let keyData = Data(keyBytes)
         switch KeychainManager.saveData(key: localEncryptionKeychainKey, data: keyData) {
@@ -55,7 +65,7 @@ public class CryptoManager {
     }
 
     public static func encryptLocalData(_ data: Data) throws -> Data {
-        let key = try localDataKey()
+        let key = try localDataKey(allowCreation: true)
         let nonceBytes = try randomBytes(count: localEncryptionNonceBytes)
         let nonce = try CryptoKit.AES.GCM.Nonce(data: Data(nonceBytes))
         let sealedBox = try CryptoKit.AES.GCM.seal(data, using: key, nonce: nonce)
@@ -84,7 +94,7 @@ public class CryptoManager {
             ciphertext: Data(ciphertext),
             tag: Data(tag)
         )
-        return try CryptoKit.AES.GCM.open(sealedBox, using: try localDataKey())
+        return try CryptoKit.AES.GCM.open(sealedBox, using: try localDataKey(allowCreation: false))
     }
 
     private static func deriveSyncV4Key(password: String, salt: [UInt8], iterations: Int) throws -> [UInt8] {
@@ -140,8 +150,11 @@ public class CryptoManager {
         guard envelope.schemaVersion == syncV4SchemaVersion,
               envelope.encryption.algorithm == "AES-256-GCM",
               envelope.encryption.kdf == "PBKDF2-HMAC-SHA256",
+              (100000...2000000).contains(envelope.encryption.iterations),
               let saltData = Data(base64Encoded: envelope.encryption.salt),
+              saltData.count == syncV4SaltBytes,
               let ivData = Data(base64Encoded: envelope.encryption.iv),
+              ivData.count == syncV4IVBytes,
               let ciphertextAndTag = Data(base64Encoded: envelope.ciphertext),
               ciphertextAndTag.count > 16 else { throw CryptoError.invalidSyncEnvelope }
         let keyBytes = try deriveSyncV4Key(password: normalizedPassword, salt: Array(saltData), iterations: envelope.encryption.iterations)

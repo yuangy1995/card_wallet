@@ -18,6 +18,13 @@
       @cell-mouse-leave="handleCellMouseLeave"
     >
       <el-table-column type="selection" width="55" align="center" fixed />
+      <el-table-column label="收藏" width="60" align="center">
+        <template #default="{ row }">
+          <el-button text circle :aria-label="favoriteIds.has(row.id) ? '取消收藏' : '收藏卡片'" :aria-pressed="favoriteIds.has(row.id)" @click.stop="$emit('toggle-favorite', row.id)">
+            <el-icon><StarFilled v-if="favoriteIds.has(row.id)" /><Star v-else /></el-icon>
+          </el-button>
+        </template>
+      </el-table-column>
       <el-table-column type="index" :index="index => (page - 1) * 50 + index + 1" label="序号" width="60" align="center" fixed />
       <template v-for="column in columns" :key="column.value">
         <el-table-column
@@ -46,6 +53,9 @@
             <span :class="['category-badge', row.cardCategory === 'debit' ? 'debit' : 'credit']">
               {{ row.cardCategory === 'debit' ? '储蓄卡' : '信用卡' }}
             </span>
+          </template>
+          <template v-else-if="column.value === 'bank'" #default="{ row }">
+            <span class="wallet-bank-cell"><WalletBrandMark :bank="row.bank" :country="row.country" /><span>{{ row.bank }}</span></span>
           </template>
           <template v-else-if="column.value === 'cvv'" #default="scope">
             <SecureField
@@ -132,8 +142,9 @@
 
 <script>
 import SecureField from '../common/SecureField.vue'
+import WalletBrandMark from '../common/WalletBrandMark.vue'
 import { ElMessageBox } from 'element-plus'
-import { Edit, View, Delete, Check } from '@element-plus/icons-vue'
+import { Edit, View, Delete, Check, Star, StarFilled } from '@element-plus/icons-vue'
 import { ref, computed, nextTick, onMounted, onUnmounted, watch, toRef, inject } from 'vue'
 import { prepareTableRows } from '@/utils/cardMetrics'
 import { mergePageSelection } from '@/utils/cardPagination'
@@ -158,13 +169,16 @@ const calculateInterestFreePeriod = (...args) => {
 export default {
   name: 'CreditCardTable',
   components: {
+    Star, StarFilled,
     SecureField,
+    WalletBrandMark,
     Edit,
     View,
     Delete,
     Check
   },
   props: {
+    favoriteIds: { type: Set, default: () => new Set() },
     selectedRows: { type: Array, default: () => [] },
     tableData: {
       type: Array,
@@ -179,7 +193,7 @@ export default {
       default: () => []
     }
   },
-  emits: ['edit', 'delete', 'card-number-visibility', 'cvv-visibility', 'view-details', 'annual-fee-qualified', 'selection-change'],
+  emits: ['toggle-favorite', 'edit', 'delete', 'card-number-visibility', 'cvv-visibility', 'view-details', 'annual-fee-qualified', 'selection-change'],
   setup(props, { emit }) {
     const contextMenuVisible = ref(false)
     const contextMenuX = ref(0)
@@ -810,4 +824,10 @@ export default {
     padding: 8px 0;
   }
 }
+</style>
+
+<style scoped>
+.wallet-bank-cell { display:inline-flex; align-items:center; gap:6px; max-width:100%; }
+.wallet-bank-cell .wallet-brand-mark { width:24px; height:24px; }
+.wallet-bank-cell > span:last-child { min-width:0; overflow-wrap:anywhere; }
 </style>

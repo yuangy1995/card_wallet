@@ -1,0 +1,40 @@
+{
+  "limits": {
+    "count": 20,
+    "inputBytes": 10485760,
+    "storedBytes": 2097152,
+    "edge": 1600
+  },
+  "appendCases": [
+    {
+      "existing": 0,
+      "incoming": 1,
+      "expected": true
+    },
+    {
+      "existing": 19,
+      "incoming": 1,
+      "expected": true
+    },
+    {
+      "existing": 20,
+      "incoming": 1,
+      "expected": false
+    },
+    {
+      "existing": 21,
+      "incoming": 1,
+      "expected": false
+    },
+    {
+      "existing": 0,
+      "incoming": 21,
+      "expected": false
+    },
+    {
+      "existing": 4,
+      "incoming": 0,
+      "expected": false
+    }
+  ]
+}

@@ -12,37 +12,47 @@ struct StatisticsView: View {
     private var debitCards: [SharedCard] { cards.filter { $0.cardCategory == "debit" } }
 
     private var totalLimitByCurrency: [String: Double] {
-        var dict: [String: Double] = [:]
-        var processedSharedGroups = Set<String>()
-        for card in creditCards {
-            let currency = normalizedCurrency(card.type)
-            if card.isSharedLimit {
-                let cleanBank = card.bank.replacingOccurrences(of: "\\(.*\\)", with: "", options: .regularExpression).trimmingCharacters(in: .whitespaces)
-                let groupKey = "\(card.country)-\(cleanBank)-\(currency)"
-                if processedSharedGroups.contains(groupKey) { continue }
-                processedSharedGroups.insert(groupKey)
-            }
-            dict[currency, default: 0.0] += card.limit ?? 0.0
-        }
-        return dict
+        Dictionary(uniqueKeysWithValues: WalletCardRules.creditLimits(cards).map {
+            ($0.key.isEmpty ? "未设置" : $0.key, $0.value)
+        })
     }
 
-    private var bankLimits: [(bank: String, limit: Double, currency: String)] {
-        var dict: [String: Double] = [:]
-        var processedSharedGroups = Set<String>()
-        for card in creditCards {
-            let cleanBank = card.bank.replacingOccurrences(of: "\\(.*\\)", with: "", options: .regularExpression).trimmingCharacters(in: .whitespaces)
-            let currency = normalizedCurrency(card.type)
-            let bankCurrencyKey = "\(cleanBank) (\(currency))"
-            if card.isSharedLimit {
-                let groupKey = "\(card.country)-\(cleanBank)-\(currency)"
-                if processedSharedGroups.contains(groupKey) { continue }
-                processedSharedGroups.insert(groupKey)
-            }
-            dict[bankCurrencyKey, default: 0] += card.limit ?? 0
+    private typealias BankLimit = (bank: String, limit: Double, currency: String)
+    private typealias InterestFreeCard = (card: SharedCard, days: Int)
+
+    // Keep aggregation outside ViewBuilder and give intermediate values concrete types.
+    // This avoids an expensive nested tuple/Dictionary inference path in Swift 6.
+    private var bankLimits: [BankLimit] {
+        let grouped: [String: [SharedCard]] = Dictionary(grouping: creditCards) { card in
+            BankNameNormalizer.normalizedKey(card.bank)
         }
-        return dict.sorted { $0.value > $1.value }
-            .map { (bank: $0.key, limit: $0.value, currency: "") }
+        var rows: [BankLimit] = []
+        for (bank, bankCards) in grouped {
+            let limits: [String: Double] = WalletCardRules.creditLimits(bankCards)
+            for (code, amount) in limits {
+                let currencyLabel = code.isEmpty ? "未设置" : code
+                rows.append((bank: "\(bank) (\(currencyLabel))", limit: amount, currency: code))
+            }
+        }
+        rows.sort { left, right in
+            if left.limit != right.limit { return left.limit > right.limit }
+            return left.bank < right.bank
+        }
+        return rows
+    }
+
+    private var bestUsageCards: [InterestFreeCard] {
+        var rows: [InterestFreeCard] = []
+        let today = Date()
+        for card in creditCards {
+            let days = WalletCardRules.interestFreeDays(card, today: today)
+            if days >= 0 { rows.append((card: card, days: days)) }
+        }
+        rows.sort { left, right in
+            if left.days != right.days { return left.days > right.days }
+            return left.card.id < right.card.id
+        }
+        return Array(rows.prefix(5))
     }
 
     private var annualFeeAlertCards: [SharedCard] {
@@ -336,20 +346,9 @@ struct StatisticsView: View {
 
     // MARK: - 最优用卡建议
     private var bestUsageSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
+        let bestCards = bestUsageCards
+        return VStack(alignment: .leading, spacing: 10) {
             sectionHeader("免息期最优用卡", icon: "trophy.fill", color: Color(hex: "#FFD700"))
-            let bestCards = creditCards
-                .filter { !($0.accountBillDate ?? "").isEmpty && !($0.dueDate ?? "").isEmpty }
-                .map { card -> (card: SharedCard, days: Int) in
-                    let days = DateCalculator.calculateInterestFreePeriod(
-                        accountBillDate: card.accountBillDate ?? "",
-                        dueDate: card.dueDate ?? "",
-                        billingDayToNextBill: card.billingDaySpendingToNextBill
-                    )
-                    return (card: card, days: days)
-                }
-                .sorted { $0.days > $1.days }
-                .prefix(5)
 
             if bestCards.isEmpty {
                 HStack {
@@ -369,34 +368,38 @@ struct StatisticsView: View {
                 VStack(spacing: 0) {
                     ForEach(Array(bestCards.enumerated()), id: \.element.card.id) { index, item in
                         if index > 0 { Divider().padding(.leading, 16) }
-                        HStack(spacing: 12) {
-                            ZStack {
-                                Circle()
-                                    .fill(index == 0 ? Color(hex: "#FFD700").opacity(0.2) : Color.secondary.opacity(0.1))
-                                    .frame(width: 32, height: 32)
-                                Text("\(index + 1)")
-                                    .font(.system(.subheadline, weight: .bold))
-                                    .foregroundColor(index == 0 ? Color(hex: "#FFD700") : .secondary)
-                            }
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(item.card.bank)
-                                    .font(.system(.subheadline, weight: .semibold))
-                                Text(item.card.alias ?? (item.card.level ?? ""))
-                                    .font(.system(size: 11))
-                                    .foregroundColor(.secondary)
-                            }
-                            Spacer()
-                            Text("最长 \(item.days) 天")
-                                .font(.system(size: 13, weight: .semibold, design: .rounded))
-                                .foregroundColor(.cyan)
-                        }
-                        .padding(.horizontal, 16)
-                        .padding(.vertical, 10)
+                        bestUsageRow(index: index, item: item)
                     }
                 }
                 .background(Color(.secondarySystemGroupedBackground), in: RoundedRectangle(cornerRadius: 14))
             }
         }
+    }
+
+    private func bestUsageRow(index: Int, item: InterestFreeCard) -> some View {
+        HStack(spacing: 12) {
+            ZStack {
+                Circle()
+                    .fill(index == 0 ? Color(hex: "#FFD700").opacity(0.2) : Color.secondary.opacity(0.1))
+                    .frame(width: 32, height: 32)
+                Text("\(index + 1)")
+                    .font(.system(.subheadline, weight: .bold))
+                    .foregroundColor(index == 0 ? Color(hex: "#FFD700") : .secondary)
+            }
+            VStack(alignment: .leading, spacing: 2) {
+                Text(item.card.bank)
+                    .font(.system(.subheadline, weight: .semibold))
+                Text(item.card.alias ?? (item.card.level ?? ""))
+                    .font(.system(size: 11))
+                    .foregroundColor(.secondary)
+            }
+            Spacer()
+            Text("最长 \(item.days) 天")
+                .font(.system(size: 13, weight: .semibold, design: .rounded))
+                .foregroundColor(.cyan)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 10)
     }
 
     // MARK: - Helpers

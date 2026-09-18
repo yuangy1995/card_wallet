@@ -2,44 +2,38 @@ import Foundation
 
 public final class SyncLedgerStore {
     public static let shared = SyncLedgerStore()
-
-    private let fileManager = FileManager.default
-    private let appFolderName = "CardWallet"
-    private let ledgerFileName = "sync-ledger-v4.json"
-
-    private init() {}
-
-    public func load(seeding cards: [SharedCard] = []) -> SyncLedger {
-        let url = ledgerURL()
-        guard fileManager.fileExists(atPath: url.path),
-              let cipherText = try? String(contentsOf: url, encoding: .utf8),
-              let jsonString = try? CryptoManager.decrypt(cipherText: cipherText),
-              let data = jsonString.data(using: .utf8),
-              let ledger = try? JSONDecoder().decode(SyncLedger.self, from: data) else {
-            let ledger = SyncLedger(records: cards.map(CardSyncRecord.legacyActive))
-            save(ledger)
-            return ledger
-        }
-        return ledger
+    private let directory: URL
+    private let queue = DispatchQueue(label: "wallet.macos.ledger-writes", qos: .utility)
+    private var fileURL: URL { directory.appendingPathComponent("sync-ledger-v4.json") }
+    init(directory: URL? = nil) {
+        self.directory = directory ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("CardWallet")
     }
-
-    public func save(_ ledger: SyncLedger) {
+    public func load(seeding cards: [SharedCard] = []) throws -> SyncLedger {
+        try queue.sync {
+            guard FileManager.default.fileExists(atPath: fileURL.path) else {
+                return SyncLedger(records: cards.map(CardSyncRecord.legacyActive))
+            }
+            let encrypted = try Data(contentsOf: fileURL)
+            let data = try LocalDataCipher.shared.open(encrypted)
+            return try JSONDecoder().decode(SyncLedger.self, from: data)
+        }
+    }
+    @discardableResult
+    public func save(_ ledger: SyncLedger) -> Bool { queue.sync { write(ledger) } }
+    private func write(_ ledger: SyncLedger) -> Bool {
         do {
             let data = try JSONEncoder().encode(ledger)
-            guard let json = String(data: data, encoding: .utf8) else { return }
-            let cipherText = try CryptoManager.encrypt(plainText: json)
-            try cipherText.write(to: ledgerURL(), atomically: true, encoding: .utf8)
-        } catch {
-            print("保存同步账本失败: \(error.localizedDescription)")
-        }
+            let encrypted = try LocalDataCipher.shared.seal(data)
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            try encrypted.write(to: fileURL, options: .atomic)
+            try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: fileURL.path)
+            return true
+        } catch { return false }
     }
-
-    private func ledgerURL() -> URL {
-        let directory = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent(appFolderName, isDirectory: true)
-        if !fileManager.fileExists(atPath: directory.path) {
-            try? fileManager.createDirectory(at: directory, withIntermediateDirectories: true)
+    public func saveInBackground(_ ledger: SyncLedger) { queue.async { [self] in _ = write(ledger) } }
+    public func saveAsync(_ ledger: SyncLedger) async -> Bool {
+        await withCheckedContinuation { continuation in
+            queue.async { [self] in continuation.resume(returning: write(ledger)) }
         }
-        return directory.appendingPathComponent(ledgerFileName)
     }
 }

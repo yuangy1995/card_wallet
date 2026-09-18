@@ -105,4 +105,16 @@
     <string name="scan_waiting">Getting the camera ready…</string>
     <string name="scan_permission_hint">Allow camera access to quickly fill in the card number and expiry date.</string>
     <string name="scan_allow">Allow camera access</string>
+    <string name="group_none">No grouping</string>
+    <string name="group_bank">By bank</string>
+    <string name="group_brand">By card network</string>
+    <string name="group_level">By card level</string>
+    <string name="group_country">By country or region</string>
+    <string name="sort_limit_desc">Credit limit: high to low</string>
+    <string name="sort_limit_asc">Credit limit: low to high</string>
+    <string name="sort_interest_desc">Interest-free days: longest first</string>
+    <string name="sort_interest_asc">Interest-free days: shortest first</string>
+    <string name="sort_modified">Recently modified</string>
+    <string name="sort_bank">Bank name</string>
+    <string name="wallet_image_import_error">Add up to 20 images per card, with each original up to 10 MB. New images are compressed; existing images are unchanged.</string>
 </resources>

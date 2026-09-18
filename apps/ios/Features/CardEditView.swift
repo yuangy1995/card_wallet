@@ -45,6 +45,8 @@ struct CardEditView: View {
     @State private var showValidationAlert = false
     @State private var showCameraScanner = false
     @State private var isScanningImage = false
+    @State private var photoImportTask: Task<Void, Never>?
+    @State private var isActive = false
     @State private var feedbackTitle = ""
     @State private var feedbackMessage = ""
     @State private var showFeedbackAlert = false
@@ -202,9 +204,11 @@ struct CardEditView: View {
                 }
             }
         }
-        .onAppear { setupInitialValues() }
+        .onAppear { isActive = true; setupInitialValues() }
+        .onDisappear { isActive = false; photoImportTask?.cancel() }
         .onChange(of: selectedPhotoItems) { _, newItems in
-            Task { await importSelectedPhotos(newItems) }
+            photoImportTask?.cancel()
+            photoImportTask = Task { await importSelectedPhotos(newItems) }
         }
         .onChange(of: scanPhotoItem) { _, newItem in
             Task { await scanSelectedPhoto(newItem) }
@@ -995,10 +999,14 @@ struct CardEditView: View {
 
     private func importSelectedPhotos(_ items: [PhotosPickerItem]) async {
         guard !items.isEmpty else { return }
+        guard CardImagePolicy.canAppend(existing: cardImages.count, incoming: items.count) else {
+            showImageImportError(); selectedPhotoItems = []; return
+        }
         var imported: [CardImageAsset] = []
         for (index, item) in items.enumerated() {
             guard let data = try? await item.loadTransferable(type: Data.self),
                   let payload = normalizedImagePayload(from: data) else { continue }
+            guard !Task.isCancelled, isActive else { return }
             imported.append(CardImageAsset(
                 mimeType: payload.mimeType,
                 data: "data:\(payload.mimeType);base64,\(payload.data.base64EncodedString())",
@@ -1006,29 +1014,23 @@ struct CardEditView: View {
                 name: "card_image_\(cardImages.count + imported.count + index + 1).jpg"
             ))
         }
-        if !imported.isEmpty {
+        guard !Task.isCancelled, isActive else { return }
+        if CardImagePolicy.canAppend(existing: cardImages.count, incoming: imported.count) {
             cardImages.append(contentsOf: imported)
         }
+        if imported.count != items.count { showImageImportError() }
         selectedPhotoItems = []
     }
 
+    private func showImageImportError() {
+        feedbackTitle = NSLocalizedString("图片未能添加", comment: "")
+        feedbackMessage = NSLocalizedString("每张卡最多20张图片，单张原图不超过10MB；图片会压缩保存。原有图片不受影响。", comment: "")
+        showFeedbackAlert = true
+    }
+
     private func normalizedImagePayload(from data: Data) -> (data: Data, mimeType: String)? {
-        guard let image = UIImage(data: data) else {
-            return (data, "image/jpeg")
-        }
-        let maxEdge: CGFloat = 1600
-        let longestEdge = max(image.size.width, image.size.height)
-        let scale = longestEdge > maxEdge ? maxEdge / longestEdge : 1
-        let targetSize = CGSize(
-            width: max(1, image.size.width * scale),
-            height: max(1, image.size.height * scale)
-        )
-        let renderer = UIGraphicsImageRenderer(size: targetSize)
-        let resized = renderer.image { _ in
-            image.draw(in: CGRect(origin: .zero, size: targetSize))
-        }
-        guard let jpegData = resized.jpegData(compressionQuality: 0.84) else { return nil }
-        return (jpegData, "image/jpeg")
+        guard let jpeg = CardImagePolicy.jpeg(from: data) else { return nil }
+        return (jpeg, "image/jpeg")
     }
 
     private func uiImage(from asset: CardImageAsset) -> UIImage? {
@@ -1098,9 +1100,10 @@ struct CardEditView: View {
     private func applyScanResult(_ result: CardScanResult, imageAsset: CardImageAsset?) {
         var changedFields: [String] = []
 
-        if let imageAsset {
+        guard isActive else { return }
+        if let imageAsset, CardImagePolicy.canAppend(existing: cardImages.count, incoming: 1) {
             cardImages.append(imageAsset)
-        }
+        } else { showImageImportError() }
         if let cardNumber = result.cardNumber, self.cardNumber.isEmpty {
             self.cardNumber = cardNumber
             changedFields.append("卡号")

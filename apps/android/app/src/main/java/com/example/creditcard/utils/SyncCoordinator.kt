@@ -154,87 +154,94 @@ object SyncCoordinator {
     /**
      * 加载本地缓存好的卡包数据，作为应用启动的主入口数据源
      */
+    @Volatile private var isSuspended = false
+    @Volatile private var localDataReady = false
+
+    fun setSuspended(context: Context, locked: Boolean) {
+        val changed = isSuspended != locked
+        isSuspended = locked
+        if (locked) {
+            cancelCurrentSync(context)
+            _needsCellularSyncConfirmation.value = false
+            _cardsFlow.value = emptyList()
+            _syncHistory.value = emptyList()
+            localDataReady = false
+        } else if (changed || !localDataReady) {
+            syncScope.launch { initLocalData(context.applicationContext) }
+        }
+    }
+
+    private fun checkUnlocked() {
+        check(!isSuspended && !SecurityLockManager.state.value.locked) { "应用已锁定，请解锁后重试" }
+    }
+
     fun initLocalData(context: Context) {
+        if (isSuspended || SecurityLockManager.state.value.locked) return
         val appContext = context.applicationContext
-        registerNetworkCallback(appContext)
-        _cardsFlow.value = DatabaseHelper(appContext).use { db ->
-            db.getAllCards()
+        try {
+            val cards = DatabaseHelper(appContext).use { it.getAllCards() }
+            val history = loadSyncHistory(appContext)
+            val config = loadConfig(appContext)
+            checkUnlocked()
+            if (!isSuspended && !SecurityLockManager.state.value.locked) _cardsFlow.value = cards
+            _syncHistory.value = history
+            localDataReady = true
+            retainFavorites(appContext, cards.map { it.id }.toSet())
+            registerNetworkCallback(appContext)
+            if (config.isReadyForSync) requestBackgroundSync(appContext, publishLocalChanges = false)
+            else updateStatus(config.syncUnavailableMessage() ?: "未配置云同步，卡片数据将保存在本地", "info", isPending(appContext))
+        } catch (_: Exception) {
+            localDataReady = false
+            updateStatus("未能读取本机数据；原数据和云端备份已保留，请解锁设备后重试", "error", isPending(appContext))
         }
-        _syncHistory.value = loadSyncHistory(context)
-        
-        val config = loadConfig(context)
-        if (!config.isReadyForSync) {
-            val message = config.syncUnavailableMessage() ?: "未配置云同步，卡片数据将保存在本地"
-            updateStatus(message, if (config.isEnabled) "warning" else "info", isPending(context))
-        } else {
-            updateStatus("已启用云同步，正在检查云端数据", "info", isPending(context))
-            requestBackgroundSync(context, publishLocalChanges = false)
-        }
+    }
+
+    private fun retainFavorites(context: Context, valid: Set<String>) {
+        val prefs = context.getSharedPreferences("card_list_preferences", Context.MODE_PRIVATE)
+        val old = prefs.getStringSet("wallet_favorite_card_ids", emptySet()).orEmpty().toSet()
+        val next = old.intersect(valid)
+        if (next != old) prefs.edit().putStringSet("wallet_favorite_card_ids", next).apply()
     }
 
     /**
      * 保存 WebDAV 云同步配置
      */
     fun saveConfig(context: Context, config: WebDAVConfig) {
+        checkUnlocked()
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        prefs.edit().apply {
-            putString(KEY_URL, config.url)
-            putString(KEY_USER, config.user)
-            if (config.pass.isNotEmpty()) {
-                // 如果传入了新密码，则保存加密密文或普通存储（此处为了兼容多端使用默认加密网关）
-                putString(KEY_PASS, CryptoManager.encrypt(config.pass))
-            }
-            if (config.syncPassword.isNotEmpty()) {
-                putString(KEY_SYNC_PASSWORD, CryptoManager.encrypt(config.syncPassword))
-            }
-            putBoolean(KEY_ENABLED, true)
-            putString(KEY_NETWORK_PREFERENCE, config.networkPreference.storedValue)
-            apply()
-        }
-        
-        if (config.isReadyForSync) {
-            updateStatus("云同步配置已保存，正在尝试建立首期同步...", "info", isPending(context))
-        } else {
-            updateStatus(config.syncUnavailableMessage() ?: "WebDAV 配置不完整", "warning", isPending(context))
-        }
+        val cipher = AndroidLocalDataCipher(context)
+        // Encrypt everything first: any failure leaves all previous settings untouched.
+        val values = mapOf(KEY_URL to config.url, KEY_USER to config.user, KEY_PASS to config.pass, KEY_SYNC_PASSWORD to config.syncPassword)
+            .mapValues { (key, value) -> if (value.isEmpty()) "" else LocalSecretEnvelope.seal(value, key, cipher) }
+        val editor = prefs.edit()
+        values.forEach { (key, value) -> if (value.isNotEmpty() || key == KEY_URL || key == KEY_USER) editor.putString(key, value) }
+        check(editor.putBoolean(KEY_ENABLED, true).putString(KEY_NETWORK_PREFERENCE, config.networkPreference.storedValue).commit()) { "未能保存同步配置，请重试" }
+        updateStatus("云同步配置已保存", "info", isPending(context))
     }
 
-    /**
-     * 加载 WebDAV 云同步配置
-     */
     fun loadConfig(context: Context): WebDAVConfig {
         val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-        val url = prefs.getString(KEY_URL, "") ?: ""
-        val user = prefs.getString(KEY_USER, "") ?: ""
-        val encryptedPass = prefs.getString(KEY_PASS, "") ?: ""
-        val encryptedSyncPassword = prefs.getString(KEY_SYNC_PASSWORD, "") ?: ""
-        
-        // 自动还原保存的密码
-        val pass = if (encryptedPass.isNotEmpty()) {
-            try {
-                CryptoManager.decrypt(encryptedPass)
-            } catch (e: Exception) {
-                ""
+        val cipher = AndroidLocalDataCipher(context)
+        val keys = listOf(KEY_URL, KEY_USER, KEY_PASS, KEY_SYNC_PASSWORD)
+        val raw = keys.associateWith { prefs.getString(it, "").orEmpty() }
+        val values = raw.mapValues { (key, value) ->
+            when {
+                value.isEmpty() -> ""
+                value.startsWith(LocalSecretEnvelope.PREFIX) -> LocalSecretEnvelope.open(value, key, cipher)
+                key == KEY_URL || key == KEY_USER -> value
+                else -> CryptoManager.decrypt(value)
             }
-        } else ""
-
-        val syncPassword = if (encryptedSyncPassword.isNotEmpty()) {
-            try {
-                CryptoManager.decrypt(encryptedSyncPassword)
-            } catch (e: Exception) {
-                ""
-            }
-        } else ""
-
-        // Migrate an explicit old "off" value once; credentials and network policy are preserved.
-        if (prefs.contains(KEY_ENABLED) && !prefs.getBoolean(KEY_ENABLED, true)) {
-            prefs.edit().putBoolean(KEY_ENABLED, true).apply()
         }
-        val isEnabled = true
-        val networkPreference = SyncNetworkPreference.fromStoredValue(
-            prefs.getString(KEY_NETWORK_PREFERENCE, null)
-        )
-        return WebDAVConfig(url, user, pass, syncPassword, isEnabled, networkPreference)
+        val migrate = raw.any { (_, value) -> value.isNotEmpty() && !value.startsWith(LocalSecretEnvelope.PREFIX) }
+        if (migrate) {
+            val sealed = values.mapValues { (key, value) -> if (value.isEmpty()) "" else LocalSecretEnvelope.seal(value, key, cipher) }
+            val editor = prefs.edit()
+            sealed.forEach { (key, value) -> editor.putString(key, value) }
+            check(editor.commit()) { "未能迁移本机同步凭证；原配置已保留" }
+        }
+        if (prefs.contains(KEY_ENABLED) && !prefs.getBoolean(KEY_ENABLED, true)) prefs.edit().putBoolean(KEY_ENABLED, true).apply()
+        return WebDAVConfig(values.getValue(KEY_URL), values.getValue(KEY_USER), values.getValue(KEY_PASS), values.getValue(KEY_SYNC_PASSWORD), true,
+            SyncNetworkPreference.fromStoredValue(prefs.getString(KEY_NETWORK_PREFERENCE, null)))
     }
 
     /**
@@ -279,7 +286,7 @@ object SyncCoordinator {
     }
 
     private fun ensureSyncNotCancelled() {
-        if (cancelRequested) {
+        if (isSuspended || SecurityLockManager.state.value.locked || cancelRequested) {
             throw CancellationException("同步已被手动终止")
         }
     }
@@ -303,6 +310,7 @@ object SyncCoordinator {
         totalBytes: Long = 0L,
         transferredBytes: Long = 0L
     ) {
+        if (isSuspended) return
         _syncProgress.value = SyncProgress(
             phase = phase,
             step = step,
@@ -349,64 +357,43 @@ object SyncCoordinator {
         return normalizedDuration
     }
 
-    private fun loadSyncHistory(context: Context): List<SyncHistoryEntry> {
-        val raw = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .getString(KEY_SYNC_HISTORY, "") ?: ""
-        if (raw.isBlank()) return emptyList()
-        return try {
-            AppJson.json.decodeFromString(
-                ListSerializer(SyncHistoryEntry.serializer()),
-                raw
-            )
-        } catch (e: Exception) {
-            emptyList()
-        }
+    private fun readLocalText(context: Context, key: String): String {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val raw = prefs.getString(key, "").orEmpty()
+        if (raw.isEmpty()) return ""
+        val cipher = AndroidLocalDataCipher(context)
+        if (raw.startsWith(LocalSecretEnvelope.PREFIX)) return LocalSecretEnvelope.open(raw, key, cipher)
+        // Parse before migrating, so malformed legacy history is not overwritten.
+        kotlinx.serialization.json.Json.parseToJsonElement(raw)
+        check(prefs.edit().putString(key, LocalSecretEnvelope.seal(raw, key, cipher)).commit())
+        return raw
     }
-
+    private fun writeLocalText(context: Context, key: String, value: String) {
+        // Refuse to overwrite an existing unreadable envelope.
+        readLocalText(context, key)
+        val sealed = LocalSecretEnvelope.seal(value, key, AndroidLocalDataCipher(context))
+        check(context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE).edit().putString(key, sealed).commit())
+    }
+    private fun loadSyncHistory(context: Context): List<SyncHistoryEntry> {
+        val raw = readLocalText(context, KEY_SYNC_HISTORY)
+        return if (raw.isEmpty()) emptyList() else AppJson.json.decodeFromString(ListSerializer(SyncHistoryEntry.serializer()), raw)
+    }
     private fun saveSyncHistory(context: Context, entries: List<SyncHistoryEntry>) {
         val trimmed = entries.take(30)
-        val json = AppJson.json.encodeToString(
-            ListSerializer(SyncHistoryEntry.serializer()),
-            trimmed
-        )
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .edit()
-            .putString(KEY_SYNC_HISTORY, json)
-            .apply()
-        _syncHistory.value = trimmed
+        writeLocalText(context, KEY_SYNC_HISTORY, AppJson.json.encodeToString(ListSerializer(SyncHistoryEntry.serializer()), trimmed))
+        if (!isSuspended) _syncHistory.value = trimmed
     }
-
     private fun appendSyncHistory(context: Context, entry: SyncHistoryEntry) {
-        saveSyncHistory(context, listOf(entry) + loadSyncHistory(context))
+        try { saveSyncHistory(context, listOf(entry) + loadSyncHistory(context)) }
+        catch (_: Exception) { /* Keep damaged history intact; never turn a valid card commit into data loss. */ }
     }
-
     private fun loadPendingMutations(context: Context): List<CardChangeDetail> {
-        val raw = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .getString(KEY_PENDING_MUTATIONS, "") ?: ""
-        if (raw.isBlank()) return emptyList()
-        return try {
-            AppJson.json.decodeFromString(
-                ListSerializer(CardChangeDetail.serializer()),
-                raw
-            )
-        } catch (e: Exception) {
-            emptyList()
-        }
+        val raw = readLocalText(context, KEY_PENDING_MUTATIONS)
+        return if (raw.isEmpty()) emptyList() else AppJson.json.decodeFromString(ListSerializer(CardChangeDetail.serializer()), raw)
     }
-
     private fun savePendingMutations(context: Context, entries: List<CardChangeDetail>) {
-        val collapsed = entries
-            .groupBy { it.cardId }
-            .map { (_, items) -> collapseCardChanges(items) }
-            .sortedBy { it.cardName }
-        val json = AppJson.json.encodeToString(
-            ListSerializer(CardChangeDetail.serializer()),
-            collapsed
-        )
-        context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
-            .edit()
-            .putString(KEY_PENDING_MUTATIONS, json)
-            .apply()
+        val collapsed = entries.groupBy { it.cardId }.map { (_, items) -> collapseCardChanges(items) }.sortedBy { it.cardName }
+        writeLocalText(context, KEY_PENDING_MUTATIONS, AppJson.json.encodeToString(ListSerializer(CardChangeDetail.serializer()), collapsed))
     }
 
     private fun clearPendingMutations(context: Context) {
@@ -604,124 +591,44 @@ object SyncCoordinator {
     /**
      * 产生一条新增或修改的本地变动，写入本地账本
      */
-    fun commitCardChange(context: Context, card: SharedCard) {
-        val appContext = context.applicationContext
-        val latestCards = synchronized(dbWriteLock) {
-            DatabaseHelper(appContext).use { db ->
-                val beforeCard = if (card.id.isBlank()) null else db.getCardById(card.id)
+    fun commitCardChange(context: Context, card: SharedCard) = commitCardChanges(context, listOf(card))
+    fun commitCardDelete(context: Context, cardId: String) = commitCardChanges(context, emptyList(), setOf(cardId))
 
-                val nowMillis = SyncTime.nowMillis()
-                val isoNow = SyncTime.isoFromMillis(nowMillis)
-                if (card.id.isBlank()) {
-                    card.id = UUID.randomUUID().toString()
-                }
-                card.cardCategory = if (card.cardCategory == "debit") "debit" else "credit"
-                // Web/Mac 端会把 active record 的 lastModifyTime 规范为 changedAt 对应毫秒值。
-                card.lastModifyTime = nowMillis
-
-                // 1. 生成并保存本地 active 账本记录
-                val record = CardSyncRecord(
-                    cardId = card.id,
-                    changedAt = isoNow,
-                    state = "active",
-                    card = card
-                )
-
-                db.saveCard(card)
-                db.saveSyncRecord(record)
-                recordPendingMutation(
-                    appContext,
-                    buildCardChange(if (beforeCard == null) "added" else "modified", beforeCard, card)
-                )
-                bumpMutationRevision(appContext)
-                markPending(appContext, true)
-                db.getAllCards()
-            }
-        }
-
-        // 刷新主页卡片流
-        _cardsFlow.value = latestCards
-        requestBackgroundSync(context, publishLocalChanges = true)
-    }
-
-    /**
-     * 产生一条删除的本地变动，写入本地账本
-     */
-    fun commitCardDelete(context: Context, cardId: String) {
-        val appContext = context.applicationContext
-        val latestCards = synchronized(dbWriteLock) {
-            DatabaseHelper(appContext).use { db ->
-                val beforeCard = db.getCardById(cardId)
-
-                // 1. 生成并保存本地 deleted 账本记录
-                val isoNow = SyncTime.nowIso()
-                val record = CardSyncRecord(
-                    cardId = cardId,
-                    changedAt = isoNow,
-                    state = "deleted",
-                    card = null
-                )
-
-                db.deleteCardById(cardId)
-                db.saveSyncRecord(record)
-                recordPendingMutation(appContext, buildCardChange("deleted", beforeCard, null))
-                bumpMutationRevision(appContext)
-                markPending(appContext, true)
-                db.getAllCards()
-            }
-        }
-
-        // 刷新主页卡片流
-        _cardsFlow.value = latestCards
-        requestBackgroundSync(context, publishLocalChanges = true)
-    }
-
-    /**
-     * 批量提交卡片修改或删除，只刷新一次数据流并触发一次后台同步。
-     */
-    fun commitCardChanges(
-        context: Context,
-        changedCards: List<SharedCard>,
-        deletedCardIDs: Set<String> = emptySet()
-    ) {
+    fun commitCardChanges(context: Context, changedCards: List<SharedCard>, deletedCardIDs: Set<String> = emptySet()) {
+        checkUnlocked()
         if (changedCards.isEmpty() && deletedCardIDs.isEmpty()) return
         val appContext = context.applicationContext
         val latestCards = synchronized(dbWriteLock) {
+            checkUnlocked()
             DatabaseHelper(appContext).use { db ->
-                changedCards.forEach { card ->
-                    val beforeCard = db.getCardById(card.id)
-                    val record = CardSyncRecord(
-                        cardId = card.id,
-                        changedAt = SyncTime.nowIso(),
-                        state = "active",
-                        card = card
-                    )
-                    db.saveCard(card)
-                    db.saveSyncRecord(record)
-                    recordPendingMutation(
-                        appContext,
-                        buildCardChange(if (beforeCard == null) "added" else "modified", beforeCard, card)
-                    )
+                val changes = mutableListOf<CardChangeDetail>()
+                val records = mutableListOf<CardSyncRecord>()
+                val cards = changedCards.filter { it.id !in deletedCardIDs }.distinctBy { it.id }.map { input ->
+                    val id = input.id.ifBlank { UUID.randomUUID().toString() }
+                    val before = db.getCardById(id)
+                    val now = SyncTime.nextMillis(db.getSyncRecordById(id)?.changedAt)
+                    val card = input.copy(id = id, cardCategory = if (input.cardCategory == "debit") "debit" else "credit", lastModifyTime = now)
+                    records += CardSyncRecord(cardId = id, changedAt = SyncTime.isoFromMillis(now), state = "active", card = card)
+                    buildCardChange(if (before == null) "added" else "modified", before, card)?.let(changes::add)
+                    card
                 }
-                deletedCardIDs.forEach { cardID ->
-                    val beforeCard = db.getCardById(cardID)
-                    db.deleteCardById(cardID)
-                    db.saveSyncRecord(
-                        CardSyncRecord(
-                            cardId = cardID,
-                            changedAt = SyncTime.nowIso(),
-                            state = "deleted",
-                            card = null
-                        )
-                    )
-                    recordPendingMutation(appContext, buildCardChange("deleted", beforeCard, null))
+                deletedCardIDs.forEach { id ->
+                    val before = db.getCardById(id)
+                    val now = SyncTime.nextMillis(db.getSyncRecordById(id)?.changedAt)
+                    records += CardSyncRecord(cardId = id, changedAt = SyncTime.isoFromMillis(now), state = "deleted")
+                    buildCardChange("deleted", before, null)?.let(changes::add)
                 }
+                checkUnlocked()
+                db.commitLocalChanges(records, cards, deletedCardIDs)
+                // Ledger+cards are already durable. A history failure must not conceal that commit.
+                try { savePendingMutations(appContext, loadPendingMutations(appContext) + changes) } catch (_: Exception) { }
                 bumpMutationRevision(appContext)
                 markPending(appContext, true)
                 db.getAllCards()
             }
         }
-        _cardsFlow.value = latestCards
+        retainFavorites(appContext, latestCards.map { it.id }.toSet())
+        if (!isSuspended) _cardsFlow.value = latestCards
         requestBackgroundSync(context, publishLocalChanges = true)
     }
 
@@ -737,8 +644,12 @@ object SyncCoordinator {
         cellularConfirmed: Boolean = false
     ) = withContext(Dispatchers.IO) {
         syncMutex.withLock {
+            if (isSuspended || SecurityLockManager.state.value.locked) return@withLock
             val appContext = context.applicationContext
-            val config = loadConfig(appContext)
+            val config = try { loadConfig(appContext) } catch (_: Exception) {
+                updateStatus("未能读取同步凭证；原配置已保留", "error", isPending(appContext))
+                return@withLock
+            }
             val syncUnavailableMessage = config.syncUnavailableMessage()
             if (syncUnavailableMessage != null) {
                 stopSyncElapsedTicker(0L)
@@ -1130,7 +1041,7 @@ object SyncCoordinator {
                 }
                 withContext(Dispatchers.Main) {
                     val durationMs = stopSyncElapsedTicker(syncDurationSince(startedAtMillis))
-                    _cardsFlow.value = currentCards
+                    if (!isSuspended && !SecurityLockManager.state.value.locked) _cardsFlow.value = currentCards
                     if (needsFollowUpSync) {
                         updateStatus("本次同步完成，检测到期间又有新修改，正在继续同步", "info", true, lastDurationMs = durationMs)
                         updateProgress("继续同步", 6, 6, "本轮耗时 ${formatDurationText(durationMs)}，新修改已保留，将继续发布到云端")
@@ -1230,8 +1141,10 @@ object SyncCoordinator {
     }
 
     fun requestManualSync(context: Context) {
+        if (isSuspended || SecurityLockManager.state.value.locked) return
+        if (!localDataReady) { syncScope.launch { initLocalData(context) }; return }
         val appContext = context.applicationContext
-        val config = loadConfig(appContext)
+        val config = configForSync(appContext) ?: return
         val syncUnavailableMessage = config.syncUnavailableMessage()
         if (syncUnavailableMessage != null) {
             stopSyncElapsedTicker(0L)
@@ -1286,7 +1199,8 @@ object SyncCoordinator {
                     network: Network,
                     networkCapabilities: NetworkCapabilities
                 ) {
-                    val config = loadConfig(context)
+                    if (isSuspended || SecurityLockManager.state.value.locked) return
+                    val config = configForSync(context) ?: return
                     if (!config.isReadyForSync) return
                     val canAutoSync =
                         networkCapabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
@@ -1306,9 +1220,17 @@ object SyncCoordinator {
         }
     }
 
+    private fun configForSync(context: Context): WebDAVConfig? = try {
+        loadConfig(context)
+    } catch (_: Exception) {
+        updateStatus("本地同步配置无法读取，原数据已保留。", "error", true)
+        null
+    }
+
     private fun requestBackgroundSync(context: Context, publishLocalChanges: Boolean) {
+        if (isSuspended || !localDataReady || SecurityLockManager.state.value.locked) return
         val appContext = context.applicationContext
-        val config = loadConfig(appContext)
+        val config = configForSync(appContext) ?: return
         if (!config.isReadyForSync) return
         val shouldLaunch = synchronized(backgroundSyncLock) {
             backgroundSyncPublishLocalChanges = backgroundSyncPublishLocalChanges || publishLocalChanges

@@ -143,7 +143,7 @@ struct CardDetailView: View {
                                         }
                                         HStack {
                                             WalletFieldValue(title: "账单日当天消费", value: card.billingDaySpendingToNextBill ? String(localized: "计入下一期") : String(localized: "计入当期"))
-                                            WalletFieldValue(title: "最长免息期", value: interestFreeText)
+                                            WalletFieldValue(title: "当前免息期", value: interestFreeText)
                                         }
                                     }
                                 }

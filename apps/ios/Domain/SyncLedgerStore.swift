@@ -1,51 +1,39 @@
 import Foundation
 
-public final class SyncLedgerStore: Sendable {
+public final class SyncLedgerStore : Sendable {
     public static let shared = SyncLedgerStore()
-    private let fileName = "sync_ledger.json"
-    private let writeQueue = DispatchQueue(label: "com.applist.credit-card-ios.sync-ledger", qos: .utility)
-    private init() {}
-
-    private func fileURL() -> URL {
-        let paths = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)
-        let dir = paths[0].appendingPathComponent("CardWallet", isDirectory: true)
-        if !FileManager.default.fileExists(atPath: dir.path) {
-            try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true, attributes: nil)
-        }
-        return dir.appendingPathComponent(fileName)
+    private let directory: URL
+    private let queue = DispatchQueue(label: "wallet.ios.ledger-writes", qos: .utility)
+    private var fileURL: URL { directory.appendingPathComponent("sync_ledger.json") }
+    init(directory: URL? = nil) {
+        self.directory = directory ?? FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0].appendingPathComponent("CardWallet")
     }
-
-    public func load(seeding localCards: [SharedCard]) -> SyncLedger {
-        let url = fileURL()
-        guard FileManager.default.fileExists(atPath: url.path),
-              let encryptedData = try? Data(contentsOf: url),
-              let data = try? CryptoManager.decryptLocalData(encryptedData),
-              let ledger = try? JSONDecoder().decode(SyncLedger.self, from: data) else {
-            return SyncLedger(records: localCards.map(CardSyncRecord.activeUsingCardTimestamp))
-        }
-        return ledger
-    }
-
-    public func save(_ ledger: SyncLedger) {
-        guard let data = try? JSONEncoder().encode(ledger),
-              let encryptedData = try? CryptoManager.encryptLocalData(data) else { return }
-        let url = fileURL()
-        try? encryptedData.write(to: url, options: .atomic)
-        try? FileManager.default.setAttributes([.protectionKey: FileProtectionType.complete], ofItemAtPath: url.path)
-    }
-
-    public func saveInBackground(_ ledger: SyncLedger) {
-        writeQueue.async { [self] in
-            save(ledger)
-        }
-    }
-
-    public func saveAsync(_ ledger: SyncLedger) async {
-        await withCheckedContinuation { continuation in
-            writeQueue.async { [self] in
-                save(ledger)
-                continuation.resume()
+    public func load(seeding cards: [SharedCard] = []) throws -> SyncLedger {
+        try queue.sync {
+            guard FileManager.default.fileExists(atPath: fileURL.path) else {
+                return SyncLedger(records: cards.map(CardSyncRecord.activeUsingCardTimestamp))
             }
+            let encrypted = try Data(contentsOf: fileURL)
+            let data = try CryptoManager.decryptLocalData(encrypted)
+            return try JSONDecoder().decode(SyncLedger.self, from: data)
+        }
+    }
+    @discardableResult
+    public func save(_ ledger: SyncLedger) -> Bool { queue.sync { write(ledger) } }
+    private func write(_ ledger: SyncLedger) -> Bool {
+        do {
+            let data = try JSONEncoder().encode(ledger)
+            let encrypted = try CryptoManager.encryptLocalData(data)
+            try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+            try encrypted.write(to: fileURL, options: .atomic)
+            try FileManager.default.setAttributes([.protectionKey: FileProtectionType.complete], ofItemAtPath: fileURL.path)
+            return true
+        } catch { return false }
+    }
+    public func saveInBackground(_ ledger: SyncLedger) { queue.async { [self] in _ = write(ledger) } }
+    public func saveAsync(_ ledger: SyncLedger) async -> Bool {
+        await withCheckedContinuation { continuation in
+            queue.async { [self] in continuation.resume(returning: write(ledger)) }
         }
     }
 }

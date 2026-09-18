@@ -48,8 +48,8 @@ class WalletCatalogAndSyncTest {
         assertEquals("private-test-password", migrated.pass)
         assertEquals("existing-encryption-key", migrated.syncPassword)
         assertEquals(SyncNetworkPreference.WIFI_ONLY, migrated.networkPreference)
-        assertEquals(encrypted, prefs.getString("webdav_pass", null))
-        assertEquals(key, prefs.getString("webdav_sync_password_v4", null))
+        assertTrue(prefs.getString("webdav_pass", "")!!.startsWith("local-secret-v1:"))
+        assertTrue(prefs.getString("webdav_sync_password_v4", "")!!.startsWith("local-secret-v1:"))
         assertTrue(prefs.getBoolean("webdav_enabled", false))
     }
 

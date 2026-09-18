@@ -81,6 +81,12 @@ public struct CardSyncRecord: Codable, Identifiable, Hashable, Sendable {
         self.init(cardId: cardId, mutationId: mutationId, changedAt: changedAt, state: state, card: card)
     }
 
+    public static func nextTimestamp(after previous: CardSyncRecord?, now: Date = Date()) -> String {
+        let wall = floor(now.timeIntervalSince1970 * 1000)
+        let observed = previous.map { SyncTimestamp.milliseconds(from: $0.changedAt) } ?? 0
+        return SyncTimestamp.string(from: max(wall, observed + 1))
+    }
+
     public static func active(_ card: SharedCard, changedAt: String = SyncTimestamp.now()) -> CardSyncRecord {
         CardSyncRecord(cardId: card.id, changedAt: changedAt, state: .active, card: card)
     }

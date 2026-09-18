@@ -9,7 +9,7 @@
           @change="handleSelectAllChange"
           class="tech-checkbox"
         >
-          全选所有卡片 (已选择 {{ selectedRows.length }} / {{ tableData.length }})
+          全选当前结果 (已选择 {{ selectedRows.length }} / {{ tableData.length }})
         </el-checkbox>
         <div class="actions-tips" v-if="selectedRows.length > 0">
           <span class="pulse-dot"></span>
@@ -132,6 +132,9 @@
                     />
                   </div>
 
+                  <el-button class="card-favorite-control" text circle :aria-label="favoriteIds.has(card.id) ? '取消收藏' : '收藏卡片'" :aria-pressed="favoriteIds.has(card.id)" @click.stop="$emit('toggle-favorite', card.id)">
+                    <el-icon><StarFilled v-if="favoriteIds.has(card.id)" /><Star v-else /></el-icon>
+                  </el-button>
                   <!-- 物理 3D 悬浮卡片 -->
                   <CreditCardPhysicsCard
                     :card="card"
@@ -186,7 +189,10 @@
 </template>
 
 <script setup>
+import { Star, StarFilled } from '@element-plus/icons-vue'
 import { ref, computed, watch, toRef, onUnmounted, inject } from 'vue'
+import { sortCards } from '@/utils/cardCatalog'
+import { normalizeBankNameForMatch } from '@/utils/bankName'
 import { creditLimitMetrics, formatCreditAmount } from '@/utils/cardMetrics'
 import { cardOrganization, cardOrganizationName } from '@/utils/cardBrand'
 import { calculateCurrentInterestFreeDays } from '@/utils/dateCalculator'
@@ -197,6 +203,8 @@ import { Edit, Delete, View, Check, Refresh, OfficeBuilding, Location, CreditCar
 import CreditCardPhysicsCard from './CreditCardPhysicsCard.vue'
 
 const props = defineProps({
+  favoriteIds: { type: Set, default: () => new Set() },
+  sortMode: { type: String, default: undefined },
   tableData: {
     type: Array,
     required: true
@@ -208,6 +216,7 @@ const props = defineProps({
 })
 
 const emit = defineEmits([
+  'update:sortMode', 'toggle-favorite',
   'edit',
   'delete',
   'view-details',
@@ -219,7 +228,8 @@ const emit = defineEmits([
 
 // 分组与排序控制状态（默认按照发卡行 bank 分组，对齐 Mac 端原生面板）
 const groupBy = ref(localStorage.getItem('creditCardGroupMode') || 'bank')
-const sortBy = ref(localStorage.getItem('creditCardSortMode') || 'default')
+const localSortBy = ref(localStorage.getItem('creditCardSortMode') || 'default')
+const sortBy = computed({ get: () => props.sortMode ?? localSortBy.value, set: value => { localSortBy.value = value; emit('update:sortMode', value) } })
 
 // 监听分组与排序方式，存入 localStorage
 watch(groupBy, (newVal) => {
@@ -285,33 +295,7 @@ const calculateLimits = cards => creditLimitMetrics(cards).totals
 const day = inject('calendarDay', ref(Date.now()))
 const groupedCards = computed(() => {
   day.value
-  let sortedData = [...props.tableData]
-
-  // 1. 进行高级条件排序
-  if (sortBy.value === 'limit-desc') {
-    sortedData.sort((a, b) => parseFloat(b.limit || 0) - parseFloat(a.limit || 0))
-  } else if (sortBy.value === 'limit-asc') {
-    sortedData.sort((a, b) => parseFloat(a.limit || 0) - parseFloat(b.limit || 0))
-  } else if (sortBy.value.startsWith('interest-')) {
-    const days = new Map(sortedData.map(card => [card.id, calculateCurrentInterestFreeDays(card)]))
-    sortedData.sort((a, b) => {
-      const left = days.get(a.id), right = days.get(b.id)
-      if (left < 0 || right < 0) return left < 0 ? (right < 0 ? 0 : 1) : -1
-      return sortBy.value === 'interest-asc' ? left - right : right - left
-    })
-  } else if (sortBy.value === 'annualFee') {
-    sortedData.sort((a, b) => {
-      const timeA = a.nextAnnualFeeCollectionTime ? parseInt(a.nextAnnualFeeCollectionTime) : 9999999999999
-      const timeB = b.nextAnnualFeeCollectionTime ? parseInt(b.nextAnnualFeeCollectionTime) : 9999999999999
-      return timeA - timeB
-    })
-  } else if (sortBy.value === 'modifyTime') {
-    sortedData.sort((a, b) => {
-      const timeA = a.lastModifyTime ? parseInt(a.lastModifyTime) : 0
-      const timeB = b.lastModifyTime ? parseInt(b.lastModifyTime) : 0
-      return timeB - timeA
-    })
-  }
+  const sortedData = props.sortMode === undefined ? sortCards(props.tableData, sortBy.value, new Date(day.value)) : props.tableData
 
   // 2. 如果不分组，直接作为单一整体返回
   if (groupBy.value === 'none') {
@@ -330,7 +314,7 @@ const groupedCards = computed(() => {
     let title = ''
 
     if (groupBy.value === 'bank') {
-      key = (card.bank || '未知发卡行').trim()
+      key = normalizeBankNameForMatch(card.bank) || '未知发卡行'
       title = card.bank || '未知发卡行'
     } else if (groupBy.value === 'country') {
       key = (card.country || '其他地区').trim()
