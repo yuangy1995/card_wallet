@@ -1,0 +1,56 @@
+name: Resume parity integration
+on:
+  push:
+    branches: [codex/four-platform-parity-completion-20260918]
+    paths: [.github/workflows/parity-resume-apply.yml]
+permissions:
+  contents: read
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    outputs:
+      sha: ${{ steps.commit.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Integrate reviewed earlier work and callback fixes
+        shell: python
+        run: |
+          import subprocess
+          from pathlib import Path
+          before='25e7f1760f8cb94745f349e4fa7921fbbe8bf36f'
+          previous='6948ec4e68eb54a6bda743c697e1e47c3affbbb1'
+          files=subprocess.check_output(['git','diff','--name-only','--diff-filter=AM',before,previous,'--','apps','contracts','scripts']).decode().splitlines()
+          subprocess.run(['git','restore','--source='+previous,'--',*files],check=True)
+          for path in ['apps/ios/Domain/WalletCardRules.swift','apps/macos/Domain/WalletCardRules.swift','apps/android/app/src/main/java/com/example/creditcard/utils/WalletCardRules.kt','apps/web/src/utils/cardCatalog.js']:
+              Path(path).unlink()
+          p=Path('apps/ios/App/AppRootView.swift'); s=p.read_text()
+          s=s.replace('try await center.add(request)','try await enqueue(request)')
+          s=s.replace('let pending = await center.pendingNotificationRequests()\n        let staleIDs = pending.map(\\.identifier).filter { $0.hasPrefix(scheduledPrefix) }','let identifiers: [String] = await withCheckedContinuation { continuation in\n            center.getPendingNotificationRequests { requests in\n                continuation.resume(returning: requests.map(\\.identifier))\n            }\n        }\n        let staleIDs = identifiers.filter { $0.hasPrefix(scheduledPrefix) }')
+          s=s.replace('let settings = await center.notificationSettings()\n        switch settings.authorizationStatus {','let status: Int = await withCheckedContinuation { continuation in\n            center.getNotificationSettings { settings in\n                continuation.resume(returning: settings.authorizationStatus.rawValue)\n            }\n        }\n        guard let authorization = UNAuthorizationStatus(rawValue: status) else { return false }\n        switch authorization {')
+          s=s.replace('return (try? await center.requestAuthorization(options: [.alert, .sound, .badge])) ?? false','return await withCheckedContinuation { continuation in\n                center.requestAuthorization(options: [.alert, .sound, .badge]) { allowed, _ in\n                    continuation.resume(returning: allowed)\n                }\n            }')
+          needle='    private func requestAuthorizationIfNeeded() async -> Bool {'
+          helper='    // The callback API keeps the non-Sendable notification center on the main actor.\n    // Only the continuation/result crosses the system callback queue.\n    private func enqueue(_ request: UNNotificationRequest) async throws {\n        try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in\n            center.add(request) { error in\n                if let error { continuation.resume(throwing: error) }\n                else { continuation.resume() }\n            }\n        }\n    }\n\n'
+          assert needle in s; s=s.replace(needle,helper+needle); p.write_text(s)
+          p=Path('apps/android/app/src/test/java/com/example/creditcard/testing/WalletTestApplication.kt')
+          p.write_text(p.read_text().replace('Provider("AndroidKeyStore", "1.0",','Provider("AndroidKeyStore", 1.0,'))
+          subprocess.run(['git','add','-A','--','apps','contracts','scripts'],check=True)
+          subprocess.run(['git','diff','--cached','--check'],check=True)
+      - id: commit
+        run: |
+          set -eu
+          test "$(git rev-parse HEAD)" = "$(git ls-remote origin refs/heads/codex/four-platform-parity-completion-20260918 | cut -f1)"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m '接续前三阶段业务契约、收藏批量和本地安全，修复原生编译阻塞'
+          git push origin HEAD:refs/heads/codex/four-platform-parity-completion-20260918
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+  quality:
+    needs: apply
+    uses: ./.github/workflows/platform-quality.yml
+    with:
+      checkout_ref: ${{ needs.apply.outputs.sha }}
