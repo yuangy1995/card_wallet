@@ -253,7 +253,8 @@ fun CardFormScreen(
     var scannedTempSource by remember { mutableStateOf("NFC") }
 
     val imageScope = rememberCoroutineScope()
-    fun imageImportError() { Toast.makeText(context, context.getString(R.string.wallet_image_import_error), Toast.LENGTH_LONG).show() }
+    val imageImportErrorMessage = stringResource(R.string.wallet_image_import_error)
+    fun imageImportError() { Toast.makeText(context, imageImportErrorMessage, Toast.LENGTH_LONG).show() }
     val galleryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
         if (uris.isNotEmpty()) {
             if (!CardImageCodec.canAppend(cardImages.size, uris.size)) imageImportError()
