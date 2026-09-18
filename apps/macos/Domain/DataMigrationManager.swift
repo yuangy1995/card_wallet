@@ -296,7 +296,8 @@ public class DataMigrationManager {
             remark: remark,
             lastModifyTime: lastModifyTime,
             isSharedLimit: isSharedLimit,
-            cardImages: cardImages
+            cardImages: cardImages,
+            extraFields: CardFutureFields.fromJSONObject(dict, known: SharedCard.knownFieldNames)
         )
     }
     
@@ -345,7 +346,8 @@ public class DataMigrationManager {
                 data: data,
                 createdAt: createdAt,
                 source: (dict["source"] as? String) ?? "mac_upload",
-                name: (dict["name"] as? String) ?? ""
+                name: (dict["name"] as? String) ?? "",
+                extraFields: CardFutureFields.fromJSONObject(dict, known: CardImageAsset.knownFieldNames)
             )
         }
     }

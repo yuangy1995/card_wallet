@@ -1,3 +1,4 @@
+import { futureCardFields } from './cardFutureFields'
 /**
  * 信用卡数据迁移和验证工具
  * 用于将老数据结构转换为新数据结构，支持字段扩展和格式转换
@@ -116,6 +117,7 @@ function normalizeCardImages(value) {
       }
       if (!item || typeof item !== 'object') return null
       return {
+        ...futureCardFields(item, new Set(['id', 'mimeType', 'data', 'createdAt', 'source', 'name'])),
         id: item.id || crypto.randomUUID(),
         mimeType: item.mimeType || 'image/jpeg',
         data: item.data || '',
@@ -143,7 +145,7 @@ export function migrateCardData(oldCard, trackChanges = false) {
   const changes = trackChanges ? [] : null
   
   // 从默认数据开始，确保所有字段都存在
-  const migratedCard = { ...DEFAULT_CARD_DATA }
+  const migratedCard = { ...futureCardFields(oldCard, new Set(Object.keys(DEFAULT_CARD_DATA))), ...DEFAULT_CARD_DATA }
   
   // 1. 处理ID字段
   const stableId = firstStringValue(oldCard, ['id', 'cardId', '_id', 'uuid'])

@@ -7,6 +7,7 @@ import com.example.creditcard.utils.AndroidLocalDataCipher
 import com.example.creditcard.data.DatabaseHelper
 import com.example.creditcard.data.SharedCard
 import com.example.creditcard.data.CardImageAsset
+import kotlinx.serialization.json.JsonPrimitive
 import java.security.KeyStore
 import java.util.UUID
 import org.junit.Assert.*
@@ -27,7 +28,7 @@ class LocalVaultInstrumentedTest {
             val encrypted = cipher.seal(input, "fixture")
             assertArrayEquals(input, cipher.open(encrypted, "fixture"))
             assertNull("Key must not be exportable", keyStore().getKey(alias, null).encoded)
-            val card = SharedCard(id="fixture", bank="SyntheticBank", cardImages=listOf(CardImageAsset(id="image", data="A".repeat(2_200_000))))
+            val card = SharedCard(id="fixture", bank="SyntheticBank", cardImages=listOf(CardImageAsset(id="image", data="A".repeat(2_200_000), extraFields=mapOf("futureImage" to JsonPrimitive("kept")))), extraFields=mapOf("future" to JsonPrimitive("kept")))
             DatabaseHelper(context, cipher, name).use { it.saveCard(card); assertEquals(card, it.getAllCards().single()) }
             DatabaseHelper(context, AndroidLocalDataCipher(context, alias), name).use { assertEquals(card, it.getCardById(card.id)) }
         } finally {

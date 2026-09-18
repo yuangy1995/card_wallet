@@ -1701,7 +1701,8 @@ fun executeSaveCard(
         lastTime = if (cardCategory == "debit") null else lastTime,
         equity = equity.trim(),
         remark = remark.trim(),
-        cardImages = cardImages
+        cardImages = cardImages,
+        extraFields = originalCard?.extraFields.orEmpty()
     )
 
     // 保存至本地账本（自动管理 lastModifyTime 和触发 pendingSync 状态）
