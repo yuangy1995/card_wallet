@@ -18,8 +18,11 @@
         :closable="false"
         show-icon
       />
-      
+
       <el-form ref="formRef" :model="form" :rules="rules" label-width="80px">
+        <el-form-item v-if="hasPassword" label="当前密码">
+          <el-input v-model="form.currentPassword" type="password" show-password autocomplete="current-password" placeholder="修改密码或开启系统解锁前输入" />
+        </el-form-item>
         <el-form-item label="新密码" prop="password">
           <el-input
             v-model="form.password"
@@ -29,7 +32,7 @@
             autocomplete="new-password"
           />
         </el-form-item>
-        
+
         <el-form-item label="确认密码" prop="confirmPassword">
           <el-input
             v-model="form.confirmPassword"
@@ -45,7 +48,7 @@
         <div class="platform-unlock-copy">
           <div class="platform-unlock-title">系统解锁</div>
           <div class="platform-unlock-desc">
-            可使用本机指纹、人脸、PIN 或 Windows Hello 解锁。此设置只在当前浏览器和当前设备生效。
+            兼容的设备可使用指纹、人脸、PIN 或 Windows Hello 解锁。设备不支持安全密钥派生时，请继续使用密码。此设置仅在本机生效。
           </div>
           <div v-if="!platformUnlockAvailable" class="platform-unlock-status">
             当前浏览器或设备暂不支持
@@ -58,18 +61,18 @@
           @change="handlePlatformUnlockChange"
         />
       </div>
-      
+
       <div class="button-group" :class="{ 'single-action': !canClose }">
-        <el-button 
+        <el-button
           class="password-action-btn"
-          type="primary" 
+          type="primary"
           @click="handleSetPassword"
           :loading="loading"
         >
           {{ buttonText }}
         </el-button>
-        
-        <el-button 
+
+        <el-button
           v-if="canClose"
           class="password-action-btn"
           @click="handleClose"
@@ -106,6 +109,7 @@ const platformUnlockEnabled = ref(false)
 const platformUnlockBusy = ref(false)
 
 const form = reactive({
+  currentPassword: '',
   password: '',
   confirmPassword: ''
 })
@@ -117,19 +121,19 @@ const hasPassword = computed(() => PasswordManager.hasPassword())
 const canClose = computed(() => hasPassword.value)
 
 // 动态标题
-const dialogTitle = computed(() => 
+const dialogTitle = computed(() =>
   hasPassword.value ? '重新设置应用密码' : '设置应用密码'
 )
 
 // 动态提示信息
-const alertMessage = computed(() => 
-  hasPassword.value 
-    ? '重新设置新的应用密码以增强安全性' 
-    : '为了保护您的卡包数据安全，请设置应用密码'
+const alertMessage = computed(() =>
+  hasPassword.value
+    ? '修改密码需要输入当前密码；不会改变云同步密钥。'
+    : '设置密码以加密本地卡片和同步凭证。忘记密码无法找回，请保留云端备份。'
 )
 
 // 动态按钮文本
-const buttonText = computed(() => 
+const buttonText = computed(() =>
   hasPassword.value ? '更新密码' : '设置密码'
 )
 
@@ -176,7 +180,7 @@ const getPlatformUnlockErrorMessage = (error) => {
 
 // 监听自动锁定状态，如果锁定则关闭对话框
 watch(isLocked, (locked) => {
-  if (locked && visible.value) {
+  if (locked && visible.value && hasPassword.value) {
     visible.value = false
   }
 })
@@ -184,6 +188,7 @@ watch(isLocked, (locked) => {
 // 关闭对话框
 const handleClose = () => {
   if (canClose.value) {
+    form.currentPassword = ''
     form.password = ''
     form.confirmPassword = ''
     visible.value = false
@@ -194,7 +199,7 @@ const handlePlatformUnlockChange = async (enabled) => {
   platformUnlockBusy.value = true
   try {
     if (enabled) {
-      await PlatformAuthenticator.register()
+      await PlatformAuthenticator.register(form.currentPassword)
       platformUnlockEnabled.value = true
       ElMessage.success({ message: '系统解锁已开启', zIndex: 200010 })
     } else {
@@ -217,21 +222,22 @@ const handleSetPassword = async () => {
     if (!valid) return
 
     loading.value = true
-    
+
     const wasExistingPassword = hasPassword.value
-    PasswordManager.setAppPassword(form.password)
-    
+    await PasswordManager.setAppPassword(form.password, form.currentPassword)
+
     ElMessage.success({ message: wasExistingPassword ? '密码更新成功' : '密码设置成功', zIndex: 200010 })
-    
+
     // 清空表单
+    form.currentPassword = ''
     form.password = ''
     form.confirmPassword = ''
-    
+
     // 通知父组件
     emit('password-set')
     resetLockTimer()
     visible.value = false
-    
+
   } catch (error) {
     ElMessage.error({ message: error.message || '密码设置失败', zIndex: 200010 })
   } finally {

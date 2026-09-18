@@ -2,14 +2,15 @@
 
 Vue 3 + Element Plus + Vite 的本地优先卡包应用，用于管理信用卡、储蓄卡、统计分析、安全锁和 WebDAV 加密后台同步。
 
-本仓库只保留根目录 `README.md` 作为维护入口。旧的 `docs` 目录、历史审计报告和过期方案文档已经删除，避免后续维护时被旧实现误导。
+仓库总览见根目录 README；本次安全、性能修复及四端对齐方案见 [实施记录](../../docs/web-completion-and-parity-2026-09-18.md)。历史审查描述的是对应基线，不是当前未修复清单。
 
 ## 当前架构
 
 - 前端框架：Vue 3 Composition API、Element Plus、Vite、SCSS。
-- 本地主数据：IndexedDB，数据库名 `credit-card-web-local-db`，对象仓库 `kv`。
+- 本地主数据：IndexedDB，数据库名 `card-wallet-web-local-db`，对象仓库 `kv`。
 - 大体量数据：`cardData`、`cardSyncRecordsV4`、`cardSyncPendingV4`、`cardSyncMutationRevisionV4` 已迁入 IndexedDB。
-- 轻量偏好：主题、视图模式、筛选条件、表格列配置、WebDAV 配置等仍使用 `localStorage`。
+- 本地保险库：IndexedDB 版本 2，卡片、账本、历史、快照及 WebDAV 凭证使用 AES-GCM 密文；需要本地密码解锁，旧数据验证后迁移。
+- 轻量偏好：主题、视图模式、筛选条件和表格列配置使用 `localStorage`；不在这里保存新的明文同步凭证。
 - 云同步：SyncV4 账本模型 + WebDAV 自动快照，保存和刷新页面时先使用本地数据，云端同步在后台执行。
 - 同步文件：`[SyncV4][Web][自].json`，通过同步密钥加密后上传到 WebDAV。
 
@@ -43,14 +44,19 @@ VITE_BASE=/card/ pnpm build
 ## 本地验证
 
 1. 启动开发服务：`pnpm dev`。
-2. 打开浏览器控制台的 Application 面板，确认 IndexedDB 下存在 `credit-card-web-local-db`。
+2. 打开浏览器控制台的 Application 面板，确认 IndexedDB 下存在 `card-wallet-web-local-db`。
 3. 新增或编辑一张卡，确认页面很快关闭 loading，本地数据立即更新。
 4. 等待顶部同步状态变为成功，确认 WebDAV 上生成新的 `[SyncV4][Web][自].json`。
-5. 刷新页面，确认页面先显示本地数据，后台再检查云端更新。
+5. 刷新页面，先输入本地密码，解锁后显示本地数据并检查云端更新；手动锁定应立即关闭详情/统计弹窗。
+6. 本地密码和同步密钥独立；忘记本地密码只能确认重置本地密文后，使用原云端配置与同步密钥恢复。不要回退旧版本 1 的数据库代码。
 
 ## 维护注意
 
 - 不再恢复基于 `localStorage` 存储全量卡片数据的旧方案，否则数据量变大后仍会触发浏览器 quota 问题。
 - 不支持 IndexedDB 的浏览器直接提示升级或更换浏览器，不再做旧浏览器兼容。
 - 改动同步协议、卡片字段或迁移逻辑后，优先补充 `src/utils/*.test.js` 里的单元测试。
-- Web、Android、macOS 三端共用 SyncV4 数据语义，字段变更需要同时检查三端。
+- Web、Android、iOS、macOS 四端共用 SyncV4 数据语义，字段变更需要同时检查四端。
+
+## 自动验证
+
+`pnpm test:run` 保留原有测试并覆盖本地加密、并发与分页。`pnpm build` 构建生产包。CI 另外运行 `python scripts/browser-regression.py`（Playwright 1.57.0 + Chromium），使用合成卡片，不连接真实账户。必须通过 HTTPS 或 localhost 部署；服务器需提供可信证书及 WebDAV CORS 设置。

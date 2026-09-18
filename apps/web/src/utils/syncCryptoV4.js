@@ -99,7 +99,12 @@ export const decryptSyncEnvelopeV4 = async (rawEnvelope, password) => {
   const salt = base64ToBytes(encryption.salt)
   const iv = base64ToBytes(encryption.iv)
   const ciphertext = base64ToBytes(envelope.ciphertext)
-  const key = await deriveAesKey(password, salt, encryption.iterations || KDF_ITERATIONS)
+  const iterations = encryption.iterations ?? KDF_ITERATIONS
+  // 四端当前均写入 310000；为历史兼容保留合理范围，但拒绝恶意超大迭代值。
+  if (!Number.isInteger(iterations) || iterations < 100000 || iterations > 1000000 || salt.length !== SALT_BYTES || iv.length !== IV_BYTES || ciphertext.length < 16) {
+    throw new Error('云同步加密参数无效，未修改本地数据')
+  }
+  const key = await deriveAesKey(password, salt, iterations)
 
   try {
     const decrypted = await subtle.decrypt({ name: 'AES-GCM', iv }, key, ciphertext)

@@ -4,13 +4,9 @@
     <div class="password-container">
       <div class="password-form">
         <h2>应用已锁定</h2>
-        <p>请输入密码解锁</p>
+        <p>请输入本地密码解密卡片</p>
         
         <el-form @submit.prevent="handleVerify">
-          <!-- 伪装的输入框，用于欺骗和引诱浏览器的自动填充密码行为 -->
-          <input type="text" name="prevent_autofill_username" style="position: absolute; opacity: 0; pointer-events: none; width: 0; height: 0;" tabindex="-1" />
-          <input type="password" name="prevent_autofill_password" style="position: absolute; opacity: 0; pointer-events: none; width: 0; height: 0;" tabindex="-1" autocomplete="new-password" />
-          
           <el-form-item>
             <el-input
               v-model="password"
@@ -18,7 +14,7 @@
               placeholder="请输入密码"
               show-password
               size="large"
-              autocomplete="new-password"
+              autocomplete="current-password"
               @keyup.enter="handleVerify"
               ref="passwordInput"
             />
@@ -106,7 +102,7 @@ const platformUnlockLabel = computed(() => {
   return '使用系统生物识别解锁'
 })
 
-const failedAttempts = computed(() => PasswordManager.getFailedAttempts())
+const failedAttempts = ref(PasswordManager.getFailedAttempts())
 
 const refreshPlatformUnlockState = async () => {
   platformUnlockEnabled.value = PlatformAuthenticator.isStored()
@@ -124,6 +120,7 @@ const getPlatformUnlockErrorMessage = (error) => {
 }
 
 const handleVerify = async () => {
+  if (loading.value || platformUnlockLoading.value) return
   if (!password.value.trim()) {
     ElMessage.warning({
       message: '请输入密码',
@@ -143,7 +140,8 @@ const handleVerify = async () => {
   loading.value = true
   
   try {
-    const isValid = PasswordManager.verifyPassword(password.value)
+    const isValid = await PasswordManager.verifyPassword(password.value)
+    failedAttempts.value = PasswordManager.getFailedAttempts()
     
     if (isValid) {
       ElMessage.success({
@@ -165,7 +163,7 @@ const handleVerify = async () => {
     }
   } catch (error) {
     ElMessage.error({
-      message: '验证失败',
+      message: error.message || '验证失败',
       zIndex: 100000
     })
     console.error('密码验证错误:', error)
@@ -175,6 +173,7 @@ const handleVerify = async () => {
 }
 
 const handlePlatformUnlock = async () => {
+  if (loading.value || platformUnlockLoading.value) return
   platformUnlockLoading.value = true
   try {
     await PlatformAuthenticator.authenticate()
@@ -204,10 +203,7 @@ watch(show, (val) => {
     refreshPlatformUnlockState()
     nextTick(() => {
       passwordInput.value?.focus()
-      setTimeout(() => {
-        password.value = ''
-        passwordInput.value?.focus()
-      }, 50)
+
     })
   }
 })
@@ -237,7 +233,8 @@ onMounted(() => {
   background: #ffffff; /* 完美融合亮色 100% 不透明纯白色卡片 */
   border-radius: 16px;
   padding: 40px;
-  min-width: 380px;
+  width: min(380px, calc(100vw - 32px));
+  min-width: 0;
   border: 1px solid rgba(226, 232, 240, 0.8);
   box-shadow: 0 20px 40px rgba(15, 23, 42, 0.06);
   transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);

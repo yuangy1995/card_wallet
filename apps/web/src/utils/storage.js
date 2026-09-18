@@ -179,7 +179,7 @@ export class CardDataStorage {
    * @returns {Object|null} WebDAV配置对象
    */
   static getWebDAVConfig() {
-    return StorageManager.get(STORAGE_KEYS.WEBDAV_CONFIG, null)
+    return localDataStore.isUnlocked ? localDataStore.get(STORAGE_KEYS.WEBDAV_CONFIG, null) : null
   }
 
   /**
@@ -188,7 +188,7 @@ export class CardDataStorage {
    * @returns {boolean} 是否保存成功
    */
   static saveWebDAVConfig(config) {
-    return StorageManager.set(STORAGE_KEYS.WEBDAV_CONFIG, config)
+    return localDataStore.set(STORAGE_KEYS.WEBDAV_CONFIG, config)
   }
 }
 
