@@ -46,7 +46,7 @@ object WalletCardRules {
     fun searchText(card: SharedCard): String = listOf(card.bank, card.alias, card.cardNumber,
         card.level, card.type, card.country, card.equity, card.remark, card.limit.toString(),
         if (card.cardCategory == "debit") "储蓄卡 儲蓄卡 debit" else "信用卡 credit",
-        getCardBrand(card.cardNumber)).joinToString("\n").lowercase(Locale.ROOT)
+        getCardBrand(card.cardNumber, card.level)).joinToString("\n").lowercase(Locale.ROOT)
 
     fun matches(card: SharedCard, query: String, index: String = searchText(card)): Boolean {
         val text = query.trim().lowercase(Locale.ROOT)

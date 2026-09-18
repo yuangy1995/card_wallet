@@ -54,6 +54,9 @@
               {{ row.cardCategory === 'debit' ? '储蓄卡' : '信用卡' }}
             </span>
           </template>
+          <template v-else-if="column.value === 'bank'" #default="{ row }">
+            <span class="wallet-bank-cell"><WalletBrandMark :bank="row.bank" :country="row.country" /><span>{{ row.bank }}</span></span>
+          </template>
           <template v-else-if="column.value === 'cvv'" #default="scope">
             <SecureField
               v-if="scope.row.cvv"
@@ -139,6 +142,7 @@
 
 <script>
 import SecureField from '../common/SecureField.vue'
+import WalletBrandMark from '../common/WalletBrandMark.vue'
 import { ElMessageBox } from 'element-plus'
 import { Edit, View, Delete, Check, Star, StarFilled } from '@element-plus/icons-vue'
 import { ref, computed, nextTick, onMounted, onUnmounted, watch, toRef, inject } from 'vue'
@@ -167,6 +171,7 @@ export default {
   components: {
     Star, StarFilled,
     SecureField,
+    WalletBrandMark,
     Edit,
     View,
     Delete,
@@ -819,4 +824,10 @@ export default {
     padding: 8px 0;
   }
 }
+</style>
+
+<style scoped>
+.wallet-bank-cell { display:inline-flex; align-items:center; gap:6px; max-width:100%; }
+.wallet-bank-cell .wallet-brand-mark { width:24px; height:24px; }
+.wallet-bank-cell > span:last-child { min-width:0; overflow-wrap:anywhere; }
 </style>

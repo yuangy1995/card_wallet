@@ -318,7 +318,7 @@ fun MainScreen(
             val grouped = sortedCards.groupBy { card ->
                 when (groupOption) {
                     CardListGroupOption.BANK -> normalizeBankNameForMatch(card.bank).ifBlank { "未设置银行" }
-                    CardListGroupOption.BRAND -> getCardBrand(card.cardNumber)
+                    CardListGroupOption.BRAND -> getCardBrand(card.cardNumber, card.level)
                     CardListGroupOption.LEVEL -> card.level.ifBlank { "未设置级别" }
                     CardListGroupOption.COUNTRY -> card.country.ifBlank { "未设置国家/地区" }
                     CardListGroupOption.NONE -> ""
@@ -886,7 +886,7 @@ private fun CompactCardRow(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val brand = getCardBrand(card.cardNumber)
+    val brand = getCardBrand(card.cardNumber, card.level)
     val lastFour = card.cardNumber.filter(Char::isDigit).takeLast(4).ifBlank { "----" }
     val colors = remember(card.bank) { bankCardColors(card.bank) }
     Row(
@@ -1548,7 +1548,7 @@ fun CreditCardTile(
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
-    val brand = remember(card.cardNumber) { getCardBrand(card.cardNumber) }
+    val brand = remember(card.cardNumber, card.level) { getCardBrand(card.cardNumber, card.level) }
     val isDebit = card.cardCategory == "debit"
     val reminder = remember(card) {
         CardReminderRules.annualFeeDetection(card) != null ||
@@ -4814,16 +4814,12 @@ fun getOutlinedTextFieldColors(isDark: Boolean) = OutlinedTextFieldDefaults.colo
 /**
  * 智能判定卡组织
  */
-fun getCardBrand(cardNumber: String): String {
-    val clean = cardNumber.replace(" ", "")
-    return when {
-        clean.startsWith("4") -> "Visa"
-        clean.startsWith("5") -> "Mastercard"
-        clean.startsWith("62") || clean.startsWith("81") -> "UnionPay"
-        clean.startsWith("34") || clean.startsWith("37") -> "Amex"
-        clean.startsWith("35") -> "JCB"
-        clean.startsWith("6011") || clean.startsWith("64") || clean.startsWith("65") -> "Discover"
-        else -> "Unknown"
+fun getCardBrand(cardNumber: String, level: String = ""): String {
+    val network = com.example.creditcard.ui.wallet.WalletNetwork.fromCard(cardNumber, level)
+    return when (network) {
+        com.example.creditcard.ui.wallet.WalletNetwork.AMEX -> "Amex"
+        com.example.creditcard.ui.wallet.WalletNetwork.UNKNOWN -> "Unknown"
+        else -> network.label
     }
 }
 
@@ -5235,7 +5231,7 @@ fun BestUsageCardTile(
     isDark: Boolean,
     onClick: () -> Unit
 ) {
-    val brand = getCardBrand(card.cardNumber)
+    val brand = getCardBrand(card.cardNumber, card.level)
     val gradientBrush = when (brand) {
         "Visa" -> Brush.linearGradient(listOf(Color(0xFF0F2027), Color(0xFF203A43), Color(0xFF2C5364)))
         "Mastercard" -> Brush.linearGradient(listOf(Color(0xFF373B44), Color(0xFF4286f4)))

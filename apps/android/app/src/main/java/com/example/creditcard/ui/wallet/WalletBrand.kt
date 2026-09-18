@@ -2,7 +2,7 @@ package com.example.creditcard.ui.wallet
 
 import java.util.Locale
 
-/** Only known issuer names are matched. Unknown issuers keep a neutral monogram. */
+/** Only known issuer names are matched. Unknown issuers use a generic card icon. */
 internal enum class WalletBank(val code: String, val accent: Long, vararg val aliases: String) {
     CMB("cmb", 0xFFA93643, "招商银行", "招商銀行", "招行", "chinamerchantsbank", "cmb"),
     BOC("boc", 0xFF394453, "中国银行", "中國銀行", "中银香港", "中銀香港", "bankofchina", "boc", "bochk"),
@@ -60,6 +60,21 @@ internal enum class WalletNetwork(val code: String, val label: String) {
     UNKNOWN("unknown", "");
 
     companion object {
+        /** An unambiguous level hint wins; multiple hints fall back to the number. */
+        fun fromCard(number: String, level: String = ""): WalletNetwork {
+            val value = level.lowercase(Locale.ROOT)
+            val words = value.split(Regex("[^\\p{L}\\p{N}]+")).filter { it.isNotEmpty() }.toSet()
+            val hints = mutableSetOf<WalletNetwork>()
+            if (value.contains("银联") || value.contains("銀聯") || "unionpay" in words) hints.add(UNIONPAY)
+            if ("discover" in words || value.contains("发现") || value.contains("發現")) hints.add(DISCOVER)
+            if ("visa" in words) hints.add(VISA)
+            if ("mastercard" in words || value.contains("万事达") || value.contains("萬事達")) hints.add(MASTERCARD)
+            if ("jcb" in words) hints.add(JCB)
+            if ("amex" in words || "ae" in words || value.contains("american express") || value.contains("运通") || value.contains("運通")) hints.add(AMEX)
+            if ("diners" in words || value.contains("大莱") || value.contains("大萊")) hints.add(DINERS)
+            return hints.singleOrNull() ?: fromNumber(number)
+        }
+
         /** Local display hint, not a BIN lookup or a validation of card ownership. */
         fun fromNumber(number: String): WalletNetwork {
             val digits = number.filter { it in '0'..'9' }

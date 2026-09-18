@@ -14,7 +14,7 @@
         <el-descriptions :column="2" border>
           <!-- 基本信息 -->
           <el-descriptions-item label="国家">{{ cardInfo.country }}</el-descriptions-item>
-          <el-descriptions-item label="银行">{{ cardInfo.bank }}</el-descriptions-item>
+          <el-descriptions-item label="银行"><WalletBrandMark :bank="cardInfo.bank" :country="cardInfo.country" /> {{ cardInfo.bank }}</el-descriptions-item>
           <el-descriptions-item label="卡类别">{{ cardCategoryText }}</el-descriptions-item>
           <el-descriptions-item label="卡片别名">{{ cardInfo.alias }}</el-descriptions-item>
           <el-descriptions-item label="等级">{{ cardInfo.level }}</el-descriptions-item>
@@ -59,7 +59,7 @@
       <el-tab-pane label="基本信息">
         <el-descriptions :column="2" border>
           <el-descriptions-item label="国家">{{ cardInfo.country }}</el-descriptions-item>
-          <el-descriptions-item label="银行">{{ cardInfo.bank }}</el-descriptions-item>
+          <el-descriptions-item label="银行"><WalletBrandMark :bank="cardInfo.bank" :country="cardInfo.country" /> {{ cardInfo.bank }}</el-descriptions-item>
           <el-descriptions-item label="卡类别">{{ cardCategoryText }}</el-descriptions-item>
           <el-descriptions-item label="卡片别名">{{ cardInfo.alias }}</el-descriptions-item>
           <el-descriptions-item label="等级">{{ cardInfo.level }}</el-descriptions-item>
@@ -149,12 +149,14 @@
 
 <script>
 import { inject, watch } from 'vue'
+import WalletBrandMark from '../common/WalletBrandMark.vue'
 import { getDaysFromNow } from '../../utils/dateCalculator'
 import { useAutoLock } from '@/composables/useAutoLock'
 import { formatCardTimestamp } from '@/utils/cardTimestamp'
 
 export default {
   name: 'CardDetailsDialog',
+  components: { WalletBrandMark },
   
   props: {
     visible: {
