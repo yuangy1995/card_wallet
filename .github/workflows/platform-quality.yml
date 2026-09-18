@@ -90,6 +90,13 @@ jobs:
           java-version: '17'
           cache: gradle
           cache-dependency-path: apps/android/**/*.gradle.kts
+      - name: Reserve space for the Android virtual device
+        run: |
+          # This disposable Android-only runner does not use these preinstalled SDKs.
+          # Keep the repository, Android SDK, Java and Gradle caches untouched.
+          df -h /
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost /opt/hostedtoolcache/CodeQL
+          df -h /
       - name: Enable emulator acceleration
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -101,6 +108,7 @@ jobs:
           api-level: 34
           arch: x86_64
           target: google_apis
+          disk-size: 4096M
           disable-animations: true
           working-directory: apps/android
           script: bash gradlew :app:connectedDebugAndroidTest --stacktrace --max-workers=2
