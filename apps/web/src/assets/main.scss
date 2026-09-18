@@ -44,3 +44,17 @@ a,
     max-width: 1400px;
   }
 }
+
+/* 小屏将记录总数单列，确保分页的首尾按钮不会被居中布局挤出视口。 */
+@media (max-width: 520px) {
+  .wallet-pagination.el-pagination {
+    flex-wrap: wrap;
+    gap: 4px;
+    padding: 8px 4px;
+  }
+  .wallet-pagination.el-pagination .el-pagination__total {
+    flex-basis: 100%;
+    justify-content: center;
+    margin-right: 0;
+  }
+}
