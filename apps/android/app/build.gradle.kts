@@ -1,7 +1,26 @@
+import java.io.File
+
 plugins {
   alias(libs.plugins.android.application)
   alias(libs.plugins.compose.compiler)
   alias(libs.plugins.kotlin.serialization)
+}
+
+// 正式签名仅从环境读取，Debug 构建和 IDE 同步不需要发布凭据。
+val releaseSigningVariables = listOf(
+    "ANDROID_KEYSTORE_PATH", "ANDROID_KEYSTORE_PASSWORD", "ANDROID_KEY_ALIAS", "ANDROID_KEY_PASSWORD"
+)
+val releaseSigningValues = releaseSigningVariables.associateWith { providers.environmentVariable(it).orNull }
+val validateReleaseSigningEnvironment by tasks.registering {
+    doLast {
+        val missing = releaseSigningVariables.filter { releaseSigningValues[it].isNullOrBlank() }
+        check(missing.isEmpty()) { "Release 签名缺少环境变量：${missing.joinToString()}。" }
+        val keystore = File(releaseSigningValues.getValue("ANDROID_KEYSTORE_PATH")!!)
+        check(keystore.isAbsolute && keystore.isFile) { "ANDROID_KEYSTORE_PATH 必须指向存在的绝对路径。" }
+    }
+}
+tasks.matching { it.name == "preReleaseBuild" || it.name == "validateSigningRelease" }.configureEach {
+    dependsOn(validateReleaseSigningEnvironment)
 }
 
 android {
@@ -19,10 +38,11 @@ android {
 
     signingConfigs {
         create("release") {
-            storeFile = file("release.jks")
-            storePassword = "creditcard123"
-            keyAlias = "releasekey"
-            keyPassword = "creditcard123"
+            storeFile = releaseSigningValues["ANDROID_KEYSTORE_PATH"]?.let { file(it) }
+            storeType = "PKCS12"
+            storePassword = releaseSigningValues["ANDROID_KEYSTORE_PASSWORD"]
+            keyAlias = releaseSigningValues["ANDROID_KEY_ALIAS"]
+            keyPassword = releaseSigningValues["ANDROID_KEY_PASSWORD"]
             isV1SigningEnabled = true
             isV2SigningEnabled = true
         }
@@ -109,6 +129,7 @@ dependencies {
   implementation(libs.androidx.compose.material3)
   // Tooling
   debugImplementation(libs.androidx.compose.ui.tooling)
+  implementation(libs.androidx.compose.ui.tooling.preview)
   // Instrumented tests
   androidTestImplementation(libs.androidx.compose.ui.test.junit4)
   debugImplementation(libs.androidx.compose.ui.test.manifest)
@@ -134,7 +155,7 @@ dependencies {
   // OkHttp 网络连接与 JSON 序列化支持
   implementation("com.squareup.okhttp3:okhttp:4.12.0")
   implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
-  
+
   // Compose 扩展矢量图标库
   implementation("androidx.compose.material:material-icons-extended")
 
