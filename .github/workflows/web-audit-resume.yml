@@ -1,0 +1,22 @@
+name: Web audit resume snapshot
+on:
+  pull_request:
+    paths: ['.github/workflows/web-audit-resume.yml']
+permissions:
+  contents: read
+jobs:
+  snapshot:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: dca9b6851f4cbc4026a236c760ce4f03fc1df15c
+          persist-credentials: false
+      - run: tar -czf /tmp/web-resume.tgz apps/web docs .github/workflows/web-quality.yml AGENTS.md
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web-resume-source
+          path: /tmp/web-resume.tgz
+          retention-days: 1
