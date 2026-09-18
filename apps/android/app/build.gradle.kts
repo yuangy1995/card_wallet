@@ -6,7 +6,7 @@ plugins {
   alias(libs.plugins.kotlin.serialization)
 }
 
-// 正式签名仅从环境读取，Debug 构建和 IDE 同步不需要发布凭据。
+// Release 凭据只从环境读取；Debug 构建和 IDE 同步不需要发布密钥。
 val releaseSigningVariables = listOf(
     "ANDROID_KEYSTORE_PATH", "ANDROID_KEYSTORE_PASSWORD", "ANDROID_KEY_ALIAS", "ANDROID_KEY_PASSWORD"
 )
@@ -14,11 +14,12 @@ val releaseSigningValues = releaseSigningVariables.associateWith { providers.env
 val validateReleaseSigningEnvironment by tasks.registering {
     doLast {
         val missing = releaseSigningVariables.filter { releaseSigningValues[it].isNullOrBlank() }
-        check(missing.isEmpty()) { "Release 签名缺少环境变量：${missing.joinToString()}。" }
+        check(missing.isEmpty()) { "Release 签名缺少环境变量：${missing.joinToString()}。参见 docs/signing-security.md。" }
         val keystore = File(releaseSigningValues.getValue("ANDROID_KEYSTORE_PATH")!!)
         check(keystore.isAbsolute && keystore.isFile) { "ANDROID_KEYSTORE_PATH 必须指向存在的绝对路径。" }
     }
 }
+// 在任何 Release 打包/签名前失败，不能默默产出未签名包或回退到 Debug 签名。
 tasks.matching { it.name == "preReleaseBuild" || it.name == "validateSigningRelease" }.configureEach {
     dependsOn(validateReleaseSigningEnvironment)
 }
@@ -32,8 +33,8 @@ android {
         applicationId = "com.applist.cardwallet"
         minSdk = 23
         targetSdk = 36
-        versionCode = providers.gradleProperty("releaseVersionCode").orElse("4").get().toInt()
-        versionName = providers.gradleProperty("releaseVersionName").orElse("1.2.0").get()
+        versionCode = providers.gradleProperty("releaseVersionCode").orElse("5").get().toInt()
+        versionName = providers.gradleProperty("releaseVersionName").orElse("1.3.0").get()
     }
 
     signingConfigs {
@@ -129,7 +130,6 @@ dependencies {
   implementation(libs.androidx.compose.material3)
   // Tooling
   debugImplementation(libs.androidx.compose.ui.tooling)
-  implementation(libs.androidx.compose.ui.tooling.preview)
   // Instrumented tests
   androidTestImplementation(libs.androidx.compose.ui.test.junit4)
   debugImplementation(libs.androidx.compose.ui.test.manifest)

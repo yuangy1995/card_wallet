@@ -18,12 +18,12 @@ fi
 if [ -z "${JAVA_HOME:-}" ] && [ -d "/Applications/Android Studio.app/Contents/jbr/Contents/Home" ]; then
     export JAVA_HOME="/Applications/Android Studio.app/Contents/jbr/Contents/Home"
 fi
-./gradlew :app:assembleRelease -PreleaseVersionName="$VERSION" -PreleaseVersionCode="$VERSION_CODE"
+./gradlew --no-daemon --no-configuration-cache :app:assembleRelease -PreleaseVersionName="$VERSION" -PreleaseVersionCode="$VERSION_CODE"
 mkdir -p "$OUTPUT"
 ASSET="CardWallet-Android-$VERSION_CODE.apk"
 cp app/build/outputs/apk/release/app-release.apk "$OUTPUT/$ASSET"
 shasum -a 256 "$OUTPUT/$ASSET"
 echo "已生成：$OUTPUT/$ASSET"
-echo "发布仓库：yuangy1995/card-wallet-releases"
+echo "发布仓库：yuangy1995/card_wallet"
 echo "Release 标签：${TAG}（正式版，不勾选预发布）"
 echo "上传 APK 后 GitHub 自动生成 SHA-256 digest，客户端验证后才允许安装。"

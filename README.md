@@ -4,7 +4,7 @@
 
 英文项目名为 **Card Wallet**，仓库及本地总目录使用 `card_wallet`。目前管理信用卡和储蓄卡，命名不限定卡片类型，便于以后扩展。
 
-GitHub 私有仓库：[yuangy1995/card_wallet](https://github.com/yuangy1995/card_wallet)。
+GitHub 公开仓库：[yuangy1995/card_wallet](https://github.com/yuangy1995/card_wallet)。
 
 ## 项目目录
 
@@ -44,7 +44,7 @@ make android-test
 
 各端已有说明见 [Web](apps/web/README.md)、[macOS](apps/macos/README.md)、[Android](apps/android/README.md)。运行原有打包脚本时，先进入对应客户端目录。
 
-Android 支持通过公开产物仓库检查更新、下载与安装，发布步骤见 [Android 更新发布说明](apps/android/UPDATE_RELEASES.md)。源码仓库仍保持私有。
+Android 和 macOS 直接通过本仓库 Releases 发布及检查更新，不再依赖独立产物仓库。发布步骤见 [签名与公开发布](docs/signing-security.md) 和 [Android 更新发布说明](apps/android/UPDATE_RELEASES.md)。
 
 ## 协作约定
 
@@ -56,6 +56,6 @@ Android 支持通过公开产物仓库检查更新、下载与安装，发布步
 
 ## 迁移与安全
 
-本仓库为私有仓库。原 Android 历史中包含发布签名文件和明文签名配置，本次为保留历史和应用升级身份而原样导入；私有仓库不会消除旧公开仓库中的既有暴露。未经单独安全处理，不要将本仓库公开，也不要新增签名材料或凭证到版本控制。
+源码保持公开；发布私钥、密码和本地配置不得提交。Android 已移除当前代码中的旧签名材料；正式构建只接受 CI 注入的新签名，macOS 只提交更新公钥。密钥恢复和发布流程见 [签名与公开发布](docs/signing-security.md)。
 
-四个旧本地项目已按用户要求移到废纸篓，四个旧 GitHub 仓库也已删除；原始代码历史保存在本仓库中，迁移前的本地 Git 备份继续保留。日常开发只使用本仓库。迁移来源、历史查询方式和验证情况见 [迁移记录](docs/migration-2026-09-08.md)。
+删除当前文件不等于清除了 Git 历史。历史提交和未合并分支仍需单独清理；不要把已泄漏的旧签名重新放入 Secrets。当前安全迁移不改变应用标识、卡片数据格式或本地存储位置。迁移前先备份数据，Android 旧签名安装需重装，macOS 需手动替换一次应用。
