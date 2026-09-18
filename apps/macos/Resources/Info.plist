@@ -5,7 +5,7 @@
 	<key>SUFeedURL</key>
 	<string>https://github.com/yuangy1995/card_wallet/releases/latest/download/appcast.xml</string>
 	<key>SUPublicEDKey</key>
-	<string>zYvJmq2G5KNcMa/wbxZwKrd+LmjFB3c1khtPWPj6qFo=</string>
+	<string>pApo/V8EyPNxYxyHqN2PA3n9fjFz5CWSKIeGxTFf6Fw=</string>
 	<key>SUEnableInstallerLauncherService</key>
 	<true/>
 	<key>SUEnableAutomaticChecks</key>

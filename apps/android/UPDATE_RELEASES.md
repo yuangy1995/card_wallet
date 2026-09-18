@@ -1,69 +1,35 @@
-# Android 在线更新
+# Android 在线更新与公开发布
 
-## 用户体验
+源码与 APK 统一发布在 `yuangy1995/card_wallet`。客户端分页读取本仓库 Releases，按 Android versionCode 筛选正式版本，忽略 Mac、草稿和预发布；不依赖 Latest。下载地址仅接受本仓库 HTTPS 地址，并验证 GitHub SHA-256、包名、版本和安装签名。
 
-- 默认开启自动检查：在应用解锁后、前台使用时最多每 24 小时检查一次；关闭应用不常驻、不后台轮询。网络失败静默处理，手动检查可立即重试。
-- 设置 → 软件更新：关闭自动检查、手动检查、查看更新说明、下载、取消与重新下载。
-- 有正式新版本时提醒；用户选择下载后显示大小及进度。下载属于应用内任务，旋转屏幕继续；系统终止应用后需要重新下载。
-- 下载验证成功后，用户点击安装。Android 8 及以上首次需要允许卡包安装应用；返回后再次点击安装，通过系统安装器确认。取消安装可以再次进入更新页面安装。
-- 应用标识、发布签名、SQLite 数据库及同步协议保持不变；覆盖安装保留原数据。不要卸载旧版来更新。
-- 调试包与正式包签名不同，调试安装不会接受正式版更新，这是预期的签名保护。
+## 本次迁移
 
-## 发布约定
+2026-09-18 移除已暴露的旧签名，改用仓库外生成的新密钥。包名 `com.applist.cardwallet` 和数据格式不变，但新签名不能覆盖旧签名安装。先导出并确认备份，再卸载旧版、安装新版并恢复；后续同一新签名版本可正常覆盖更新。不要重新使用旧密钥或建立旧签名兼容链。
 
-使用与 macOS 相同的公开产物仓库 **yuangy1995/card_wallet**，私有源码仓库不变，不向客户端写入 GitHub token。
+## 发布配置
 
-| 内容 | 约定 |
-| --- | --- |
-| 标签 | `android-v<三段版本号>-<versionCode>`，例如 `android-v1.1.0-2` |
-| 安装包 | `CardWallet-Android-<versionCode>.apk`，例如 `CardWallet-Android-2.apk` |
-| 状态 | 已发布的正式版；草稿和预发布不会进入更新通道 |
-| 说明 | Release 正文展示为更新说明，建议使用简短纯文本 |
-| 签名 | 沿用当前正式版签名，不更换 applicationId 或签名身份 |
-| 编号 | 每次正式更新必须递增，不能只改 versionName |
+签名 Secrets 为 `ANDROID_KEYSTORE_BASE64`、`ANDROID_KEYSTORE_PASSWORD`、`ANDROID_KEY_ALIAS`、`ANDROID_KEY_PASSWORD`、`ANDROID_SIGNING_CERT_SHA256`。公开证书指纹记录在 `signing-certificate.sha256`。配置方法见 [签名与公开发布](../../docs/signing-security.md)。
 
-### GitHub Actions 自动打包并发布（推荐）
-
-私有源码仓库的 `Publish Android release` 工作流（`.github/workflows/android-release.yml`）从 `main` 手动触发，一次触发后自动完成测试、正式签名构建、APK 校验、上传草稿、远端 SHA-256 核验及正式发布。不需要下载产物后再手工上传，也不会因普通提交或 PR 自动发布。
-
-两端共用私有源码仓库的 `RELEASES_TOKEN` Secret：使用 Fine-grained personal access token，仅选择公开产物仓库 `yuangy1995/card_wallet`，授予 Contents: Read and write，Metadata 只读。不要把本机全权限登录令牌复制到 CI，也不要把令牌写入客户端、源码或日志。令牌到期前须更新此 Secret；缺少权限时正式发布会停止，不自动改走人工上传。
-
-Android 沿用私有仓库现有签名配置与签名身份，不新增或轮换签名材料。工作流以已发布的 1.2.0（4）签名证书 SHA-256 为基准，验证 APK 应用标识、版本、最低系统版本、非调试状态及 v1/v2 签名；校验失败不得发布。公开附件仅包含 APK，不包含源码、签名文件、测试报告或本地配置。
-
-每次发布：
-
-1. 修改 `app/build.gradle.kts` 的默认 `releaseVersionName`、`releaseVersionCode`，版本编号必须递增；准备 `release-notes/<版本>.md`，只写新增功能与修复问题。提交到私有仓库 `main`。
-2. 在 Actions → **Publish Android release** 中选择 `main`，填写与工程一致的版本和版本编号，保留默认开启的 `publish`。例如：
-
-   ```bash
-   gh workflow run android-release.yml --repo yuangy1995/card_wallet --ref main \
-     -f version=1.2.0 -f version_code=4 -f publish=true
-   ```
-
-   示例中的 1.2.0（4）已发布，不能重复发布；实际使用下一次递增后的版本。
-3. 工作流拒绝已有标签和未递增版本；测试、签名、上传及公开下载校验全部成功后，才视为发布完成。上传或校验失败可能保留草稿，不覆盖、删除或重建已有发布。
-
-关闭 `publish` 可进行演练：完成相同的测试、签名构建和 APK 校验，仅把 APK 存为私有工作流附件，保留 14 天，不上传公开仓库。演练允许使用当前已发布版本，但不能据此认定公开发布链路已验证。
-
-2026-09-14 的 [GitHub 云端演练](https://github.com/yuangy1995/card_wallet/actions/runs/34861142266) 已通过，源码为 `7a8ab3a`：5 项发布校验测试、Android 单元测试、正式 APK 构建及现有签名证书核验均成功。此次使用已有 1.2.0（4）版本且关闭 `publish`，只保存私有构建附件，没有覆盖公开的 1.2.0，也没有验证 Android 的公开上传步骤。
-
-两端发布使用同一并发组串行执行。Mac 发布设为 Latest；Android 始终使用 `--latest=false`，避免破坏 Mac 的固定更新地址。Android 客户端仍按自己的版本编号筛选正式版，不依赖 Latest。
-
-旧 Release 仅在明确要求清理时删除，不随每次发布自动删除。清理前备份其说明、附件和校验值，确认新版本与对应更新入口可用，至少保留每个平台最新正式版。必要时可从备份恢复发布；删除旧 Release 不会让已安装新版自动降级。
-
-### 本地生成发布附件（备用）
-
-在 Android 客户端目录执行：
+工作流仅从 `main` 手动执行。发布使用 GitHub 临时 `GITHUB_TOKEN` 和 job 的 `contents: write`，不需要跨仓库 PAT。签名文件只恢复到 runner 临时目录，完成构建后始终清理；正式构建不使用 Gradle 配置缓存、守护进程或发布缓存，缺失签名就停止。
 
 ```bash
-bash prepare-update.sh 1.1.0 2
+gh workflow run android-release.yml --repo yuangy1995/card_wallet --ref main \
+  -f version=1.3.0 -f version_code=5 -f publish=true
 ```
 
-脚本将已签名 APK 放在 `dist/updates/<标签>/` 并输出校验值，不清理历史发布文件、不上传；与旧版打包脚本的 `releases/` 输出隔离。确认版本与测试后，在公开仓库创建对应 Release 并附上生成的 APK。不要上传源码、签名材料或本地配置。不得覆盖 Mac 的 `appcast.xml`。
+准备版本为 1.3.0（5）。每次后续发布递增 `app/build.gradle.kts` 中默认版本和版本编号，准备 `release-notes/<版本>.md` 并提交到 main。标签为 `android-v<版本>-<编号>`，附件为 `CardWallet-Android-<编号>.apk`。创建标签时绑定实际构建提交。
 
-客户端分页读取 Releases，按 Android 安装包数字版本编号选择最高的正式版；不会受 Mac 的最新发布时间干扰。下载 URL 限定官方仓库的 HTTPS 资源；需要 GitHub 生成的 SHA-256 digest，验证完整大小与摘要，再核对 APK 应用标识、版本、最低系统要求及现有签名。没有合规的 Android 新版本时不会提示升级。
+流程包含回归测试、正式签名构建、独立证书校验、草稿上传、远端文件大小和 SHA-256 核验以及公开下载校验。Android 发布始终不更改 Latest，防止影响 Mac 的固定更新入口。不要将触发成功当作发布完成。
 
-本次接入更新能力的旧版仍需先手动覆盖安装一次，此后才可通过应用内更新。
+关闭 `publish` 可演练；APK 仅作为工作流附件保留 14 天。公开仓库的附件不是私有存储，不上传私钥、凭据或真实卡片数据。上传失败可能留下草稿，不自动覆盖已有 Release。
+
+本地备用打包需要相同的签名环境变量（以 `ANDROID_KEYSTORE_PATH` 指向绝对路径替代 Base64）：
+
+```bash
+bash prepare-update.sh 1.3.0 5
+```
+
+只有新仓库的 Android 与 Mac 正式发布均验证通过、维护者已安装新版后，才删除旧产物仓库。当前源码清理不代表 Git 历史和其他分支已清除。
 
 ## 设计与验证
 
