@@ -1,0 +1,94 @@
+name: Complete retired branch integration
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/integrate-retired-branches-once.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: card-wallet-migration-maintenance
+  cancel-in-progress: false
+jobs:
+  integrate:
+    if: github.repository == 'yuangy1995/card_wallet' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      commit: ${{ steps.integration.outputs.commit }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Prepare reviewed integration on an isolated branch
+        id: integration
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          git fetch origin '+refs/heads/*:refs/remotes/origin/*'
+          test "$(git rev-parse origin/main)" = "$GITHUB_SHA"
+          test "$(git rev-parse origin/codex/four-platform-parity-completion-20260918)" = e8b8333b778927d9206b2f7a5d2a93ec52cf6bec
+          test "$(git rev-parse origin/codex/four-platform-parity-stages)" = 6948ec4e68eb54a6bda743c697e1e47c3affbbb1
+          python3 .migration/integrate-reviewed.py
+          git add -- apps contracts docs
+          git diff --cached --check
+          python3 scripts/check-signing-secrets.py
+          python3 -m unittest discover -s scripts -p 'test_*security.py'
+          python3 -m unittest discover -s scripts -p 'test_signing_scan_scope.py'
+          python3 -m unittest discover -s scripts -p 'test_public_release_migration.py'
+          python3 -m unittest discover -s apps/android/scripts -p 'test_*.py'
+          git config user.name 'lovelife'
+          git config user.email '32153802+yuangy1995@users.noreply.github.com'
+          tree=$(git write-tree)
+          commit=$(git commit-tree "$tree" -p "$GITHUB_SHA" -p e8b8333b778927d9206b2f7a5d2a93ec52cf6bec -p 6948ec4e68eb54a6bda743c697e1e47c3affbbb1 -m '整合两个旧对齐分支：保留未知字段，保留主线加密存储和品牌实现')
+          gh auth setup-git
+          git push --force-with-lease=refs/heads/codex/public-migration-finish-20260918: origin "$commit:refs/heads/codex/public-migration-finish-20260918"
+          echo "commit=$commit" >> "$GITHUB_OUTPUT"
+  quality:
+    needs: integrate
+    uses: ./.github/workflows/platform-quality.yml
+    with:
+      checkout_ref: ${{ needs.integrate.outputs.commit }}
+    permissions:
+      contents: read
+  finalize:
+    needs: [integrate, quality]
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.integrate.outputs.commit }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Publish verified integration and delete only unchanged merged branches
+        env:
+          GH_TOKEN: ${{ github.token }}
+          INTEGRATION_COMMIT: ${{ needs.integrate.outputs.commit }}
+        run: |
+          set -euo pipefail
+          git fetch origin '+refs/heads/*:refs/remotes/origin/*'
+          test "$(git rev-parse origin/main)" = "$GITHUB_SHA"
+          test "$(git rev-parse origin/codex/public-migration-finish-20260918)" = "$INTEGRATION_COMMIT"
+          test "$(git rev-parse origin/codex/four-platform-parity-completion-20260918)" = e8b8333b778927d9206b2f7a5d2a93ec52cf6bec
+          test "$(git rev-parse origin/codex/four-platform-parity-stages)" = 6948ec4e68eb54a6bda743c697e1e47c3affbbb1
+          for ancestor in "$GITHUB_SHA" e8b8333b778927d9206b2f7a5d2a93ec52cf6bec 6948ec4e68eb54a6bda743c697e1e47c3affbbb1; do
+            git merge-base --is-ancestor "$ancestor" "$INTEGRATION_COMMIT"
+          done
+          gh auth setup-git
+          git push --atomic \
+            --force-with-lease="refs/heads/main:$GITHUB_SHA" \
+            --force-with-lease=refs/heads/codex/four-platform-parity-completion-20260918:e8b8333b778927d9206b2f7a5d2a93ec52cf6bec \
+            --force-with-lease=refs/heads/codex/four-platform-parity-stages:6948ec4e68eb54a6bda743c697e1e47c3affbbb1 \
+            --force-with-lease="refs/heads/codex/public-migration-finish-20260918:$INTEGRATION_COMMIT" \
+            origin "$INTEGRATION_COMMIT:refs/heads/main" \
+            :refs/heads/codex/four-platform-parity-completion-20260918 \
+            :refs/heads/codex/four-platform-parity-stages \
+            :refs/heads/codex/public-migration-finish-20260918
+          echo "四端回归通过；两个旧分支实质整合完成，仅保留 main。" >> "$GITHUB_STEP_SUMMARY"
