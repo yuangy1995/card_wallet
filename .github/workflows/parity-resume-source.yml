@@ -1,0 +1,38 @@
+name: Parity resume source
+on:
+  push:
+    branches: [codex/four-platform-parity-completion-20260918]
+    paths: [.github/workflows/parity-resume-source.yml]
+permissions:
+  contents: read
+jobs:
+  source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Package source without signing materials or Git credentials
+        shell: python
+        run: |
+          import io, pathlib, subprocess, tarfile
+          refs = {'current':'7fba879873fbc733c33876f2edf67274600ff7f9','previous':'6948ec4e68eb54a6bda743c697e1e47c3affbbb1','main':'25e7f1760f8cb94745f349e4fa7921fbbe8bf36f'}
+          blocked = {'.p12','.pfx','.jks','.keystore','.mobileprovision','.provisionprofile','.pem','.key','.cer','.ipa','.dmg','.apk','.aab','.zip'}
+          with tarfile.open('/tmp/parity-source.tgz','w:gz') as out:
+            for label, ref in refs.items():
+              raw = subprocess.check_output(['git','archive',ref])
+              with tarfile.open(fileobj=io.BytesIO(raw)) as archive:
+                for item in archive:
+                  path = pathlib.PurePosixPath(item.name)
+                  if not item.isfile() or path.suffix.lower() in blocked or any(x.lower() in {'signing','secrets','certificates','keystore'} or x.startswith('.env') for x in path.parts): continue
+                  if item.size > 4000000: continue
+                  body = archive.extractfile(item).read()
+                  entry = tarfile.TarInfo(label+'/'+item.name); entry.size=len(body); entry.mode=item.mode
+                  out.addfile(entry,io.BytesIO(body))
+      - uses: actions/upload-artifact@v4
+        with:
+          name: parity-resume-source
+          path: /tmp/parity-source.tgz
+          retention-days: 1
