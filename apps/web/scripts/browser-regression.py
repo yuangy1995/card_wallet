@@ -5,7 +5,7 @@ Requires playwright==1.57.0 and its Chromium browser (CI installs both).
 import functools
 import http.server
 import json
-import os
+import traceback
 from pathlib import Path
 import subprocess
 import threading
@@ -86,7 +86,9 @@ with sync_playwright() as pw:
         expect(page.locator('.credit-card-table')).to_contain_text('Card-1999')
         page.locator('.omni-search-input input').fill('')
         expect(page.locator('.credit-card-table .el-table__body tr')).to_have_count(50)
-        page.get_by_role('radio', name='卡片', exact=True).check()
+        results['full_dataset_search'] = True
+        page.locator('.el-radio-button').filter(has=page.get_by_role('radio', name='卡片', exact=True)).click()
+        expect(page.get_by_role('radio', name='卡片', exact=True)).to_be_checked()
         expect(page.locator('.physics-card-wrapper')).to_have_count(24, timeout=15000)
         page.screenshot(path=str(OUT / 'cards-light.png'), full_page=True)
         page.emulate_media(color_scheme='dark')
@@ -122,7 +124,7 @@ with sync_playwright() as pw:
         results['page_errors'] = errors
     except Exception:
         page.screenshot(path=str(OUT / 'failure.png'), full_page=True)
-        (OUT / 'failure.txt').write_text(page.locator('body').inner_text() + '\n\n' + repr(errors), encoding='utf-8')
+        (OUT / 'failure.txt').write_text(traceback.format_exc() + '\n\n' + page.locator('body').inner_text() + '\n\n' + repr(errors), encoding='utf-8')
         raise
     finally:
         (OUT / 'results.json').write_text(json.dumps(results, ensure_ascii=False, indent=2), encoding='utf-8')
