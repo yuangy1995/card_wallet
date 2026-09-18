@@ -58,3 +58,39 @@ a,
     margin-right: 0;
   }
 }
+
+/* 控件按完整按钮组换行，不让左右工具栏争抢剩余宽度造成文字重叠。 */
+.app-container .main_body .control-center-panel {
+  .toolbar-left {
+    flex: 1 1 680px;
+    flex-wrap: wrap;
+  }
+  .view-mode-selector {
+    flex: 0 0 auto;
+    flex-wrap: nowrap;
+  }
+  .divider-line {
+    flex: 0 0 1px;
+  }
+}
+
+@media (max-width: 768px) {
+  .app-container .main_body .control-center-panel {
+    .toolbar-left,
+    .toolbar-center,
+    .toolbar-right {
+      flex: 1 1 100%;
+      min-width: 0;
+      flex-wrap: wrap;
+      justify-content: flex-start;
+      margin-left: 0;
+      gap: 8px;
+    }
+    .divider-line { display: none; }
+    .toolbar-left .omni-search-box {
+      flex: 1 1 100%;
+      width: 100% !important;
+      min-width: 0;
+    }
+  }
+}
