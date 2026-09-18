@@ -30,6 +30,16 @@ class PublicReleaseMigrationTests(unittest.TestCase):
         self.assertIn('--latest=false', android)
         self.assertIn('Delete temporary signing key', android)
 
+    def test_android_setup_does_not_install_retired_tools(self):
+        text = (ROOT / '.github/workflows/android-release.yml').read_text()
+        setup = re.search(r'uses: android-actions/setup-android@v3\n(.*?)(?=\n      - |\Z)', text, re.S)
+        self.assertIsNotNone(setup)
+        packages = re.search(r'^\s+packages:\s*([^\n]+)', setup.group(1), re.M)
+        self.assertIsNotNone(packages, '不能回退到包含 tools 的默认 SDK 包列表')
+        names = packages.group(1).strip("\"' ").split()
+        self.assertIn('platform-tools', names)
+        self.assertNotIn('tools', names)
+
     def test_updater_and_release_verifiers_agree(self):
         names = ('apps/android/app/src/main/java/com/example/creditcard/update/GitHubRelease.kt',
                  'apps/android/prepare-update.sh', 'apps/macos/prepare-update.sh', 'apps/macos/scripts/verify-update.swift')
