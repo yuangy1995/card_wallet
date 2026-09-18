@@ -22,9 +22,11 @@ jobs:
         run: |
           python3 - <<'PY'
           import pathlib, base64, gzip, hashlib, subprocess
-          parts = [pathlib.Path(f'.parity-transfer/stage1-{i:02}.b64') for i in range(1,6)]
+          names = ['01','02a','02b','02c','02d','03a','03b','04a','04c','04d']
+          parts = [pathlib.Path(f'.parity-transfer/stage2-{n}.b64') for n in names]
+          for p in parts: print(p.name, len(p.read_text().strip()), hashlib.sha256(p.read_bytes()).hexdigest())
           data = gzip.decompress(base64.b64decode(''.join(p.read_text().strip() for p in parts), validate=True))
-          assert hashlib.sha256(data).hexdigest() == 'e4be60d734e8f27f729d93bae65015ad748565ebc6c4dac216713ae77338a942', 'Source patch checksum mismatch'
+          assert hashlib.sha256(data).hexdigest() == '76e914a6ccf5b4f0a78b9f0f23ed9cd51d905baa540d2617a2aa97fdb7e9dc5e', 'Source patch checksum mismatch'
           pathlib.Path('/tmp/verified.patch').write_bytes(data)
           subprocess.run(['git','apply','--check','/tmp/verified.patch'],check=True)
           subprocess.run(['git','apply','/tmp/verified.patch'],check=True)
@@ -33,7 +35,7 @@ jobs:
           git config user.email '32153802+yuangy1995@users.noreply.github.com'
           git add apps contracts
           git rm -r .parity-transfer
-          git commit -m '第一阶段：统一四端额度日期规则并接入共同同步契约测试'
+          git commit -m '第二阶段：对齐四端搜索排序及偏好保存并修复通知并发构建'
           git push origin HEAD:codex/four-platform-parity-20260918
           echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
   quality:
