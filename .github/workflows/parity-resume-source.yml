@@ -1,0 +1,37 @@
+name: Parity resume source
+on:
+  push:
+    branches: [codex/four-platform-parity-20260918]
+    paths: [.github/workflows/parity-resume-source.yml]
+permissions:
+  contents: read
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 217079d4f347702e50635acb25deb9f871521a5f
+          persist-credentials: false
+      - name: Snapshot source only
+        run: |
+          python3 - <<'PY'
+          import pathlib, subprocess, tarfile
+          files = subprocess.check_output(['git', 'ls-files', '-z']).decode().split('\0')
+          denied = {'.jks', '.keystore', '.p12', '.pfx', '.pem', '.key', '.cer', '.mobileprovision'}
+          with tarfile.open('/tmp/parity-resume.tgz', 'w:gz') as out:
+              for name in files:
+                  if not name: continue
+                  p = pathlib.Path(name)
+                  if p.suffix.lower() in denied or any(s in p.parts for s in ('signing','keystore','certificates','secrets')) or p.name in ('local.properties', '.env'): continue
+                  if p.is_file(): out.add(p, arcname=name, recursive=False)
+          pathlib.Path('/tmp/source-commit.txt').write_text(subprocess.check_output(['git','rev-parse','HEAD']).decode())
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: parity-resume-source
+          path: |
+            /tmp/parity-resume.tgz
+            /tmp/source-commit.txt
+          retention-days: 1
