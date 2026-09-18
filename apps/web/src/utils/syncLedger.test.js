@@ -161,4 +161,13 @@ describe('web sync ledger', () => {
     expect(storedRecords[0].cardId).toBe('reactive-card')
     expect(storedRecords[0].card.bank).toBe('Test Bank')
   })
+  it('preserves the last local edit even when all saves share one millisecond', async () => {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(new Date('2026-09-18T00:00:00Z'))
+    await cardSyncLedger.initialize([])
+    for (let i = 0; i < 20; i++) await cardSyncLedger.commit([{ ...card('burst'), bank: String(i) }])
+    expect(activeCards(cardSyncLedger.load())[0].bank).toBe('19')
+    expect(Date.parse(cardSyncLedger.load()[0].changedAt)).toBe(Date.now() + 19)
+  })
+
 })

@@ -57,8 +57,8 @@ export function useAutoLock() {
     startCountdown(remainingMs)
   }
 
-  const lockApp = () => {
-    PasswordManager.lockApp()
+  const lockApp = (broadcast = true) => {
+    PasswordManager.lockApp(broadcast)
     isLocked.value = true
     clearLockTimer()
   }
@@ -148,6 +148,14 @@ export function useAutoLock() {
     }
     document.addEventListener('visibilitychange', visibilityChangeHandler)
     storageChangeHandler = (e) => {
+      if (e.key === PasswordManager.LOCK_STATE_KEY && e.newValue) {
+        try {
+          if (JSON.parse(e.newValue)?.isLocked) {
+            lockApp(false) // 接收到的锁定不再回广播，避免标签页互相重复锁定。
+            return
+          }
+        } catch { /* 无效的外部值不改变当前会话。 */ }
+      }
       if (e.key === null || [
         PasswordManager.LOCK_STATE_KEY,
         PasswordManager.LAST_ACTIVITY_KEY,

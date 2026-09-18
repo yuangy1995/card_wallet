@@ -3,7 +3,7 @@ import { PasswordManager } from './passwordManager'
 import { STORAGE_KEYS } from '@/config/constants'
 
 const storage = vi.hoisted(() => ({ get: vi.fn(), set: vi.fn(), has: vi.fn(), remove: vi.fn() }))
-const database = vi.hoisted(() => ({ initialized: true, initialize: vi.fn(), remove: vi.fn() }))
+const database = vi.hoisted(() => ({ initialized: true, initialize: vi.fn(), remove: vi.fn(), enableVault: vi.fn(), lock: vi.fn() }))
 vi.mock('./storage', () => ({ StorageManager: storage }))
 vi.mock('./indexedDbStorage', () => ({ localDataStore: database }))
 
@@ -16,9 +16,12 @@ describe('password persistence and reset', () => {
     database.remove.mockResolvedValue(true)
   })
 
-  it('does not report password setup success when persistence fails', () => {
-    storage.set.mockReturnValue(false)
-    expect(() => PasswordManager.setAppPassword('test-password')).toThrow('密码未能保存')
+  it('does not report password setup success when persistence fails', async () => {
+    storage.has.mockReturnValue(false)
+    storage.get.mockReturnValue(null)
+    vi.stubGlobal('localStorage', { getItem: () => null })
+    database.enableVault.mockRejectedValueOnce(new Error('密码未能保存'))
+    await expect(PasswordManager.setAppPassword('test-password')).rejects.toThrow('密码未能保存')
     expect(storage.remove).not.toHaveBeenCalled()
   })
 

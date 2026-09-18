@@ -23,6 +23,14 @@ const createDatabase = () => {
           queueMicrotask(() => transaction.onabort?.())
         },
         objectStore: () => ({
+          get(key) {
+            const request = {}
+            queueMicrotask(() => {
+              request.result = values.has(key) ? { key, value: structuredClone(values.get(key)) } : undefined
+              request.onsuccess?.()
+            })
+            return request
+          },
           getAll() {
             const request = {}
             queueMicrotask(() => {

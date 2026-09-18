@@ -108,4 +108,15 @@ describe('automatic lock timing', () => {
     window.dispatchEvent(new StorageEvent('storage', { key: manager.LOCK_STATE_KEY }))
     expect(manager.hasPassword).not.toHaveBeenCalled()
   })
+  it('honors a received lock even when shared storage has since been unlocked', () => {
+    mount()
+    state.locked = false // 另一页已再次写入解锁值，但排队的锁定事件仍须清除本页密钥。
+    window.dispatchEvent(new StorageEvent('storage', {
+      key: manager.LOCK_STATE_KEY, newValue: JSON.stringify({ isLocked: true })
+    }))
+    expect(lock.isLocked.value).toBe(true)
+    expect(manager.lockApp).toHaveBeenLastCalledWith(false)
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
 })
