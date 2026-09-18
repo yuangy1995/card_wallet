@@ -12,8 +12,8 @@ APP_PATH="$1"
 PLIST="$APP_PATH/Contents/Info.plist"
 SPARKLE_BIN="build/SourcePackages/artifacts/sparkle/Sparkle/bin"
 ACCOUNT="com.applist.cardwallet.mac"
-KEY_ACCOUNT="com.applist.cardwallet.mac.public"
-REPOSITORY="yuangy1995/card-wallet-releases"
+KEY_ACCOUNT="com.applist.cardwallet.mac.public-20260918"
+REPOSITORY="yuangy1995/card_wallet"
 
 if [ ! -x "$SPARKLE_BIN/generate_appcast" ]; then
     echo '请先按 README 解析 Sparkle 依赖。' >&2

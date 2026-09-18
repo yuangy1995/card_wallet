@@ -14,6 +14,14 @@ class GitHubReleaseTest {
         )))
     }
 
+    @Test fun rejectsRetiredReleaseRepository() {
+        assertEquals("yuangy1995/card_wallet", UPDATE_REPOSITORY)
+        val valid = release(3)
+        val asset = valid.assets.single()
+        val retired = asset.copy(url = asset.url.replace(UPDATE_REPOSITORY, "yuangy1995/card-wallet-releases"))
+        assertNull(selectAndroidRelease(listOf(valid.copy(assets = listOf(retired))), 2))
+    }
+
     @Test fun selectsHighestNumericCodeRegardlessOfOrder() {
         assertEquals(100L, selectAndroidRelease(listOf(release(9), release(100), release(10)), 2)?.versionCode)
     }

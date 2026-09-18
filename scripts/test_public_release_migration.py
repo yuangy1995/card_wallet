@@ -1,0 +1,48 @@
+import base64
+import plistlib
+from pathlib import Path
+import re
+import unittest
+
+ROOT = Path(__file__).resolve().parents[1]
+REPOSITORY = 'yuangy1995/card_wallet'
+
+class PublicReleaseMigrationTests(unittest.TestCase):
+    def test_macos_public_key_and_feed(self):
+        with (ROOT / 'apps/macos/Resources/Info.plist').open('rb') as stream:
+            config = plistlib.load(stream)
+        self.assertEqual(config['SUFeedURL'], f'https://github.com/{REPOSITORY}/releases/latest/download/appcast.xml')
+        self.assertEqual(len(base64.b64decode(config['SUPublicEDKey'], validate=True)), 32)
+        self.assertNotEqual(config['SUPublicEDKey'], 'zYvJmq2G5KNcMa/wbxZwKrd+LmjFB3c1khtPWPj6qFo=')
+
+    def test_release_workflows_only_publish_here(self):
+        for platform in ('android', 'macos'):
+            with self.subTest(platform=platform):
+                text = (ROOT / f'.github/workflows/{platform}-release.yml').read_text()
+                self.assertIn(f'RELEASE_REPOSITORY: {REPOSITORY}', text)
+                self.assertIn('contents: write', text)
+                self.assertIn('${{ github.token }}', text)
+                self.assertIn('--target "$GITHUB_SHA"', text)
+                self.assertNotIn('secrets.RELEASES_TOKEN', text)
+                self.assertNotIn('card-wallet-releases', text)
+                self.assertIn("github.ref == 'refs/heads/main'", text)
+        android = (ROOT / '.github/workflows/android-release.yml').read_text()
+        self.assertIn('--latest=false', android)
+        self.assertIn('Delete temporary signing key', android)
+
+    def test_updater_and_release_verifiers_agree(self):
+        names = ('apps/android/app/src/main/java/com/example/creditcard/update/GitHubRelease.kt',
+                 'apps/android/prepare-update.sh', 'apps/macos/prepare-update.sh', 'apps/macos/scripts/verify-update.swift')
+        for name in names:
+            text = (ROOT / name).read_text()
+            self.assertIn(REPOSITORY, text)
+            self.assertNotIn('card-wallet-releases', text)
+
+    def test_committed_certificate_is_new(self):
+        value = (ROOT / 'apps/android/signing-certificate.sha256').read_text().strip()
+        self.assertRegex(value, r'^[0-9a-f]{64}$')
+        self.assertNotEqual(value, 'e09a2af6d581dd247df0d4ae3ba08b957fee69cfbdd1b0b89dc37c958559a1cf')
+        self.assertFalse((ROOT / 'apps/android/app/release.jks').exists())
+
+if __name__ == '__main__':
+    unittest.main()

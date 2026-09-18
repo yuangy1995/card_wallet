@@ -10,7 +10,7 @@ final class AppUpdateConfigurationTests: XCTestCase {
     func testReleaseFeedAndSigningKey() {
         let bundle = Bundle(for: AppUpdater.self)
         XCTAssertEqual(bundle.object(forInfoDictionaryKey: "SUFeedURL") as? String,
-                       "https://github.com/yuangy1995/card-wallet-releases/releases/latest/download/appcast.xml")
+                       "https://github.com/yuangy1995/card_wallet/releases/latest/download/appcast.xml")
         let key = bundle.object(forInfoDictionaryKey: "SUPublicEDKey") as? String
         XCTAssertEqual(key.flatMap { Data(base64Encoded: $0) }?.count, 32)
     }
