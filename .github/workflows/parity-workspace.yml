@@ -1,0 +1,35 @@
+name: Parity workspace
+on:
+  push:
+    branches: [codex/four-platform-parity-20260918]
+    paths: [.github/workflows/parity-workspace.yml]
+permissions:
+  contents: read
+jobs:
+  snapshot:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Export source and public assets only
+        run: |
+          python3 - <<'PY'
+          import pathlib, subprocess, tarfile
+          root = pathlib.Path('.')
+          allowed = {'.kt','.kts','.swift','.java','.js','.mjs','.ts','.vue','.json','.yaml','.yml','.md','.xml','.properties','.gradle','.sh','.py','.scss','.css','.html','.strings','.xcstrings','.stringsdict','.pbxproj','.xcscheme','.xcworkspacedata','.xcconfig','.plist','.entitlements','.png','.webp','.svg','.jpg','.jpeg','.pdf','.xcprivacy','.jar','.toml','.txt','.xcsettings'}
+          with tarfile.open('/tmp/parity-source.tgz','w:gz') as archive:
+            for value in subprocess.check_output(['git','ls-files','-z']).decode().split('\0'):
+              if not value: continue
+              p = pathlib.Path(value)
+              low = value.lower()
+              if any(x in low for x in ['keystore','signing','secrets','.p12','.p8','.mobileprovision','local.properties']): continue
+              if p.suffix in allowed or p.name in {'AGENTS.md','Makefile','gradlew','.gitignore','LICENSE','Package.resolved'}:
+                archive.add(p, arcname=value, recursive=False)
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: parity-source
+          path: /tmp/parity-source.tgz
+          retention-days: 1
