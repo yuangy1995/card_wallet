@@ -19,7 +19,8 @@ export const normalizeCardCategory = (card) => card?.cardCategory === 'debit' ? 
 export const isCreditCard = (card) => normalizeCardCategory(card) === 'credit'
 
 const getDayNumber = (value) => {
-  const day = Number.parseInt(value, 10)
+  if (!/^[0-9]{1,2}$/.test(String(value ?? '').trim())) return null
+  const day = Number(value)
   return Number.isInteger(day) && day >= 1 && day <= 31 ? day : null
 }
 
@@ -32,10 +33,9 @@ const getMonthDayDate = (day, baseDate, monthOffset = 0) => {
 
 const daysUntil = (targetDate, now = new Date()) => {
   const current = new Date(now)
-  current.setHours(0, 0, 0, 0)
   const target = new Date(targetDate)
-  target.setHours(0, 0, 0, 0)
-  return Math.ceil((target - current) / DAY_MS)
+  return (Date.UTC(target.getFullYear(), target.getMonth(), target.getDate()) -
+    Date.UTC(current.getFullYear(), current.getMonth(), current.getDate())) / DAY_MS
 }
 
 const getNextBillDate = (accountBillDate, now = new Date()) => {
@@ -49,23 +49,23 @@ const getDueDateForBillMonth = (accountBillDate, dueDate, now = new Date(), mont
   const billDay = getDayNumber(accountBillDate)
   const dueDay = getDayNumber(dueDate)
   if (!billDay || !dueDay) return null
-  const dueMonthOffset = monthOffset + (dueDay < billDay ? 1 : 0)
+  const dueMonthOffset = monthOffset + (dueDay <= billDay ? 1 : 0)
   return getMonthDayDate(dueDay, now, dueMonthOffset)
 }
 
 const getNextDueDate = (accountBillDate, dueDate, now = new Date()) => {
-  const currentDueDate = getDueDateForBillMonth(accountBillDate, dueDate, now, 0)
-  if (!currentDueDate) return null
-  return daysUntil(currentDueDate, now) >= 0
-    ? currentDueDate
-    : getDueDateForBillMonth(accountBillDate, dueDate, now, 1)
+  if (!getDayNumber(accountBillDate)) return null
+  const due = getDayNumber(dueDate)
+  if (!due) return null
+  const current = getMonthDayDate(due, now)
+  return daysUntil(current, now) >= 0 ? current : getMonthDayDate(due, now, 1)
 }
 
 export const getAnnualFeeRemainingDays = (nextAnnualFeeCollectionTime, now = new Date()) => {
   if (!nextAnnualFeeCollectionTime) return null
   const targetDate = new Date(nextAnnualFeeCollectionTime)
   if (Number.isNaN(targetDate.getTime())) return null
-  return Math.ceil((targetDate - now) / DAY_MS)
+  return daysUntil(targetDate, now)
 }
 
 export const getAnnualFeeDetection = (card, warningDays = 60, now = new Date()) => {
@@ -108,42 +108,30 @@ export const getAnnualFeeReminderGroups = (cards, warningDays = 60, now = new Da
   return groups
 }
 
-const parseExpiryDate = (valid) => {
-  if (!valid) return null
-  const trimmed = String(valid).trim()
-  if (!trimmed) return null
-
-  let month
-  let year
-
-  const mmYyMatch = trimmed.match(/^(\d{1,2})\/(\d{2}|\d{4})$/)
-  if (mmYyMatch) {
-    month = Number(mmYyMatch[1])
-    year = Number(mmYyMatch[2])
-    year = year < 100 ? 2000 + year : year
+export const parseExpiryMonth = (valid) => {
+  const value = String(valid ?? '').trim()
+  let month, year
+  const slash = /^(\d{1,2})\/(\d{2}|\d{4})$/.exec(value)
+  if (slash) {
+    month = Number(slash[1]); year = Number(slash[2]) + (slash[2].length === 2 ? 2000 : 0)
   } else {
-    const date = new Date(trimmed)
-    if (Number.isNaN(date.getTime())) return null
-    month = date.getMonth() + 1
-    year = date.getFullYear()
+    const iso = /^(\d{4})-(\d{1,2})(?:-(\d{1,2}))?$/.exec(value)
+    if (!iso) return null
+    year = Number(iso[1]); month = Number(iso[2])
+    if (iso[3]) {
+      const day = Number(iso[3])
+      if (day < 1 || day > new Date(year, month, 0).getDate()) return null
+    }
   }
-
-  if (!Number.isInteger(month) || !Number.isInteger(year) || month < 1 || month > 12) {
-    return null
-  }
-
-  return new Date(year, month - 1, 1)
+  return month >= 1 && month <= 12 && year >= 100 && year <= 9999 ? year * 12 + month - 1 : null
 }
 
 export const getCardExpiryStatus = (valid, now = new Date(), warningMonths = 6) => {
-  const expiryDate = parseExpiryDate(valid)
-  if (!expiryDate) return null
-
-  const sixMonthsLater = new Date(now)
-  sixMonthsLater.setMonth(sixMonthsLater.getMonth() + warningMonths)
-
-  if (expiryDate < now) return CardExpiryStatus.EXPIRED
-  if (expiryDate < sixMonthsLater) return CardExpiryStatus.SOON_EXPIRING
+  const month = parseExpiryMonth(valid)
+  if (month === null) return null
+  const current = now.getFullYear() * 12 + now.getMonth()
+  if (month < current) return CardExpiryStatus.EXPIRED
+  if (month <= current + warningMonths) return CardExpiryStatus.SOON_EXPIRING
   return CardExpiryStatus.NORMAL
 }
 

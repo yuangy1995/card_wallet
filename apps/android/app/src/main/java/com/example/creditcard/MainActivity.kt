@@ -51,11 +51,12 @@ class MainActivity : FragmentActivity() {
 
         // 1. 初始化本地主题偏好及数据仓库
         ThemeManager.init(this)
-        SyncCoordinator.initLocalData(this)
         SecurityLockManager.init(this)
         if (savedInstanceState == null) {
             SecurityLockManager.lockIfEnabled(this)
         }
+
+        SyncCoordinator.initLocalData(this)
 
         // 2. 初始化 NFC 适配器及前台调度意图
         nfcAdapter = NfcAdapter.getDefaultAdapter(this)
@@ -72,6 +73,7 @@ class MainActivity : FragmentActivity() {
         }
         lifecycleScope.launch {
             SecurityLockManager.state.collect {
+                SyncCoordinator.setSuspended(this@MainActivity, it.locked)
                 updateNfcForegroundDispatch()
             }
         }
@@ -95,7 +97,7 @@ class MainActivity : FragmentActivity() {
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) { 
                     Box(modifier = Modifier.fillMaxSize()) {
                         CompositionLocalProvider(LocalAppUpdater provides appUpdater) {
-                            MainNavigation()
+                            if (!securityState.locked) MainNavigation()
                             AppUpdateHost(locked = securityState.locked)
                         }
                         if (securityState.locked) {
@@ -113,6 +115,7 @@ class MainActivity : FragmentActivity() {
     override fun onResume() {
         super.onResume()
         isActivityResumed = true
+        ThemeManager.init(this)
         SecurityLockManager.refreshLockState(this)
         updateNfcForegroundDispatch()
     }
@@ -188,12 +191,13 @@ class MainActivity : FragmentActivity() {
                 Thread {
                     val cardInfo = EmvCardReader.readCard(tag)
                     runOnUiThread {
+                        if (SecurityLockManager.state.value.locked || !NfcScannerManager.isReaderEnabled) return@runOnUiThread
                         NfcScannerManager.onReadingFinished(cardInfo != null)
                         if (cardInfo != null) {
                             val (scannedNo, scannedVal) = cardInfo
                             // 将读取到的卡号与有效期分发至全局 Flow，带入界面中
                             NfcScannerManager.onCardScanned(scannedNo, scannedVal)
-                            Toast.makeText(this, "NFC 读卡成功：$scannedNo", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(this, "NFC 读卡成功", Toast.LENGTH_SHORT).show()
                         } else {
                             // 触发未支持卡片全局事件流，使 UI 能展示“暂不支持该卡片”
                             NfcScannerManager.onUnsupportedCardDetected()

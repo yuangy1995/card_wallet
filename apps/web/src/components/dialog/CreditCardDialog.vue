@@ -356,6 +356,7 @@
 </template>
 
 <script>
+import { normalizeCardImages, canAppendImages, fileToCardImage } from '@/utils/cardAttachments'
 import { existingSharedLimitCard as findSharedLimitCard } from '@/utils/cardMetrics'
 import { ref, computed, watch, inject } from 'vue'
 import { ElMessage } from 'element-plus'
@@ -791,33 +792,6 @@ export default {
       emit('cancel')
     }
 
-    function normalizeCardImages(value) {
-      if (!Array.isArray(value)) return []
-      return value
-        .map((item, index) => {
-          if (typeof item === 'string') {
-            const separatorIndex = item.indexOf(';')
-            return {
-              id: crypto.randomUUID(),
-              mimeType: item.startsWith('data:') && separatorIndex > 5 ? item.slice(5, separatorIndex) : 'image/jpeg',
-              data: item,
-              createdAt: Date.now(),
-              source: 'legacy',
-              name: `card_image_${index + 1}.jpg`
-            }
-          }
-          return {
-            id: item.id || crypto.randomUUID(),
-            mimeType: item.mimeType || 'image/jpeg',
-            data: item.data || '',
-            createdAt: Number(item.createdAt) || Date.now(),
-            source: item.source || 'web_upload',
-            name: item.name || ''
-          }
-        })
-        .filter(item => item.data)
-    }
-
     const triggerImagePicker = () => {
       imageInputRef.value?.click()
     }
@@ -851,34 +825,20 @@ export default {
     const cardImagesTotalSize = computed(() => normalizeCardImages(formData.value.cardImages)
       .reduce((total, image) => total + dataUrlByteSize(image.data), 0))
 
-    const fileToCardImage = (file) => new Promise((resolve, reject) => {
-      const reader = new FileReader()
-      reader.onload = () => {
-        resolve({
-          id: crypto.randomUUID(),
-          mimeType: file.type || 'image/jpeg',
-          data: String(reader.result || ''),
-          createdAt: Date.now(),
-          source: 'web_upload',
-          name: file.name
-        })
-      }
-      reader.onerror = reject
-      reader.readAsDataURL(file)
-    })
-
     const handleCardImageInput = async (event) => {
-      const files = Array.from(event.target.files || []).filter(file => file.type.startsWith('image/'))
+      const files = Array.from(event.target.files || [])
       if (!files.length) return
+      const target = formData.value
       try {
-        const images = await Promise.all(files.map(fileToCardImage))
-        formData.value.cardImages = normalizeCardImages(formData.value.cardImages).concat(images)
+        if (!canAppendImages(target.cardImages.length, files.length)) throw new Error('每张卡最多添加 12 张图片，已有图片不会被删除。')
+        const images = []
+        for (const file of files) images.push(await fileToCardImage(file))
+        if (!dialogVisible.value || formData.value !== target) return
+        if (!canAppendImages(target.cardImages.length, images.length)) throw new Error('每张卡最多添加 12 张图片，已有图片不会被删除。')
+        target.cardImages = normalizeCardImages(target.cardImages).concat(images)
         ElMessage.success(`已添加 ${images.length} 张卡片图片`)
-      } catch (error) {
-        ElMessage.error('图片读取失败')
-      } finally {
-        event.target.value = ''
-      }
+      } catch (error) { ElMessage.error(error.message || '图片读取失败') }
+      finally { event.target.value = '' }
     }
 
     const removeCardImage = (imageId) => {

@@ -33,13 +33,6 @@ enum CardEditing {
     }
 
     static func settingAnnualStatus(_ status: String, for card: SharedCard, now: Date = Date()) -> SharedCard {
-        guard card.cardCategory != "debit" else { return card }
-        if status == "1", card.isQualified == "1", DateCalculator.annualFeeDetection(for: card, now: now) == nil { return card }
-        var updated = card
-        updated.isQualified = status
-        if status == "1" { updated.nextAnnualFeeCollectionTime = DateCalculator.timestampByAddingOneYear(card.nextAnnualFeeCollectionTime) }
-        if status == "3" { updated.nextAnnualFeeCollectionTime = nil }
-        updated.lastModifyTime = DateCalculator.timestamp(from: now)
-        return updated
+        CardOperations.annualStatus(status, card: card, now: now)
     }
 }

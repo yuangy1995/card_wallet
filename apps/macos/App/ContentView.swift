@@ -14,13 +14,7 @@ struct CardEditRequest: Identifiable {
     }
 }
 
-struct BatchUpdateRequest {
-    var status: String?
-    var annualFee: Double?
-    var nextAnnualFeeDate: Double?
-    var valid: String?
-    var cardCategory: String?
-}
+typealias BatchUpdateRequest = CardBatchUpdate
 
 
 struct ContentView: View {
@@ -34,8 +28,8 @@ struct ContentView: View {
     @State private var searchText = ""
     
     // 💡 分组和排序状态管理
-    @AppStorage("wallet_card_group") private var groupBy: GroupOption = .none
-    @AppStorage("wallet_card_sort") private var sortBy: SortOption = .limitDesc
+    @AppStorage("wallet_group_option") private var groupBy: GroupOption = .none
+    @AppStorage("wallet_sort_option") private var sortBy: SortOption = .limitDesc
     @State private var cardCategoryFilter: CardCategoryFilter = .all
     @State private var showingFilterPopover = false
     @State private var selectedBank = ""
@@ -175,6 +169,7 @@ struct ContentView: View {
             runInitialAnnualFeeCheckIfNeeded()
         }
         .onChange(of: lockManager.isLocked) { _, isLocked in
+            if isLocked { cardEditRequest = nil; detailCard = nil }
             if !isLocked {
                 runInitialAnnualFeeCheckIfNeeded()
                 refreshSystemNotifications(for: cards)
@@ -443,30 +438,7 @@ struct ContentView: View {
 
     private func applyBatchUpdate(cardIDs: Set<String>, request: BatchUpdateRequest) {
         guard !cardIDs.isEmpty else { return }
-        for index in cards.indices where cardIDs.contains(cards[index].id) {
-            if let category = request.cardCategory {
-                cards[index].cardCategory = category == "debit" ? "debit" : "credit"
-            }
-            if cards[index].cardCategory != "debit" {
-                if let status = request.status {
-                    cards[index].isQualified = status
-                    if status == "3" {
-                        cards[index].nextAnnualFeeCollectionTime = nil
-                    }
-                }
-                if let annualFee = request.annualFee {
-                    cards[index].annualFee = annualFee
-                }
-                if let nextDate = request.nextAnnualFeeDate, request.status != "3" {
-                    cards[index].nextAnnualFeeCollectionTime = nextDate
-                }
-            }
-            if let valid = request.valid {
-                cards[index].valid = valid
-            }
-            cards[index].lastModifyTime = DateCalculator.timestamp(from: Date())
-        }
-        cards = syncCoordinator.commit(cards: cards)
+        cards = syncCoordinator.commit(cards: CardOperations.batch(cards, ids: cardIDs, update: request))
     }
 
     private func deleteCards(cardIDs: Set<String>) {

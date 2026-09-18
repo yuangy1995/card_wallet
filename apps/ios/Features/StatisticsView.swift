@@ -12,18 +12,17 @@ struct StatisticsView: View {
     private var debitCards: [SharedCard] { cards.filter { $0.cardCategory == "debit" } }
 
     private var totalLimitByCurrency: [String: Double] {
-        Dictionary(uniqueKeysWithValues: WalletCardRules.creditLimits(cards).map {
-            ($0.key.isEmpty ? "未设置" : $0.key, $0.value)
-        })
+        CardMetrics.creditLimits(cards: cards)
     }
 
     private var bankLimits: [(bank: String, limit: Double, currency: String)] {
-        Dictionary(grouping: creditCards) { BankNameNormalizer.normalizedKey($0.bank) }
-            .flatMap { bank, cards in
-                WalletCardRules.creditLimits(cards).map { code, amount in
-                    (bank: "\(bank) (\(code.isEmpty ? "未设置" : code))", limit: amount, currency: code)
+        Dictionary(grouping: creditCards, by: { BankNameNormalizer.normalizedKey($0.bank) })
+            .flatMap { _, bankCards in
+                CardMetrics.creditLimits(cards: bankCards).map { currency, amount in
+                    (bank: BankNameNormalizer.display(bankCards.first?.bank), limit: amount, currency: currency)
                 }
-            }.sorted { $0.limit == $1.limit ? $0.bank < $1.bank : $0.limit > $1.limit }
+            }
+            .sorted { $0.currency == $1.currency ? ($0.limit == $1.limit ? $0.bank < $1.bank : $0.limit > $1.limit) : $0.currency < $1.currency }
     }
 
     private var annualFeeAlertCards: [SharedCard] {
@@ -322,11 +321,14 @@ struct StatisticsView: View {
             let bestCards = creditCards
                 .filter { !($0.accountBillDate ?? "").isEmpty && !($0.dueDate ?? "").isEmpty }
                 .map { card -> (card: SharedCard, days: Int) in
-                    let days = DateCalculator.calculateInterestFreeDays(card: card)
+                    let days = DateCalculator.calculateInterestFreePeriod(
+                        accountBillDate: card.accountBillDate ?? "",
+                        dueDate: card.dueDate ?? "",
+                        billingDayToNextBill: card.billingDaySpendingToNextBill
+                    )
                     return (card: card, days: days)
                 }
-                .filter { $0.days >= 0 }
-                .sorted { $0.days == $1.days ? $0.card.id < $1.card.id : $0.days > $1.days }
+                .sorted { $0.days > $1.days }
                 .prefix(5)
 
             if bestCards.isEmpty {
@@ -394,7 +396,7 @@ struct StatisticsView: View {
         formatter.numberStyle = .decimal
         let amountString = formatter.string(from: NSNumber(value: amount)) ?? "\(Int(amount))"
 
-        guard currency != "未设置" else {
+        guard !currency.isEmpty && currency != "未设置" else {
             return amountString
         }
         let symbol: String

@@ -273,7 +273,7 @@ public class DataMigrationManager {
         // 8. 补全最后修改时间，内部统一使用毫秒时间戳
         let lastModifyTime = timestampMilliseconds(from: dict["lastModifyTime"]) ?? currentTimestampMilliseconds()
         
-        return SharedCard(
+        var result = SharedCard(
             id: finalId,
             cardCategory: cardCategory,
             country: country,
@@ -298,6 +298,11 @@ public class DataMigrationManager {
             isSharedLimit: isSharedLimit,
             cardImages: cardImages
         )
+        if let bytes = try? JSONSerialization.data(withJSONObject: dict), let decoded = try? JSONDecoder().decode(SharedCard.self, from: bytes) {
+            result.extraFields = decoded.extraFields
+            result.cardImages = decoded.cardImages
+        }
+        return result
     }
     
     /// 批量迁移和修复卡片数据（对应 Web 端 autoMigrateLocalData 逻辑）

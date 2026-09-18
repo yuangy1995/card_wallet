@@ -17,7 +17,7 @@ public class LocalStorageManager {
         return appSupportDirectory
     }
     
-    /// 100% 稳健的加密数据写入 cards.json
+    /// 本地随机密钥加密写入 cards.json
     /// - Parameters:
     ///   - cards: 卡片数据数组
     ///   - password: 自定义密码（可选）
@@ -29,12 +29,8 @@ public class LocalStorageManager {
             encoder.outputFormatting = .prettyPrinted
             let jsonData = try encoder.encode(cards)
             
-            guard let jsonString = String(data: jsonData, encoding: .utf8) else {
-                return false
-            }
-            
-            // 采用与 Web 端 100% 互通的 AES 默认/自定义密码加密
-            let cipherText = try CryptoManager.encrypt(plainText: jsonString, password: password)
+            // Local storage is separate from portable encrypted export/SyncV4.
+            let cipherText = try LocalWalletCipher.seal(jsonData, purpose: "cards")
             
             let fileURL = getAppSupportDirectory().appendingPathComponent(cardFileName)
             try cipherText.write(to: fileURL, atomically: true, encoding: .utf8)
@@ -60,7 +56,11 @@ public class LocalStorageManager {
             let cipherText = try String(contentsOf: fileURL, encoding: .utf8)
             
             // 1. 解密获得 JSON 原始串
-            let jsonString = try CryptoManager.decrypt(cipherText: cipherText, password: password)
+            let decoded = try LocalWalletCipher.open(cipherText, purpose: "cards", legacyPassword: password)
+            if cipherText.hasPrefix(LocalWalletCipher.prefix) {
+                return .success(try JSONDecoder().decode([SharedCard].self, from: decoded))
+            }
+            let jsonString = String(decoding: decoded, as: UTF8.self)
             
             // 2. 将 JSON 解析为基础 Any 字典数组，进行数据降级强力迁移洗涤
             guard let jsonData = jsonString.data(using: .utf8) else {

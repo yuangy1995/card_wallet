@@ -110,6 +110,8 @@ public enum WebDAVError: Error, LocalizedError {
 
 public class WebDAVClient {
     public static let shared = WebDAVClient()
+    private let sessions = WebDAVSessionRegistry()
+    public func cancelAll() { sessions.cancelAll() }
     private static let transferTimeout: TimeInterval = 300
     private static let transferResourceTimeout: TimeInterval = 3600
     
@@ -183,7 +185,7 @@ public class WebDAVClient {
                 let base64Auth = authData.base64EncodedString()
                 request.setValue("Basic \(base64Auth)", forHTTPHeaderField: "Authorization")
                 
-                let task = URLSession.shared.dataTask(with: request) { _, response, error in
+                let task = self.sessions.session.dataTask(with: request) { _, response, error in
                     if let error = error {
                         completion(.failure(WebDAVError.networkError(error)))
                         return
@@ -264,7 +266,7 @@ public class WebDAVClient {
 
         if let onProgress {
             let delegate = UploadProgressDelegate(onProgress: onProgress)
-            let session = URLSession(configuration: Self.transferSessionConfiguration(), delegate: delegate, delegateQueue: nil)
+            let session = sessions.make(configuration: Self.transferSessionConfiguration(), delegate: delegate, delegateQueue: nil)
             let task = session.uploadTask(with: request, from: data) { data, response, error in
                 session.finishTasksAndInvalidate()
                 completionHandler(data, response, error)
@@ -272,7 +274,7 @@ public class WebDAVClient {
             task.resume()
         } else {
             request.httpBody = data
-            let session = URLSession(configuration: Self.transferSessionConfiguration())
+            let session = sessions.make(configuration: Self.transferSessionConfiguration())
             let task = session.dataTask(with: request) { data, response, error in
                 session.finishTasksAndInvalidate()
                 completionHandler(data, response, error)
@@ -304,7 +306,7 @@ public class WebDAVClient {
         let base64Auth = authString.data(using: .utf8)!.base64EncodedString()
         request.setValue("Basic \(base64Auth)", forHTTPHeaderField: "Authorization")
         
-        let task = URLSession.shared.dataTask(with: request) { data, response, error in
+        let task = self.sessions.session.dataTask(with: request) { data, response, error in
             if let error = error {
                 completion(.failure(WebDAVError.networkError(error)))
                 return
@@ -414,11 +416,11 @@ public class WebDAVClient {
                     }
                 }
             )
-            let session = URLSession(configuration: Self.transferSessionConfiguration(), delegate: delegate, delegateQueue: nil)
+            let session = sessions.make(configuration: Self.transferSessionConfiguration(), delegate: delegate, delegateQueue: nil)
             let task = session.downloadTask(with: request)
             task.resume()
         } else {
-            let session = URLSession(configuration: Self.transferSessionConfiguration())
+            let session = sessions.make(configuration: Self.transferSessionConfiguration())
             let task = session.dataTask(with: request) { data, response, error in
                 session.finishTasksAndInvalidate()
                 handleResponse(data, response, error)
@@ -448,7 +450,7 @@ public class WebDAVClient {
         let base64Auth = authString.data(using: .utf8)!.base64EncodedString()
         request.setValue("Basic \(base64Auth)", forHTTPHeaderField: "Authorization")
         
-        let task = URLSession.shared.dataTask(with: request) { _, response, error in
+        let task = self.sessions.session.dataTask(with: request) { _, response, error in
             if let error = error {
                 completion(.failure(WebDAVError.networkError(error)))
                 return
@@ -496,7 +498,7 @@ public class WebDAVClient {
         request.setValue(newURL.absoluteString, forHTTPHeaderField: "Destination")
         request.setValue("T", forHTTPHeaderField: "Overwrite")
         
-        let task = URLSession.shared.dataTask(with: request) { _, response, error in
+        let task = self.sessions.session.dataTask(with: request) { _, response, error in
             if let error = error {
                 completion(.failure(WebDAVError.networkError(error)))
                 return
@@ -540,7 +542,7 @@ public class WebDAVClient {
         let base64Auth = authString.data(using: .utf8)!.base64EncodedString()
         sniffRequest.setValue("Basic \(base64Auth)", forHTTPHeaderField: "Authorization")
         
-        let task = URLSession.shared.dataTask(with: sniffRequest) { _, response, error in
+        let task = self.sessions.session.dataTask(with: sniffRequest) { _, response, error in
             if let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode >= 200 && httpResponse.statusCode < 300 {
                 // 目录已存在，完美通过
                 completion(.success(()))
@@ -552,7 +554,7 @@ public class WebDAVClient {
             mkcolRequest.httpMethod = "MKCOL"
             mkcolRequest.setValue("Basic \(base64Auth)", forHTTPHeaderField: "Authorization")
             
-            let mkcolTask = URLSession.shared.dataTask(with: mkcolRequest) { _, mkcolResponse, mkcolError in
+            let mkcolTask = self.sessions.session.dataTask(with: mkcolRequest) { _, mkcolResponse, mkcolError in
                 if let mkcolError = mkcolError {
                     completion(.failure(WebDAVError.networkError(mkcolError)))
                     return

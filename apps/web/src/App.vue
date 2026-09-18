@@ -24,6 +24,9 @@
               <el-radio-button value="debit">储蓄卡 {{ categoryCounts.debit }}</el-radio-button>
             </el-radio-group>
 
+            <el-button size="small" :type="favoritesOnly ? 'primary' : 'default'" :aria-pressed="favoritesOnly" @click="favoritesOnly = !favoritesOnly">
+              <el-icon><Star /></el-icon>只看收藏
+            </el-button>
             <div class="divider-line"></div>
 
             <!-- 筛选开关与重置 -->
@@ -214,18 +217,14 @@
         @toggle-select-all="toggleSelectAll"
       />
 
-      <div v-if="viewMode === 'table' && tableData.length" class="wallet-table-sort">
-        <span>排序：</span>
-        <el-select v-model="cardSortMode" size="small" aria-label="卡片排序" style="width: 190px">
-          <el-option v-for="[key, label] in sortOptions" :key="key" :label="label" :value="key" />
-        </el-select>
-      </div>
       <Transition name="view-fade" mode="out-in">
         <CreditCardTable
           v-if="viewMode === 'table'"
           :table-data="tableData"
           :visible-columns="visibleColumns"
           :selected-rows="selectedRows"
+          :favorite-ids="favoriteIds"
+          @toggle-favorite="toggleFavorite"
           @edit="editCreditCard"
           @delete="deleteCard"
           @card-number-visibility="handleCardNumberVisibility"
@@ -238,9 +237,10 @@
         />
         <CreditCardCardList
           v-else
-          v-model:sort-mode="cardSortMode"
           :table-data="tableData"
           :selected-rows="selectedRows"
+          :favorite-ids="favoriteIds"
+          @toggle-favorite="toggleFavorite"
           @edit="editCreditCard"
           @delete="deleteCard"
           @view-details="viewDetails"
@@ -455,7 +455,6 @@ import {
   Search,
   Wallet
 } from '@element-plus/icons-vue'
-import { cardSearchText, matchesCard, sortCards, sortOptions } from '@/utils/cardCatalog'
 import CreditCardTable from '@/components/table/CreditCardTable.vue'
 import BatchOperationToolbar from '@/components/toolbar/BatchOperationToolbar.vue'
 // 懒加载组件
@@ -475,6 +474,9 @@ const StorageManagementDialog = defineAsyncComponent(() => import('@/components/
 const PasswordSetup = defineAsyncComponent(() => import('@/components/security/PasswordSetup.vue'))
 import FloatingLockButton from '@/components/security/FloatingLockButton.vue'
 
+import { useLocalFavorites } from '@/composables/useLocalFavorites'
+import { annualStatus, batchCards } from '@/utils/cardOperations'
+import { cardSearchIndex, matchesCardSearch, matchesAdvancedFilters } from '@/utils/cardSearch'
 import { creditCardOptions } from '@/config/creditCardOptions'
 import SearchForm from '@/components/search/SearchForm.vue'
 import { generateMockData } from '@/utils/mockData'
@@ -515,6 +517,8 @@ const { isDarkMode, toggleTheme } = inject('theme') || useTheme()
 // 状态管理
 let disposed = false
 const cardData = ref([])
+const { favoriteIds, toggleFavorite, removeDeletedFavorites } = useLocalFavorites()
+const favoritesOnly = ref(false)
 const syncStatus = ref({
   message: '正在准备云同步...',
   type: 'info',
@@ -543,12 +547,6 @@ const selectedRows = ref([])
 const creditCardTableRef = ref(null)
 const creditCardCardListRef = ref(null)
 
-const calendarDay = inject('calendarDay', ref(Date.now()))
-const savedSort = localStorage.getItem('creditCardSortMode')
-const cardSortMode = ref(sortOptions.some(([key]) => key === savedSort) ? savedSort : 'default')
-watch(cardSortMode, value => localStorage.setItem('creditCardSortMode', value))
-const searchIndex = computed(() => new Map(cardData.value.map(card => [card.id, cardSearchText(card)])))
-
 const viewMode = ref(localStorage.getItem('creditCardViewMode') || 'table')
 watch(viewMode, (newValue) => {
   localStorage.setItem('creditCardViewMode', newValue)
@@ -562,66 +560,10 @@ watch(cardCategoryFilter, (newValue) => {
   clearSelection()
 })
 
-const searchFilteredCards = computed(() => {
-  const query = debouncedQuickSearchQuery.value ? debouncedQuickSearchQuery.value.trim().toLowerCase() : ''
-
-  if (query) {
-    return cardData.value.filter(card => matchesCard(card, query, searchIndex.value.get(card.id)))
-  } else {
-    // 否则，使用高级搜索逻辑（排除类别筛选，以便进行独立计数统计）
-    const form = debouncedSearchForm.value
-    return cardData.value.filter(card => {
-      // 币种匹配
-      const matchType = !form.type ||
-                       (card.type && (form.type.includes(card.type) ||
-                       card.type.includes(form.type)));
-
-      // 银行匹配
-      const matchBank = !form.bank ||
-                       (card.bank && (form.bank.includes(card.bank) ||
-                       card.bank.includes(form.bank)));
-
-      // 卡片等级匹配
-      const matchLevel = !form.level ||
-                        (card.level && (form.level.includes(card.level) ||
-                        card.level.includes(form.level)));
-
-      // 年费达标状态匹配
-      const matchStatus = !form.isQualified ||
-                         form.isQualified.length === 0 ||
-                         form.isQualified.includes(card.isQualified);
-
-      // 别名搜索
-      const matchAlias = !form.alias ||
-                        (card.alias && card.alias.toLowerCase().includes(form.alias.toLowerCase()));
-
-      // 国家匹配
-      const matchCountry = !form.country ||
-                          (card.country && (form.country.includes(card.country) ||
-                          card.country.includes(form.country)));
-
-      // 卡号匹配 - 去除空格和其他格式字符进行匹配
-      const matchCardNumber = !form.cardNumber ||
-                             (card.cardNumber &&
-                              form.cardNumber.replace(/[\s-]/g, '').length > 0 && card.cardNumber.replace(/[\s-]/g, '').includes(form.cardNumber.replace(/[\s-]/g, '')));
-
-      // 额度匹配
-      const matchLimit = !form.limit ||
-                        (card.limit && card.limit.toString().includes(form.limit));
-
-      // 权益匹配
-      const matchEquity = !form.equity ||
-                         (card.equity && card.equity.toLowerCase().includes(form.equity.toLowerCase()));
-
-      // 备注匹配
-      const matchRemark = !form.remark ||
-                         (card.remark && card.remark.toLowerCase().includes(form.remark.toLowerCase()));
-
-      return matchType && matchBank && matchLevel && matchStatus && matchAlias &&
-             matchCountry && matchCardNumber && matchLimit && matchEquity && matchRemark;
-    });
-  }
-})
+const searchableCards = computed(() => cardData.value.map(card => ({ card, index: cardSearchIndex(card) })))
+const searchFilteredCards = computed(() => searchableCards.value
+  .filter(({card, index}) => matchesCardSearch(index, debouncedQuickSearchQuery.value) && matchesAdvancedFilters(card, debouncedSearchForm.value) && (!favoritesOnly.value || favoriteIds.value.has(card.id)))
+  .map(({card}) => card))
 
 const categoryCounts = computed(() => {
   const credit = searchFilteredCards.value.filter(card => normalizeCardCategory(card) === 'credit').length
@@ -824,9 +766,7 @@ const timestampByAddingOneYear = (value) => {
 
 // 确认当前年费周期达标，状态与下一次年费日期必须作为一次操作更新。
 const confirmAnnualFeeQualifiedForCard = (card) => {
-  card.isQualified = '1'
-  card.nextAnnualFeeCollectionTime = timestampByAddingOneYear(card.nextAnnualFeeCollectionTime)
-  card.lastModifyTime = getCurrentTimestamp()
+  Object.assign(card, annualStatus(card, '1'))
 }
 
 const resetBatchAnnualFeeForm = () => {
@@ -960,7 +900,21 @@ const tableData = computed(() => {
     return matchCategoryFilter && matchFormCategory
   })
 
-  return sortCards(filtered, cardSortMode.value, new Date(calendarDay.value))
+  // 默认排序：先按国家，再按银行
+  const sorted = filtered.sort((a, b) => {
+    // 首先按国家排序
+    const countryCompare = (a.country || '').localeCompare(b.country || '', 'zh-CN');
+    if (countryCompare !== 0) return countryCompare;
+
+    // 然后按银行排序
+    const bankCompare = (a.bank || '').localeCompare(b.bank || '', 'zh-CN');
+    if (bankCompare !== 0) return bankCompare;
+
+    // 最后按别名排序
+    return (a.alias || '').localeCompare(b.alias || '', 'zh-CN');
+  });
+
+  return sorted
 })
 
 // 显示加载状态
@@ -993,7 +947,10 @@ const mergeTableColumnsWithDefaults = (storedColumns = []) => {
 
 const persistSyncedMutation = async (options = {}) => {
   if (disposed || !localDataStore.isUnlocked) throw new Error('应用已锁定，请重新解锁。')
-  try { await webdavSyncService.commitCards(cardData.value, options) }
+  try {
+    await webdavSyncService.commitCards(cardData.value, options)
+    pruneConfirmedFavorites()
+  }
   catch (error) {
     if (!disposed && localDataStore.isUnlocked) {
       // 保存失败时还原已提交账本，不能让未落盘的修改继续伪装成成功。
@@ -1024,9 +981,16 @@ const normalizeSyncedCard = (card) => ({
   cardCategory: normalizeCardCategory(card)
 })
 
+// Only committed tombstones may remove favorites; optimistic UI edits/filters/locking must not.
+const pruneConfirmedFavorites = () => {
+  if (disposed || !localDataStore.isUnlocked) return
+  const records = localDataStore.get(STORAGE_KEYS.SYNC_RECORDS, [])
+  removeDeletedFavorites(records.filter(record => record.state === 'deleted').map(record => record.cardId))
+}
 const applySyncedCards = (syncedCards) => {
   if (disposed || !localDataStore.isUnlocked) return
   cardData.value = syncedCards.map(normalizeSyncedCard)
+  pruneConfirmedFavorites()
 }
 
 const handleSyncStatusChanged = (newStatus) => {
@@ -1640,16 +1604,7 @@ const handleBatchUpdateStatus = async ({ rows, status }) => {
       ElMessage.warning('请选择信用卡执行年费状态操作')
       return
     }
-    cardData.value.forEach(card => {
-      if (updateIds.has(card.id)) {
-        if (status === '1') {
-          confirmAnnualFeeQualifiedForCard(card)
-        } else {
-          card.isQualified = status
-          card.lastModifyTime = getCurrentTimestamp()
-        }
-      }
-    })
+    cardData.value = batchCards(cardData.value, updateIds, { status })
     await persistSyncedMutation()
     clearSelection()
     const statusText = status === '1' ? '确认本周期达标' : '标记为未达标'
@@ -1738,28 +1693,14 @@ const confirmBatchAnnualFeeUpdate = async () => {
       ? timestampFromDateInput(form.nextAnnualFeeCollectionTime)
       : null
 
-    cardData.value.forEach(card => {
-      if (!targetIds.has(card.id)) return
-
-      if (form.updateAnnualFee) {
-        card.annualFee = Number(form.annualFee)
-      }
-      if (form.updateStatus) {
-        if (form.isQualified === '1' && !shouldUpdateNextAnnualFee) {
-          confirmAnnualFeeQualifiedForCard(card)
-        } else {
-          card.isQualified = form.isQualified
-        }
-        if (form.isQualified === '3') {
-          card.nextAnnualFeeCollectionTime = null
-        }
-      }
-      if (shouldUpdateNextAnnualFee) {
-        card.nextAnnualFeeCollectionTime = nextAnnualFeeTimestamp
-      }
-      card.lastModifyTime = getCurrentTimestamp()
-      updatedCount += 1
+    const liveCreditIds = new Set(cardData.value.filter(card => targetIds.has(card.id) && isCreditCard(card)).map(card => card.id))
+    cardData.value = batchCards(cardData.value, liveCreditIds, {
+      annualFee: form.updateAnnualFee ? Number(form.annualFee) : undefined,
+      status: form.updateStatus ? form.isQualified : undefined,
+      nextAnnualFeeDate: shouldUpdateNextAnnualFee ? nextAnnualFeeTimestamp : undefined
     })
+    updatedCount = liveCreditIds.size
+
 
     if (updatedCount === 0) {
       ElMessage.warning('没有匹配到可更新的信用卡')

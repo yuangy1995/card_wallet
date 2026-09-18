@@ -4,15 +4,10 @@ import CreditCardMac
 final class DateCalculatorTests: XCTestCase {
     
     func testInterestFreePeriodNormalCase() {
-        // 假设账单日为 10，还款日为 28
-        // 基准天数为 28 - 10 = 18 天。因为默认账单日消费计入下期（billingDayToNextBill = true），最长免息期为 18 + 30 = 48 天。
-        let period = DateCalculator.calculateInterestFreePeriod(accountBillDate: "10", dueDate: "28")
-        XCTAssertEqual(period, 48)
-        
-        // 跨月还款的情况：账单日是 25，还款日是 10 号
-        // 基准跨月天数 = (31 - 25) + 10 = 16 天。加 30 天账期偏移 = 46 天。
-        let crossMonthPeriod = DateCalculator.calculateInterestFreePeriod(accountBillDate: "25", dueDate: "10")
-        XCTAssertEqual(crossMonthPeriod, 46)
+        let today = Calendar(identifier: .gregorian).date(from: DateComponents(year: 2026, month: 9, day: 18))!
+        // Today spending, not a guessed maximum made from 30/31-day constants.
+        XCTAssertEqual(DateCalculator.calculateInterestFreePeriod(accountBillDate: "10", dueDate: "28", today: today), 40)
+        XCTAssertEqual(DateCalculator.calculateInterestFreePeriod(accountBillDate: "25", dueDate: "10", today: today), 22)
     }
     
     func testMonthlyOverflowBoundary() {

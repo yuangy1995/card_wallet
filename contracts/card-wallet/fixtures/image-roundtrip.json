@@ -1,0 +1,196 @@
+[
+  {
+    "name": "图片顺序内容及未知嵌套字段保留",
+    "card": {
+      "id": "target",
+      "country": "US",
+      "bank": "Bank",
+      "cardNumber": "4000000000000000",
+      "cardCategory": "credit",
+      "annualFee": 99,
+      "isQualified": "2",
+      "valid": "2030-01",
+      "lastModifyTime": 1,
+      "futureBenefit": {
+        "enabled": true,
+        "label": "保留"
+      },
+      "cardImages": [
+        {
+          "id": "photo",
+          "data": "aGVsbG8=",
+          "mimeType": "image/jpeg",
+          "name": "原图",
+          "createdAt": 1,
+          "source": "test",
+          "futureCrop": {
+            "x": 1
+          }
+        }
+      ]
+    }
+  },
+  {
+    "name": "历史附件超过新录入上限不截断",
+    "card": {
+      "id": "target",
+      "country": "US",
+      "bank": "Bank",
+      "cardNumber": "4000000000000000",
+      "cardCategory": "credit",
+      "annualFee": 99,
+      "isQualified": "2",
+      "valid": "2030-01",
+      "lastModifyTime": 1,
+      "futureBenefit": {
+        "enabled": true,
+        "label": "保留"
+      },
+      "cardImages": [
+        {
+          "id": "photo-0",
+          "data": "aGVsbG8=",
+          "mimeType": "image/jpeg",
+          "name": "原图",
+          "createdAt": 1,
+          "source": "test",
+          "futureCrop": {
+            "x": 1
+          }
+        },
+        {
+          "id": "photo-1",
+          "data": "aGVsbG8=",
+          "mimeType": "image/jpeg",
+          "name": "原图",
+          "createdAt": 1,
+          "source": "test",
+          "futureCrop": {
+            "x": 1
+          }
+        },
+        {
+          "id": "photo-2",
+          "data": "aGVsbG8=",
+          "mimeType": "image/jpeg",
+          "name": "原图",
+          "createdAt": 1,
+          "source": "test",
+          "futureCrop": {
+            "x": 1
+          }
+        },
+        {
+          "id": "photo-3",
+          "data": "aGVsbG8=",
+          "mimeType": "image/jpeg",
+          "name": "原图",
+          "createdAt": 1,
+          "source": "test",
+          "futureCrop": {
+            "x": 1
+          }
+        },
+        {
+          "id": "photo-4",
+          "data": "aGVsbG8=",
+          "mimeType": "image/jpeg",
+          "name": "原图",
+          "createdAt": 1,
+          "source": "test",
+          "futureCrop": {
+            "x": 1
+          }
+        },
+        {
+          "id": "photo-5",
+          "data": "aGVsbG8=",
+          "mimeType": "image/jpeg",
+          "name": "原图",
+          "createdAt": 1,
+          "source": "test",
+          "futureCrop": {
+            "x": 1
+          }
+        },
+        {
+          "id": "photo-6",
+          "data": "aGVsbG8=",
+          "mimeType": "image/jpeg",
+          "name": "原图",
+          "createdAt": 1,
+          "source": "test",
+          "futureCrop": {
+            "x": 1
+          }
+        },
+        {
+          "id": "photo-7",
+          "data": "aGVsbG8=",
+          "mimeType": "image/jpeg",
+          "name": "原图",
+          "createdAt": 1,
+          "source": "test",
+          "futureCrop": {
+            "x": 1
+          }
+        },
+        {
+          "id": "photo-8",
+          "data": "aGVsbG8=",
+          "mimeType": "image/jpeg",
+          "name": "原图",
+          "createdAt": 1,
+          "source": "test",
+          "futureCrop": {
+            "x": 1
+          }
+        },
+        {
+          "id": "photo-9",
+          "data": "aGVsbG8=",
+          "mimeType": "image/jpeg",
+          "name": "原图",
+          "createdAt": 1,
+          "source": "test",
+          "futureCrop": {
+            "x": 1
+          }
+        },
+        {
+          "id": "photo-10",
+          "data": "aGVsbG8=",
+          "mimeType": "image/jpeg",
+          "name": "原图",
+          "createdAt": 1,
+          "source": "test",
+          "futureCrop": {
+            "x": 1
+          }
+        },
+        {
+          "id": "photo-11",
+          "data": "aGVsbG8=",
+          "mimeType": "image/jpeg",
+          "name": "原图",
+          "createdAt": 1,
+          "source": "test",
+          "futureCrop": {
+            "x": 1
+          }
+        },
+        {
+          "id": "photo-12",
+          "data": "aGVsbG8=",
+          "mimeType": "image/jpeg",
+          "name": "原图",
+          "createdAt": 1,
+          "source": "test",
+          "futureCrop": {
+            "x": 1
+          }
+        }
+      ]
+    }
+  }
+]

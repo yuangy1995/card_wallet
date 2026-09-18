@@ -65,6 +65,7 @@ public struct CardImageAsset: Codable, Identifiable, Hashable, Sendable {
     public var createdAt: Double
     public var source: String
     public var name: String
+    public var extraFields: [String: CardJSONValue] = [:]
 
     public init(
         id: String = UUID().uuidString,
@@ -81,6 +82,28 @@ public struct CardImageAsset: Codable, Identifiable, Hashable, Sendable {
         self.source = source
         self.name = name
     }
+    private enum CodingKeys: String, CodingKey { case id, mimeType, data, createdAt, source, name }
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        mimeType = try container.decodeIfPresent(String.self, forKey: .mimeType) ?? "image/jpeg"
+        data = try container.decode(String.self, forKey: .data)
+        createdAt = try container.decodeIfPresent(Double.self, forKey: .createdAt) ?? 0
+        source = try container.decodeIfPresent(String.self, forKey: .source) ?? "manual"
+        name = try container.decodeIfPresent(String.self, forKey: .name) ?? ""
+        extraFields = try CardFutureFields.decode(from: decoder, known: ["id", "mimeType", "data", "createdAt", "source", "name"])
+    }
+    public func encode(to encoder: Encoder) throws {
+        try CardFutureFields.encode(extraFields, to: encoder, known: ["id", "mimeType", "data", "createdAt", "source", "name"])
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(mimeType, forKey: .mimeType)
+        try container.encode(data, forKey: .data)
+        try container.encode(createdAt, forKey: .createdAt)
+        try container.encode(source, forKey: .source)
+        try container.encode(name, forKey: .name)
+    }
+
 }
 
 public struct SharedCard: Codable, Identifiable, Hashable, Sendable {
@@ -116,6 +139,7 @@ public struct SharedCard: Codable, Identifiable, Hashable, Sendable {
     public var lastModifyTime: Double
     public var isSharedLimit: Bool
     public var cardImages: [CardImageAsset]
+    public var extraFields: [String: CardJSONValue] = [:]
 
     private enum CodingKeys: String, CodingKey {
         case id
@@ -218,10 +242,12 @@ public struct SharedCard: Codable, Identifiable, Hashable, Sendable {
         self.remark = Self.decodeString(container, forKey: .remark)
         self.lastModifyTime = Self.decodeTimestamp(container, forKey: .lastModifyTime) ?? DataMigrationManager.currentTimestampMilliseconds()
         self.isSharedLimit = Self.decodeBool(container, forKey: .isSharedLimit) ?? true
-        self.cardImages = (try? container.decode([CardImageAsset].self, forKey: .cardImages)) ?? []
+        self.cardImages = try container.decodeIfPresent([CardImageAsset].self, forKey: .cardImages) ?? []
+        self.extraFields = try CardFutureFields.decode(from: decoder, known: ["id", "cardCategory", "country", "bank", "cardNumber", "alias", "level", "type", "limit", "cvv", "valid", "annualFee", "isQualified", "nextAnnualFeeCollectionTime", "lastTime", "accountBillDate", "dueDate", "billingDaySpendingToNextBill", "equity", "remark", "lastModifyTime", "isSharedLimit", "cardImages"])
     }
 
     public func encode(to encoder: Encoder) throws {
+        try CardFutureFields.encode(extraFields, to: encoder, known: ["id", "cardCategory", "country", "bank", "cardNumber", "alias", "level", "type", "limit", "cvv", "valid", "annualFee", "isQualified", "nextAnnualFeeCollectionTime", "lastTime", "accountBillDate", "dueDate", "billingDaySpendingToNextBill", "equity", "remark", "lastModifyTime", "isSharedLimit", "cardImages"])
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(id, forKey: .id)
         try container.encode(Self.normalizeCardCategory(cardCategory), forKey: .cardCategory)
@@ -374,16 +400,6 @@ public enum SortOption: String, CaseIterable, Identifiable, Sendable {
     case daysAsc = "免息期从短到长"
     case lastModify = "最近修改时间"
     
-    public var contractKey: String {
-        switch self {
-        case .limitDesc: return "limit-desc"
-        case .limitAsc: return "limit-asc"
-        case .daysDesc: return "interest-desc"
-        case .daysAsc: return "interest-asc"
-        case .lastModify: return "modifyTime"
-        }
-    }
-
     public var id: String { self.rawValue }
     
     public var icon: String {

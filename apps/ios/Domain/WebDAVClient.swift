@@ -112,6 +112,8 @@ public enum WebDAVError: Error, LocalizedError, Sendable {
 
 public final class WebDAVClient: Sendable {
     public static let shared = WebDAVClient()
+    private let sessions = WebDAVSessionRegistry()
+    public func cancelAll() { sessions.cancelAll() }
     private static let backupDirectoryName = "credit-card-backup"
     private static let requestTimeout: TimeInterval = 45
     private static let transferTimeout: TimeInterval = 300
@@ -229,7 +231,7 @@ public final class WebDAVClient: Sendable {
                 request.setValue("1", forHTTPHeaderField: "Depth")
                 request.setValue(self.authHeader(username: username, password: password), forHTTPHeaderField: "Authorization")
 
-                URLSession.shared.dataTask(with: request) { data, response, error in
+                self.sessions.session.dataTask(with: request) { data, response, error in
                     if let error {
                         completion(.failure(WebDAVError.networkError(error)))
                         return
@@ -340,7 +342,7 @@ public final class WebDAVClient: Sendable {
         request.httpMethod = "DELETE"
         request.timeoutInterval = Self.requestTimeout
         request.setValue(authHeader(username: username, password: password), forHTTPHeaderField: "Authorization")
-        URLSession.shared.dataTask(with: request) { _, response, error in
+        self.sessions.session.dataTask(with: request) { _, response, error in
             if let error {
                 completion(.failure(WebDAVError.networkError(error)))
                 return
@@ -375,7 +377,7 @@ public final class WebDAVClient: Sendable {
 
         if let onProgress {
             let delegate = UploadProgressDelegate(onProgress: onProgress)
-            let session = URLSession(
+            let session = sessions.make(
                 configuration: Self.transferSessionConfiguration(allowsCellularAccess: allowsCellularAccess),
                 delegate: delegate,
                 delegateQueue: nil
@@ -396,7 +398,7 @@ public final class WebDAVClient: Sendable {
             task.resume()
         } else {
             request.httpBody = data
-            let session = URLSession(
+            let session = sessions.make(
                 configuration: Self.transferSessionConfiguration(allowsCellularAccess: allowsCellularAccess)
             )
             session.dataTask(with: request) { _, response, error in
@@ -457,7 +459,7 @@ public final class WebDAVClient: Sendable {
                     }
                 }
             )
-            let session = URLSession(
+            let session = sessions.make(
                 configuration: Self.transferSessionConfiguration(allowsCellularAccess: allowsCellularAccess),
                 delegate: delegate,
                 delegateQueue: nil
@@ -465,7 +467,7 @@ public final class WebDAVClient: Sendable {
             let task = session.downloadTask(with: request)
             task.resume()
         } else {
-            let session = URLSession(
+            let session = sessions.make(
                 configuration: Self.transferSessionConfiguration(allowsCellularAccess: allowsCellularAccess)
             )
             session.dataTask(with: request) { data, response, error in
@@ -501,7 +503,7 @@ public final class WebDAVClient: Sendable {
         request.allowsCellularAccess = allowsCellularAccess
         request.setValue("0", forHTTPHeaderField: "Depth")
         request.setValue(authHeader(username: username, password: password), forHTTPHeaderField: "Authorization")
-        URLSession.shared.dataTask(with: request) { _, response, error in
+        self.sessions.session.dataTask(with: request) { _, response, error in
             if let error {
                 completion(.failure(WebDAVError.networkError(error)))
                 return
@@ -528,7 +530,7 @@ public final class WebDAVClient: Sendable {
             mkcolRequest.timeoutInterval = Self.requestTimeout
             mkcolRequest.allowsCellularAccess = allowsCellularAccess
             mkcolRequest.setValue(self.authHeader(username: username, password: password), forHTTPHeaderField: "Authorization")
-            URLSession.shared.dataTask(with: mkcolRequest) { _, mkcolResponse, mkcolError in
+            self.sessions.session.dataTask(with: mkcolRequest) { _, mkcolResponse, mkcolError in
                 if let mkcolError {
                     completion(.failure(WebDAVError.networkError(mkcolError)))
                     return

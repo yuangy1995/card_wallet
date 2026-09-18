@@ -123,6 +123,11 @@
                   :class="{ 'is-selected': isCardSelected(card.id) }"
                   @contextmenu.prevent="handleContextMenu(card, $event)"
                 >
+                  <el-button class="card-favorite-action" circle size="small" :type="favoriteIds.has(card.id) ? 'warning' : 'default'"
+                    :aria-label="favoriteIds.has(card.id) ? '取消收藏' : '收藏卡片'" :aria-pressed="favoriteIds.has(card.id)"
+                    @click.stop="emit('toggle-favorite', card.id)">
+                    <el-icon><StarFilled v-if="favoriteIds.has(card.id)" /><Star v-else /></el-icon>
+                  </el-button>
                   <!-- 悬浮精细 Checkbox (用于批量操作) -->
                   <div class="card-selector-overlay">
                     <el-checkbox
@@ -186,20 +191,20 @@
 </template>
 
 <script setup>
-import { ref, computed, watch, toRef, onUnmounted, inject } from 'vue'
-import { sortCards } from '@/utils/cardCatalog'
+import { sortCards } from '@/utils/cardSearch'
 import { normalizeBankNameForMatch } from '@/utils/bankName'
+import { ref, computed, watch, toRef, onUnmounted, inject } from 'vue'
 import { creditLimitMetrics, formatCreditAmount } from '@/utils/cardMetrics'
 import { cardOrganization, cardOrganizationName } from '@/utils/cardBrand'
 import { calculateCurrentInterestFreeDays } from '@/utils/dateCalculator'
 import { pageGroups } from '@/utils/cardPagination'
 import { usePagedCards } from '@/composables/usePagedCards'
 import { StorageManager } from '@/utils/storage'
-import { Edit, Delete, View, Check, Refresh, OfficeBuilding, Location, CreditCard, ArrowDown, ArrowUp } from '@element-plus/icons-vue'
+import { Edit, Delete, View, Check, Refresh, OfficeBuilding, Location, CreditCard, ArrowDown, ArrowUp, Star, StarFilled } from '@element-plus/icons-vue'
 import CreditCardPhysicsCard from './CreditCardPhysicsCard.vue'
 
 const props = defineProps({
-  sortMode: { type: String, default: undefined },
+  favoriteIds: { type: Set, default: () => new Set() },
   tableData: {
     type: Array,
     required: true
@@ -211,7 +216,7 @@ const props = defineProps({
 })
 
 const emit = defineEmits([
-  'update:sortMode',
+  'toggle-favorite',
   'edit',
   'delete',
   'view-details',
@@ -223,8 +228,7 @@ const emit = defineEmits([
 
 // 分组与排序控制状态（默认按照发卡行 bank 分组，对齐 Mac 端原生面板）
 const groupBy = ref(localStorage.getItem('creditCardGroupMode') || 'bank')
-const localSortBy = ref(localStorage.getItem('creditCardSortMode') || 'default')
-const sortBy = computed({ get: () => props.sortMode ?? localSortBy.value, set: value => { localSortBy.value = value; emit('update:sortMode', value) } })
+const sortBy = ref(localStorage.getItem('creditCardSortMode') || 'default')
 
 // 监听分组与排序方式，存入 localStorage
 watch(groupBy, (newVal) => {
@@ -290,7 +294,7 @@ const calculateLimits = cards => creditLimitMetrics(cards).totals
 const day = inject('calendarDay', ref(Date.now()))
 const groupedCards = computed(() => {
   day.value
-  const sortedData = props.sortMode === undefined ? sortCards(props.tableData, sortBy.value, new Date(day.value)) : props.tableData
+  const sortedData = sortCards(props.tableData, sortBy.value, new Date(day.value))
 
   // 2. 如果不分组，直接作为单一整体返回
   if (groupBy.value === 'none') {
@@ -309,7 +313,7 @@ const groupedCards = computed(() => {
     let title = ''
 
     if (groupBy.value === 'bank') {
-      key = normalizeBankNameForMatch(card.bank) || '未知发卡行'
+      key = normalizeBankNameForMatch(card.bank)
       title = card.bank || '未知发卡行'
     } else if (groupBy.value === 'country') {
       key = (card.country || '其他地区').trim()
@@ -340,7 +344,7 @@ const groupedCards = computed(() => {
   })
 
   // 5. 对分组本身进行逻辑排序（卡数多的排前面，或按拼音排序）
-  groupList.sort((a, b) => b.cards.length - a.cards.length || a.title.localeCompare(b.title, 'zh-CN'))
+  groupList.sort((a, b) => b.cards.length - a.cards.length || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0))
 
   return groupList
 })
@@ -457,6 +461,7 @@ defineExpose({
 </script>
 
 <style lang="scss" scoped>
+.card-favorite-action { position: absolute; right: 8px; top: -10px; z-index: 11; }
 .card-list-container {
   display: flex;
   flex-direction: column;

@@ -2,6 +2,8 @@ import SwiftUI
 import PhotosUI
 import UIKit
 import Vision
+import ImageIO
+import UniformTypeIdentifiers
 #if ENABLE_NFC_CARD_READER && canImport(CoreNFC)
 import CoreNFC
 #endif
@@ -902,7 +904,7 @@ struct CardEditView: View {
         let isDebitCard = cardCategory == "debit"
         let limit = isDebitCard ? 0 : (parseAmount(limitText) ?? 0)
         let annualFee = isDebitCard ? 0 : (parseAmount(annualFeeText) ?? 0)
-        let newCard = SharedCard(
+        var newCard = SharedCard(
             id: cardToEdit?.id ?? UUID().uuidString,
             cardCategory: cardCategory,
             country: cleanCountry,
@@ -927,6 +929,7 @@ struct CardEditView: View {
             isSharedLimit: isDebitCard ? false : isSharedLimit,
             cardImages: cardImages
         )
+        newCard.extraFields = cardToEdit?.extraFields ?? [:]
         onSubmit(newCard)
         dismiss()
     }
@@ -995,6 +998,11 @@ struct CardEditView: View {
 
     private func importSelectedPhotos(_ items: [PhotosPickerItem]) async {
         guard !items.isEmpty else { return }
+        guard CardAttachmentPolicy.canAppend(existingCount: cardImages.count, additionalCount: items.count) else {
+            showValidation("每张卡最多添加 12 张图片，已有图片不会被删除。")
+            selectedPhotoItems = []
+            return
+        }
         var imported: [CardImageAsset] = []
         for (index, item) in items.enumerated() {
             guard let data = try? await item.loadTransferable(type: Data.self),
@@ -1006,29 +1014,26 @@ struct CardEditView: View {
                 name: "card_image_\(cardImages.count + imported.count + index + 1).jpg"
             ))
         }
-        if !imported.isEmpty {
+        if CardAttachmentPolicy.canAppend(existingCount: cardImages.count, additionalCount: imported.count) {
             cardImages.append(contentsOf: imported)
         }
+        if imported.count != items.count { showValidation("部分图片无法读取或超过 10 MB，请检查后重试。") }
         selectedPhotoItems = []
     }
 
     private func normalizedImagePayload(from data: Data) -> (data: Data, mimeType: String)? {
-        guard let image = UIImage(data: data) else {
-            return (data, "image/jpeg")
-        }
-        let maxEdge: CGFloat = 1600
-        let longestEdge = max(image.size.width, image.size.height)
-        let scale = longestEdge > maxEdge ? maxEdge / longestEdge : 1
-        let targetSize = CGSize(
-            width: max(1, image.size.width * scale),
-            height: max(1, image.size.height * scale)
-        )
-        let renderer = UIGraphicsImageRenderer(size: targetSize)
-        let resized = renderer.image { _ in
-            image.draw(in: CGRect(origin: .zero, size: targetSize))
-        }
-        guard let jpegData = resized.jpegData(compressionQuality: 0.84) else { return nil }
-        return (jpegData, "image/jpeg")
+        guard data.count <= CardAttachmentPolicy.maximumSourceBytes,
+              let source = CGImageSourceCreateWithData(data as CFData, nil),
+              let image = CGImageSourceCreateThumbnailAtIndex(source, 0, [
+                kCGImageSourceCreateThumbnailFromImageAlways: true,
+                kCGImageSourceCreateThumbnailWithTransform: true,
+                kCGImageSourceThumbnailMaxPixelSize: CardAttachmentPolicy.maximumEdge
+              ] as CFDictionary) else { return nil }
+        let output = NSMutableData()
+        guard let destination = CGImageDestinationCreateWithData(output, UTType.jpeg.identifier as CFString, 1, nil) else { return nil }
+        CGImageDestinationAddImage(destination, image, [kCGImageDestinationLossyCompressionQuality: 0.84] as CFDictionary)
+        guard CGImageDestinationFinalize(destination) else { return nil }
+        return (output as Data, "image/jpeg")
     }
 
     private func uiImage(from asset: CardImageAsset) -> UIImage? {
@@ -1099,7 +1104,8 @@ struct CardEditView: View {
         var changedFields: [String] = []
 
         if let imageAsset {
-            cardImages.append(imageAsset)
+            if CardAttachmentPolicy.canAppend(existingCount: cardImages.count, additionalCount: 1) { cardImages.append(imageAsset) }
+            else { showValidation("每张卡最多添加 12 张图片，已有图片不会被删除。") }
         }
         if let cardNumber = result.cardNumber, self.cardNumber.isEmpty {
             self.cardNumber = cardNumber

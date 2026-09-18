@@ -13,6 +13,7 @@ public enum BankNameNormalizer {
             .replacingOccurrences(of: bankParenthesesPattern, with: "", options: .regularExpression)
             .replacingOccurrences(of: whitespacePattern, with: "", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased(with: Locale(identifier: "en_US_POSIX"))
     }
 
     public static func namesReferToSameBank(_ left: String?, _ right: String?) -> Bool {
@@ -27,8 +28,4 @@ public enum BankNameNormalizer {
     }
 
 
-    public static func groupDisplayName(_ values: [String]) -> String {
-        let names = values.map { display($0) }.filter { !$0.isEmpty }.sorted()
-        return names.first(where: { $0 == normalizedKey($0) }) ?? names.first ?? String(localized: "未填写银行")
-    }
 }

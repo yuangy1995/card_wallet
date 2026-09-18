@@ -1,0 +1,86 @@
+[
+  {
+    "name": "previous-bill-repayment",
+    "today": "2026-09-03",
+    "card": {
+      "id": "a",
+      "country": "US",
+      "bank": "Test Bank",
+      "type": "USD",
+      "limit": 100,
+      "cardNumber": "4111111111111111",
+      "lastModifyTime": 1700000000000,
+      "accountBillDate": "25",
+      "dueDate": "5"
+    },
+    "expected": [
+      {
+        "kind": "repayment",
+        "days": 2
+      }
+    ]
+  },
+  {
+    "name": "clamped-bill",
+    "today": "2026-02-27",
+    "card": {
+      "id": "a",
+      "country": "US",
+      "bank": "Test Bank",
+      "type": "USD",
+      "limit": 100,
+      "cardNumber": "4111111111111111",
+      "lastModifyTime": 1700000000000,
+      "accountBillDate": "31",
+      "dueDate": "10"
+    },
+    "expected": [
+      {
+        "kind": "bill",
+        "days": 1
+      }
+    ]
+  },
+  {
+    "name": "same-day",
+    "today": "2026-09-10",
+    "card": {
+      "id": "a",
+      "country": "US",
+      "bank": "Test Bank",
+      "type": "USD",
+      "limit": 100,
+      "cardNumber": "4111111111111111",
+      "lastModifyTime": 1700000000000,
+      "accountBillDate": "10",
+      "dueDate": "10"
+    },
+    "expected": [
+      {
+        "kind": "bill",
+        "days": 0
+      },
+      {
+        "kind": "repayment",
+        "days": 0
+      }
+    ]
+  },
+  {
+    "name": "debit-no-credit-reminders",
+    "today": "2026-09-10",
+    "card": {
+      "id": "a",
+      "country": "US",
+      "bank": "Test Bank",
+      "type": "USD",
+      "limit": 100,
+      "cardNumber": "4111111111111111",
+      "lastModifyTime": 1700000000000,
+      "cardCategory": "debit",
+      "accountBillDate": "10",
+      "dueDate": "10"
+    },
+    "expected": []
+  }
+]

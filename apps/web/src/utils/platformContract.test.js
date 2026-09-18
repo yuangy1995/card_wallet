@@ -1,41 +1,42 @@
 import { describe, it, expect } from 'vitest'
-import limits from '../../../../contracts/card-wallet/fixtures/credit-limits.json'
-import dates from '../../../../contracts/card-wallet/fixtures/billing-dates.json'
-import syncCases from '../../../../contracts/card-wallet/fixtures/sync-cases.json'
+import { readFileSync } from 'node:fs'
 import { creditLimitMetrics } from './cardMetrics'
 import { calculateCurrentInterestFreeDays } from './dateCalculator'
+import { getCardExpiryStatus, getAnnualFeeRemainingDays, getAnnualFeeDetection, getBillingCycleDetection } from './cardReminderRules'
+import { cardSearchIndex, matchesCardSearch, sortCards } from './cardSearch'
 import { mergeRecords } from './syncProtocol'
-
-describe('four-platform contract v1', () => {
-  for (const fixture of limits) it(`credit: ${fixture.name}`, () => {
-    for (const cards of [fixture.cards, [...fixture.cards].reverse()]) {
-      expect(Object.fromEntries(creditLimitMetrics(cards).totals.map(x => [x.currency, x.amount]))).toEqual(fixture.expected)
-    }
+const fixtures = name => JSON.parse(readFileSync(new URL(`../../../../contracts/card-wallet/fixtures/${name}.json`, import.meta.url), 'utf8'))
+const day = text => new Date(`${text}T12:00:00`)
+describe('shared four-platform contract v1', () => {
+  it.each(fixtures('search'))('search: $name', ({card, query, expected}) => {
+    expect(matchesCardSearch(cardSearchIndex(card), query)).toBe(expected)
   })
-  for (const fixture of dates) it(`date: ${fixture.name}`, () => {
-    const [year, month, day] = fixture.today.split('-').map(Number)
-    expect(calculateCurrentInterestFreeDays(fixture.card, new Date(year, month - 1, day, 12))).toBe(fixture.expected)
+  it.each(fixtures('sorting'))('sorting: $name', ({cards, mode, today, expected}) => {
+    expect(sortCards(cards, mode, day(today)).map(card => card.id)).toEqual(expected)
+    expect(sortCards([...cards].reverse(), mode, day(today)).map(card => card.id)).toEqual(expected)
   })
-  for (const fixture of syncCases) it(`sync: ${fixture.name}`, () => {
-    const summarize = records => records.map(({ cardId, state, mutationId }) => ({ cardId, state, mutationId }))
-    const merged = mergeRecords(...fixture.collections)
-    expect(summarize(merged)).toEqual(fixture.expected)
-    expect(summarize(mergeRecords(...[...fixture.collections].reverse()))).toEqual(fixture.expected)
-    expect(summarize(mergeRecords(merged, merged))).toEqual(fixture.expected)
-    expect(summarize(mergeRecords(JSON.parse(JSON.stringify(merged))))).toEqual(fixture.expected)
+  it.each(fixtures('credit-limits'))('limits: $name', ({ cards, expected }) => {
+    expect(Object.fromEntries(creditLimitMetrics(cards).totals.map(row => [row.currency, row.amount]))).toEqual(expected)
+    expect(Object.fromEntries(creditLimitMetrics([...cards].reverse()).totals.map(row => [row.currency, row.amount]))).toEqual(expected)
   })
-})
-
-import searchCases from '../../../../contracts/card-wallet/fixtures/search.json'
-import sortCases from '../../../../contracts/card-wallet/fixtures/sorting.json'
-import { matchesCard, sortCards } from './cardCatalog'
-describe('shared search and sorting contract', () => {
-  for (const item of searchCases) it(item.name, () => {
-    expect(item.cards.filter(card => matchesCard(card, item.query)).map(card => card.id).sort()).toEqual(item.expected)
+  it.each(fixtures('billing-dates'))('interest: $name', ({ card, today, expected }) => {
+    expect(calculateCurrentInterestFreeDays(card, day(today))).toBe(expected)
   })
-  for (const item of sortCases) it(item.name, () => {
-    const [y, m, d] = item.today.split('-').map(Number)
-    const today = new Date(y, m - 1, d)
-    for (const cards of [item.cards, [...item.cards].reverse()]) expect(sortCards(cards, item.key, today).map(card => card.id)).toEqual(item.expected)
+  it.each(fixtures('expiry'))('expiry: $name', ({ valid, today, expected }) => {
+    expect(getCardExpiryStatus(valid, day(today))).toBe(expected)
+  })
+  it.each(fixtures('annual-fees'))('annual fee: $name', ({ target, today, status, expectedDays, expectedKind }) => {
+    const date = day(target).getTime()
+    expect(getAnnualFeeRemainingDays(date, day(today))).toBe(expectedDays)
+    expect(getAnnualFeeDetection({ isQualified: status, nextAnnualFeeCollectionTime: date }, 60, day(today))?.kind ?? null).toBe(expectedKind)
+  })
+  it.each(fixtures('reminders'))('reminders: $name', ({ card, today, expected }) => {
+    expect(getBillingCycleDetection(card, day(today)).map(({kind, days}) => ({kind, days}))).toEqual(expected)
+  })
+  it.each(fixtures('sync-conflicts'))('sync: $name', ({ records, expected }) => {
+    const simplify = records => mergeRecords(records).map(({cardId, mutationId, state}) => ({cardId, mutationId, state}))
+    expect(simplify(records)).toEqual(expected)
+    expect(simplify([...records].reverse())).toEqual(expected)
+    expect(simplify([...records, ...records])).toEqual(expected)
   })
 })

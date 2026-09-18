@@ -3,6 +3,8 @@
  * 用于将老数据结构转换为新数据结构，支持字段扩展和格式转换
  */
 
+import { normalizeCardImages } from './cardAttachments'
+import { normalizeCardForSync } from './syncProtocol'
 import { DEFAULT_CARD_DATA, REQUIRED_FIELDS, FIELD_TYPES } from '@/config/defaultCardData'
 import { CARD_TIMESTAMP_FIELDS, normalizeCardTimeFields, nowCardTimestamp, toCardTimestamp } from '@/utils/cardTimestamp'
 
@@ -99,33 +101,6 @@ function normalizeCardCategory(value) {
   return value === 'debit' ? 'debit' : 'credit'
 }
 
-function normalizeCardImages(value) {
-  if (!Array.isArray(value)) return []
-  return value
-    .map((item, index) => {
-      if (typeof item === 'string') {
-        const separatorIndex = item.indexOf(';')
-        return {
-          id: crypto.randomUUID(),
-          mimeType: item.startsWith('data:') && separatorIndex > 5 ? item.slice(5, separatorIndex) : 'image/jpeg',
-          data: item,
-          createdAt: nowCardTimestamp(),
-          source: 'legacy',
-          name: `card_image_${index + 1}.jpg`
-        }
-      }
-      if (!item || typeof item !== 'object') return null
-      return {
-        id: item.id || crypto.randomUUID(),
-        mimeType: item.mimeType || 'image/jpeg',
-        data: item.data || '',
-        createdAt: Number(item.createdAt) || nowCardTimestamp(),
-        source: item.source || 'web_upload',
-        name: item.name || ''
-      }
-    })
-    .filter(item => item?.data)
-}
 
 /**
  * 迁移单条卡片数据
@@ -143,7 +118,7 @@ export function migrateCardData(oldCard, trackChanges = false) {
   const changes = trackChanges ? [] : null
   
   // 从默认数据开始，确保所有字段都存在
-  const migratedCard = { ...DEFAULT_CARD_DATA }
+  const migratedCard = { ...DEFAULT_CARD_DATA, ...normalizeCardForSync(oldCard) }
   
   // 1. 处理ID字段
   const stableId = firstStringValue(oldCard, ['id', 'cardId', '_id', 'uuid'])

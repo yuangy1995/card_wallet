@@ -34,6 +34,9 @@ object SyncTime {
 
     fun nowIso(): String = isoFromMillis(nowMillis())
 
+    fun nextMillis(after: String?, now: Long = nowMillis()): Long =
+        maxOf(now, (parseMillis(after) ?: 0L) + 1L)
+
     fun isoFromMillis(epochMillis: Long): String {
         return isoOutput.get()!!.format(Date(epochMillis))
     }

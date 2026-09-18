@@ -17,7 +17,7 @@ export function creditLimitMetrics(cards = []) {
     if (card.cardCategory === 'debit') continue
     const currency = cardCurrency(card)
     const limit = amount(card.limit)
-    if (card.isSharedLimit !== false && normalizeBankNameForMatch(card.bank)) {
+    if (card.isSharedLimit !== false) {
       const key = sharedLimitKey(card)
       const pool = pools.get(key) || { key, country: card.country || '', bank: card.bank || '', currency, totalLimit: 0, cardCount: 0 }
       pool.totalLimit = Math.max(pool.totalLimit, limit)
@@ -29,7 +29,7 @@ export function creditLimitMetrics(cards = []) {
   }
   const shared = [...pools.values()]
   const sums = new Map()
-  const add = (currency, value) => sums.set(currency, (sums.get(currency) || 0) + Math.round((value + Number.EPSILON) * 100))
+  const add = (currency, value) => sums.set(currency, (sums.get(currency) || 0) + Math.round((value + Number.EPSILON * Math.max(1, value)) * 100))
   shared.forEach(pool => add(pool.currency, pool.totalLimit))
   independent.forEach(card => add(card.currency, card.limit))
   return { shared, independent, totals: [...sums].sort(([a], [b]) => a.localeCompare(b)).map(([currency, cents]) => ({ currency, amount: cents / 100 })) }

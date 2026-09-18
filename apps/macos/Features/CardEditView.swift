@@ -541,7 +541,7 @@ public struct CardEditView: View {
         let parsedLimit: Double? = isDebitCard ? 0.0 : parseAmount(limitText)
         let parsedAnnualFee: Double? = isDebitCard ? 0.0 : parseAmount(annualFeeText)
         
-        let finalCard = SharedCard(
+        var finalCard = SharedCard(
             id: cardToEdit?.id ?? UUID().uuidString,
             cardCategory: cardCategory,
             country: country.trimmingCharacters(in: .whitespacesAndNewlines),
@@ -567,20 +567,27 @@ public struct CardEditView: View {
             cardImages: cardImages
         )
         
+        finalCard.extraFields = cardToEdit?.extraFields ?? [:]
         onSubmit(finalCard)
         dismiss()
     }
 
     private func importImageFiles(_ urls: [URL]) {
+        guard CardAttachmentPolicy.canAppend(existingCount: cardImages.count, additionalCount: urls.count) else {
+            imageImportError = String(localized: "每张卡最多添加 12 张图片，已有图片不会被删除。")
+            return
+        }
         isImportingPhotoData = true
         imageImportError = ""
         importTask?.cancel()
         importTask = Task {
             let imported = await Task.detached(priority: .utility) { CardImageImporter.read(urls) }.value
             guard !Task.isCancelled else { return }
-            cardImages.append(contentsOf: imported)
+            if CardAttachmentPolicy.canAppend(existingCount: cardImages.count, additionalCount: imported.count) {
+                cardImages.append(contentsOf: imported)
+            }
             isImportingPhotoData = false
-            if imported.count != urls.count { imageImportError = String(localized: "部分图片未能添加，请检查文件后重试。") }
+            if imported.count != urls.count { imageImportError = String(localized: "部分图片无法读取或超过 10 MB，请检查后重试。") }
         }
     }
 

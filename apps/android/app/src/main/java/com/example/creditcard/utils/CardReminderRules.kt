@@ -1,6 +1,9 @@
 package com.example.creditcard.utils
 
 import com.example.creditcard.data.SharedCard
+import java.time.Instant
+import java.time.ZoneId
+import java.time.YearMonth
 import java.time.LocalDate
 import java.time.temporal.ChronoUnit
 import java.util.Calendar
@@ -59,8 +62,10 @@ object CardReminderRules {
     private const val DAY_MS = 24 * 60 * 60 * 1000.0
 
     fun annualFeeRemainingDays(nextAnnualFeeCollectionTime: Long?, nowMillis: Long = System.currentTimeMillis()): Int? {
-        val targetMillis = nextAnnualFeeCollectionTime ?: return null
-        return ceil((targetMillis - nowMillis) / DAY_MS).toInt()
+        val target = nextAnnualFeeCollectionTime ?: return null
+        val zone = ZoneId.systemDefault()
+        return ChronoUnit.DAYS.between(Instant.ofEpochMilli(nowMillis).atZone(zone).toLocalDate(),
+            Instant.ofEpochMilli(target).atZone(zone).toLocalDate()).toInt()
     }
 
     /** 以卡片中保存的年费日期为基准增加一个日历年。 */
@@ -73,10 +78,7 @@ object CardReminderRules {
     }
 
     /** 确认当前年费周期达标，并同步顺延下一次年费日期。 */
-    fun confirmAnnualFeeQualified(card: SharedCard): SharedCard = card.copy(
-        isQualified = "1",
-        nextAnnualFeeCollectionTime = timestampByAddingOneYear(card.nextAnnualFeeCollectionTime)
-    )
+    fun confirmAnnualFeeQualified(card: SharedCard): SharedCard = CardOperations.annualStatus("1", card)
 
     fun annualFeeDetection(
         card: SharedCard,
@@ -108,9 +110,10 @@ object CardReminderRules {
     }
 
     fun cardExpiryStatus(valid: String?, today: LocalDate = LocalDate.now()): CardExpiryStatus? {
-        val expiryDate = parseExpiryDate(valid) ?: return null
-        if (expiryDate.isBefore(today)) return CardExpiryStatus.EXPIRED
-        if (expiryDate.isBefore(today.plusMonths(EXPIRY_WARNING_MONTHS))) return CardExpiryStatus.SOON_EXPIRING
+        val month = parseExpiryDate(valid)?.let(YearMonth::from) ?: return null
+        val current = YearMonth.from(today)
+        if (month.isBefore(current)) return CardExpiryStatus.EXPIRED
+        if (!month.isAfter(current.plusMonths(EXPIRY_WARNING_MONTHS))) return CardExpiryStatus.SOON_EXPIRING
         return CardExpiryStatus.NORMAL
     }
 
@@ -273,13 +276,26 @@ object CardReminderRules {
         }
 
         return runCatching {
-            val parsed = LocalDate.parse(trimmed)
+            val parsed = if (Regex("^\\d{4}-\\d{2}$").matches(trimmed)) YearMonth.parse(trimmed).atDay(1) else LocalDate.parse(trimmed)
             LocalDate.of(parsed.year, parsed.month, 1)
         }.getOrNull()
     }
 
+    fun currentInterestFreeDays(card: SharedCard, today: LocalDate = LocalDate.now()): Int {
+        if (card.cardCategory == "debit") return -1
+        val bill = dayNumber(card.accountBillDate) ?: return -1
+        val due = dayNumber(card.dueDate) ?: return -1
+        val currentBill = monthDayDate(bill, today)
+        val next = today.isAfter(currentBill) || (today == currentBill && card.billingDaySpendingToNextBill)
+        val billDate = monthDayDate(bill, today, if (next) 1 else 0)
+        val dueDate = monthDayDate(due, billDate, if (due <= bill) 1 else 0)
+        return maxOf(0, ChronoUnit.DAYS.between(today, dueDate).toInt())
+    }
+
     private fun dayNumber(value: String?): Int? {
-        val day = value?.trim()?.toIntOrNull() ?: return null
+        val text = value?.trim().orEmpty()
+        if (!Regex("^[0-9]{1,2}$").matches(text)) return null
+        val day = text.toIntOrNull() ?: return null
         return day.takeIf { it in 1..31 }
     }
 
@@ -298,12 +314,14 @@ object CardReminderRules {
     private fun dueDateForBillMonth(accountBillDate: String?, dueDate: String?, today: LocalDate, monthOffset: Long = 0): LocalDate? {
         val billDay = dayNumber(accountBillDate) ?: return null
         val dueDay = dayNumber(dueDate) ?: return null
-        val dueMonthOffset = monthOffset + if (dueDay < billDay) 1 else 0
+        val dueMonthOffset = monthOffset + if (dueDay <= billDay) 1 else 0
         return monthDayDate(dueDay, today, dueMonthOffset)
     }
 
     private fun nextDueDate(accountBillDate: String?, dueDate: String?, today: LocalDate): LocalDate? {
-        val current = dueDateForBillMonth(accountBillDate, dueDate, today) ?: return null
-        return if (!current.isBefore(today)) current else dueDateForBillMonth(accountBillDate, dueDate, today, 1)
+        if (dayNumber(accountBillDate) == null) return null
+        val due = dayNumber(dueDate) ?: return null
+        val current = monthDayDate(due, today)
+        return if (!current.isBefore(today)) current else monthDayDate(due, today, 1)
     }
 }

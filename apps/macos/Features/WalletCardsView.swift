@@ -20,6 +20,9 @@ struct AllCardsView: View {
     @EnvironmentObject private var appearance: WalletAppearance
     @Environment(\.walletPalette) private var palette
     @Environment(\.walletAnimation) private var animation
+    @AppStorage("wallet_favorite_card_ids") private var favoritesJSON = "[]"
+    @State private var favoritesOnly = false
+    private var favoriteIDs: Set<String> { LocalCardPreferences.decodeFavorites(favoritesJSON) }
     @AppStorage("wallet_card_layout") private var layout = "list"
     @State private var preparedCards: [CardCatalogItem] = []
     @State private var groups: [CardCatalogGroup] = []
@@ -35,7 +38,7 @@ struct AllCardsView: View {
     @FocusState private var focusedCard: String?
 
     private var query: CardCatalogQuery {
-        CardCatalogQuery(search: searchText, bank: selectedBank, category: cardCategoryFilter, group: groupBy, sort: sortBy)
+        CardCatalogQuery(search: searchText, bank: selectedBank, category: cardCategoryFilter, group: groupBy, sort: sortBy, favoritesOnly: favoritesOnly, favoriteIDs: favoriteIDs)
     }
     private var visibleItems: [CardCatalogItem] { groups.flatMap(\.items) }
     private var selectedCard: SharedCard? { cards.first { $0.id == selectedCardID } }
@@ -59,7 +62,7 @@ struct AllCardsView: View {
                         if cards.isEmpty {
                             Button("添加卡片", action: addCard).buttonStyle(.borderedProminent)
                         } else {
-                            Button("清除筛选") { searchText = ""; selectedBank = ""; cardCategoryFilter = .all }
+                            Button("清除筛选") { searchText = ""; selectedBank = ""; cardCategoryFilter = .all; favoritesOnly = false }
                         }
                     }
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -87,14 +90,19 @@ struct AllCardsView: View {
                     card: card,
                     onEdit: { edit(card) },
                     onViewDetails: { detailCard = card },
-                    onUpdateStatus: { onUpdateStatus(card, $0) }
+                    onUpdateStatus: { onUpdateStatus(card, $0) },
+                    isFavorite: favoriteIDs.contains(card.id),
+                    onFavorite: { LocalCardPreferences.toggleFavorite(card.id) }
                 )
                 .frame(width: 282)
                 .background(WalletBackground(palette: palette))
             }
         }
         .onAppear(perform: prepare)
-        .onChange(of: cards) { _, _ in prepare() }
+        .onChange(of: cards) { _, cards in
+            selectedCardIDs.formIntersection(Set(cards.map(\.id)))
+            prepare()
+        }
         .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged)) { _ in prepare() }
         .onChange(of: query) { _, _ in refreshGroups() }
         .onDisappear { catalogTask?.cancel() }
@@ -147,6 +155,12 @@ struct AllCardsView: View {
             HStack(spacing: 10) {
                 WalletChoiceBar(title: "卡片类别", selection: $cardCategoryFilter,
                     choices: CardCategoryFilter.allCases.map { WalletChoice(value: $0, title: LocalizedStringKey($0.rawValue)) })
+                Button { favoritesOnly.toggle() } label: {
+                    Image(systemName: favoritesOnly ? "star.fill" : "star")
+                        .foregroundStyle(favoritesOnly ? palette.accent : .secondary)
+                }
+                .buttonStyle(.borderless).help("只看收藏").accessibilityLabel("只看收藏")
+                .accessibilityValue(favoritesOnly ? "已开启" : "已关闭")
                 Spacer(minLength: 0)
                 WalletChoiceBar(title: "排列方式", selection: $layout, choices: [
                     WalletChoice(value: "list", title: "列表视图", icon: "list.bullet"),
@@ -248,7 +262,7 @@ struct AllCardsView: View {
                 withAnimation(animation) { selectedCardID = item.id }
             }
         } label: {
-            WalletCatalogRow(item: item, grid: grid, selected: isSelectionMode ? selectedCardIDs.contains(item.id) : selectedCardID == item.id, selectionMode: isSelectionMode, compact: appearance.compactList)
+            WalletCatalogRow(item: item, grid: grid, selected: isSelectionMode ? selectedCardIDs.contains(item.id) : selectedCardID == item.id, selectionMode: isSelectionMode, compact: appearance.compactList, favorite: favoriteIDs.contains(item.id))
         }
         .buttonStyle(.plain)
         .focusable()
@@ -258,6 +272,9 @@ struct AllCardsView: View {
         .onKeyPress(.upArrow) { moveSelection(from: item.id, step: -1, scrollTo: scrollTo); return .handled }
         .onKeyPress(.downArrow) { moveSelection(from: item.id, step: 1, scrollTo: scrollTo); return .handled }
         .contextMenu {
+            Button { LocalCardPreferences.toggleFavorite(item.id) } label: {
+                Label(favoriteIDs.contains(item.id) ? "取消收藏" : "收藏卡片", systemImage: "star")
+            }
             Button("查看完整详情") { detailCard = item.card }
             Button("编辑卡片") { edit(item.card) }
             if item.card.cardCategory != "debit" {
@@ -317,6 +334,7 @@ struct WalletCatalogRow: View {
     let selected: Bool
     let selectionMode: Bool
     let compact: Bool
+    var favorite = false
     @Environment(\.walletPalette) private var palette
     @Environment(\.walletAnimation) private var animation
     @State private var hovered = false
@@ -362,6 +380,9 @@ struct WalletCatalogRow: View {
         .contentShape(Rectangle())
         .onHover { hovered = $0 }
         .animation(animation, value: hovered)
+        .overlay(alignment: .topTrailing) {
+            if favorite { Image(systemName: "star.fill").font(.caption2).foregroundStyle(palette.accent).padding(4).accessibilityLabel("已收藏") }
+        }
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(selected ? [.isSelected] : [])
     }
@@ -372,6 +393,8 @@ private struct WalletCardInspector: View {
     let onEdit: () -> Void
     let onViewDetails: () -> Void
     let onUpdateStatus: (String) -> Void
+    let isFavorite: Bool
+    let onFavorite: () -> Void
     @Environment(\.walletPalette) private var palette
     @State private var copied = false
     var body: some View {
@@ -380,6 +403,9 @@ private struct WalletCardInspector: View {
                 HStack {
                     Text("卡片详情").font(.caption).foregroundStyle(.secondary)
                     Spacer()
+                    Button(action: onFavorite) { Image(systemName: isFavorite ? "star.fill" : "star") }
+                        .buttonStyle(.plain).help(isFavorite ? "取消收藏" : "收藏卡片")
+                        .accessibilityLabel(isFavorite ? "取消收藏" : "收藏卡片")
                     Button(action: onViewDetails) { Image(systemName: "arrow.up.left.and.arrow.down.right") }
                         .buttonStyle(.plain).help("查看完整详情").accessibilityLabel("查看完整详情")
                 }
