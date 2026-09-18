@@ -27,6 +27,15 @@ handler = functools.partial(http.server.SimpleHTTPRequestHandler, directory=str(
 server = http.server.ThreadingHTTPServer(('127.0.0.1', 0), handler)
 threading.Thread(target=server.serve_forever, daemon=True).start()
 url = f'http://127.0.0.1:{server.server_port}'
+# Measure actual clickable controls, not transparent inputs hidden by their labels.
+TOOLBAR_LAYOUT_VALID = """el => {
+  const controls = [...el.querySelectorAll('.el-radio-button__inner, button, .omni-search-input input')]
+    .map(node => node.getBoundingClientRect()).filter(r => r.width > 0 && r.height > 0);
+  return controls.every(r => r.left >= 0 && r.right <= innerWidth + 1) &&
+    controls.every((a, i) => controls.slice(i + 1).every(b =>
+      Math.min(a.right, b.right) - Math.max(a.left, b.left) <= 2 ||
+      Math.min(a.bottom, b.bottom) - Math.max(a.top, b.top) <= 2));
+}"""
 results = {}
 errors = []
 with sync_playwright() as pw:
@@ -90,6 +99,8 @@ with sync_playwright() as pw:
         page.locator('.el-radio-button').filter(has=page.get_by_role('radio', name='卡片', exact=True)).click()
         expect(page.get_by_role('radio', name='卡片', exact=True)).to_be_checked()
         expect(page.locator('.physics-card-wrapper')).to_have_count(24, timeout=15000)
+        assert page.locator('.toolbar-row').evaluate(TOOLBAR_LAYOUT_VALID), 'Desktop toolbar overlaps'
+        results['desktop_toolbar_non_overlapping'] = True
         page.screenshot(path=str(OUT / 'cards-light.png'), full_page=True)
         page.emulate_media(color_scheme='dark')
         expect(page.locator('html')).to_have_class('dark')
@@ -120,6 +131,8 @@ with sync_playwright() as pw:
         expect(page.locator('.el-message')).to_have_count(0, timeout=10000)
         assert page.locator('.wallet-pagination').evaluate('el => [...el.children].every(child => {const r=child.getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth})')
         results['mobile_pagination_in_viewport'] = True
+        assert page.locator('.toolbar-row').evaluate(TOOLBAR_LAYOUT_VALID), 'Mobile toolbar overlaps'
+        results['mobile_toolbar_non_overlapping'] = True
         page.screenshot(path=str(OUT / 'cards-mobile.png'), full_page=True)
         page.reload(wait_until='networkidle')
         expect(page.get_by_text('应用已锁定', exact=True)).to_be_visible()
