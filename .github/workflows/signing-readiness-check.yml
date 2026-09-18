@@ -1,4 +1,4 @@
-name: Release signing readiness
+name: Merged migration branch cleanup
 on:
   push:
     branches: [main]
@@ -7,31 +7,43 @@ on:
 permissions:
   contents: read
 jobs:
-  readiness:
+  cleanup:
     if: github.repository == 'yuangy1995/card_wallet' && github.ref == 'refs/heads/main'
-    runs-on: macos-15
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
         with:
+          fetch-depth: 0
           persist-credentials: false
-      - name: Report Android configuration presence only
+      - name: Verify PR merge and delete only the matching merged branch
         env:
-          HAS_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
-          HAS_STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD != '' }}
-          HAS_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS != '' }}
-          HAS_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD != '' }}
-          HAS_FINGERPRINT: ${{ secrets.ANDROID_SIGNING_CERT_SHA256 != '' }}
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
         run: |
+          set -euo pipefail
           python3 - <<'PY'
-          import os
-          names = {'HAS_KEYSTORE': 'ANDROID_KEYSTORE_BASE64', 'HAS_STORE_PASSWORD': 'ANDROID_KEYSTORE_PASSWORD',
-                   'HAS_ALIAS': 'ANDROID_KEY_ALIAS', 'HAS_KEY_PASSWORD': 'ANDROID_KEY_PASSWORD',
-                   'HAS_FINGERPRINT': 'ANDROID_SIGNING_CERT_SHA256'}
-          missing = [name for flag, name in names.items() if os.environ.get(flag) != 'true']
-          print('Missing Android signing configuration: ' + (', '.join(missing) if missing else 'none'))
+          import json, subprocess
+          branch = 'codex/public-release-migration-20260918'
+          expected = '8608232bceae1f07c5617f1d5547cdd5e6846169'
+          def run(*args):
+              return subprocess.check_output(args, text=True).strip()
+          pr = json.loads(run('gh', 'api', 'repos/yuangy1995/card_wallet/pulls/8'))
+          if not pr['merged'] or pr['head']['sha'] != expected or pr['base']['ref'] != 'main':
+              raise SystemExit('PR #8 is not merged at the expected commit; no branch deleted.')
+          subprocess.run(['git', 'fetch', '--prune', 'origin', '+refs/heads/*:refs/remotes/origin/*'], check=True)
+          ref = 'refs/heads/' + branch
+          live = run('git', 'ls-remote', '--heads', 'origin', ref)
+          if live:
+              if live.split()[0] != expected:
+                  raise SystemExit('Migration branch moved; preserving it.')
+              subprocess.run(['git', 'merge-base', '--is-ancestor', expected, 'refs/remotes/origin/main'], check=True)
+              subprocess.run(['git', '-c', 'credential.helper=', '-c', 'credential.helper=!gh auth git-credential',
+                              'push', '--force-with-lease=' + ref + ':' + expected, 'origin', ':' + ref], check=True)
+              print('Deleted merged migration branch: ' + branch)
+          else:
+              print('Migration branch was already absent.')
+          print('Unmerged experimental branches were not changed.')
           PY
-      - name: Verify existing Sparkle Secret matches the new public key
-        env:
-          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
-        run: swift apps/macos/scripts/check-signing-key.swift apps/macos/Resources/Info.plist
