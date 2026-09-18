@@ -14,7 +14,11 @@ jobs:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - run: python3 scripts/check-signing-secrets.py
-      - run: python3 -m unittest discover -s scripts -p 'test_signing_security.py'
-      - run: python3 -m unittest discover -s apps/android/scripts -p 'test_*.py'
-      - run: python3 -m unittest discover -s apps/macos/scripts -p 'test_*.py'
+      - name: Scan the complete tracked source without accessing signing Secrets
+        run: python3 scripts/check-signing-secrets.py
+      - name: Run signing and public release configuration tests
+        run: |
+          python3 -m unittest discover -s scripts -p 'test_*.py'
+          python3 -m unittest discover -s apps/android/scripts -p 'test_*.py'
+      - name: Check patch whitespace
+        run: git diff --check

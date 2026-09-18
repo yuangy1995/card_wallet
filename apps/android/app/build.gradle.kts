@@ -19,6 +19,7 @@ val validateReleaseSigningEnvironment by tasks.registering {
         check(keystore.isAbsolute && keystore.isFile) { "ANDROID_KEYSTORE_PATH 必须指向存在的绝对路径。" }
     }
 }
+// 在任何 Release 打包/签名前失败，不能默默产出未签名包或回退到 Debug 签名。
 tasks.matching { it.name == "preReleaseBuild" || it.name == "validateSigningRelease" }.configureEach {
     dependsOn(validateReleaseSigningEnvironment)
 }
@@ -154,7 +155,7 @@ dependencies {
   // OkHttp 网络连接与 JSON 序列化支持
   implementation("com.squareup.okhttp3:okhttp:4.12.0")
   implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")
-  
+
   // Compose 扩展矢量图标库
   implementation("androidx.compose.material:material-icons-extended")
 
