@@ -1,0 +1,398 @@
+diff --git a/apps/web/src/VaultApp.test.js b/apps/web/src/VaultApp.test.js
+new file mode 100644
+index 0000000..347e0a7
+--- /dev/null
++++ b/apps/web/src/VaultApp.test.js
+@@ -0,0 +1,34 @@
++// @vitest-environment happy-dom
++import { afterEach, describe, expect, it, vi } from 'vitest'
++import { createApp, nextTick } from 'vue'
++import VaultApp from './VaultApp.vue'
++const database = vi.hoisted(() => ({ initialize: vi.fn().mockResolvedValue({}), isUnlocked: false }))
++const manager = vi.hoisted(() => ({ LOCK_STATE_KEY: 'app_lock_state', hasPassword: () => true, lockApp: vi.fn(), unlockApp: vi.fn() }))
++vi.mock('./utils/indexedDbStorage', () => ({ localDataStore: database }))
++vi.mock('./utils/passwordManager', () => ({ PasswordManager: manager }))
++vi.mock('./composables/useTheme', () => ({ useTheme: () => ({}) }))
++vi.mock('./composables/useCalendarDay', () => ({ useCalendarDay: () => ({}) }))
++vi.mock('./components/security/PasswordVerify.vue', () => ({ default: { template: '<div>locked</div>' } }))
++let app
++const mount = async () => {
++  const root = document.createElement('div'); document.body.append(root)
++  app = createApp(VaultApp); app.mount(root)
++  await nextTick(); await nextTick()
++}
++afterEach(() => { app?.unmount(); app = null; document.body.innerHTML = ''; vi.clearAllMocks() })
++describe('vault entry remote lock lifecycle', () => {
++  it('invalidates a pending unlock even before the wallet is mounted', async () => {
++    await mount()
++    window.dispatchEvent(new StorageEvent('storage', { key: manager.LOCK_STATE_KEY, newValue: JSON.stringify({ isLocked: true }) }))
++    expect(manager.lockApp).toHaveBeenCalledWith(false)
++    expect(manager.unlockApp).not.toHaveBeenCalled()
++  })
++  it('ignores shared unlock flags and removes its listener on unmount', async () => {
++    await mount()
++    window.dispatchEvent(new StorageEvent('storage', { key: manager.LOCK_STATE_KEY, newValue: JSON.stringify({ isLocked: false }) }))
++    expect(manager.unlockApp).not.toHaveBeenCalled()
++    app.unmount(); app = null
++    window.dispatchEvent(new StorageEvent('storage', { key: manager.LOCK_STATE_KEY, newValue: JSON.stringify({ isLocked: true }) }))
++    expect(manager.lockApp).not.toHaveBeenCalled()
++  })
++})
+diff --git a/apps/web/src/VaultApp.vue b/apps/web/src/VaultApp.vue
+index 66bf6ea..c8db7b1 100644
+--- a/apps/web/src/VaultApp.vue
++++ b/apps/web/src/VaultApp.vue
+@@ -68,14 +68,23 @@ const resetVault = async () => {
+   }
+ }
+ const onPageHide = () => { if (unlocked.value) PasswordManager.lockApp() }
++const onStorageLock = (event) => {
++  if (event.key !== PasswordManager.LOCK_STATE_KEY || !event.newValue) return
++  try {
++    // 业务界面尚未挂载时也取消在途解锁；不要用可能已更新的当前存储值替代事件值。
++    if (JSON.parse(event.newValue)?.isLocked) PasswordManager.lockApp(false)
++  } catch { /* 损坏的偏好值不是解锁凭据。 */ }
++}
+ onMounted(() => {
+   window.addEventListener('wallet-vault-locked', onLock)
+   window.addEventListener('pagehide', onPageHide)
++  window.addEventListener('storage', onStorageLock)
+   boot()
+ })
+ onUnmounted(() => {
+   window.removeEventListener('wallet-vault-locked', onLock)
+   window.removeEventListener('pagehide', onPageHide)
++  window.removeEventListener('storage', onStorageLock)
+ })
+ </script>
+ 
+diff --git a/apps/web/src/components/dialog/CreditCardDialog.vue b/apps/web/src/components/dialog/CreditCardDialog.vue
+index 409a531..06ec46e 100644
+--- a/apps/web/src/components/dialog/CreditCardDialog.vue
++++ b/apps/web/src/components/dialog/CreditCardDialog.vue
+@@ -183,7 +183,7 @@
+               <el-radio :value="false" size="large">否</el-radio>
+             </el-radio-group>
+             <div class="field-helper">
+-              {{ formData.isSharedLimit ? '该银行所有卡片共享同一额度总额' : '每张卡片拥有独立的信用额度' }}
++              {{ formData.isSharedLimit ? '同地区、同银行、同币种的共享卡使用同一额度' : '每张卡片拥有独立的信用额度' }}
+             </div>
+           </el-form-item>
+         </el-descriptions-item>
+@@ -356,6 +356,7 @@
+ </template>
+ 
+ <script>
++import { existingSharedLimitCard as findSharedLimitCard } from '@/utils/cardMetrics'
+ import { ref, computed, watch, inject } from 'vue'
+ import { ElMessage } from 'element-plus'
+ import { creditCardOptions } from '@/config/creditCardOptions'
+@@ -688,21 +689,7 @@ export default {
+       }
+       if (!formData.value.country || !formData.value.bank) return
+ 
+-      const currentCountry = formData.value.country
+-      const currentBank = formData.value.bank
+-      const currentType = String(formData.value.type || '').trim().toUpperCase()
+-
+-      // 查找同国家同银行的已有卡片（排除当前编辑的卡片）
+-      const existingCard = props.existingCards.find(card => {
+-        const cardBank = card.bank || ''
+-        const cardType = String(card.type || '').trim().toUpperCase()
+-        return card.country === currentCountry &&
+-               bankNamesReferToSameBank(cardBank, currentBank) &&
+-               card.cardCategory !== 'debit' &&
+-               cardType === currentType &&
+-               card.isSharedLimit === true &&
+-               card.id !== formData.value.id
+-      })
++      const existingCard = findSharedLimitCard(props.existingCards, formData.value)
+ 
+       if (existingCard) {
+         existingSharedLimitCard.value = existingCard
+diff --git a/apps/web/src/composables/useAutoLock.js b/apps/web/src/composables/useAutoLock.js
+index 5dc5c4f..40944ff 100644
+--- a/apps/web/src/composables/useAutoLock.js
++++ b/apps/web/src/composables/useAutoLock.js
+@@ -57,8 +57,8 @@ export function useAutoLock() {
+     startCountdown(remainingMs)
+   }
+ 
+-  const lockApp = () => {
+-    PasswordManager.lockApp()
++  const lockApp = (broadcast = true) => {
++    PasswordManager.lockApp(broadcast)
+     isLocked.value = true
+     clearLockTimer()
+   }
+@@ -148,6 +148,14 @@ export function useAutoLock() {
+     }
+     document.addEventListener('visibilitychange', visibilityChangeHandler)
+     storageChangeHandler = (e) => {
++      if (e.key === PasswordManager.LOCK_STATE_KEY && e.newValue) {
++        try {
++          if (JSON.parse(e.newValue)?.isLocked) {
++            lockApp(false) // 接收到的锁定不再回广播，避免标签页互相重复锁定。
++            return
++          }
++        } catch { /* 无效的外部值不改变当前会话。 */ }
++      }
+       if (e.key === null || [
+         PasswordManager.LOCK_STATE_KEY,
+         PasswordManager.LAST_ACTIVITY_KEY,
+diff --git a/apps/web/src/composables/useAutoLock.test.js b/apps/web/src/composables/useAutoLock.test.js
+index 04eec15..bf3f5d0 100644
+--- a/apps/web/src/composables/useAutoLock.test.js
++++ b/apps/web/src/composables/useAutoLock.test.js
+@@ -108,4 +108,15 @@ describe('automatic lock timing', () => {
+     window.dispatchEvent(new StorageEvent('storage', { key: manager.LOCK_STATE_KEY }))
+     expect(manager.hasPassword).not.toHaveBeenCalled()
+   })
++  it('honors a received lock even when shared storage has since been unlocked', () => {
++    mount()
++    state.locked = false // 另一页已再次写入解锁值，但排队的锁定事件仍须清除本页密钥。
++    window.dispatchEvent(new StorageEvent('storage', {
++      key: manager.LOCK_STATE_KEY, newValue: JSON.stringify({ isLocked: true })
++    }))
++    expect(lock.isLocked.value).toBe(true)
++    expect(manager.lockApp).toHaveBeenLastCalledWith(false)
++    expect(vi.getTimerCount()).toBe(0)
++  })
++
+ })
+diff --git a/apps/web/src/utils/cardMetrics.js b/apps/web/src/utils/cardMetrics.js
+index bec2bc1..f6d9181 100644
+--- a/apps/web/src/utils/cardMetrics.js
++++ b/apps/web/src/utils/cardMetrics.js
+@@ -61,3 +61,15 @@ export function prepareTableRows(cards) {
+   }
+   return rows
+ }
++
++// 新增共享卡继承同口径的最大额度，不能因列表顺序把其他卡的额度降为较小值。
++export function existingSharedLimitCard(cards, candidate) {
++  if (candidate.cardCategory === 'debit' || candidate.isSharedLimit === false) return null
++  const pool = sharedLimitKey(candidate)
++  return cards.reduce((best, card) => {
++    if (card.id === candidate.id || card.cardCategory === 'debit' || card.isSharedLimit === false || sharedLimitKey(card) !== pool) return best
++    if (!best || amount(card.limit) > amount(best.limit) ||
++        (amount(card.limit) === amount(best.limit) && String(card.id).localeCompare(String(best.id)) < 0)) return card
++    return best
++  }, null)
++}
+diff --git a/apps/web/src/utils/cardMetrics.test.js b/apps/web/src/utils/cardMetrics.test.js
+index 7566397..8e1906d 100644
+--- a/apps/web/src/utils/cardMetrics.test.js
++++ b/apps/web/src/utils/cardMetrics.test.js
+@@ -1,5 +1,5 @@
+ import { describe, it, expect } from 'vitest'
+-import { creditLimitMetrics, prepareTableRows } from './cardMetrics'
++import { creditLimitMetrics, prepareTableRows, existingSharedLimitCard } from './cardMetrics'
+ import { pageGroups, mergePageSelection } from './cardPagination'
+ import { cardOrganization } from './cardBrand'
+ import { escapeHTML, toCSV } from './safeExport'
+@@ -18,6 +18,17 @@ describe('credit amount and pagination contract', () => {
+     expect(result.shared).toHaveLength(2)
+     expect(result.totals).toEqual([{ currency: '', amount: 20 }, { currency: 'USD', amount: 250 }])
+   })
++  it('inherits the maximum shared amount, independent of input order', () => {
++    const low = card('low'), high = card('high', { limit: 500 })
++    const pool = [low, high, card('hkd', { type: 'HKD', limit: 900 }), card('hk', { country: 'HK', limit: 900 }), card('independent', { isSharedLimit: false, limit: 900 })]
++    const added = card('new')
++    expect(existingSharedLimitCard(pool, added)).toBe(high)
++    expect(existingSharedLimitCard([...pool].reverse(), added)).toBe(high)
++    expect(existingSharedLimitCard([low, high], high)).toBe(low)
++    expect(existingSharedLimitCard(pool, { ...added, cardCategory: 'debit' })).toBeNull()
++    expect(existingSharedLimitCard(pool, { ...added, isSharedLimit: false })).toBeNull()
++    expect(existingSharedLimitCard(pool, { ...added, type: '' })).toBeNull()
++  })
+   it('does not add NaN, infinity, negatives or debit cards to limits', () => {
+     expect(creditLimitMetrics([card('a', { limit: Infinity }), card('b', { limit: -1 }), card('c', { limit: 'invalid' })]).totals).toEqual([{ currency: 'USD', amount: 0 }])
+     expect(creditLimitMetrics([card('d', { cardCategory: 'debit' })]).totals).toEqual([])
+diff --git a/apps/web/src/utils/indexedDbStorage.js b/apps/web/src/utils/indexedDbStorage.js
+index 0d995c2..13764da 100644
+--- a/apps/web/src/utils/indexedDbStorage.js
++++ b/apps/web/src/utils/indexedDbStorage.js
+@@ -132,9 +132,14 @@ class IndexedDbStorage {
+           return
+         }
+         request.result.onversionchange = () => {
+-          this.lock()
+-          request.result.close()
++          const connection = request.result
++          connection.close()
++          if (this.db !== connection) return
++          this.db = null
++          this.initialized = false
+           this.available = false
++          this.initPromise = null
++          this.lock()
+         }
+         resolve(request.result)
+       }
+@@ -155,10 +160,18 @@ class IndexedDbStorage {
+ 
+   async loadCacheFromDatabase() {
+     if (!this.db) return
++    this.cache.clear()
++    // 锁屏只读取包装密钥等小型元数据，不重复载入整份密文及图片。
++    const transaction = this.db.transaction(STORE_NAME, 'readonly')
++    const done = transactionDone(transaction)
++    const [metadata] = await Promise.all([
++      requestToPromise(transaction.objectStore(STORE_NAME).get(VAULT_META_KEY)), done
++    ])
++    this.vaultMetadata = metadata?.value || null
++    if (this.vaultMetadata) return
++    // 旧库仍完整检查：元数据被删除时不能把残留密文误当作旧明文。
+     const entries = await this.readEntries()
+     this.vaultMetadata = entries.find(entry => entry.key === VAULT_META_KEY)?.value || null
+-    this.cache.clear()
+-    // 加密数据库打开时只读取元数据，解锁前不向业务层提供卡片或凭证。
+     if (!this.vaultMetadata && entries.some(entry => entry.value?.format === 'card-wallet-sealed-v1')) throw new Error('本地加密信息缺失，请从备份恢复；未修改原数据。')
+     if (!this.vaultMetadata) entries.forEach(entry => this.cache.set(entry.key, entry.value))
+   }
+diff --git a/apps/web/src/utils/indexedDbStorage.test.js b/apps/web/src/utils/indexedDbStorage.test.js
+index 76ea057..14f3779 100644
+--- a/apps/web/src/utils/indexedDbStorage.test.js
++++ b/apps/web/src/utils/indexedDbStorage.test.js
+@@ -23,6 +23,14 @@ const createDatabase = () => {
+           queueMicrotask(() => transaction.onabort?.())
+         },
+         objectStore: () => ({
++          get(key) {
++            const request = {}
++            queueMicrotask(() => {
++              request.result = values.has(key) ? { key, value: structuredClone(values.get(key)) } : undefined
++              request.onsuccess?.()
++            })
++            return request
++          },
+           getAll() {
+             const request = {}
+             queueMicrotask(() => {
+diff --git a/apps/web/src/utils/indexedDbStorage.testUtils.js b/apps/web/src/utils/indexedDbStorage.testUtils.js
+index 6cdf4b0..e816e0b 100644
+--- a/apps/web/src/utils/indexedDbStorage.testUtils.js
++++ b/apps/web/src/utils/indexedDbStorage.testUtils.js
+@@ -23,6 +23,11 @@ export const createIndexedDbMock = () => {
+         onabort: null,
+         onerror: null,
+         objectStore: () => ({
++          get: (key) => {
++            const request = requestSuccess(store.has(key) ? { key, value: store.get(key) } : undefined)
++            queueMicrotask(() => transaction.oncomplete?.())
++            return request
++          },
+           getAll: () => {
+             const request = requestSuccess([...store.entries()].map(([key, value]) => ({ key, value })))
+             queueMicrotask(() => transaction.oncomplete?.())
+diff --git a/apps/web/src/utils/localVault.test.js b/apps/web/src/utils/localVault.test.js
+index 1f749b9..35273af 100644
+--- a/apps/web/src/utils/localVault.test.js
++++ b/apps/web/src/utils/localVault.test.js
+@@ -151,4 +151,51 @@ describe('real Web Crypto local vault', () => {
+     await expect(localDataStore.initialize()).rejects.toThrow('加密信息缺失')
+     expect(database.values.size).toBeGreaterThan(0)
+   })
++  it('reads only metadata while opening an existing locked vault', async () => {
++    await seed()
++    await localDataStore.resetForTests()
++    const readAll = vi.spyOn(localDataStore, 'readEntries')
++    try {
++      await localDataStore.initialize()
++      expect(readAll).not.toHaveBeenCalled()
++      expect(localDataStore.cache.size).toBe(0)
++      expect(localDataStore.isUnlocked).toBe(false)
++      await localDataStore.unlockVault(password)
++      expect(readAll).toHaveBeenCalledTimes(1)
++      expect(localDataStore.get(STORAGE_KEYS.SYNC_RECORDS)[0].card.bank).toBe('SECRET_BANK')
++    } finally { readAll.mockRestore() }
++  })
++  it('invalidates a closed connection and can retry after a version change', async () => {
++    await seed()
++    database.db.onversionchange()
++    expect(localDataStore.isUnlocked).toBe(false)
++    expect(localDataStore.initialized).toBe(false)
++    expect(localDataStore.initPromise).toBeNull()
++    expect(localDataStore.db).toBeNull()
++    await localDataStore.initialize()
++    expect(localDataStore.available).toBe(true)
++    await localDataStore.unlockVault(password)
++    expect(localDataStore.get(STORAGE_KEYS.WEBDAV_CONFIG).password).toBe('WEBDAV_SECRET')
++  })
++  it('drops runtime secrets on a remote lock without echoing to other tabs', async () => {
++    await seed()
++    legacy.set(PasswordManager.LOCK_STATE_KEY, JSON.stringify({ isLocked: false }))
++    const before = legacy.get(PasswordManager.LOCK_STATE_KEY)
++    PasswordManager.lockApp(false)
++    expect(localDataStore.isUnlocked).toBe(false)
++    expect(localDataStore.cache.size).toBe(0)
++    expect(legacy.get(PasswordManager.LOCK_STATE_KEY)).toBe(before)
++  })
++
++  it('keeps the committed vault but closes its key when legacy cleanup fails after setup', async () => {
++    const cleanup = vi.spyOn(PasswordManager, 'cleanupLegacySecrets').mockImplementationOnce(() => { throw new Error('旧数据未能清理') })
++    try {
++      await expect(PasswordManager.setAppPassword(password)).rejects.toThrow('旧数据未能清理')
++      expect(localDataStore.vaultMetadata).not.toBeNull()
++      expect(localDataStore.isUnlocked).toBe(false)
++      expect(PasswordManager.hasPassword()).toBe(true)
++    } finally { cleanup.mockRestore() }
++    expect(await PasswordManager.verifyPassword(password)).toBe(true)
++  })
++
+ })
+diff --git a/apps/web/src/utils/passwordManager.js b/apps/web/src/utils/passwordManager.js
+index a1b7ace..34ca138 100644
+--- a/apps/web/src/utils/passwordManager.js
++++ b/apps/web/src/utils/passwordManager.js
+@@ -62,7 +62,12 @@ export class PasswordManager {
+       if (this.hasPassword() && !(await this.legacyPasswordMatches(oldPassword))) throw new Error('当前密码不正确')
+       await localDataStore.enableVault(password, await this.legacyExtraEntries())
+     }
+-    this.cleanupLegacySecrets()
++    try { this.cleanupLegacySecrets() }
++    catch (error) {
++      // 密文已经提交但清理失败时，切回已有保险库的解锁页，不能停留在首次设置流程。
++      localDataStore.lock()
++      throw error
++    }
+     this.resetFailedAttempts()
+     return true
+   }
+@@ -97,11 +102,11 @@ export class PasswordManager {
+   /**
+    * 锁定应用
+    */
+-  static lockApp() {
++  static lockApp(broadcast = true) {
+     localDataStore.lock()
+     globalCache.clear()
+     cardDataCache.clear()
+-    StorageManager.set(this.LOCK_STATE_KEY, {
++    if (broadcast) StorageManager.set(this.LOCK_STATE_KEY, {
+       isLocked: true,
+       lockTime: Date.now()
+     })
+@@ -201,6 +206,8 @@ export class PasswordManager {
+    */
+     static async clearAllAppData() {
+       try {
++        // 重置前取消本页在途任务，并通知其他标签页丢弃解密会话。
++        this.lockApp()
+         // 快照同样包含完整卡片资料，不能在重置密码后留下。
+         const localDataKeys = [
+           STORAGE_KEYS.CARD_DATA,
+diff --git a/apps/web/src/utils/passwordManager.test.js b/apps/web/src/utils/passwordManager.test.js
+index bf47dc4..c997498 100644
+--- a/apps/web/src/utils/passwordManager.test.js
++++ b/apps/web/src/utils/passwordManager.test.js
+@@ -3,7 +3,7 @@ import { PasswordManager } from './passwordManager'
+ import { STORAGE_KEYS } from '@/config/constants'
+ 
+ const storage = vi.hoisted(() => ({ get: vi.fn(), set: vi.fn(), has: vi.fn(), remove: vi.fn() }))
+-const database = vi.hoisted(() => ({ initialized: true, initialize: vi.fn(), remove: vi.fn(), enableVault: vi.fn() }))
++const database = vi.hoisted(() => ({ initialized: true, initialize: vi.fn(), remove: vi.fn(), enableVault: vi.fn(), lock: vi.fn() }))
+ vi.mock('./storage', () => ({ StorageManager: storage }))
+ vi.mock('./indexedDbStorage', () => ({ localDataStore: database }))
+ 
