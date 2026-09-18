@@ -1,0 +1,45 @@
+name: Apply verified parity changes
+on:
+  push:
+    branches: [codex/four-platform-parity-20260918]
+    paths: [.github/workflows/parity-apply.yml]
+permissions:
+  contents: read
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    outputs:
+      sha: ${{ steps.patch.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: codex/four-platform-parity-20260918
+      - id: patch
+        name: Verify and apply source patch
+        run: |
+          python3 - <<'PY'
+          import pathlib, base64, gzip, hashlib, subprocess
+          parts = [pathlib.Path(f'.parity-transfer/stage1-{i:02}.b64') for i in range(1,6)]
+          data = gzip.decompress(base64.b64decode(''.join(p.read_text().strip() for p in parts), validate=True))
+          assert hashlib.sha256(data).hexdigest() == 'e4be60d734e8f27f729d93bae65015ad748565ebc6c4dac216713ae77338a942', 'Source patch checksum mismatch'
+          pathlib.Path('/tmp/verified.patch').write_bytes(data)
+          subprocess.run(['git','apply','--check','/tmp/verified.patch'],check=True)
+          subprocess.run(['git','apply','/tmp/verified.patch'],check=True)
+          PY
+          git config user.name 'lovelife'
+          git config user.email '32153802+yuangy1995@users.noreply.github.com'
+          git add apps contracts
+          git rm -r .parity-transfer
+          git commit -m '第一阶段：统一四端额度日期规则并接入共同同步契约测试'
+          git push origin HEAD:codex/four-platform-parity-20260918
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+  quality:
+    needs: apply
+    uses: ./.github/workflows/platform-quality.yml
+    with:
+      checkout_ref: ${{ needs.apply.outputs.sha }}
+    permissions:
+      contents: read
