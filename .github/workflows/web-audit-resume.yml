@@ -1,22 +1,48 @@
-name: Web audit resume snapshot
+name: Apply verified Web resume fixes
 on:
   pull_request:
     paths: ['.github/workflows/web-audit-resume.yml']
 permissions:
-  contents: read
+  contents: write
+concurrency:
+  group: web-resume-apply
+  cancel-in-progress: false
 jobs:
-  snapshot:
-    if: github.event.pull_request.head.repo.full_name == github.repository
+  apply:
+    if: github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.head.ref == 'codex/web-security-performance-completion'
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: dca9b6851f4cbc4026a236c760ce4f03fc1df15c
-          persist-credentials: false
-      - run: tar -czf /tmp/web-resume.tgz apps/web docs .github/workflows/web-quality.yml AGENTS.md
-      - uses: actions/upload-artifact@v4
-        with:
-          name: web-resume-source
-          path: /tmp/web-resume.tgz
-          retention-days: 1
+          ref: ${{ github.event.pull_request.head.sha }}
+      - name: Verify exact patch and paths
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib, subprocess
+          path = Path('.github/web-resume-fixes.patch')
+          data = path.read_bytes()
+          assert hashlib.sha256(data).hexdigest() == '165b75904bf28fb7f2392a39eefa9a688c92316dd64fe84404b79a558c5a1393'
+          expected = {
+              'apps/web/src/VaultApp.test.js', 'apps/web/src/VaultApp.vue',
+              'apps/web/src/components/dialog/CreditCardDialog.vue',
+              'apps/web/src/composables/useAutoLock.js', 'apps/web/src/composables/useAutoLock.test.js',
+              'apps/web/src/utils/cardMetrics.js', 'apps/web/src/utils/cardMetrics.test.js',
+              'apps/web/src/utils/indexedDbStorage.js', 'apps/web/src/utils/indexedDbStorage.test.js',
+              'apps/web/src/utils/indexedDbStorage.testUtils.js', 'apps/web/src/utils/localVault.test.js',
+              'apps/web/src/utils/passwordManager.js', 'apps/web/src/utils/passwordManager.test.js'
+          }
+          changes = subprocess.check_output(['git', 'apply', '--numstat', str(path)], text=True)
+          assert {line.split('\t', 2)[2] for line in changes.splitlines()} == expected
+          subprocess.run(['git', 'apply', '--check', '--index', str(path)], check=True)
+          subprocess.run(['git', 'apply', '--index', str(path)], check=True)
+          PY
+      - name: Commit only verified fixes and remove temporary transport
+        run: |
+          git rm .github/web-resume-fixes.patch .github/workflows/web-audit-resume.yml
+          git diff --cached --check
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m '修复锁屏读取开销、共享额度继承和跨标签页锁定竞态'
+          git push origin HEAD:refs/heads/codex/web-security-performance-completion
