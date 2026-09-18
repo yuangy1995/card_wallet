@@ -1,0 +1,146 @@
+name: Apply and verify parity stages
+on:
+  push:
+    branches: [codex/four-platform-parity-stages]
+    paths: [.github/workflows/parity-apply.yml]
+permissions:
+  contents: read
+jobs:
+  apply:
+    if: github.repository == 'yuangy1995/card_wallet'
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      sha: ${{ steps.commit.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: true
+      - name: Validate complete patch before applying
+        run: |
+          python - <<'PY'
+          import base64,hashlib,json,lzma,subprocess
+          from pathlib import Path
+          root=Path.cwd().resolve()
+          parts=[root/f'.github/parity-transfer/part{i}.b64' for i in range(1,5)]
+          raw=base64.b64decode(''.join(p.read_text().strip() for p in parts),validate=True)
+          assert hashlib.sha256(raw).hexdigest()=='84fa11afbb182d3727f9e40af982ca6861a05e9489d96e08db56e5c04f5503ab','Transfer checksum mismatch'
+          changes=json.loads(lzma.decompress(raw)); prepared=[]
+          for entry in changes:
+              relative=entry['path']; p=root/relative
+              assert relative.startswith(('apps/','contracts/','scripts/','docs/'))
+              assert '..' not in Path(relative).parts and p.resolve().is_relative_to(root) and not p.is_symlink()
+              before=p.read_bytes() if p.exists() else None
+              assert (hashlib.sha256(before).hexdigest() if before is not None else None)==entry['before'],relative
+              result=None
+              if entry['after'] is not None:
+                  lines=(before or b'').decode().splitlines(keepends=True)
+                  for start,end,replacement in reversed(entry['edits']):
+                      assert 0<=start<=end<=len(lines)
+                      lines[start:end]=[replacement]
+                  result=''.join(lines).encode()
+                  assert hashlib.sha256(result).hexdigest()==entry['after'],relative
+              prepared.append((p,result))
+          for p,result in prepared:
+              if result is None: p.unlink()
+              else: p.parent.mkdir(parents=True,exist_ok=True); p.write_bytes(result)
+          for p in parts: p.unlink()
+          subprocess.run(['git','add','-A','--',*[e['path'] for e in changes],'.github/parity-transfer'],check=True)
+          subprocess.run(['git','diff','--cached','--check'],check=True)
+          print('Validated source files:',len(changes))
+          PY
+      - id: commit
+        name: Commit only to the feature branch
+        run: |
+          set -eu
+          test "$(git rev-parse HEAD)" = "$(git ls-remote origin refs/heads/codex/four-platform-parity-stages | cut -f1)"
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m '完成前三阶段：共同规则、搜索偏好、收藏批量与数据安全'
+          git push origin HEAD:refs/heads/codex/four-platform-parity-stages
+          echo "sha=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+  web:
+    needs: apply
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.apply.outputs.sha }}
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: pnpm --dir apps/web install --frozen-lockfile
+      - run: pnpm --dir apps/web test:run
+      - run: pnpm --dir apps/web build
+  android:
+    needs: apply
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.apply.outputs.sha }}
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Android tests and debug compile
+        working-directory: apps/android
+        run: bash gradlew :app:testDebugUnitTest :app:assembleDebug --stacktrace
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: parity-android-test-results
+          path: |
+            apps/android/app/build/test-results
+            apps/android/app/build/reports/tests
+          retention-days: 3
+  apple:
+    needs: apply
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [ios, macos]
+    runs-on: macos-latest
+    timeout-minutes: 40
+    env:
+      HOMEBREW_NO_AUTO_UPDATE: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.apply.outputs.sha }}
+          persist-credentials: false
+      - run: command -v xcodegen || brew install xcodegen
+      - name: Generate native project
+        working-directory: apps/${{ matrix.platform }}
+        run: xcodegen generate
+      - name: macOS native tests
+        if: matrix.platform == 'macos'
+        working-directory: apps/macos
+        run: |
+          set -o pipefail
+          xcodebuild -project CreditCardMac.xcodeproj -scheme CreditCardMac -configuration Release ENABLE_TESTABILITY=YES -destination 'platform=macOS,arch=arm64' -parallel-testing-enabled NO test CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_ENTITLEMENTS='' -resultBundlePath /tmp/parity-macos.xcresult 2>&1 | tee /tmp/parity-apple.log
+      - name: iOS simulator native tests
+        if: matrix.platform == 'ios'
+        working-directory: apps/ios
+        run: |
+          set -o pipefail
+          device=$(xcrun simctl list devices available --json | python3 -c 'import sys,json; d=json.load(sys.stdin); print(next(x["udid"] for k,vs in d["devices"].items() if "iOS" in k for x in vs if "iPhone" in x["name"]))')
+          xcodebuild -project CreditCardIOS.xcodeproj -scheme CreditCardIOS -configuration Debug -destination "platform=iOS Simulator,id=$device" -parallel-testing-enabled NO test CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_ENTITLEMENTS='' -resultBundlePath /tmp/parity-ios.xcresult 2>&1 | tee /tmp/parity-apple.log
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: parity-${{ matrix.platform }}-build-results
+          path: |
+            /tmp/parity-apple.log
+            apps/${{ matrix.platform }}/*.xcodeproj/project.pbxproj
+            apps/${{ matrix.platform }}/*.xcodeproj/xcshareddata/xcschemes/*.xcscheme
+          retention-days: 3
