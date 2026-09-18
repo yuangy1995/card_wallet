@@ -1,14 +1,11 @@
 name: Public release migration preparation
-
 on:
   push:
     branches: [codex/public-release-migration-20260918]
     paths: [.github/workflows/public-release-migration.yml]
   workflow_dispatch:
-
 permissions:
   contents: write
-
 jobs:
   prepare:
     if: github.repository == 'yuangy1995/card_wallet' && github.ref == 'refs/heads/codex/public-release-migration-20260918'
@@ -19,64 +16,62 @@ jobs:
         with:
           fetch-depth: 0
           persist-credentials: false
-      - name: Migrate source and test URLs and record branch ancestry
+      - name: Verify signing policy and regression tests
         shell: bash
         run: |
           set -euo pipefail
-          python3 - <<'PY'
-          import json, os, pathlib, subprocess
-          def git(*args):
-              return subprocess.check_output(['git', *args], text=True).strip()
-          old = 'yuangy1995/card-wallet-releases'
-          new = 'yuangy1995/card_wallet'
-          changed = []
-          for name in git('ls-files', '-z').split('\0'):
-              if not name or name.startswith('.github/'):
-                  continue
-              path = pathlib.Path(name)
-              if path.is_symlink():
-                  continue
-              try:
-                  text = path.read_text(encoding='utf-8')
-              except UnicodeDecodeError:
-                  continue
-              if old in text:
-                  path.write_text(text.replace(old, new), encoding='utf-8')
-                  changed.append(name)
-          print('Migrated update repository in:')
-          print('\n'.join(changed))
-          report = []
-          for line in git('for-each-ref', '--format=%(refname:short) %(objectname)', 'refs/remotes/origin/').splitlines():
-              ref, sha = line.split()
-              if ref in ('origin/main', 'origin/HEAD') or ref.endswith('/public-release-migration-20260918'):
-                  continue
-              ancestor = subprocess.run(['git', 'merge-base', '--is-ancestor', sha, 'origin/main']).returncode == 0
-              cherry = git('cherry', 'origin/main', sha).splitlines() if not ancestor else []
-              report.append({'branch': ref.removeprefix('origin/'), 'sha': sha, 'merged_by_ancestry': ancestor,
-                             'unique_patch_commits': [x[2:] for x in cherry if x.startswith('+ ')],
-                             'equivalent_patch_commits': [x[2:] for x in cherry if x.startswith('- ')]})
-          out = pathlib.Path(os.environ['RUNNER_TEMP']) / 'branch-audit.json'
-          out.write_text(json.dumps({'main': git('rev-parse', 'origin/main'), 'branches': report}, indent=2))
-          print(out.read_text())
-          PY
+          python3 scripts/check-signing-secrets.py
+          python3 -m unittest discover -s scripts -p 'test_signing_security.py'
+          python3 -m unittest discover -s apps/android/scripts -p 'test_*.py'
+          python3 -m unittest discover -s apps/macos/scripts -p 'test_*.py'
           git diff --check
-      - name: Commit URL migration to the migration branch only
+      - name: Check signing configuration presence without disclosing values
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_SIGNING_CERT_SHA256: ${{ secrets.ANDROID_SIGNING_CERT_SHA256 }}
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+        run: |
+          python3 - <<'PY'
+          import os
+          names = ('ANDROID_KEYSTORE_BASE64', 'ANDROID_KEYSTORE_PASSWORD', 'ANDROID_KEY_ALIAS', 'ANDROID_KEY_PASSWORD', 'ANDROID_SIGNING_CERT_SHA256', 'SPARKLE_PRIVATE_KEY')
+          missing = [name for name in names if not os.environ.get(name, '').strip()]
+          print('Missing signing Secrets: ' + (', '.join(missing) if missing else 'none'))
+          print('Presence alone does not establish that a key is new or matches its public certificate.')
+          PY
+      - name: Delete only three verified merged branches with exact SHA leases
         env:
           GH_TOKEN: ${{ github.token }}
         shell: bash
         run: |
           set -euo pipefail
-          git config user.name 'github-actions[bot]'
-          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add -u -- apps docs README.md AGENTS.md scripts
-          if ! git diff --cached --quiet; then
-            git commit -m '将客户端、校验脚本和文档的更新来源迁移到当前公开仓库'
-            git -c credential.helper= -c 'credential.helper=!gh auth git-credential' push origin HEAD:refs/heads/codex/public-release-migration-20260918
-          fi
-      - uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: branch-ancestry-audit
-          path: ${{ runner.temp }}/branch-audit.json
-          retention-days: 3
-          if-no-files-found: error
+          python3 - <<'PY'
+          import subprocess
+          expected = {
+              'codex/four-platform-parity-20260918': '1838e0475501f2acf8b186b60b9177f09201f5e7',
+              'codex/web-audit-platform-parity-20260918': 'ca0eb54dc5fd6ea976ee39d8b8549a040eadda9e',
+              'codex/web-security-performance-completion': '430f9336240a98d1e95c69fc04a483b151fd1169',
+          }
+          def git(*args):
+              return subprocess.check_output(['git', *args], text=True).strip()
+          subprocess.run(['git', 'fetch', '--prune', 'origin', '+refs/heads/*:refs/remotes/origin/*'], check=True)
+          for branch, sha in expected.items():
+              ref = 'refs/heads/' + branch
+              live = git('ls-remote', '--heads', 'origin', ref)
+              if not live:
+                  print('Already absent: ' + branch)
+                  continue
+              if live.split()[0] != sha:
+                  raise SystemExit('Branch moved; preserving ' + branch)
+              subprocess.run(['git', 'merge-base', '--is-ancestor', sha, 'refs/remotes/origin/main'], check=True)
+              subprocess.run(['git', '-c', 'credential.helper=', '-c', 'credential.helper=!gh auth git-credential',
+                              'push', '--force-with-lease=' + ref + ':' + sha, 'origin', ':' + ref], check=True)
+              print('Deleted merged branch: ' + branch)
+          for branch in ('codex/four-platform-parity-completion-20260918', 'codex/four-platform-parity-stages'):
+              ref = 'refs/remotes/origin/' + branch
+              print('PRESERVED FOR REVIEW: ' + branch)
+              print(git('log', '--format=%h %s', 'refs/remotes/origin/main..' + ref))
+              print(git('diff', '--shortstat', 'refs/remotes/origin/main', ref))
+          PY
