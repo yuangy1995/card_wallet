@@ -117,6 +117,9 @@ with sync_playwright() as pw:
         results['new_tab_requires_password'] = True
         other.close()
         page.set_viewport_size({'width': 390, 'height': 844})
+        expect(page.locator('.el-message')).to_have_count(0, timeout=10000)
+        assert page.locator('.wallet-pagination').evaluate('el => [...el.children].every(child => {const r=child.getBoundingClientRect(); return r.left >= 0 && r.right <= innerWidth})')
+        results['mobile_pagination_in_viewport'] = True
         page.screenshot(path=str(OUT / 'cards-mobile.png'), full_page=True)
         page.reload(wait_until='networkidle')
         expect(page.get_by_text('应用已锁定', exact=True)).to_be_visible()
