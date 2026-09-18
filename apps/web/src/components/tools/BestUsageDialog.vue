@@ -20,12 +20,12 @@
 
         <div v-else class="ranking-list">
           <div
-            v-for="(item, index) in rankedCards"
+            v-for="(item, index) in rankedRows"
             :key="item.card.id"
             class="ranking-card"
-            :class="{ champion: index === 0 }"
+            :class="{ champion: page === 1 && index === 0 }"
           >
-            <div class="rank-badge">{{ rankText(index) }}</div>
+            <div class="rank-badge">{{ rankText((page - 1) * 50 + index) }}</div>
             <div class="card-summary">
               <strong>{{ displayName(item.card) }}</strong>
               <span>{{ item.card.country || '未设置地区' }} · {{ item.card.type || '未设置币种' }}</span>
@@ -39,12 +39,14 @@
           </div>
         </div>
 
+        <el-pagination v-if="rankedCards.length > 50" v-model:current-page="page" :page-size="50" :total="rankedCards.length" layout="prev, pager, next" class="wallet-pagination" />
         <el-collapse v-if="invalidCards.length > 0" class="invalid-section">
           <el-collapse-item :title="`${invalidCards.length} 张信用卡尚未配置完整账单信息`" name="invalid">
-            <div v-for="card in invalidCards" :key="card.id" class="invalid-card">
+            <div v-for="card in invalidRows" :key="card.id" class="invalid-card">
               <span>{{ displayName(card) }}</span>
               <el-button link type="primary" @click="editCard(card)">去配置</el-button>
             </div>
+            <el-pagination v-if="invalidCards.length > 50" v-model:current-page="invalidPage" :page-size="50" :total="invalidCards.length" layout="prev, pager, next" class="wallet-pagination" />
           </el-collapse-item>
         </el-collapse>
       </div>
@@ -53,7 +55,8 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref, inject } from 'vue'
+import { usePagedCards } from '@/composables/usePagedCards'
 import { calculateCurrentInterestFreeDays } from '@/utils/dateCalculator'
 
 const props = defineProps({
@@ -70,12 +73,16 @@ const visible = computed({
 
 const creditCards = computed(() => props.cards.filter(card => card.cardCategory !== 'debit'))
 
+const day = inject('calendarDay', ref(Date.now()))
 const rankedCards = computed(() => creditCards.value
-  .map(card => ({ card, days: calculateCurrentInterestFreeDays(card) }))
+  .map(card => ({ card, days: calculateCurrentInterestFreeDays(card, new Date(day.value)) }))
   .filter(item => item.days >= 0)
   .sort((left, right) => right.days - left.days))
 
-const invalidCards = computed(() => creditCards.value.filter(card => calculateCurrentInterestFreeDays(card) < 0))
+const invalidCards = computed(() => creditCards.value.filter(card => calculateCurrentInterestFreeDays(card, new Date(day.value)) < 0))
+
+const { page, rows: rankedRows } = usePagedCards(rankedCards, 50)
+const { page: invalidPage, rows: invalidRows } = usePagedCards(invalidCards, 50)
 
 const displayName = card => [card.bank, card.alias].filter(Boolean).join(' · ') || '未命名信用卡'
 const rankText = index => ['🥇', '🥈', '🥉'][index] || `#${index + 1}`

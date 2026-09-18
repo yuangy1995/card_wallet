@@ -1,7 +1,7 @@
-import CryptoJS from 'crypto-js'
 import { StorageManager } from './storage'
 import { localDataStore } from './indexedDbStorage'
 import { STORAGE_KEYS } from '@/config/constants'
+import { globalCache, cardDataCache } from './cache'
 
 /**
  * 密码管理器 - 负责应用锁定和密码验证
@@ -15,56 +15,75 @@ export class PasswordManager {
   // 默认5分钟无操作自动锁定（当前仅用默认值）
   static AUTO_LOCK_TIMEOUT = 5 * 60 * 1000
 
-  /**
-   * 生成密码哈希
-   */
-  static hashPassword(password) {
-    return CryptoJS.SHA256(password + 'app_salt_2024').toString()
+  static async legacyPasswordMatches(password) {
+    const encrypted = StorageManager.get(this.PASSWORD_KEY)
+    if (typeof encrypted !== 'string') return false
+    const { default: CryptoJS } = await import('crypto-js')
+    try {
+      const oldHash = CryptoJS.AES.decrypt(encrypted, 'password_encryption_key').toString(CryptoJS.enc.Utf8)
+      return oldHash === CryptoJS.SHA256(password + 'app_salt_2024').toString()
+    } catch { return false }
   }
 
-  /**
-   * 设置应用密码
-   */
-  static setAppPassword(password) {
-    if (!password || password.length < 6) {
-      throw new Error('密码至少需要6位数')
+  static async legacyExtraEntries() {
+    const entries = []
+    const raw = localStorage.getItem(STORAGE_KEYS.WEBDAV_CONFIG)
+    if (raw) {
+      let config
+      if (raw.startsWith('default:') || raw.startsWith('encrypted:')) {
+        const { decryptData } = await import('./encryption')
+        config = decryptData(raw)
+        if (typeof config === 'string') config = JSON.parse(config)
+      } else config = JSON.parse(raw)
+      entries.push([STORAGE_KEYS.WEBDAV_CONFIG, config])
     }
-    
-    const hashedPassword = this.hashPassword(password)
-    const encryptedHash = CryptoJS.AES.encrypt(hashedPassword, 'password_encryption_key').toString()
-    
-    if (!StorageManager.set(this.PASSWORD_KEY, encryptedHash)) {
-      throw new Error('密码未能保存，请检查浏览器存储设置后重试。')
+    const backups = localStorage.getItem('cardDataBackups')
+    if (backups) entries.push(['cardDataBackups', JSON.parse(backups)])
+    return entries
+  }
+
+  static cleanupLegacySecrets() {
+    for (const key of [this.PASSWORD_KEY, STORAGE_KEYS.WEBDAV_CONFIG, 'cardDataBackups',
+      STORAGE_KEYS.CARD_DATA, STORAGE_KEYS.SYNC_RECORDS, STORAGE_KEYS.SYNC_PENDING,
+      STORAGE_KEYS.SYNC_REVISION, STORAGE_KEYS.SYNC_LAST_SNAPSHOT, STORAGE_KEYS.SYNC_HISTORY]) {
+      if (!StorageManager.remove(key)) throw new Error('本地加密已保存，但旧数据未能清理，请允许浏览器存储后重新解锁。')
     }
+    // 旧的签名凭证不能解密保险库；只有带 PRF 包装密钥的新凭证可继续使用。
+    const credential = StorageManager.get('platform_unlock_credential')
+    if (credential && !credential.vault) StorageManager.remove('platform_unlock_credential')
+  }
+
+  static async setAppPassword(password, oldPassword = '') {
+    if (typeof password !== 'string' || password.length < 6) throw new Error('密码至少需要6位数')
+    await localDataStore.initialize()
+    if (localDataStore.vaultMetadata) {
+      await localDataStore.changeVaultPassword(oldPassword, password)
+    } else {
+      if (this.hasPassword() && !(await this.legacyPasswordMatches(oldPassword))) throw new Error('当前密码不正确')
+      await localDataStore.enableVault(password, await this.legacyExtraEntries())
+    }
+    this.cleanupLegacySecrets()
     this.resetFailedAttempts()
     return true
   }
 
-  /**
-   * 验证密码
-   */
-  static verifyPassword(password) {
+  static async verifyPassword(password) {
+    if (this.isTemporarilyLocked()) return false
+    await localDataStore.initialize()
     try {
-      const encryptedHash = StorageManager.get(this.PASSWORD_KEY)
-      if (!encryptedHash) {
-        return false
-      }
-
-      const decryptedHash = CryptoJS.AES.decrypt(encryptedHash, 'password_encryption_key').toString(CryptoJS.enc.Utf8)
-      const inputHash = this.hashPassword(password)
-      
-      const isValid = decryptedHash === inputHash
-      
-      if (isValid) {
-        this.resetFailedAttempts()
+      if (localDataStore.vaultMetadata) {
+        await localDataStore.unlockVault(password)
       } else {
-        this.incrementFailedAttempts()
+        if (!(await this.legacyPasswordMatches(password))) { this.incrementFailedAttempts(); return false }
+        await localDataStore.enableVault(password, await this.legacyExtraEntries())
       }
-      
-      return isValid
+      this.cleanupLegacySecrets()
+      this.resetFailedAttempts()
+      return true
     } catch (error) {
-      console.error('密码验证失败:', error)
-      return false
+      localDataStore.lock()
+      if (error.name === 'OperationError') { this.incrementFailedAttempts(); return false }
+      throw error
     }
   }
 
@@ -72,13 +91,16 @@ export class PasswordManager {
    * 检查是否已设置密码
    */
   static hasPassword() {
-    return StorageManager.has(this.PASSWORD_KEY)
+    return Boolean(localDataStore.vaultMetadata) || StorageManager.has(this.PASSWORD_KEY)
   }
 
   /**
    * 锁定应用
    */
   static lockApp() {
+    localDataStore.lock()
+    globalCache.clear()
+    cardDataCache.clear()
     StorageManager.set(this.LOCK_STATE_KEY, {
       isLocked: true,
       lockTime: Date.now()
@@ -89,6 +111,7 @@ export class PasswordManager {
    * 解锁应用
    */
   static unlockApp() {
+    if (localDataStore.vaultMetadata && !localDataStore.isUnlocked) throw new Error('请先验证密码。')
     StorageManager.set(this.LOCK_STATE_KEY, {
       isLocked: false,
       unlockTime: Date.now()
@@ -101,7 +124,7 @@ export class PasswordManager {
    */
   static isAppLocked() {
     const lockState = StorageManager.get(this.LOCK_STATE_KEY)
-    return lockState?.isLocked || false
+    return Boolean(localDataStore.vaultMetadata && !localDataStore.isUnlocked) || lockState?.isLocked || false
   }
 
   /**
@@ -138,6 +161,7 @@ export class PasswordManager {
   static incrementFailedAttempts() {
     const current = this.getFailedAttempts()
     StorageManager.set(this.FAILED_ATTEMPTS_KEY, current + 1)
+    if (current + 1 >= 5) StorageManager.set('password_retry_after', Date.now() + 60_000)
   }
 
   /**
@@ -145,6 +169,7 @@ export class PasswordManager {
    */
   static resetFailedAttempts() {
     StorageManager.remove(this.FAILED_ATTEMPTS_KEY)
+    StorageManager.remove('password_retry_after')
   }
 
   /**
@@ -155,6 +180,7 @@ export class PasswordManager {
     StorageManager.remove(this.LOCK_STATE_KEY)
     StorageManager.remove(this.FAILED_ATTEMPTS_KEY)
     StorageManager.remove(this.LAST_ACTIVITY_KEY)
+    StorageManager.remove('password_retry_after')
     StorageManager.remove('platform_unlock_credential')
   }
 
@@ -163,7 +189,11 @@ export class PasswordManager {
    */
   static isTemporarilyLocked() {
     const failedAttempts = this.getFailedAttempts()
-    return failedAttempts >= 5 // 5次失败后临时锁定
+    if (failedAttempts < 5) return false
+    const until = StorageManager.get('password_retry_after', 0)
+    if (until > Date.now()) return true
+    this.resetFailedAttempts()
+    return false
   }
 
     /**
@@ -195,7 +225,8 @@ export class PasswordManager {
         if (!localDataStore.initialized) {
           await localDataStore.initialize()
         }
-        await Promise.all(localDataKeys.map((key) => localDataStore.remove(key)))
+        if (localDataStore.vaultMetadata) await localDataStore.clearVault()
+        else await Promise.all(localDataKeys.map((key) => localDataStore.remove(key)))
         
         // 清除安全相关数据
         this.clearSecurityData()

@@ -75,13 +75,7 @@
         </div>
       </el-form-item>
 
-      <el-form-item v-if="form.protocol === 'https'" label="忽略证书" prop="ignoreCert">
-        <el-switch
-          v-model="form.ignoreCert"
-          active-text="忽略证书验证"
-          inactive-text="验证证书"
-        />
-      </el-form-item>
+
     </el-form>
     <template #footer>
       <span class="dialog-footer">
@@ -113,7 +107,6 @@ const form = reactive({
   username: '',
   password: '',
   syncPassword: '',
-  ignoreCert: false
 })
 
 // 计算完整的URL
@@ -140,7 +133,6 @@ const handleProtocolChange = (protocol) => {
   }
   // 如果切换到 HTTP，关闭证书验证选项
   if (protocol === 'http') {
-    form.ignoreCert = false
   }
 }
 
@@ -203,7 +195,6 @@ const loadSavedConfig = () => {
       form.username = config.username
       form.password = config.password
       form.syncPassword = config.syncPassword || ''
-      form.ignoreCert = config.ignoreCert
     } catch (error) {
       // 配置可能不完整或格式错误，忽略错误继续
     }
@@ -221,7 +212,6 @@ const testConnection = async () => {
       username: form.username,
       password: form.password,
       syncPassword: form.syncPassword.trim(),
-      ignoreCert: form.ignoreCert
     })
 
     if (!initialized) {
@@ -234,31 +224,7 @@ const testConnection = async () => {
     if (result.success) {
       ElMessage.success(result.message || '连接成功')
     } else {
-      if (result.isCertError && !form.ignoreCert) {
-        // 证书错误且未开启忽略证书，询问用户是否继续
-        try {
-          await ElMessageBox.confirm(
-            `云端证书验证失败：${result.originalError}\n\n` +
-            '是否忽略证书验证并继续连接？\n' +
-            '注意：继续连接可能存在安全风险。',
-            '证书警告',
-            {
-              confirmButtonText: '继续连接',
-              cancelButtonText: '取消',
-              type: 'warning',
-              dangerouslyUseHTMLString: true
-            }
-          )
-          // 用户选择继续连接
-          form.ignoreCert = true
-          // 重新测试连接
-          return await testConnection()
-        } catch {
-          // 用户取消
-          return
-        }
-      }
-      ElMessage.error(result.message)
+      ElMessage.error(result.message || '连接失败，请检查服务器证书和跨域设置')
     }
   } catch (error) {
     ElMessage.error(error?.message ? `连接失败：${error.message}` : '表单验证失败，请检查输入')
@@ -278,7 +244,6 @@ const saveConfig = async () => {
       username: form.username,
       password: form.password,
       syncPassword: form.syncPassword.trim(),
-      ignoreCert: form.ignoreCert
     })
 
     if (saved) {

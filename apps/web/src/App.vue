@@ -245,16 +245,16 @@
         />
       </Transition>
 
-      <CreditCardDialog v-model:visible="creditCardData.dialogFormVisible" :mode="status"
+      <CreditCardDialog v-if="creditCardData.dialogFormVisible" v-model:visible="creditCardData.dialogFormVisible" :mode="status"
         :initial-data="creditCardData.data" :existing-cards="cardData" @submit="confirmAdd" @cancel="handleDialogCancel" class="mobile-dialog mobile-form" />
 
-      <DeleteConfirmDialog v-model:visible="deleteDialogVisible" :card-info="cardToDelete" @confirm="confirmDelete" class="mobile-dialog" />
+      <DeleteConfirmDialog v-if="deleteDialogVisible" v-model:visible="deleteDialogVisible" :card-info="cardToDelete" @confirm="confirmDelete" class="mobile-dialog" />
 
       <!-- 表格自定义框 -->
-      <TableCustomDialog v-model:visible="showTableCustomDialog" :columns="tableCustomColumns"
+      <TableCustomDialog v-if="showTableCustomDialog" v-model:visible="showTableCustomDialog" :columns="tableCustomColumns"
         @confirm="handleTableCustomConfirm" class="mobile-dialog" />
       <!-- 查看详情弹窗 -->
-      <CardDetailsDialog v-model:visible="detailsVisible" :card-info="currentCard" class="mobile-dialog" />
+      <CardDetailsDialog v-if="detailsVisible" v-model:visible="detailsVisible" :card-info="currentCard" class="mobile-dialog" />
       <!-- 统计分析弹窗 -->
       <el-dialog v-model="statisticsVisible" top="5vh" title="银行卡统计分析" width="80%" :destroy-on-close="true" class="mobile-dialog">
         <el-scrollbar height="80vh">
@@ -262,18 +262,18 @@
         </el-scrollbar>
 
       </el-dialog>
-      <HelpPage ref="helpPage" />
-      <BestUsageDialog
+      <HelpPage v-if="helpRequested" ref="helpPage" />
+      <BestUsageDialog v-if="bestUsageVisible"
         v-model="bestUsageVisible"
         :cards="cardData"
         @edit-card="editCreditCard"
       />
-      <StorageManagementDialog
+      <StorageManagementDialog v-if="storageManagementVisible"
         v-model="storageManagementVisible"
         :cards="cardData"
       />
-      <WebDAVConfigDialog ref="webDAVConfig" @saved="handleWebDAVConfigSaved" />
-      <SyncHistoryDialog
+      <WebDAVConfigDialog v-if="webDAVRequested" ref="webDAVConfig" @saved="handleWebDAVConfigSaved" />
+      <SyncHistoryDialog v-if="showSyncHistoryDialog"
         v-model:visible="showSyncHistoryDialog"
         :history="syncHistory"
         :sync-status="syncStatus"
@@ -411,32 +411,19 @@
       />
     </div>
         <!-- 安全功能组件 -->
-        <PasswordSetup
+        <PasswordSetup v-if="showPasswordSetup"
       v-model="showPasswordSetup"
       @password-set="handlePasswordSet"
     />
 
-    <PasswordVerify
-      v-model="showPasswordVerify"
-      @verified="handlePasswordVerified"
-      @forgot-password="showForgotPasswordDialog = true"
-    />
 
-    <ForgotPassword
-      v-model="showForgotPasswordDialog"
-      @option-selected="handleForgotPasswordOption"
-    />
 
-    <PasswordRecovery
-      v-model="showPasswordRecovery"
-      @recovery-success="handleRecoverySuccess"
-    />
 
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, nextTick, defineAsyncComponent, watch, onUnmounted, provide } from 'vue'
+import { ref, computed, onMounted, nextTick, defineAsyncComponent, watch, onUnmounted, provide, inject } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   Delete,
@@ -477,10 +464,7 @@ const BestUsageDialog = defineAsyncComponent(() => import('@/components/tools/Be
 const StorageManagementDialog = defineAsyncComponent(() => import('@/components/tools/StorageManagementDialog.vue'))
 
 // 安全功能组件导入
-import PasswordSetup from '@/components/security/PasswordSetup.vue'
-import PasswordVerify from '@/components/security/PasswordVerify.vue'
-import ForgotPassword from '@/components/security/ForgotPassword.vue'
-import PasswordRecovery from '@/components/security/PasswordRecovery.vue'
+const PasswordSetup = defineAsyncComponent(() => import('@/components/security/PasswordSetup.vue'))
 import FloatingLockButton from '@/components/security/FloatingLockButton.vue'
 
 import { creditCardOptions } from '@/config/creditCardOptions'
@@ -495,6 +479,8 @@ import { useKeyboardShortcuts } from '@/composables/useKeyboardShortcuts'
 import { useTheme } from '@/composables/useTheme'
 import { useAutoLock } from '@/composables/useAutoLock'
 import { PasswordManager } from '@/utils/passwordManager'
+import { escapeHTML } from '@/utils/safeExport'
+import { localDataStore } from '@/utils/indexedDbStorage'
 import { webdavSyncService } from '@/utils/webdavSyncService'
 import { formatCardTimestamp, normalizeCardTimeFields, timestampFromDateInput } from '@/utils/cardTimestamp'
 import { bankNamesReferToSameBank, displayBankName } from '@/utils/bankName'
@@ -516,9 +502,10 @@ import {
 } from '@/utils/systemNotifications'
 
 // 主题控制
-const { isDarkMode, toggleTheme } = useTheme()
+const { isDarkMode, toggleTheme } = inject('theme') || useTheme()
 
 // 状态管理
+let disposed = false
 const cardData = ref([])
 const syncStatus = ref({
   message: '正在准备云同步...',
@@ -574,7 +561,7 @@ const searchFilteredCards = computed(() => {
       // 卡号去除多余的分隔符进行容错检索
       const cleanQuery = query.replace(/[\s-]/g, '')
       const cleanCardNumber = card.cardNumber ? card.cardNumber.replace(/[\s-]/g, '').toLowerCase() : ''
-      const cardNumberMatch = cleanCardNumber.includes(cleanQuery)
+      const cardNumberMatch = cleanQuery.length > 0 && cleanCardNumber.includes(cleanQuery)
 
       const levelMatch = card.level && card.level.toLowerCase().includes(query)
       const typeMatch = card.type && card.type.toLowerCase().includes(query)
@@ -945,6 +932,8 @@ const loadingState = ref({
 const isDev = import.meta.env.DEV || import.meta.env.MODE === 'development'
 
 // 组件引用
+const helpRequested = ref(false)
+const webDAVRequested = ref(false)
 const helpPage = ref(null)
 const webDAVConfig = ref(null)
 const showSyncHistoryDialog = ref(false)
@@ -992,106 +981,7 @@ const tableData = computed(() => {
     return (a.alias || '').localeCompare(b.alias || '', 'zh-CN');
   });
 
-  // 生成分组显示的数据
-  const grouped = [];
-  let currentCountry = null;
-  let currentBank = null;
-  let currentSharedLimit = null;
-
-  // 第一遍遍历，计算每个分组的行数
-  const countryGroups = new Map();
-  const bankGroups = new Map();
-  const sharedLimitGroups = new Map();
-  const sharedLastTimeGroups = new Map();
-
-  sorted.forEach(card => {
-    const country = card.country || '';
-    const bank = card.bank || '';
-    const countryBankKey = `${country}-${bank}`;
-    const sharedLimitKey = card.isSharedLimit ? `${country}-${bank}-shared` : `${card.id}-individual`;
-
-    // 统计国家分组
-    if (!countryGroups.has(country)) {
-      countryGroups.set(country, 0);
-    }
-    countryGroups.set(country, countryGroups.get(country) + 1);
-
-    // 统计银行分组
-    if (!bankGroups.has(countryBankKey)) {
-      bankGroups.set(countryBankKey, 0);
-    }
-    bankGroups.set(countryBankKey, bankGroups.get(countryBankKey) + 1);
-
-    // 统计额度分组（只有共享额度的才合并）
-    if (card.isSharedLimit) {
-      if (!sharedLimitGroups.has(sharedLimitKey)) {
-        sharedLimitGroups.set(sharedLimitKey, 0);
-      }
-      sharedLimitGroups.set(sharedLimitKey, sharedLimitGroups.get(sharedLimitKey) + 1);
-
-      if (!sharedLastTimeGroups.has(sharedLimitKey)) {
-        sharedLastTimeGroups.set(sharedLimitKey, 0);
-      }
-      sharedLastTimeGroups.set(sharedLimitKey, sharedLastTimeGroups.get(sharedLimitKey) + 1);
-    }
-  });
-
-  // 第二遍遍历，生成显示数据
-  sorted.forEach((card, index) => {
-    const country = card.country || '';
-    const bank = card.bank || '';
-    const countryBankKey = `${country}-${bank}`;
-    const sharedLimitKey = card.isSharedLimit ? `${country}-${bank}-shared` : `${card.id}-individual`;
-
-    const processedCard = { ...card };
-
-    // 处理国家列合并
-    if (country !== currentCountry) {
-      currentCountry = country;
-      processedCard.countryRowSpan = countryGroups.get(country);
-      processedCard.showCountry = true;
-    } else {
-      processedCard.countryRowSpan = 0;
-      processedCard.showCountry = false;
-    }
-
-    // 处理银行列合并
-    if (countryBankKey !== currentBank) {
-      currentBank = countryBankKey;
-      processedCard.bankRowSpan = bankGroups.get(countryBankKey);
-      processedCard.showBank = true;
-    } else {
-      processedCard.bankRowSpan = 0;
-      processedCard.showBank = false;
-    }
-
-    // 处理额度列合并（只有共享额度的才合并）
-    if (card.isSharedLimit) {
-      if (sharedLimitKey !== currentSharedLimit) {
-        currentSharedLimit = sharedLimitKey;
-        processedCard.limitRowSpan = sharedLimitGroups.get(sharedLimitKey);
-        processedCard.showLimit = true;
-        processedCard.lastTimeRowSpan = sharedLastTimeGroups.get(sharedLimitKey);
-        processedCard.showLastTime = true;
-      } else {
-        processedCard.limitRowSpan = 0;
-        processedCard.showLimit = false;
-        processedCard.lastTimeRowSpan = 0;
-        processedCard.showLastTime = false;
-      }
-    } else {
-      // 独立额度不合并
-      processedCard.limitRowSpan = 1;
-      processedCard.showLimit = true;
-      processedCard.lastTimeRowSpan = 1;
-      processedCard.showLastTime = true;
-      currentSharedLimit = null; // 重置共享额度状态
-    }
-
-    grouped.push(processedCard);
-  });
-
-  return grouped
+  return sorted
 })
 
 // 显示加载状态
@@ -1123,7 +1013,16 @@ const mergeTableColumnsWithDefaults = (storedColumns = []) => {
 }
 
 const persistSyncedMutation = async (options = {}) => {
-  await webdavSyncService.commitCards(cardData.value, options)
+  if (disposed || !localDataStore.isUnlocked) throw new Error('应用已锁定，请重新解锁。')
+  try { await webdavSyncService.commitCards(cardData.value, options) }
+  catch (error) {
+    if (!disposed && localDataStore.isUnlocked) {
+      // 保存失败时还原已提交账本，不能让未落盘的修改继续伪装成成功。
+      cardData.value = CardDataStorage.getCardData().map(normalizeSyncedCard)
+      selectedRows.value = []
+    }
+    throw error
+  }
 }
 
 
@@ -1147,10 +1046,12 @@ const normalizeSyncedCard = (card) => ({
 })
 
 const applySyncedCards = (syncedCards) => {
+  if (disposed || !localDataStore.isUnlocked) return
   cardData.value = syncedCards.map(normalizeSyncedCard)
 }
 
 const handleSyncStatusChanged = (newStatus) => {
+  if (disposed || !localDataStore.isUnlocked) return
   syncStatus.value = {
     ...syncStatus.value,
     ...newStatus,
@@ -1162,6 +1063,7 @@ const handleSyncStatusChanged = (newStatus) => {
 }
 
 const handleSyncHistoryChanged = (newHistory) => {
+  if (disposed || !localDataStore.isUnlocked) return
   syncHistory.value = Array.isArray(newHistory) ? newHistory : []
 }
 
@@ -1176,6 +1078,7 @@ onMounted(async () => {
   try {
     showLoading('正在打开本地数据库...')
     await initializeLocalDatabase()
+    if (disposed || !localDataStore.isUnlocked) return
 
     // 加载列配置
     const storedColumns = getTableColumns()
@@ -1202,6 +1105,7 @@ onMounted(async () => {
     }
 
     await webdavSyncService.start(cardData.value, applySyncedCards, handleSyncStatusChanged, handleSyncHistoryChanged)
+    if (disposed || !localDataStore.isUnlocked) return
 
     // 判断应用是否处于锁定状态，锁定时跳过弹窗类检测
     const appIsLocked = PasswordManager.hasPassword() &&
@@ -1243,6 +1147,7 @@ onMounted(async () => {
 
 // 检查年费达标状态
 const checkAnnualFeeQualified = async () => {
+  if (disposed || !localDataStore.isUnlocked) return
   const now = new Date()
   const warningCards = cardData.value.filter(card => {
     const reminder = getAnnualFeeDetection(card, BACKUP_CONSTANTS.ANNUAL_FEE_CHECK_DAYS, now)
@@ -1270,7 +1175,7 @@ const checkAnnualFeeQualified = async () => {
                 ${warningCards.map(card => `
                   <li class="annual-fee-card-item">
                     <div class="annual-fee-card-title">
-                      ${card.bank || ''} - ${card.alias}
+                      ${escapeHTML(card.bank || '')} - ${escapeHTML(card.alias)}
                     </div>
                     <div class="annual-fee-card-time">
                       下次年费收取时间：${formatCardTimestamp(card.nextAnnualFeeCollectionTime)}
@@ -1333,7 +1238,7 @@ const confirmDelete = async () => {
 
   try {
     // 模拟删除延时
-    await new Promise(resolve => setTimeout(resolve, 300))
+
 
     const index = cardData.value.findIndex(item => item.id === cardToDelete.value.id)
     if (index > -1) {
@@ -1378,7 +1283,7 @@ const confirmAdd = async (data) => {
 
   try {
     // 模拟保存延时
-    await new Promise(resolve => setTimeout(resolve, 500))
+
 
     creditCardData.value.dialogFormVisible = false
     // 添加最后修改时间
@@ -1507,6 +1412,7 @@ const showStatistics = () => {
 }
 
 const manualCheckAnnualFees = async () => {
+  if (disposed || !localDataStore.isUnlocked) return
   const now = new Date()
   const {
     unqualified: unqualifiedCards,
@@ -1537,8 +1443,8 @@ const manualCheckAnnualFees = async () => {
       message += '<ul style="list-style-type: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 16px;">'
       repaymentReminderCards.forEach(card => {
         message += `<li class="manual-check-card-item overdue">
-          <div class="manual-check-card-title">${card.bank || ''} - ${card.alias || '未命名卡片'}</div>
-          <div class="manual-check-card-desc">${card.reminder.title}，请核对本期账单是否已还款</div>
+          <div class="manual-check-card-title">${escapeHTML(card.bank || '')} - ${escapeHTML(card.alias || '未命名卡片')}</div>
+          <div class="manual-check-card-desc">${escapeHTML(card.reminder.title)}，请核对本期账单是否已还款</div>
         </li>`
       })
       message += '</ul></div>'
@@ -1550,8 +1456,8 @@ const manualCheckAnnualFees = async () => {
       message += '<ul style="list-style-type: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 16px;">'
       billReminderCards.forEach(card => {
         message += `<li class="manual-check-card-item warning">
-          <div class="manual-check-card-title">${card.bank || ''} - ${card.alias || '未命名卡片'}</div>
-          <div class="manual-check-card-desc">${card.reminder.title}，请关注本期出账</div>
+          <div class="manual-check-card-title">${escapeHTML(card.bank || '')} - ${escapeHTML(card.alias || '未命名卡片')}</div>
+          <div class="manual-check-card-desc">${escapeHTML(card.reminder.title)}，请关注本期出账</div>
         </li>`
       })
       message += '</ul></div>'
@@ -1563,7 +1469,7 @@ const manualCheckAnnualFees = async () => {
       message += '<ul style="list-style-type: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 16px;">'
       unqualifiedCards.forEach(card => {
         message += `<li class="manual-check-card-item unqualified">
-          <div class="manual-check-card-title">${card.bank || ''} - ${card.alias}</div>
+          <div class="manual-check-card-title">${escapeHTML(card.bank || '')} - ${escapeHTML(card.alias)}</div>
           <div class="manual-check-card-desc">距离年费收取还有 ${card.reminder.days} 天</div>
         </li>`
       })
@@ -1576,7 +1482,7 @@ const manualCheckAnnualFees = async () => {
       message += '<ul style="list-style-type: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 16px;">'
       warningCards.forEach(card => {
         message += `<li class="manual-check-card-item warning">
-          <div class="manual-check-card-title">${card.bank || ''} - ${card.alias}</div>
+          <div class="manual-check-card-title">${escapeHTML(card.bank || '')} - ${escapeHTML(card.alias)}</div>
           <div class="manual-check-card-desc">将在 ${card.reminder.days} 天后收取年费</div>
         </li>`
       })
@@ -1589,7 +1495,7 @@ const manualCheckAnnualFees = async () => {
       message += '<ul style="list-style-type: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 16px;">'
       overdueCards.forEach(card => {
         message += `<li class="manual-check-card-item overdue">
-          <div class="manual-check-card-title">${card.bank || ''} - ${card.alias}</div>
+          <div class="manual-check-card-title">${escapeHTML(card.bank || '')} - ${escapeHTML(card.alias)}</div>
           <div class="manual-check-card-desc">已过期 ${card.reminder.days} 天</div>
         </li>`
       })
@@ -1602,8 +1508,8 @@ const manualCheckAnnualFees = async () => {
       message += '<ul style="list-style-type: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 16px;">'
       expiredCards.forEach(card => {
         message += `<li class="manual-check-card-item overdue">
-          <div class="manual-check-card-title">${card.bank || ''} - ${card.alias || '未命名卡片'}</div>
-          <div class="manual-check-card-desc">有效期：${card.valid || '--/--'}，请确认是否已换发新卡</div>
+          <div class="manual-check-card-title">${escapeHTML(card.bank || '')} - ${escapeHTML(card.alias || '未命名卡片')}</div>
+          <div class="manual-check-card-desc">有效期：${escapeHTML(card.valid || '--/--')}，请确认是否已换发新卡</div>
         </li>`
       })
       message += '</ul></div>'
@@ -1615,8 +1521,8 @@ const manualCheckAnnualFees = async () => {
       message += '<ul style="list-style-type: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 16px;">'
       soonExpiringCards.forEach(card => {
         message += `<li class="manual-check-card-item warning">
-          <div class="manual-check-card-title">${card.bank || ''} - ${card.alias || '未命名卡片'}</div>
-          <div class="manual-check-card-desc">有效期：${card.valid || '--/--'}，请留意银行换卡进度</div>
+          <div class="manual-check-card-title">${escapeHTML(card.bank || '')} - ${escapeHTML(card.alias || '未命名卡片')}</div>
+          <div class="manual-check-card-desc">有效期：${escapeHTML(card.valid || '--/--')}，请留意银行换卡进度</div>
         </li>`
       })
       message += '</ul></div>'
@@ -1673,8 +1579,8 @@ const showDataDiagnostics = async () => {
       <ul style="list-style-type: none; padding: 0; margin: 0; display: flex; flex-wrap: wrap; gap: 16px;">
         ${issues.map(item => `
           <li class="manual-check-card-item ${classMap[item.severity] || 'warning'}">
-            <div class="manual-check-card-title">${labelMap[item.severity] || '提示'} · ${item.title}</div>
-            <div class="manual-check-card-desc">${item.cardName ? `${item.cardName}：` : ''}${item.description}</div>
+            <div class="manual-check-card-title">${labelMap[item.severity] || '提示'} · ${escapeHTML(item.title)}</div>
+            <div class="manual-check-card-desc">${item.cardName ? `${escapeHTML(item.cardName)}：` : ''}${escapeHTML(item.description)}</div>
           </li>
         `).join('')}
       </ul>
@@ -1701,7 +1607,7 @@ const generateRandomData = async () => {
     ElMessage.success('成功生成 50 条银行卡测试数据（含信用卡和储蓄卡）')
   } catch (error) {
     cardData.value = previousData
-    ElMessage.error(`生成测试数据失败：${error.message}`)
+    ElMessage.error(`生成测试数据失败：${escapeHTML(error.message)}`)
   }
 }
 
@@ -1737,7 +1643,8 @@ const toggleSelectAll = () => {
 const handleBatchDelete = async (rows) => {
   try {
     const idsToDelete = rows.map(row => row.id)
-    cardData.value = cardData.value.filter(card => !idsToDelete.includes(card.id))
+    const deleteIds = new Set(idsToDelete)
+    cardData.value = cardData.value.filter(card => !deleteIds.has(card.id))
     await persistSyncedMutation({ deletedCardIds: idsToDelete })
     clearSelection()
     ElMessage.success(`成功删除 ${rows.length} 张卡片`)
@@ -1749,12 +1656,13 @@ const handleBatchDelete = async (rows) => {
 const handleBatchUpdateStatus = async ({ rows, status }) => {
   try {
     const idsToUpdate = rows.filter(isCreditCard).map(row => row.id)
+    const updateIds = new Set(idsToUpdate)
     if (idsToUpdate.length === 0) {
       ElMessage.warning('请选择信用卡执行年费状态操作')
       return
     }
     cardData.value.forEach(card => {
-      if (idsToUpdate.includes(card.id)) {
+      if (updateIds.has(card.id)) {
         if (status === '1') {
           confirmAnnualFeeQualifiedForCard(card)
         } else {
@@ -1776,9 +1684,10 @@ const handleBatchUpdateCategory = async ({ rows, category }) => {
   try {
     const normalizedCategory = category === 'debit' ? 'debit' : 'credit'
     const idsToUpdate = rows.map(row => row.id)
+    const updateIds = new Set(idsToUpdate)
     let updatedCount = 0
     cardData.value.forEach(card => {
-      if (idsToUpdate.includes(card.id)) {
+      if (updateIds.has(card.id)) {
         card.cardCategory = normalizedCategory
         card.lastModifyTime = getCurrentTimestamp()
         updatedCount += 1
@@ -1991,21 +1900,26 @@ const handleDialogCancel = () => {
   creditCardData.value.data = {}
 }
 
+watch(helpPage, instance => { instance?.showHelp() })
 const showHelp = () => {
+  helpRequested.value = true
   helpPage.value?.showHelp()
 }
 
+watch(webDAVConfig, instance => { instance?.showDialog() })
 const showWebDAVConfig = () => {
+  webDAVRequested.value = true
   webDAVConfig.value?.showDialog()
 }
 
 const handleWebDAVConfigSaved = async () => {
   try {
     await webdavSyncService.start(cardData.value, applySyncedCards, handleSyncStatusChanged, handleSyncHistoryChanged)
+    if (disposed || !localDataStore.isUnlocked) return
   } catch (error) {
     syncStatus.value = {
       ...syncStatus.value,
-      message: `云同步设置已保存，但启动同步失败：${error.message}`,
+      message: `云同步设置已保存，但启动同步失败：${escapeHTML(error.message)}`,
       type: 'warning',
       pending: true,
       isSyncing: false
@@ -2015,6 +1929,7 @@ const handleWebDAVConfigSaved = async () => {
 
 // 显示数据迁移报告
 const showMigrationReport = async (migrationInfo) => {
+  if (disposed || !localDataStore.isUnlocked) return
   if (!migrationInfo) return
 
   // 判断是否为测试环境（通过 hostname 或环境变量）
@@ -2078,9 +1993,9 @@ const showMigrationReport = async (migrationInfo) => {
       htmlContent += `<p style="margin: 0 0 5px 0; font-weight: bold;">卡片 #${index + 1}</p>`
       htmlContent += `<p style="margin: 0; color: #666;">第 ${error.index + 1} 条卡片记录</p>`
       if (error.cardId) {
-        htmlContent += `<p style="margin: 5px 0 0 0; color: #666;">卡片编号: ${error.cardId}</p>`
+        htmlContent += `<p style="margin: 5px 0 0 0; color: #666;">卡片编号: ${escapeHTML(error.cardId)}</p>`
       }
-      htmlContent += `<p style="margin: 5px 0 0 0; color: #dc2626;">原因: ${error.message}</p>`
+      htmlContent += `<p style="margin: 5px 0 0 0; color: #dc2626;">原因: ${escapeHTML(error.message)}</p>`
       htmlContent += '</div>'
     })
     htmlContent += '</div>'
@@ -2102,14 +2017,14 @@ const showMigrationReport = async (migrationInfo) => {
       // 卡片基本信息
       htmlContent += '<div style="margin-bottom: 10px; padding: 8px; background: white; border-radius: 4px;">'
       if (cardInfo.bank) {
-        htmlContent += `<p style="margin: 3px 0; font-size: 13px;"><strong>银行:</strong> ${cardInfo.bank}</p>`
+        htmlContent += `<p style="margin: 3px 0; font-size: 13px;"><strong>银行:</strong> ${escapeHTML(cardInfo.bank)}</p>`
       }
       if (cardInfo.alias) {
-        htmlContent += `<p style="margin: 3px 0; font-size: 13px;"><strong>别名:</strong> ${cardInfo.alias}</p>`
+        htmlContent += `<p style="margin: 3px 0; font-size: 13px;"><strong>别名:</strong> ${escapeHTML(cardInfo.alias)}</p>`
       }
       if (cardInfo.cardNumber) {
         const masked = cardInfo.cardNumber.slice(0, 4) + ' **** **** ' + cardInfo.cardNumber.slice(-4)
-        htmlContent += `<p style="margin: 3px 0; font-size: 13px;"><strong>卡号:</strong> ${masked}</p>`
+        htmlContent += `<p style="margin: 3px 0; font-size: 13px;"><strong>卡号:</strong> ${escapeHTML(masked)}</p>`
       }
       htmlContent += '</div>'
 
@@ -2119,23 +2034,23 @@ const showMigrationReport = async (migrationInfo) => {
 
       changes.forEach((change, changeIdx) => {
         htmlContent += '<div style="margin-bottom: 8px; padding: 8px; background: #fefce8; border-radius: 4px; font-size: 12px;">'
-        htmlContent += `<p style="margin: 0 0 4px 0;"><strong>信息项:</strong> <code style="background: #fef9c3; padding: 2px 6px; border-radius: 3px;">${change.field}</code></p>`
+        htmlContent += `<p style="margin: 0 0 4px 0;"><strong>信息项:</strong> <code style="background: #fef9c3; padding: 2px 6px; border-radius: 3px;">${escapeHTML(change.field)}</code></p>`
 
         // 显示旧值
         if (change.oldValue === undefined) {
           htmlContent += '<p style="margin: 4px 0; color: #666;">原内容: <span style="color: #999; font-style: italic;">空</span></p>'
         } else {
-          htmlContent += `<p style="margin: 4px 0; color: #666;">原内容: <code>${JSON.stringify(change.oldValue)}</code></p>`
+          htmlContent += `<p style="margin: 4px 0; color: #666;">原内容: <code>${escapeHTML(JSON.stringify(change.oldValue))}</code></p>`
         }
 
         // 显示新值
         if (change.newValue === undefined) {
           htmlContent += '<p style="margin: 4px 0; color: #666;">新内容: <span style="color: #999; font-style: italic;">已删除</span></p>'
         } else {
-          htmlContent += `<p style="margin: 4px 0; color: #16a34a;">新内容: <code>${JSON.stringify(change.newValue)}</code></p>`
+          htmlContent += `<p style="margin: 4px 0; color: #16a34a;">新内容: <code>${escapeHTML(JSON.stringify(change.newValue))}</code></p>`
         }
 
-        htmlContent += `<p style="margin: 4px 0 0 0; color: #854d0e; font-style: italic;">原因: ${change.reason}</p>`
+        htmlContent += `<p style="margin: 4px 0 0 0; color: #854d0e; font-style: italic;">原因: ${escapeHTML(change.reason)}</p>`
         htmlContent += '</div>'
       })
       htmlContent += '</div>'
@@ -2154,8 +2069,8 @@ const showMigrationReport = async (migrationInfo) => {
       htmlContent += '<div style="margin-bottom: 10px; padding: 10px; background: #f0fdf4; border-radius: 6px;">'
       htmlContent += `<p style="margin: 0; font-weight: bold;">卡片 #${idx + 1}</p>`
       if (cardInfo.bank) {
-        htmlContent += `<p style="margin: 5px 0 0 0; font-size: 13px; color: #666;">${cardInfo.bank}`
-        if (cardInfo.alias) htmlContent += ` - ${cardInfo.alias}`
+        htmlContent += `<p style="margin: 5px 0 0 0; font-size: 13px; color: #666;">${escapeHTML(cardInfo.bank)}`
+        if (cardInfo.alias) htmlContent += ` - ${escapeHTML(cardInfo.alias)}`
         htmlContent += '</p>'
       }
       htmlContent += `<p style="margin: 5px 0 0 0; font-size: 13px; color: #16a34a;">${changes.length} 项内容已更新</p>`
@@ -2220,6 +2135,13 @@ watch(
 )
 
 onUnmounted(() => {
+  disposed = true
+  closeAllDialogsForLock()
+  cardData.value = []
+  selectedRows.value = []
+  currentCard.value = {}
+  creditCardData.value.data = {}
+  syncHistory.value = []
   if (syncCountdownTimer) {
     clearInterval(syncCountdownTimer)
   }
@@ -2228,9 +2150,6 @@ onUnmounted(() => {
 
 // 安全功能状态
 const showPasswordSetup = ref(false)
-const showPasswordVerify = ref(false)
-const showForgotPasswordDialog = ref(false)
-const showPasswordRecovery = ref(false)
 
 // 延迟执行标记：锁定状态下跳过的年费与迁移提示
 const pendingMigrationInfo = ref(null)
@@ -2245,67 +2164,6 @@ const handlePasswordSet = () => {
   initAfterPasswordSet()
 }
 
-// 密码验证成功
-const handlePasswordVerified = async () => {
-  unlockApp()
-  showPasswordVerify.value = false
-
-  // 执行锁定期间延迟的年费与迁移提示
-  if (needsInitialChecks.value) {
-    needsInitialChecks.value = false
-    if (cardData.value && cardData.value.length > 0) {
-      await checkAnnualFeeQualified()
-      await manualCheckAnnualFees()
-      maybeNotifyDailyCardReminders(cardData.value)
-    }
-    if (pendingMigrationInfo.value) {
-      await nextTick()
-      await showMigrationReport(pendingMigrationInfo.value)
-      pendingMigrationInfo.value = null
-    }
-  }
-}
-
-// 处理忘记密码选项
-const handleForgotPasswordOption = (option) => {
-  if (option === 'reset') {
-    handleResetAllData()
-  } else if (option === 'recover') {
-    showPasswordRecovery.value = true
-  }
-}
-
-// 重置所有数据
-const handleResetAllData = async () => {
-  try {
-    await ElMessageBox.confirm(
-      '此操作将清除所有卡包数据，包括卡片信息和云同步配置。确定继续吗？',
-      '警告',
-      {
-        confirmButtonText: '确定清除',
-        cancelButtonText: '取消',
-        type: 'error',
-        zIndex: 200010
-      }
-    )
-
-    const success = await PasswordManager.clearAllAppData()
-    if (success) {
-      ElMessage.success({ message: '数据已清除，请设置新密码', zIndex: 200010 })
-      showPasswordSetup.value = true
-    } else {
-      ElMessage.error({ message: '数据清除失败', zIndex: 200010 })
-    }
-  } catch {
-    ElMessage.info({ message: '已取消操作', zIndex: 200010 })
-  }
-}
-
-// 找回密码成功
-const handleRecoverySuccess = () => {
-  showPasswordSetup.value = true
-}
-
 const closeAllDialogsForLock = () => {
   creditCardData.value.dialogFormVisible = false
   deleteDialogVisible.value = false
@@ -2315,8 +2173,6 @@ const closeAllDialogsForLock = () => {
   batchAnnualFeeDialogVisible.value = false
   batchValidityDialogVisible.value = false
   showPasswordSetup.value = false
-  showForgotPasswordDialog.value = false
-  showPasswordRecovery.value = false
 
   helpPage.value?.hideHelp?.()
   webDAVConfig.value?.closeDialog?.()
@@ -2326,15 +2182,13 @@ const closeAllDialogsForLock = () => {
 const handleLockApp = () => {
   lockApp()
   closeAllDialogsForLock()
-  showPasswordVerify.value = true
 }
 
 // 监听锁定状态
 watch(() => isLocked.value, (locked) => {
   if (locked) {
     closeAllDialogsForLock()
-    showPasswordVerify.value = true
-  }
+    }
 })
 
 /**
@@ -2398,14 +2252,7 @@ const exportDesensitizedData = async () => {
   }
 }
 
-onMounted(() => {
-  // 检查是否需要设置密码
-  if (!PasswordManager.hasPassword()) {
-    showPasswordSetup.value = true
-  } else if (PasswordManager.isAppLocked() || PasswordManager.shouldAutoLock()) {
-    showPasswordVerify.value = true
-  }
-})
+
 </script>
 
 <style lang="scss">

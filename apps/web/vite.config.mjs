@@ -32,6 +32,7 @@ export default defineConfig(({ command, mode }) => {
 
   return {
     base: baseUrl,
+    test: { server: { deps: { inline: ['element-plus'] } } },
     plugins: [
       AutoImport({
         resolvers: [ElementPlusResolver()],
@@ -55,6 +56,7 @@ export default defineConfig(({ command, mode }) => {
     },
     build: {
       reportCompressedSize: true,
+      manifest: true,
       chunkSizeWarningLimit: 1500,
       minify: 'terser',
       terserOptions: {
@@ -78,19 +80,19 @@ export default defineConfig(({ command, mode }) => {
         },
         output: {
           manualChunks(id) {
-            // 创建一个 vendor 包含所有第三方模块
+            // 只隔离体积较大的可选依赖，其余由 Rollup 按使用关系拆分。
             if (id.includes('node_modules')) {
-              if (id.includes('element-plus')) {
-                return 'element-plus';
-              } else if (id.includes('echarts')) {
+              if (id.includes('echarts')) {
                 return 'echarts';
               } else if (id.includes('webdav')) {
                 return 'webdav';
               } else if (id.includes('crypto-js')) {
                 return 'crypto';
-              } else {
-                return 'vendor';
+              } else if (id.includes('zrender')) {
+                return 'echarts';
               }
+              // Let Rollup keep unrelated dependencies out of the initial shared chunk.
+              return undefined
             }
           },
           chunkFileNames: 'assets/js/[name]-[hash].js',
