@@ -4,7 +4,7 @@
 
 ## 下载
 
-前往 [最新版本](https://github.com/yuangy1995/card-wallet-releases/releases/latest)，下载 `CardWallet-*.zip`，解压后将「卡包.app」放入「应用程序」文件夹。
+前往 [最新版本](https://github.com/yuangy1995/card_wallet/releases/latest)，下载 `CardWallet-*.zip`，解压后将「卡包.app」放入「应用程序」文件夹。
 
 需要 macOS 14 或更新版本。Apple Silicon（M 系列）请选择文件名含 `arm64` 的安装包，Intel Mac 请选择含 `x86_64` 的安装包。芯片类型可在苹果菜单「关于本机」中查看。
 

@@ -31,7 +31,7 @@ for arch in ["arm64", "x86_64"] {
       <sparkle:shortVersionString>1.0.2</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
       \(arch == "arm64" ? "<sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>" : "")
-      <enclosure url="https://github.com/yuangy1995/card-wallet-releases/releases/download/mac-v1.0.2-4/\(name)"
+      <enclosure url="https://github.com/yuangy1995/card_wallet/releases/download/mac-v1.0.2-4/\(name)"
         length="\(data.count)" sparkle:edSignature="\(signature)"/>
     </item>
     """)

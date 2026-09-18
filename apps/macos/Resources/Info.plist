@@ -3,7 +3,7 @@
 <plist version="1.0">
 <dict>
 	<key>SUFeedURL</key>
-	<string>https://github.com/yuangy1995/card-wallet-releases/releases/latest/download/appcast.xml</string>
+	<string>https://github.com/yuangy1995/card_wallet/releases/latest/download/appcast.xml</string>
 	<key>SUPublicEDKey</key>
 	<string>zYvJmq2G5KNcMa/wbxZwKrd+LmjFB3c1khtPWPj6qFo=</string>
 	<key>SUEnableInstallerLauncherService</key>
