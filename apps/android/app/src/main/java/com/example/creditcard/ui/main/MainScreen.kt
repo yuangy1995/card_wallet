@@ -1,5 +1,7 @@
 package com.example.creditcard.ui.main
 
+import com.example.creditcard.utils.WalletCardRules
+
 import android.Manifest
 import android.content.Context
 import android.content.Intent
@@ -3022,25 +3024,12 @@ fun AnalyticsPanel(cards: List<SharedCard>, isDark: Boolean) {
     val debitBankCount = remember(debitCards) { debitCards.map { it.bank }.filter { it.isNotBlank() }.distinct().size }
     val debitCurrencyCount = remember(debitCards) { debitCards.map { it.type }.filter { it.isNotBlank() }.distinct().size }
 
-    // A. 重构多币种总资产额度算法 - 完美实现共享限额去重 (第 5 点)
+    // Keep independent amounts and region/bank/currency pools separate.
     val currencySummary = remember(creditCards) {
-        creditCards.groupBy { it.type }.mapValues { entry ->
-            val cardList = entry.value
-            
-            // 1. 过滤出非共享额度的卡片，无条件直接求和
-            val nonSharedSum = cardList.filter { !it.isSharedLimit }.sumOf { it.limit }
-            
-            // 2. 过滤出共享额度的卡片，按 bank 银行分组，每个银行共享组只取额度最大值
-            val sharedSum = cardList.filter { it.isSharedLimit && it.bank.isNotEmpty() }
-                .groupBy { it.bank }
-                .map { bankGroup -> bankGroup.value.maxOfOrNull { it.limit } ?: 0.0 }
-                .sum()
-                
-            val totalLimit = nonSharedSum + sharedSum
-            val annualFeeSum = cardList.sumOf { it.annualFee }
-            val cardCount = cardList.size
-            Triple(totalLimit, annualFeeSum, cardCount)
-        }
+        val totals = WalletCardRules.creditLimits(creditCards)
+        creditCards.groupBy { WalletCardRules.currency(it) }.mapValues { (currency, group) ->
+            Triple(totals[currency] ?: 0.0, group.sumOf { it.annualFee }, group.size)
+        }.toSortedMap()
     }
 
     // B. 还款/账单、年费与有效期提醒，规则与 Web/macOS/iOS 对齐，呈现保持移动端非阻塞列表
@@ -3060,7 +3049,7 @@ fun AnalyticsPanel(cards: List<SharedCard>, isDark: Boolean) {
     // C. 共享额度组看板数据
     val sharedLimitGroups = remember(creditCards) {
         creditCards.filter { it.isSharedLimit && it.bank.isNotEmpty() }
-            .groupBy { it.bank }
+            .groupBy { "${WalletCardRules.pool(it).country} · ${WalletCardRules.pool(it).bank} · ${WalletCardRules.currency(it).ifEmpty { "未设置币种" }}" }
             .filter { it.value.size > 1 }
     }
 
@@ -3112,8 +3101,8 @@ fun AnalyticsPanel(cards: List<SharedCard>, isDark: Boolean) {
             Spacer(modifier = Modifier.height(30.dp))
         } else {
 
-        // 1. Canvas 手工绘制的拟真资产额度占比 Donut 环形图 (按去重额度比例展示)
-        DetailSection(title = "信用额度占比", isCollapsible = true) {
+        // 不同币种的金额不能直接比较占比；环形图显示各币种的卡片数量。
+        DetailSection(title = "币种卡片数量分布", isCollapsible = true) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -3131,8 +3120,8 @@ fun AnalyticsPanel(cards: List<SharedCard>, isDark: Boolean) {
                         val stroke = Stroke(width = 14.dp.toPx())
                         var startAngle = -90f
                         
-                        // 使用去重共享后的总信用额度比例
-                        val totalLimit = currencySummary.values.sumOf { it.first }
+                        // 用卡片数量计算比例，不把不同货币直接相加。
+                        val totalLimit = currencySummary.values.sumOf { it.third }.toDouble()
 
                         if (totalLimit <= 0) {
                             drawArc(
@@ -3145,9 +3134,8 @@ fun AnalyticsPanel(cards: List<SharedCard>, isDark: Boolean) {
                         } else {
                             val colors = listOf(NeonCyan, NeonPurple, NeonGreen, Color(0xFFFF9100), NeonRed, GoldPrimary, NavySecondary)
                             var colorIndex = 0
-                            currencySummary.forEach { (currency, triple) ->
-                                val limit = triple.first
-                                val sweepAngle = ((limit / totalLimit) * 360f).toFloat()
+                            currencySummary.forEach { (_, triple) ->
+                                val sweepAngle = ((triple.third / totalLimit) * 360f).toFloat()
                                 drawArc(
                                     color = colors[colorIndex % colors.size],
                                     startAngle = startAngle,
@@ -3185,7 +3173,7 @@ fun AnalyticsPanel(cards: List<SharedCard>, isDark: Boolean) {
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                text = "$currency 信用总额",
+                                text = "${currency.ifEmpty { "未设置币种" }} 信用总额",
                                 fontSize = 11.sp,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
@@ -3514,7 +3502,7 @@ fun AnalyticsPanel(cards: List<SharedCard>, isDark: Boolean) {
                             modifier = Modifier.weight(0.9f)
                         ) {
                             Text(
-                                text = "$currency $${String.format("%,.0f", totalLimit)}",
+                                text = "${currency.ifEmpty { "未设置币种" }} ${String.format("%,.2f", totalLimit)}",
                                 fontWeight = FontWeight.Black,
                                 fontSize = 15.sp,
                                 color = if (isDark) NeonCyan else GoldPrimary,
@@ -5138,47 +5126,8 @@ fun UnknownLogo(modifier: Modifier = Modifier) {
  * @param today 今天日期，方便进行单体测试或多边界检验（默认为 LocalDate.now()）
  * @return 免息天数；如果卡片账单日或还款日未设置/非法，则返回 -1
  */
-fun calculateInterestFreeDays(card: SharedCard, today: LocalDate = LocalDate.now()): Int {
-    val billDay = card.accountBillDate.toIntOrNull() ?: return -1
-    val dueDay = card.dueDate.toIntOrNull() ?: return -1
-
-    if (billDay !in 1..31 || dueDay !in 1..31) return -1
-
-    val spendDay = today.dayOfMonth
-
-    // 1. 确定消费会计入哪个月的账单日
-    val isNextBill = if (card.billingDaySpendingToNextBill) {
-        spendDay >= billDay
-    } else {
-        spendDay > billDay
-    }
-
-    val targetBillMonth = if (isNextBill) today.plusMonths(1) else today
-    val lengthOfBillMonth = targetBillMonth.lengthOfMonth()
-    
-    // 目标账单日对齐该月最大天数
-    val targetBillDate = LocalDate.of(
-        targetBillMonth.year,
-        targetBillMonth.month,
-        min(billDay, lengthOfBillMonth)
-    )
-
-    // 2. 计算对应的还款日
-    // 如果还款日天数 <= 账单日天数，说明在下个月还款
-    val isNextMonthDue = dueDay <= billDay
-    val targetDueMonth = if (isNextMonthDue) targetBillDate.plusMonths(1) else targetBillDate
-    val lengthOfDueMonth = targetDueMonth.lengthOfMonth()
-
-    val targetDueDate = LocalDate.of(
-        targetDueMonth.year,
-        targetDueMonth.month,
-        min(dueDay, lengthOfDueMonth)
-    )
-
-    // 3. 计算免息天数
-    val days = ChronoUnit.DAYS.between(today, targetDueDate).toInt()
-    return if (days >= 0) days else 0
-}
+fun calculateInterestFreeDays(card: SharedCard, today: LocalDate = LocalDate.now()): Int =
+    WalletCardRules.interestFreeDays(card, today)
 
 @Composable
 fun BestUsagePanel(

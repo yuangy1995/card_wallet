@@ -76,7 +76,7 @@ public struct StatisticsView: View {
             HStack {
                 Text("银行信用额度").font(.headline)
                 Spacer()
-                Picker("币种", selection: $currency) { ForEach(snapshot.currencies, id: \.self) { Text($0).tag($0) } }
+                Picker("币种", selection: $currency) { ForEach(snapshot.currencies, id: \.self) { Text($0.isEmpty ? String(localized: "未设置币种") : $0).tag($0) } }
                     .frame(width: 140)
             }
             if limits.isEmpty {

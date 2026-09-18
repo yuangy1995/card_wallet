@@ -54,6 +54,8 @@ android {
       shaders = false
     }
 
+    sourceSets.getByName("test").resources.srcDir("../../../contracts/card-wallet/fixtures")
+
     testOptions {
         unitTests.isIncludeAndroidResources = true
     }

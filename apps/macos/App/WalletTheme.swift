@@ -185,7 +185,8 @@ enum WalletFormat {
     static func amount(_ value: Double?, currency: String? = "CNY") -> String {
         guard let value else { return String(localized: "未填写") }
         let code = currency?.trimmingCharacters(in: .whitespacesAndNewlines).uppercased() ?? ""
-        return value.formatted(.currency(code: code.isEmpty ? "CNY" : code).precision(.fractionLength(0...2)))
+        if code.isEmpty { return String(localized: "未设置币种") + " " + value.formatted(.number.precision(.fractionLength(0...2))) }
+        return value.formatted(.currency(code: code).precision(.fractionLength(0...2)))
     }
     static func date(_ timestamp: Double?) -> String {
         guard let date = timestamp.flatMap({ DataMigrationManager.date(fromTimestamp: $0) }) else { return String(localized: "未填写") }

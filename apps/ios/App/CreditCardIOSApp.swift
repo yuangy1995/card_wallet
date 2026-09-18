@@ -8,6 +8,9 @@ struct CreditCardIOSApp: App {
 
     var body: some Scene {
         WindowGroup {
+            if ProcessInfo.processInfo.environment["WALLET_TEST_HOST"] == "1" {
+                Color.clear
+            } else {
             RootView()
                 .environmentObject(syncCoordinator)
                 .environmentObject(lockManager)
@@ -15,6 +18,7 @@ struct CreditCardIOSApp: App {
                     syncCoordinator.bootstrap()
                 }
                 .preferredColorScheme(appColorScheme)
+            }
         }
     }
 
