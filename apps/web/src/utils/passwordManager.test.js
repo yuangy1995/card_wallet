@@ -3,7 +3,7 @@ import { PasswordManager } from './passwordManager'
 import { STORAGE_KEYS } from '@/config/constants'
 
 const storage = vi.hoisted(() => ({ get: vi.fn(), set: vi.fn(), has: vi.fn(), remove: vi.fn() }))
-const database = vi.hoisted(() => ({ initialized: true, initialize: vi.fn(), remove: vi.fn(), enableVault: vi.fn() }))
+const database = vi.hoisted(() => ({ initialized: true, initialize: vi.fn(), remove: vi.fn(), enableVault: vi.fn(), lock: vi.fn() }))
 vi.mock('./storage', () => ({ StorageManager: storage }))
 vi.mock('./indexedDbStorage', () => ({ localDataStore: database }))
 

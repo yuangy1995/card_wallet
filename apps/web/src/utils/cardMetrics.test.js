@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { creditLimitMetrics, prepareTableRows } from './cardMetrics'
+import { creditLimitMetrics, prepareTableRows, existingSharedLimitCard } from './cardMetrics'
 import { pageGroups, mergePageSelection } from './cardPagination'
 import { cardOrganization } from './cardBrand'
 import { escapeHTML, toCSV } from './safeExport'
@@ -17,6 +17,17 @@ describe('credit amount and pagination contract', () => {
     const result = creditLimitMetrics([card('a', { bank: 'Bank (US)' }), card('b', { bank: 'Bank', type: ' usd ', limit: 250 }), card('c', { type: '', limit: 20 })])
     expect(result.shared).toHaveLength(2)
     expect(result.totals).toEqual([{ currency: '', amount: 20 }, { currency: 'USD', amount: 250 }])
+  })
+  it('inherits the maximum shared amount, independent of input order', () => {
+    const low = card('low'), high = card('high', { limit: 500 })
+    const pool = [low, high, card('hkd', { type: 'HKD', limit: 900 }), card('hk', { country: 'HK', limit: 900 }), card('independent', { isSharedLimit: false, limit: 900 })]
+    const added = card('new')
+    expect(existingSharedLimitCard(pool, added)).toBe(high)
+    expect(existingSharedLimitCard([...pool].reverse(), added)).toBe(high)
+    expect(existingSharedLimitCard([low, high], high)).toBe(low)
+    expect(existingSharedLimitCard(pool, { ...added, cardCategory: 'debit' })).toBeNull()
+    expect(existingSharedLimitCard(pool, { ...added, isSharedLimit: false })).toBeNull()
+    expect(existingSharedLimitCard(pool, { ...added, type: '' })).toBeNull()
   })
   it('does not add NaN, infinity, negatives or debit cards to limits', () => {
     expect(creditLimitMetrics([card('a', { limit: Infinity }), card('b', { limit: -1 }), card('c', { limit: 'invalid' })]).totals).toEqual([{ currency: 'USD', amount: 0 }])

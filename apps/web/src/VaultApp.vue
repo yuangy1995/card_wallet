@@ -68,14 +68,23 @@ const resetVault = async () => {
   }
 }
 const onPageHide = () => { if (unlocked.value) PasswordManager.lockApp() }
+const onStorageLock = (event) => {
+  if (event.key !== PasswordManager.LOCK_STATE_KEY || !event.newValue) return
+  try {
+    // 业务界面尚未挂载时也取消在途解锁；不要用可能已更新的当前存储值替代事件值。
+    if (JSON.parse(event.newValue)?.isLocked) PasswordManager.lockApp(false)
+  } catch { /* 损坏的偏好值不是解锁凭据。 */ }
+}
 onMounted(() => {
   window.addEventListener('wallet-vault-locked', onLock)
   window.addEventListener('pagehide', onPageHide)
+  window.addEventListener('storage', onStorageLock)
   boot()
 })
 onUnmounted(() => {
   window.removeEventListener('wallet-vault-locked', onLock)
   window.removeEventListener('pagehide', onPageHide)
+  window.removeEventListener('storage', onStorageLock)
 })
 </script>
 

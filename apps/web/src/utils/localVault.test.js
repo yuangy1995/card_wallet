@@ -151,4 +151,51 @@ describe('real Web Crypto local vault', () => {
     await expect(localDataStore.initialize()).rejects.toThrow('加密信息缺失')
     expect(database.values.size).toBeGreaterThan(0)
   })
+  it('reads only metadata while opening an existing locked vault', async () => {
+    await seed()
+    await localDataStore.resetForTests()
+    const readAll = vi.spyOn(localDataStore, 'readEntries')
+    try {
+      await localDataStore.initialize()
+      expect(readAll).not.toHaveBeenCalled()
+      expect(localDataStore.cache.size).toBe(0)
+      expect(localDataStore.isUnlocked).toBe(false)
+      await localDataStore.unlockVault(password)
+      expect(readAll).toHaveBeenCalledTimes(1)
+      expect(localDataStore.get(STORAGE_KEYS.SYNC_RECORDS)[0].card.bank).toBe('SECRET_BANK')
+    } finally { readAll.mockRestore() }
+  })
+  it('invalidates a closed connection and can retry after a version change', async () => {
+    await seed()
+    database.db.onversionchange()
+    expect(localDataStore.isUnlocked).toBe(false)
+    expect(localDataStore.initialized).toBe(false)
+    expect(localDataStore.initPromise).toBeNull()
+    expect(localDataStore.db).toBeNull()
+    await localDataStore.initialize()
+    expect(localDataStore.available).toBe(true)
+    await localDataStore.unlockVault(password)
+    expect(localDataStore.get(STORAGE_KEYS.WEBDAV_CONFIG).password).toBe('WEBDAV_SECRET')
+  })
+  it('drops runtime secrets on a remote lock without echoing to other tabs', async () => {
+    await seed()
+    legacy.set(PasswordManager.LOCK_STATE_KEY, JSON.stringify({ isLocked: false }))
+    const before = legacy.get(PasswordManager.LOCK_STATE_KEY)
+    PasswordManager.lockApp(false)
+    expect(localDataStore.isUnlocked).toBe(false)
+    expect(localDataStore.cache.size).toBe(0)
+    expect(legacy.get(PasswordManager.LOCK_STATE_KEY)).toBe(before)
+  })
+
+  it('keeps the committed vault but closes its key when legacy cleanup fails after setup', async () => {
+    const cleanup = vi.spyOn(PasswordManager, 'cleanupLegacySecrets').mockImplementationOnce(() => { throw new Error('旧数据未能清理') })
+    try {
+      await expect(PasswordManager.setAppPassword(password)).rejects.toThrow('旧数据未能清理')
+      expect(localDataStore.vaultMetadata).not.toBeNull()
+      expect(localDataStore.isUnlocked).toBe(false)
+      expect(PasswordManager.hasPassword()).toBe(true)
+    } finally { cleanup.mockRestore() }
+    expect(await PasswordManager.verifyPassword(password)).toBe(true)
+  })
+
 })

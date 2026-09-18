@@ -61,3 +61,15 @@ export function prepareTableRows(cards) {
   }
   return rows
 }
+
+// 新增共享卡继承同口径的最大额度，不能因列表顺序把其他卡的额度降为较小值。
+export function existingSharedLimitCard(cards, candidate) {
+  if (candidate.cardCategory === 'debit' || candidate.isSharedLimit === false) return null
+  const pool = sharedLimitKey(candidate)
+  return cards.reduce((best, card) => {
+    if (card.id === candidate.id || card.cardCategory === 'debit' || card.isSharedLimit === false || sharedLimitKey(card) !== pool) return best
+    if (!best || amount(card.limit) > amount(best.limit) ||
+        (amount(card.limit) === amount(best.limit) && String(card.id).localeCompare(String(best.id)) < 0)) return card
+    return best
+  }, null)
+}

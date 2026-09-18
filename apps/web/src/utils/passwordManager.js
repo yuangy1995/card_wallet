@@ -62,7 +62,12 @@ export class PasswordManager {
       if (this.hasPassword() && !(await this.legacyPasswordMatches(oldPassword))) throw new Error('当前密码不正确')
       await localDataStore.enableVault(password, await this.legacyExtraEntries())
     }
-    this.cleanupLegacySecrets()
+    try { this.cleanupLegacySecrets() }
+    catch (error) {
+      // 密文已经提交但清理失败时，切回已有保险库的解锁页，不能停留在首次设置流程。
+      localDataStore.lock()
+      throw error
+    }
     this.resetFailedAttempts()
     return true
   }
@@ -97,11 +102,11 @@ export class PasswordManager {
   /**
    * 锁定应用
    */
-  static lockApp() {
+  static lockApp(broadcast = true) {
     localDataStore.lock()
     globalCache.clear()
     cardDataCache.clear()
-    StorageManager.set(this.LOCK_STATE_KEY, {
+    if (broadcast) StorageManager.set(this.LOCK_STATE_KEY, {
       isLocked: true,
       lockTime: Date.now()
     })
@@ -201,6 +206,8 @@ export class PasswordManager {
    */
     static async clearAllAppData() {
       try {
+        // 重置前取消本页在途任务，并通知其他标签页丢弃解密会话。
+        this.lockApp()
         // 快照同样包含完整卡片资料，不能在重置密码后留下。
         const localDataKeys = [
           STORAGE_KEYS.CARD_DATA,

@@ -183,7 +183,7 @@
               <el-radio :value="false" size="large">否</el-radio>
             </el-radio-group>
             <div class="field-helper">
-              {{ formData.isSharedLimit ? '该银行所有卡片共享同一额度总额' : '每张卡片拥有独立的信用额度' }}
+              {{ formData.isSharedLimit ? '同地区、同银行、同币种的共享卡使用同一额度' : '每张卡片拥有独立的信用额度' }}
             </div>
           </el-form-item>
         </el-descriptions-item>
@@ -356,6 +356,7 @@
 </template>
 
 <script>
+import { existingSharedLimitCard as findSharedLimitCard } from '@/utils/cardMetrics'
 import { ref, computed, watch, inject } from 'vue'
 import { ElMessage } from 'element-plus'
 import { creditCardOptions } from '@/config/creditCardOptions'
@@ -688,21 +689,7 @@ export default {
       }
       if (!formData.value.country || !formData.value.bank) return
 
-      const currentCountry = formData.value.country
-      const currentBank = formData.value.bank
-      const currentType = String(formData.value.type || '').trim().toUpperCase()
-
-      // 查找同国家同银行的已有卡片（排除当前编辑的卡片）
-      const existingCard = props.existingCards.find(card => {
-        const cardBank = card.bank || ''
-        const cardType = String(card.type || '').trim().toUpperCase()
-        return card.country === currentCountry &&
-               bankNamesReferToSameBank(cardBank, currentBank) &&
-               card.cardCategory !== 'debit' &&
-               cardType === currentType &&
-               card.isSharedLimit === true &&
-               card.id !== formData.value.id
-      })
+      const existingCard = findSharedLimitCard(props.existingCards, formData.value)
 
       if (existingCard) {
         existingSharedLimitCard.value = existingCard
