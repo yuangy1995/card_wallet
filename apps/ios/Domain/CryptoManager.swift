@@ -6,6 +6,7 @@ public enum CryptoError: Error, LocalizedError, Sendable {
     case badMagicNumber
     case utf8DecodingFailed
     case encryptionFailed
+    case decryptionFailed
     case emptyPassword
     case invalidSyncEnvelope
     case keyDerivationFailed
@@ -15,6 +16,7 @@ public enum CryptoError: Error, LocalizedError, Sendable {
         case .badMagicNumber: return "密文损坏：魔数验证失败"
         case .utf8DecodingFailed: return "UTF-8 字符解码失败，请确认解密密码是否正确"
         case .encryptionFailed: return "AES 加密失败"
+        case .decryptionFailed: return "无法读取本地加密数据，原始文件已保留。请检查本机钥匙串或从备份恢复。"
         case .emptyPassword: return "请输入自定义解密密码"
         case .invalidSyncEnvelope: return "不是有效的云同步加密文件"
         case .keyDerivationFailed: return "同步密钥派生失败"
@@ -148,8 +150,11 @@ public class CryptoManager {
         guard envelope.schemaVersion == syncV4SchemaVersion,
               envelope.encryption.algorithm == "AES-256-GCM",
               envelope.encryption.kdf == "PBKDF2-HMAC-SHA256",
+              (100000...2000000).contains(envelope.encryption.iterations),
               let saltData = Data(base64Encoded: envelope.encryption.salt),
+              saltData.count == syncV4SaltBytes,
               let ivData = Data(base64Encoded: envelope.encryption.iv),
+              ivData.count == syncV4IVBytes,
               let ciphertextAndTag = Data(base64Encoded: envelope.ciphertext),
               ciphertextAndTag.count > 16 else { throw CryptoError.invalidSyncEnvelope }
         let keyBytes = try deriveSyncV4Key(password: normalizedPassword, salt: Array(saltData), iterations: envelope.encryption.iterations)
