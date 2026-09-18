@@ -564,7 +564,8 @@ public struct CardEditView: View {
             remark: remark.trimmingCharacters(in: .whitespacesAndNewlines),
             lastModifyTime: lastModifyTimestamp,
             isSharedLimit: isDebitCard ? false : isSharedLimit,
-            cardImages: cardImages
+            cardImages: cardImages,
+            extraFields: cardToEdit?.extraFields ?? [:]
         )
         
         onSubmit(finalCard)

@@ -929,7 +929,8 @@ struct CardEditView: View {
             remark: remark.trimmedNilIfEmpty,
             lastModifyTime: DataMigrationManager.currentTimestampMilliseconds(),
             isSharedLimit: isDebitCard ? false : isSharedLimit,
-            cardImages: cardImages
+            cardImages: cardImages,
+            extraFields: cardToEdit?.extraFields ?? [:]
         )
         onSubmit(newCard)
         dismiss()

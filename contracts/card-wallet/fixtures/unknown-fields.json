@@ -1,0 +1,49 @@
+{
+  "id": "forward-fields-fixture",
+  "cardCategory": "credit",
+  "country": "US",
+  "bank": "SyntheticBank",
+  "cardNumber": "",
+  "alias": "before",
+  "lastModifyTime": 1789725600000,
+  "futureProgram": {
+    "label": "opaque",
+    "enabled": true,
+    "amount": 1234.5,
+    "items": [
+      1,
+      "two",
+      null,
+      false,
+      {
+        "nested": "保留"
+      }
+    ]
+  },
+  "futureNull": null,
+  "showCVV": true,
+  "_localOnly": "must-not-sync",
+  "legacyId": "must-not-sync",
+  "extraFields": {
+    "invalid": "wrapper"
+  },
+  "cardImages": [
+    {
+      "id": "image-fixture",
+      "mimeType": "image/jpeg",
+      "data": "data:image/jpeg;base64,/9j/2Q==",
+      "createdAt": 1789725600000,
+      "source": "fixture",
+      "name": "synthetic.jpg",
+      "futureImage": {
+        "rotation": 90,
+        "labels": [
+          "one",
+          "two"
+        ]
+      },
+      "showCVV": true,
+      "_localOnly": "must-not-sync"
+    }
+  ]
+}

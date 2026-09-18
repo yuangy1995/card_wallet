@@ -40,3 +40,40 @@ final class LocalParityTests: XCTestCase {
         XCTAssertEqual(try Data(contentsOf: file), original)
     }
 }
+
+final class CardFutureFieldsTests: XCTestCase {
+    private func fixtureData() throws -> Data {
+        let url = try XCTUnwrap(Bundle(for: Self.self).url(forResource: "unknown-fields", withExtension: "json", subdirectory: "fixtures"))
+        return try Data(contentsOf: url)
+    }
+    func testCardAndImageFieldsSurviveEditingAndCodableRoundTrip() throws {
+        let data = try fixtureData()
+        let input = try JSONDecoder().decode([String: CardJSONValue].self, from: data)
+        var card = try JSONDecoder().decode(SharedCard.self, from: data)
+        card.alias = "edited"
+        let encoded = try JSONEncoder().encode(card)
+        let output = try JSONDecoder().decode([String: CardJSONValue].self, from: encoded)
+        XCTAssertEqual(output["futureProgram"], input["futureProgram"])
+        XCTAssertEqual(output["futureNull"], .null)
+        XCTAssertEqual(card.cardImages.first?.extraFields["futureImage"], .object(["rotation": .number(90), "labels": .array([.string("one"), .string("two")])]))
+        for key in ["showCVV", "_localOnly", "legacyId", "extraFields"] { XCTAssertNil(output[key]) }
+        XCTAssertNil(card.cardImages.first?.extraFields["showCVV"])
+        XCTAssertEqual(try JSONDecoder().decode(SharedCard.self, from: encoded), card)
+    }
+    func testOpaqueFieldsNeverOverrideKnownFieldsOrIntroducePrototypeKeys() throws {
+        var card = SharedCard(id: "real", country: "", bank: "", cardNumber: "")
+        card.extraFields = ["id": .string("shadow"), "limit": .number(999), "constructor": .string("bad"), "future": .null]
+        let output = try JSONDecoder().decode([String: CardJSONValue].self, from: JSONEncoder().encode(card))
+        XCTAssertEqual(output["id"], .string("real"))
+        XCTAssertEqual(output["limit"], .number(0))
+        XCTAssertNil(output["constructor"])
+        XCTAssertEqual(output["future"], .null)
+    }
+    func testSyncRecordRoundTripPreservesOpaqueFields() throws {
+        let card = try JSONDecoder().decode(SharedCard.self, from: fixtureData())
+        let record = CardSyncRecord.activeUsingCardTimestamp(card)
+        let decoded = try JSONDecoder().decode(CardSyncRecord.self, from: JSONEncoder().encode(record))
+        XCTAssertEqual(decoded.card?.extraFields, card.extraFields)
+        XCTAssertEqual(decoded.card?.cardImages, card.cardImages)
+    }
+}
