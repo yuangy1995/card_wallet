@@ -11,6 +11,10 @@ schemes:
       config: Debug
     test:
       config: Debug
+      targets:
+        - CreditCardIOSTests
+      environmentVariables:
+        WALLET_TEST_HOST: "1"
     archive:
       config: Release
 targets:
@@ -41,3 +45,19 @@ targets:
         SWIFT_VERSION: "6.0"
         TARGETED_DEVICE_FAMILY: "1,2"
         INFOPLIST_KEY_NSCameraUsageDescription: "扫描银行卡"
+
+  CreditCardIOSTests:
+    type: bundle.unit-test
+    platform: iOS
+    deploymentTarget: "17.0"
+    sources:
+      - path: Tests
+      - path: ../../contracts/card-wallet/fixtures
+        type: folder
+        buildPhase: resources
+    dependencies:
+      - target: CreditCardIOS
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        SWIFT_VERSION: "6.0"

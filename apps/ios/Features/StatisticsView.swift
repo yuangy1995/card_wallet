@@ -12,37 +12,18 @@ struct StatisticsView: View {
     private var debitCards: [SharedCard] { cards.filter { $0.cardCategory == "debit" } }
 
     private var totalLimitByCurrency: [String: Double] {
-        var dict: [String: Double] = [:]
-        var processedSharedGroups = Set<String>()
-        for card in creditCards {
-            let currency = normalizedCurrency(card.type)
-            if card.isSharedLimit {
-                let cleanBank = card.bank.replacingOccurrences(of: "\\(.*\\)", with: "", options: .regularExpression).trimmingCharacters(in: .whitespaces)
-                let groupKey = "\(card.country)-\(cleanBank)-\(currency)"
-                if processedSharedGroups.contains(groupKey) { continue }
-                processedSharedGroups.insert(groupKey)
-            }
-            dict[currency, default: 0.0] += card.limit ?? 0.0
-        }
-        return dict
+        Dictionary(uniqueKeysWithValues: WalletCardRules.creditLimits(cards).map {
+            ($0.key.isEmpty ? "未设置" : $0.key, $0.value)
+        })
     }
 
     private var bankLimits: [(bank: String, limit: Double, currency: String)] {
-        var dict: [String: Double] = [:]
-        var processedSharedGroups = Set<String>()
-        for card in creditCards {
-            let cleanBank = card.bank.replacingOccurrences(of: "\\(.*\\)", with: "", options: .regularExpression).trimmingCharacters(in: .whitespaces)
-            let currency = normalizedCurrency(card.type)
-            let bankCurrencyKey = "\(cleanBank) (\(currency))"
-            if card.isSharedLimit {
-                let groupKey = "\(card.country)-\(cleanBank)-\(currency)"
-                if processedSharedGroups.contains(groupKey) { continue }
-                processedSharedGroups.insert(groupKey)
-            }
-            dict[bankCurrencyKey, default: 0] += card.limit ?? 0
-        }
-        return dict.sorted { $0.value > $1.value }
-            .map { (bank: $0.key, limit: $0.value, currency: "") }
+        Dictionary(grouping: creditCards) { BankNameNormalizer.normalizedKey($0.bank) }
+            .flatMap { bank, cards in
+                WalletCardRules.creditLimits(cards).map { code, amount in
+                    (bank: "\(bank) (\(code.isEmpty ? "未设置" : code))", limit: amount, currency: code)
+                }
+            }.sorted { $0.limit == $1.limit ? $0.bank < $1.bank : $0.limit > $1.limit }
     }
 
     private var annualFeeAlertCards: [SharedCard] {
@@ -341,14 +322,11 @@ struct StatisticsView: View {
             let bestCards = creditCards
                 .filter { !($0.accountBillDate ?? "").isEmpty && !($0.dueDate ?? "").isEmpty }
                 .map { card -> (card: SharedCard, days: Int) in
-                    let days = DateCalculator.calculateInterestFreePeriod(
-                        accountBillDate: card.accountBillDate ?? "",
-                        dueDate: card.dueDate ?? "",
-                        billingDayToNextBill: card.billingDaySpendingToNextBill
-                    )
+                    let days = DateCalculator.calculateInterestFreeDays(card: card)
                     return (card: card, days: days)
                 }
-                .sorted { $0.days > $1.days }
+                .filter { $0.days >= 0 }
+                .sorted { $0.days == $1.days ? $0.card.id < $1.card.id : $0.days > $1.days }
                 .prefix(5)
 
             if bestCards.isEmpty {

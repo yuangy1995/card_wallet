@@ -19,7 +19,7 @@ struct CardCatalogItem: Identifiable, Sendable {
         self.card = card
         brand = CardBrand.detect(from: card.cardNumber, level: card.level)
         if card.cardCategory != "debit", let bill = Int(card.accountBillDate ?? ""), let due = Int(card.dueDate ?? ""), (1...31).contains(bill), (1...31).contains(due) {
-            interestFreeDays = DateCalculator.calculateInterestFreePeriod(accountBillDate: String(bill), dueDate: String(due), billingDayToNextBill: card.billingDaySpendingToNextBill)
+            interestFreeDays = DateCalculator.calculateInterestFreeDays(card: card)
         } else {
             interestFreeDays = nil
         }
@@ -82,27 +82,8 @@ enum CardCatalog {
             .sorted { $0.items.count != $1.items.count ? $0.items.count > $1.items.count : $0.id.localizedCompare($1.id) == .orderedAscending }
     }
 
-    private struct SharedLimitKey: Hashable {
-        let country: String
-        let bank: String
-        let currency: String
-    }
-
     /// 共享额度取同银行、地区和币种的最大值，与卡片排列顺序无关。
     static func creditLimits(cards: [SharedCard]) -> [String: Double] {
-        var limits: [String: Double] = [:]
-        var shared: [SharedLimitKey: Double] = [:]
-        for card in cards where card.cardCategory != "debit" {
-            let code = (card.type ?? "").trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
-            let currency = code.isEmpty ? "CNY" : code
-            if card.isSharedLimit {
-                let key = SharedLimitKey(country: card.country, bank: BankNameNormalizer.normalizedKey(card.bank), currency: currency)
-                shared[key] = max(shared[key] ?? 0, card.limit ?? 0)
-            } else {
-                limits[currency, default: 0] += card.limit ?? 0
-            }
-        }
-        for (key, value) in shared { limits[key.currency, default: 0] += value }
-        return limits
+        WalletCardRules.creditLimits(cards)
     }
 }

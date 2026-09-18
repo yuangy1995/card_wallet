@@ -1,0 +1,287 @@
+[
+  {
+    "name": "shared maximum is independent of order",
+    "cards": [
+      {
+        "id": "a",
+        "cardCategory": "credit",
+        "country": "CN",
+        "bank": "Test Bank",
+        "cardNumber": "4111111111111111",
+        "lastModifyTime": 1789700000000,
+        "type": " usd ",
+        "limit": 100
+      },
+      {
+        "id": "b",
+        "cardCategory": "credit",
+        "country": "CN",
+        "bank": "Test Bank",
+        "cardNumber": "4111111111111111",
+        "lastModifyTime": 1789700000000,
+        "type": "USD",
+        "limit": 300
+      }
+    ],
+    "expected": {
+      "USD": 300
+    }
+  },
+  {
+    "name": "region separates pools",
+    "cards": [
+      {
+        "id": "a",
+        "cardCategory": "credit",
+        "country": "CN",
+        "bank": "Test Bank",
+        "cardNumber": "4111111111111111",
+        "lastModifyTime": 1789700000000,
+        "type": "USD",
+        "limit": 100
+      },
+      {
+        "id": "b",
+        "cardCategory": "credit",
+        "country": "US",
+        "bank": "Test Bank",
+        "cardNumber": "4111111111111111",
+        "lastModifyTime": 1789700000000,
+        "type": "USD",
+        "limit": 300
+      }
+    ],
+    "expected": {
+      "USD": 400
+    }
+  },
+  {
+    "name": "currencies never converted",
+    "cards": [
+      {
+        "id": "a",
+        "cardCategory": "credit",
+        "country": "CN",
+        "bank": "Test Bank",
+        "cardNumber": "4111111111111111",
+        "lastModifyTime": 1789700000000,
+        "type": "USD",
+        "limit": 100
+      },
+      {
+        "id": "b",
+        "cardCategory": "credit",
+        "country": "CN",
+        "bank": "Test Bank",
+        "cardNumber": "4111111111111111",
+        "lastModifyTime": 1789700000000,
+        "type": "HKD",
+        "limit": 300
+      },
+      {
+        "id": "c",
+        "cardCategory": "credit",
+        "country": "CN",
+        "bank": "Test Bank",
+        "cardNumber": "4111111111111111",
+        "lastModifyTime": 1789700000000,
+        "type": "",
+        "limit": 400
+      }
+    ],
+    "expected": {
+      "USD": 100,
+      "HKD": 300,
+      "": 400
+    }
+  },
+  {
+    "name": "independent plus pool excluding debit",
+    "cards": [
+      {
+        "id": "a",
+        "cardCategory": "credit",
+        "country": "CN",
+        "bank": "Test Bank",
+        "cardNumber": "4111111111111111",
+        "lastModifyTime": 1789700000000,
+        "type": "CNY",
+        "limit": 200
+      },
+      {
+        "id": "b",
+        "cardCategory": "credit",
+        "country": "CN",
+        "bank": "Test Bank",
+        "cardNumber": "4111111111111111",
+        "lastModifyTime": 1789700000000,
+        "type": "CNY",
+        "limit": 500
+      },
+      {
+        "id": "c",
+        "cardCategory": "credit",
+        "country": "CN",
+        "bank": "Test Bank",
+        "cardNumber": "4111111111111111",
+        "lastModifyTime": 1789700000000,
+        "type": "CNY",
+        "limit": 30,
+        "isSharedLimit": false
+      },
+      {
+        "id": "d",
+        "cardCategory": "debit",
+        "country": "CN",
+        "bank": "Test Bank",
+        "cardNumber": "4111111111111111",
+        "lastModifyTime": 1789700000000,
+        "type": "CNY",
+        "limit": 5000
+      }
+    ],
+    "expected": {
+      "CNY": 530
+    }
+  },
+  {
+    "name": "parentheses and whitespace normalization",
+    "cards": [
+      {
+        "id": "a",
+        "cardCategory": "credit",
+        "country": "CN",
+        "bank": "测试 银行（白金）",
+        "cardNumber": "4111111111111111",
+        "lastModifyTime": 1789700000000,
+        "type": "CNY",
+        "limit": 100
+      },
+      {
+        "id": "b",
+        "cardCategory": "credit",
+        "country": "CN",
+        "bank": "测试银行 (分行)",
+        "cardNumber": "4111111111111111",
+        "lastModifyTime": 1789700000000,
+        "type": "CNY",
+        "limit": 400
+      }
+    ],
+    "expected": {
+      "CNY": 400
+    }
+  },
+  {
+    "name": "fractional amounts",
+    "cards": [
+      {
+        "id": "a",
+        "cardCategory": "credit",
+        "country": "CN",
+        "bank": "Test Bank",
+        "cardNumber": "4111111111111111",
+        "lastModifyTime": 1789700000000,
+        "type": "USD",
+        "limit": 0.1,
+        "isSharedLimit": false
+      },
+      {
+        "id": "b",
+        "cardCategory": "credit",
+        "country": "CN",
+        "bank": "Test Bank",
+        "cardNumber": "4111111111111111",
+        "lastModifyTime": 1789700000000,
+        "type": "USD",
+        "limit": 0.2,
+        "isSharedLimit": false
+      }
+    ],
+    "expected": {
+      "USD": 0.3
+    }
+  },
+  {
+    "name": "rounding half up per amount",
+    "cards": [
+      {
+        "id": "a",
+        "cardCategory": "credit",
+        "country": "CN",
+        "bank": "Test Bank",
+        "cardNumber": "4111111111111111",
+        "lastModifyTime": 1789700000000,
+        "type": "USD",
+        "limit": 1.005,
+        "isSharedLimit": false
+      },
+      {
+        "id": "b",
+        "cardCategory": "credit",
+        "country": "CN",
+        "bank": "Test Bank",
+        "cardNumber": "4111111111111111",
+        "lastModifyTime": 1789700000000,
+        "type": "USD",
+        "limit": 2.005,
+        "isSharedLimit": false
+      }
+    ],
+    "expected": {
+      "USD": 3.02
+    }
+  },
+  {
+    "name": "negative amounts excluded",
+    "cards": [
+      {
+        "id": "a",
+        "cardCategory": "credit",
+        "country": "CN",
+        "bank": "Test Bank",
+        "cardNumber": "4111111111111111",
+        "lastModifyTime": 1789700000000,
+        "type": "USD",
+        "limit": -3,
+        "isSharedLimit": false
+      }
+    ],
+    "expected": {
+      "USD": 0
+    }
+  },
+  {
+    "name": "unknown bank cannot establish a shared pool",
+    "cards": [
+      {
+        "id": "a",
+        "cardCategory": "credit",
+        "country": "CN",
+        "bank": "",
+        "cardNumber": "4111111111111111",
+        "lastModifyTime": 1789700000000,
+        "type": "USD",
+        "limit": 100
+      },
+      {
+        "id": "b",
+        "cardCategory": "credit",
+        "country": "CN",
+        "bank": "",
+        "cardNumber": "4111111111111111",
+        "lastModifyTime": 1789700000000,
+        "type": "USD",
+        "limit": 300
+      }
+    ],
+    "expected": {
+      "USD": 400
+    }
+  },
+  {
+    "name": "empty wallet",
+    "cards": [],
+    "expected": {}
+  }
+]

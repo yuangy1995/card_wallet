@@ -167,7 +167,7 @@ export function calculateCurrentInterestFreeDays(card, today = new Date()) {
     12
   )
 
-  return Math.max(0, Math.round((targetDueDate - base) / (24 * 60 * 60 * 1000)))
+  return Math.max(0, (Date.UTC(targetDueDate.getFullYear(), targetDueDate.getMonth(), targetDueDate.getDate()) - Date.UTC(base.getFullYear(), base.getMonth(), base.getDate())) / 86400000)
 }
 
 /**

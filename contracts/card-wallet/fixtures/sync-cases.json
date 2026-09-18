@@ -1,0 +1,255 @@
+[
+  {
+    "name": "newer edit",
+    "collections": [
+      [
+        {
+          "cardId": "a",
+          "mutationId": "1",
+          "changedAt": "2026-09-01T00:00:00.000Z",
+          "state": "active",
+          "card": {
+            "id": "a",
+            "cardCategory": "credit",
+            "country": "CN",
+            "bank": "Test Bank",
+            "cardNumber": "4111111111111111",
+            "lastModifyTime": 1789700000000
+          }
+        }
+      ],
+      [
+        {
+          "cardId": "a",
+          "mutationId": "2",
+          "changedAt": "2026-09-02T00:00:00.000Z",
+          "state": "active",
+          "card": {
+            "id": "a",
+            "cardCategory": "credit",
+            "country": "CN",
+            "bank": "Test Bank",
+            "cardNumber": "4111111111111111",
+            "lastModifyTime": 1789700000000
+          }
+        }
+      ]
+    ],
+    "expected": [
+      {
+        "cardId": "a",
+        "state": "active",
+        "mutationId": "2"
+      }
+    ]
+  },
+  {
+    "name": "deletion wins same instant",
+    "collections": [
+      [
+        {
+          "cardId": "a",
+          "mutationId": "z",
+          "changedAt": "2026-09-01T00:00:00.000Z",
+          "state": "active",
+          "card": {
+            "id": "a",
+            "cardCategory": "credit",
+            "country": "CN",
+            "bank": "Test Bank",
+            "cardNumber": "4111111111111111",
+            "lastModifyTime": 1789700000000
+          }
+        }
+      ],
+      [
+        {
+          "cardId": "a",
+          "mutationId": "a",
+          "changedAt": "2026-09-01T00:00:00.000Z",
+          "state": "deleted"
+        }
+      ]
+    ],
+    "expected": [
+      {
+        "cardId": "a",
+        "state": "deleted",
+        "mutationId": "a"
+      }
+    ]
+  },
+  {
+    "name": "old device cannot revive deletion",
+    "collections": [
+      [
+        {
+          "cardId": "a",
+          "mutationId": "z",
+          "changedAt": "2026-09-01T00:00:00.000Z",
+          "state": "active",
+          "card": {
+            "id": "a",
+            "cardCategory": "credit",
+            "country": "CN",
+            "bank": "Test Bank",
+            "cardNumber": "4111111111111111",
+            "lastModifyTime": 1789700000000
+          }
+        }
+      ],
+      [
+        {
+          "cardId": "a",
+          "mutationId": "a",
+          "changedAt": "2026-09-02T00:00:00.000Z",
+          "state": "deleted"
+        }
+      ]
+    ],
+    "expected": [
+      {
+        "cardId": "a",
+        "state": "deleted",
+        "mutationId": "a"
+      }
+    ]
+  },
+  {
+    "name": "deterministic equal time mutation",
+    "collections": [
+      [
+        {
+          "cardId": "a",
+          "mutationId": "a",
+          "changedAt": "2026-09-01T00:00:00.000Z",
+          "state": "active",
+          "card": {
+            "id": "a",
+            "cardCategory": "credit",
+            "country": "CN",
+            "bank": "Test Bank",
+            "cardNumber": "4111111111111111",
+            "lastModifyTime": 1789700000000
+          }
+        }
+      ],
+      [
+        {
+          "cardId": "a",
+          "mutationId": "z",
+          "changedAt": "2026-09-01T00:00:00.000Z",
+          "state": "active",
+          "card": {
+            "id": "a",
+            "cardCategory": "credit",
+            "country": "CN",
+            "bank": "Test Bank",
+            "cardNumber": "4111111111111111",
+            "lastModifyTime": 1789700000000
+          }
+        }
+      ]
+    ],
+    "expected": [
+      {
+        "cardId": "a",
+        "state": "active",
+        "mutationId": "z"
+      }
+    ]
+  },
+  {
+    "name": "same PAN different identity retained",
+    "collections": [
+      [
+        {
+          "cardId": "a",
+          "mutationId": "a",
+          "changedAt": "2026-09-01T00:00:00.000Z",
+          "state": "active",
+          "card": {
+            "id": "a",
+            "cardCategory": "credit",
+            "country": "CN",
+            "bank": "Test Bank",
+            "cardNumber": "4111111111111111",
+            "lastModifyTime": 1789700000000
+          }
+        }
+      ],
+      [
+        {
+          "cardId": "b",
+          "mutationId": "b",
+          "changedAt": "2026-09-01T00:00:00.000Z",
+          "state": "active",
+          "card": {
+            "id": "b",
+            "cardCategory": "credit",
+            "country": "CN",
+            "bank": "Test Bank",
+            "cardNumber": "4111111111111111",
+            "lastModifyTime": 1789700000000
+          }
+        }
+      ]
+    ],
+    "expected": [
+      {
+        "cardId": "a",
+        "state": "active",
+        "mutationId": "a"
+      },
+      {
+        "cardId": "b",
+        "state": "active",
+        "mutationId": "b"
+      }
+    ]
+  },
+  {
+    "name": "offset timestamps same instant",
+    "collections": [
+      [
+        {
+          "cardId": "a",
+          "mutationId": "a",
+          "changedAt": "2026-09-01T08:00:00+08:00",
+          "state": "active",
+          "card": {
+            "id": "a",
+            "cardCategory": "credit",
+            "country": "CN",
+            "bank": "Test Bank",
+            "cardNumber": "4111111111111111",
+            "lastModifyTime": 1789700000000
+          }
+        }
+      ],
+      [
+        {
+          "cardId": "a",
+          "mutationId": "z",
+          "changedAt": "2026-09-01T00:00:00.000Z",
+          "state": "active",
+          "card": {
+            "id": "a",
+            "cardCategory": "credit",
+            "country": "CN",
+            "bank": "Test Bank",
+            "cardNumber": "4111111111111111",
+            "lastModifyTime": 1789700000000
+          }
+        }
+      ]
+    ],
+    "expected": [
+      {
+        "cardId": "a",
+        "state": "active",
+        "mutationId": "z"
+      }
+    ]
+  }
+]
