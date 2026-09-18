@@ -74,10 +74,7 @@ struct CardStatistics {
     var dueDates: Set<String> { Set(creditCards.compactMap(\.dueDate).filter { !$0.isEmpty }) }
     func cards(withFeeStatus status: String) -> [SharedCard] { creditCards.filter { Self.feeStatus($0) == status } }
     static func feeStatus(_ card: SharedCard) -> String { card.isQualified == "1" ? "1" : card.isQualified == "3" ? "3" : "2" }
-    static func currency(_ card: SharedCard) -> String {
-        let code = (card.type ?? "").trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
-        return code.isEmpty ? "CNY" : code
-    }
+    static func currency(_ card: SharedCard) -> String { CardMetrics.currency(card) }
 
     static func csvRow(_ fields: [String]) -> String {
         fields.map { field in

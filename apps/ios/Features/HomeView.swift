@@ -4,8 +4,12 @@ struct HomeView: View {
     @EnvironmentObject private var syncCoordinator: SyncCoordinator
     @State private var searchText = ""
     @State private var categoryFilter: CardCategoryFilter = .all
-    @State private var groupBy: GroupOption = .bank
-    @State private var sortBy: SortOption = .limitDesc
+    @AppStorage("wallet_group_option") private var groupBy: GroupOption = .bank
+    @AppStorage("wallet_sort_option") private var sortBy: SortOption = .limitDesc
+    @State private var calendarDay = Date()
+    @AppStorage("wallet_favorite_card_ids") private var favoritesJSON = "[]"
+    @State private var favoritesOnly = false
+    private var favoriteIDs: Set<String> { LocalCardPreferences.decodeFavorites(favoritesJSON) }
     @State private var showingAddMenu = false
     @State private var cardToEdit: SharedCard?
     @State private var isAddingNewCard = false
@@ -36,16 +40,7 @@ struct HomeView: View {
     }
 
     var searchFilteredCards: [SharedCard] {
-        if searchText.isEmpty {
-            return syncCoordinator.cards
-        } else {
-            return syncCoordinator.cards.filter { card in
-                card.bank.localizedCaseInsensitiveContains(searchText) ||
-                (card.alias ?? "").localizedCaseInsensitiveContains(searchText) ||
-                card.cardNumber.contains(searchText) ||
-                (card.level ?? "").localizedCaseInsensitiveContains(searchText)
-            }
-        }
+        syncCoordinator.cards.filter { CardSearch.matches($0, query: searchText) }
     }
 
     var filteredCards: [SharedCard] {
@@ -55,7 +50,7 @@ struct HomeView: View {
         case .credit: categoryCards = searchFilteredCards.filter { $0.cardCategory != "debit" }
         case .debit:  categoryCards = searchFilteredCards.filter { $0.cardCategory == "debit" }
         }
-        return sortCards(categoryCards)
+        return sortCards(favoritesOnly ? categoryCards.filter { favoriteIDs.contains($0.id) } : categoryCards)
     }
 
     var groupedCards: [(key: String, cards: [SharedCard])] {
@@ -65,14 +60,14 @@ struct HomeView: View {
             let key: String
             switch groupBy {
             case .none:    key = "全部"
-            case .bank:    key = card.bank.replacingOccurrences(of: "\\(.*\\)", with: "", options: .regularExpression).trimmingCharacters(in: .whitespaces)
+            case .bank:    key = BankNameNormalizer.normalizedKey(card.bank)
             case .brand:   key = CardBrand.detect(from: card.cardNumber, level: card.level).displayName
             case .level:   key = card.level ?? "未知级别"
             case .country: key = card.country
             }
             groups[key, default: []].append(card)
         }
-        return groups.sorted { $0.key < $1.key }.map { (key: $0.key, cards: $0.value) }
+        return groups.sorted { $0.value.count != $1.value.count ? $0.value.count > $1.value.count : $0.key < $1.key }.map { (key: $0.key, cards: $0.value) }
     }
 
 
@@ -185,8 +180,19 @@ struct HomeView: View {
             .navigationDestination(isPresented: $showCloudSync) {
                 CloudSyncView()
             }
+            .onReceive(NotificationCenter.default.publisher(for: UIApplication.significantTimeChangeNotification)) { _ in
+                calendarDay = Date()
+            }
+            .onReceive(NotificationCenter.default.publisher(for: UIApplication.willEnterForegroundNotification)) { _ in
+                calendarDay = Date()
+            }
             .onAppear {
+                calendarDay = Date()
                 syncCoordinator.refreshWebDAVConfigurationState()
+            }
+            .onChange(of: syncCoordinator.cards.map(\.id)) { _, ids in
+                selectedCardIDs.formIntersection(Set(ids))
+                if let card = selectedCard, !ids.contains(card.id) { selectedCard = nil }
             }
             .onChange(of: showCloudSync) { _, isShowing in
                 if !isShowing {
@@ -221,7 +227,17 @@ struct HomeView: View {
     private var mainContent: some View {
         VStack(spacing: 0) {
             // 分类筛选 Tab
-            categoryFilterBar
+            HStack(spacing: 8) {
+                categoryFilterBar
+                Button { favoritesOnly.toggle() } label: {
+                    Image(systemName: favoritesOnly ? "star.fill" : "star")
+                        .font(.system(size: 16, weight: .semibold))
+                        .foregroundStyle(favoritesOnly ? Color.accentColor : Color.secondary)
+                }
+                .buttonStyle(.borderless)
+                .accessibilityLabel("只看收藏")
+                .accessibilityValue(favoritesOnly ? "已开启" : "已关闭")
+            }
                 .padding(.horizontal, 16)
                 .padding(.vertical, 8)
                 .background(Color(.systemGroupedBackground))
@@ -235,6 +251,10 @@ struct HomeView: View {
                             .padding(.bottom, 10)
                     }
 
+                    if filteredCards.isEmpty {
+                        ContentUnavailableView("没有找到卡片", systemImage: favoritesOnly ? "star" : "magnifyingglass",
+                            description: Text("试试其他搜索条件，或关闭只看收藏。"))
+                    }
                     // 卡片列表（分组）
                     ForEach(groupedCards, id: \.key) { group in
                         Section {
@@ -243,7 +263,7 @@ struct HomeView: View {
                             }
                         } header: {
                             if groupBy != .none {
-                                groupHeader(group.key, count: group.cards.count)
+                                groupHeader(groupBy == .bank ? (group.cards.map { BankNameNormalizer.display($0.bank) }.sorted().first ?? "") : group.key, count: group.cards.count)
                             }
                         }
                     }
@@ -366,8 +386,24 @@ struct HomeView: View {
             }
         }
         .buttonStyle(.plain)
+        .overlay(alignment: .trailing) {
+            if !isSelectionMode {
+                Button { LocalCardPreferences.toggleFavorite(card.id) } label: {
+                    Image(systemName: favoriteIDs.contains(card.id) ? "star.fill" : "star")
+                        .foregroundStyle(favoriteIDs.contains(card.id) ? Color.accentColor : Color.secondary)
+                        .padding(10)
+                        .background(.regularMaterial, in: Circle())
+                }
+                .buttonStyle(.borderless)
+                .accessibilityLabel(favoriteIDs.contains(card.id) ? "取消收藏" : "收藏卡片")
+                .padding(.trailing, 18)
+            }
+        }
         .contextMenu {
             if !isSelectionMode {
+                Button { LocalCardPreferences.toggleFavorite(card.id) } label: {
+                    Label(favoriteIDs.contains(card.id) ? "取消收藏" : "收藏卡片", systemImage: "star")
+                }
                 Button { cardToEdit = card } label: { Label("编辑", systemImage: "pencil") }
                 if card.cardCategory != "debit" {
                     Button { updateAnnualFeeStatus(card, status: "1") } label: {
@@ -604,32 +640,7 @@ struct HomeView: View {
 
     // MARK: - Helpers
     private func sortCards(_ cards: [SharedCard]) -> [SharedCard] {
-        switch sortBy {
-        case .limitDesc: return cards.sorted { ($0.limit ?? 0) > ($1.limit ?? 0) }
-        case .limitAsc:  return cards.sorted { ($0.limit ?? 0) < ($1.limit ?? 0) }
-        case .daysDesc:
-            return cards.sorted {
-                let d0 = DateCalculator.calculateInterestFreePeriod(
-                    accountBillDate: $0.accountBillDate ?? "", dueDate: $0.dueDate ?? "",
-                    billingDayToNextBill: $0.billingDaySpendingToNextBill)
-                let d1 = DateCalculator.calculateInterestFreePeriod(
-                    accountBillDate: $1.accountBillDate ?? "", dueDate: $1.dueDate ?? "",
-                    billingDayToNextBill: $1.billingDaySpendingToNextBill)
-                return d0 > d1
-            }
-        case .daysAsc:
-            return cards.sorted {
-                let d0 = DateCalculator.calculateInterestFreePeriod(
-                    accountBillDate: $0.accountBillDate ?? "", dueDate: $0.dueDate ?? "",
-                    billingDayToNextBill: $0.billingDaySpendingToNextBill)
-                let d1 = DateCalculator.calculateInterestFreePeriod(
-                    accountBillDate: $1.accountBillDate ?? "", dueDate: $1.dueDate ?? "",
-                    billingDayToNextBill: $1.billingDaySpendingToNextBill)
-                return d0 < d1
-            }
-        case .lastModify:
-            return cards.sorted { $0.lastModifyTime > $1.lastModifyTime }
-        }
+        CardSearch.sorted(cards, mode: sortBy.contractKey, today: calendarDay)
     }
 
     private func deleteCard(_ card: SharedCard) {
@@ -652,33 +663,7 @@ struct HomeView: View {
 
     private func applyBatchUpdate(_ request: IOSBatchUpdateRequest) {
         guard !selectedCardIDs.isEmpty else { return }
-        var allCards = syncCoordinator.cards
-        let now = DataMigrationManager.currentTimestampMilliseconds()
-
-        for index in allCards.indices where selectedCardIDs.contains(allCards[index].id) {
-            if let category = request.cardCategory {
-                allCards[index].cardCategory = category == "debit" ? "debit" : "credit"
-            }
-            if allCards[index].cardCategory != "debit" {
-                if let status = request.status {
-                    allCards[index].isQualified = status
-                    if status == "3" {
-                        allCards[index].nextAnnualFeeCollectionTime = nil
-                    }
-                }
-                if let annualFee = request.annualFee {
-                    allCards[index].annualFee = annualFee
-                }
-                if let nextDate = request.nextAnnualFeeDate, request.status != "3" {
-                    allCards[index].nextAnnualFeeCollectionTime = nextDate
-                }
-            }
-            if let valid = request.valid {
-                allCards[index].valid = valid
-            }
-            allCards[index].lastModifyTime = now
-        }
-        syncCoordinator.commit(cards: allCards)
+        syncCoordinator.commit(cards: CardOperations.batch(syncCoordinator.cards, ids: selectedCardIDs, update: request))
     }
 
     private func deleteSelectedCards() {
@@ -688,16 +673,9 @@ struct HomeView: View {
     }
 
     private func updateAnnualFeeStatus(_ card: SharedCard, status: String) {
-        guard card.cardCategory != "debit" else { return }
         var allCards = syncCoordinator.cards
         guard let index = allCards.firstIndex(where: { $0.id == card.id }) else { return }
-        allCards[index].isQualified = status
-        if status == "1" {
-            allCards[index].nextAnnualFeeCollectionTime = DateCalculator.timestampByAddingOneYear(allCards[index].nextAnnualFeeCollectionTime)
-        } else if status == "3" {
-            allCards[index].nextAnnualFeeCollectionTime = nil
-        }
-        allCards[index].lastModifyTime = DataMigrationManager.currentTimestampMilliseconds()
+        allCards[index] = CardOperations.annualStatus(status, card: allCards[index])
         syncCoordinator.commit(cards: allCards)
     }
 
@@ -748,13 +726,7 @@ struct HomeView: View {
     }
 }
 
-private struct IOSBatchUpdateRequest {
-    var status: String?
-    var annualFee: Double?
-    var nextAnnualFeeDate: Double?
-    var valid: String?
-    var cardCategory: String?
-}
+private typealias IOSBatchUpdateRequest = CardBatchUpdate
 
 private struct IOSBatchEditView: View {
     let selectedCount: Int
@@ -834,7 +806,7 @@ private struct IOSBatchEditView: View {
                             IOSBatchUpdateRequest(
                                 status: updateStatus ? status : nil,
                                 annualFee: updateAnnualFee ? annualFee : nil,
-                                nextAnnualFeeDate: updateAnnualDate && status != "3" ? annualDate.timeIntervalSince1970 * 1000 : nil,
+                                nextAnnualFeeDate: updateAnnualDate && !(updateStatus && status == "3") ? annualDate.timeIntervalSince1970 * 1000 : nil,
                                 valid: updateValid ? validText : nil,
                                 cardCategory: updateCategory ? category : nil
                             )

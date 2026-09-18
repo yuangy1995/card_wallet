@@ -17,7 +17,8 @@ public final class SyncCoordinator: ObservableObject {
 
     public func bootstrap(localCards: [SharedCard]) -> [SharedCard] {
         guard !hasBootstrapped else { return currentCards }
-        ledger = SyncLedgerStore.shared.load(seeding: localCards)
+        do { ledger = try SyncLedgerStore.shared.load(seeding: localCards) }
+        catch { pendingStatus = "本地账本无法读取，未修改原数据"; return localCards }
         if ledger.records.isEmpty && !localCards.isEmpty {
             ledger.records = localCards.map(CardSyncRecord.legacyActive)
             SyncLedgerStore.shared.save(ledger)
@@ -89,8 +90,10 @@ public final class SyncCoordinator: ObservableObject {
     private func mergeRemote(_ records: [CardSyncRecord]) {
         let merged = CardSyncMergeEngine.merge([ledger.records, records])
         guard merged != ledger.records else { return }
-        ledger.records = merged
-        SyncLedgerStore.shared.save(ledger)
+        var updated = ledger
+        updated.records = merged
+        guard SyncLedgerStore.shared.save(updated) else { pendingStatus = "本地数据未能保存，请重试"; return }
+        ledger = updated
         persistActiveView()
         let cards = currentCards
         onCardsChanged?(cards)
@@ -100,10 +103,12 @@ public final class SyncCoordinator: ObservableObject {
     }
 
     private func writeLocal(events: [CardSyncRecord]) -> [SharedCard] {
-        guard !events.isEmpty else { return currentCards }
-        ledger.records = CardSyncMergeEngine.merge([ledger.records, events])
-        ledger.pendingWebDAVUpload = true
-        SyncLedgerStore.shared.save(ledger)
+        guard hasBootstrapped, !AutoLockManager.shared.isLocked, !events.isEmpty else { return currentCards }
+        var updated = ledger
+        updated.records = CardSyncMergeEngine.merge([ledger.records, CardSyncMergeEngine.localEvents(events, after: ledger.records)])
+        updated.pendingWebDAVUpload = true
+        guard SyncLedgerStore.shared.save(updated) else { pendingStatus = "本地数据未能保存，请重试"; return currentCards }
+        ledger = updated
         persistActiveView()
         pendingStatus = "正在同步最新修改"
         scheduleWebDAVUpload()
@@ -111,6 +116,7 @@ public final class SyncCoordinator: ObservableObject {
     }
 
     private func persistActiveView() {
+        LocalCardPreferences.removeDeleted(Set(ledger.records.filter { $0.state == .deleted }.map(\.cardId)))
         LocalStorageManager.write(cards: currentCards)
     }
 

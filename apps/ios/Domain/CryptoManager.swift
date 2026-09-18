@@ -39,11 +39,12 @@ public class CryptoManager {
         return bytes
     }
 
-    private static func localDataKey() throws -> SymmetricKey {
+    private static func localDataKey(create: Bool = true) throws -> SymmetricKey {
         if let data = KeychainManager.loadData(key: localEncryptionKeychainKey), data.count == localEncryptionKeyBytes {
             return SymmetricKey(data: data)
         }
 
+        guard create else { throw CryptoError.keyDerivationFailed }
         let keyBytes = try randomBytes(count: localEncryptionKeyBytes)
         let keyData = Data(keyBytes)
         switch KeychainManager.saveData(key: localEncryptionKeychainKey, data: keyData) {
@@ -84,7 +85,7 @@ public class CryptoManager {
             ciphertext: Data(ciphertext),
             tag: Data(tag)
         )
-        return try CryptoKit.AES.GCM.open(sealedBox, using: try localDataKey())
+        return try CryptoKit.AES.GCM.open(sealedBox, using: try localDataKey(create: false))
     }
 
     private static func deriveSyncV4Key(password: String, salt: [UInt8], iterations: Int) throws -> [UInt8] {

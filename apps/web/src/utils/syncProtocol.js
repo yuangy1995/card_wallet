@@ -15,7 +15,7 @@ const TRANSIENT_CARD_FIELDS = new Set([
   'showLastTime'
 ])
 
-const LEGACY_CARD_ID_FIELDS = new Set(['cardId', '_id', 'uuid'])
+const LEGACY_CARD_ID_FIELDS = new Set(['cardId', '_id', 'uuid', 'legacyId'])
 
 const newMutationId = () => globalThis.crypto?.randomUUID?.() ||
   `${Date.now()}-${Math.random().toString(16).slice(2)}`

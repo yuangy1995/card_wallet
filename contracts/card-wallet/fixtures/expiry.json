@@ -1,0 +1,68 @@
+[
+  {
+    "name": "current-month-first-day",
+    "today": "2026-09-01",
+    "valid": "09/26",
+    "expected": "soonExpiring"
+  },
+  {
+    "name": "current-month-last-day",
+    "today": "2026-09-30",
+    "valid": "09/26",
+    "expected": "soonExpiring"
+  },
+  {
+    "name": "expired-next-month",
+    "today": "2026-10-01",
+    "valid": "09/26",
+    "expected": "expired"
+  },
+  {
+    "name": "leap-day-not-expired",
+    "today": "2024-02-29",
+    "valid": "02/24",
+    "expected": "soonExpiring"
+  },
+  {
+    "name": "six-months-inclusive",
+    "today": "2026-09-18",
+    "valid": "03/27",
+    "expected": "soonExpiring"
+  },
+  {
+    "name": "seven-months-normal",
+    "today": "2026-09-18",
+    "valid": "04/27",
+    "expected": "normal"
+  },
+  {
+    "name": "iso-month",
+    "today": "2026-09-18",
+    "valid": "2026-09",
+    "expected": "soonExpiring"
+  },
+  {
+    "name": "iso-date",
+    "today": "2026-09-18",
+    "valid": "2026-09-30",
+    "expected": "soonExpiring"
+  },
+  {
+    "name": "invalid-month",
+    "today": "2026-09-18",
+    "valid": "13/26",
+    "expected": null
+  },
+  {
+    "name": "invalid-date",
+    "today": "2026-09-18",
+    "valid": "2026-02-31",
+    "expected": null
+  },
+  {
+    "name": "missing",
+    "today": "2026-09-18",
+    "valid": "",
+    "expected": null
+  }
+]

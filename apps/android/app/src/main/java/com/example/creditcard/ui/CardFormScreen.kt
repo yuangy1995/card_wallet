@@ -2,6 +2,8 @@ package com.example.creditcard.ui
 
 import androidx.compose.ui.res.stringResource
 import com.example.creditcard.R
+import kotlinx.coroutines.withContext
+import kotlinx.coroutines.Dispatchers
 import android.app.DatePickerDialog
 import android.widget.Toast
 import kotlinx.coroutines.delay
@@ -91,6 +93,7 @@ import com.example.creditcard.utils.SyncCoordinator
 import com.example.creditcard.utils.ThemeManager
 import com.example.creditcard.utils.NfcScannerManager
 import com.example.creditcard.utils.CardScanProgressManager
+import com.example.creditcard.utils.CardAttachmentPolicy
 import com.example.creditcard.utils.CardImageCodec
 import com.example.creditcard.utils.CardReminderRules
 import com.example.creditcard.utils.VibrationUtils
@@ -250,13 +253,20 @@ fun CardFormScreen(
     var scannedTempImagePath by remember { mutableStateOf<String?>(null) }
     var scannedTempSource by remember { mutableStateOf("NFC") }
 
+    val imageImportScope = rememberCoroutineScope()
+    var importingImages by remember { mutableStateOf(false) }
     val galleryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
-        val newImages = uris.mapNotNull { uri ->
-            CardImageCodec.fromUri(context, uri, "gallery")
-        }
-        if (newImages.isNotEmpty()) {
-            cardImages = cardImages + newImages
-            Toast.makeText(context, "已添加 ${newImages.size} 张卡片图片", Toast.LENGTH_SHORT).show()
+        if (!CardAttachmentPolicy.canAppend(cardImages.size, uris.size) || importingImages) {
+            Toast.makeText(context, "每张卡最多添加 12 张图片，已有图片不会被删除。", Toast.LENGTH_SHORT).show()
+        } else {
+            importingImages = true
+            imageImportScope.launch {
+                try {
+                    val images = withContext(Dispatchers.IO) { uris.mapNotNull { CardImageCodec.fromUri(context, it, "gallery") } }
+                    if (CardAttachmentPolicy.canAppend(cardImages.size, images.size)) cardImages = cardImages + images
+                    if (images.size != uris.size) Toast.makeText(context, "部分图片无法读取或超过 10 MB，请检查后重试。", Toast.LENGTH_SHORT).show()
+                } finally { importingImages = false }
+            }
         }
     }
 
@@ -267,7 +277,8 @@ fun CardFormScreen(
 
         if (success && photoFile != null && photoFile.exists() && photoFile.length() > 0L) {
             CardImageCodec.fromFile(photoFile, "manual_camera")?.let { image ->
-                cardImages = cardImages + image
+                if (CardAttachmentPolicy.canAppend(cardImages.size, 1)) cardImages = cardImages + image
+                else Toast.makeText(context, "每张卡最多添加 12 张图片，已有图片不会被删除。", Toast.LENGTH_SHORT).show()
                 Toast.makeText(context, "已添加拍摄图片", Toast.LENGTH_SHORT).show()
             } ?: Toast.makeText(context, "拍摄图片读取失败", Toast.LENGTH_SHORT).show()
         }
@@ -321,7 +332,8 @@ fun CardFormScreen(
     fun appendScannedImage(imagePath: String?, source: String) {
         if (imagePath.isNullOrBlank()) return
         val image = CardImageCodec.fromFile(File(imagePath), source.lowercase()) ?: return
-        cardImages = cardImages + image
+        if (CardAttachmentPolicy.canAppend(cardImages.size, 1)) cardImages = cardImages + image
+        else Toast.makeText(context, "每张卡最多添加 12 张图片，已有图片不会被删除。", Toast.LENGTH_SHORT).show()
     }
 
     /**
@@ -1692,7 +1704,8 @@ fun executeSaveCard(
         lastTime = if (cardCategory == "debit") null else lastTime,
         equity = equity.trim(),
         remark = remark.trim(),
-        cardImages = cardImages
+        cardImages = cardImages,
+        extraFields = originalCard?.extraFields.orEmpty()
     )
 
     // 保存至本地账本（自动管理 lastModifyTime 和触发 pendingSync 状态）

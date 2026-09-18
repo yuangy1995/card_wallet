@@ -13,6 +13,7 @@ public enum BankNameNormalizer {
             .replacingOccurrences(of: bankParenthesesPattern, with: "", options: .regularExpression)
             .replacingOccurrences(of: whitespacePattern, with: "", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
+            .lowercased(with: Locale(identifier: "en_US_POSIX"))
     }
 
     public static func namesReferToSameBank(_ left: String?, _ right: String?) -> Bool {

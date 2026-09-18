@@ -131,22 +131,15 @@ public class DateCalculator {
         let offset = dateType == "next" ? 1 : 0
         guard completeDay(dayString: accountBillDate, monthOffset: offset) != nil else { return "" }
         guard let billDayNum = Int(accountBillDate), let dueDayNum = Int(dueDate) else { return "" }
-        let dueMonthOffset = dueDayNum < billDayNum ? offset + 1 : offset
+        let dueMonthOffset = dueDayNum <= billDayNum ? offset + 1 : offset
         guard let dueDateObj = completeDay(dayString: dueDate, monthOffset: dueMonthOffset) else { return "" }
         return isoFormatter.string(from: dueDateObj)
     }
 
     public static func calculateInterestFreePeriod(
-        accountBillDate: String,
-        dueDate: String,
-        billingDayToNextBill: Bool = true
+        accountBillDate: String, dueDate: String, billingDayToNextBill: Bool = true, today: Date = Date()
     ) -> Int {
-        guard !accountBillDate.isEmpty, !dueDate.isEmpty,
-              let billDate = Int(accountBillDate), let dueDateNum = Int(dueDate) else { return 0 }
-        let baseDays = dueDateNum > billDate ? dueDateNum - billDate : (31 - billDate) + dueDateNum
-        var maxDays = baseDays
-        if billingDayToNextBill { maxDays = baseDays + 30 }
-        return min(max(maxDays, 20), 56)
+        CardCalendarRules.interestDays(bill: accountBillDate, due: dueDate, nextBill: billingDayToNextBill, today: today)
     }
 
     public static func calculateRemainingDaysForPreviousBill(accountBillDate: String, dueDate: String) -> Int {
@@ -164,8 +157,8 @@ public class DateCalculator {
     }
 
     public static func annualFeeRemainingDays(_ nextAnnualFeeDate: Double?, now: Date = Date()) -> Int? {
-        guard let targetDate = date(fromTimestamp: nextAnnualFeeDate) else { return nil }
-        return Int(ceil(targetDate.timeIntervalSince(now) / (24 * 60 * 60)))
+        guard let target = date(fromTimestamp: nextAnnualFeeDate) else { return nil }
+        return CardCalendarRules.days(from: now, to: target)
     }
 
     public static func annualFeeDetection(
@@ -204,18 +197,10 @@ public class DateCalculator {
     }
 
     public static func cardExpiryStatus(valid: String?, now: Date = Date()) -> CardExpiryStatus? {
-        let normalized = DataMigrationManager.convertValidToMMYY(valid)
-        guard !normalized.isEmpty else { return nil }
-        let parts = normalized.split(separator: "/")
-        guard parts.count == 2, let month = Int(parts[0]), let year = Int(parts[1]), (1...12).contains(month) else { return nil }
-        var components = DateComponents()
-        components.year = 2000 + year
-        components.month = month
-        components.day = 1
-        guard let expiryDate = Calendar.current.date(from: components),
-              let sixMonthsLater = Calendar.current.date(byAdding: .month, value: 6, to: now) else { return nil }
-        if expiryDate < now { return .expired }
-        if expiryDate < sixMonthsLater { return .soonExpiring }
+        guard let month = CardCalendarRules.expiryMonth(valid) else { return nil }
+        let current = CardCalendarRules.monthIndex(now)
+        if month < current { return .expired }
+        if month <= current + 6 { return .soonExpiring }
         return .normal
     }
 
@@ -233,83 +218,15 @@ public class DateCalculator {
     }
 
     public static func calculateInterestFreeDays(card: SharedCard, today: Date = Date()) -> Int {
-        guard card.cardCategory != "debit",
-              let billDayStr = card.accountBillDate,
-              let billDay = Int(billDayStr),
-              let dueDayStr = card.dueDate,
-              let dueDay = Int(dueDayStr) else {
-            return -1
-        }
-        
-        if !(1...31).contains(billDay) || !(1...31).contains(dueDay) {
-            return -1
-        }
-        
-        let calendar = Calendar.current
-        let spendDay = calendar.component(.day, from: today)
-        
-        // 1. 确定消费会计入哪个月的账单日
-        let isNextBill = card.billingDaySpendingToNextBill ? (spendDay >= billDay) : (spendDay > billDay)
-        
-        guard let targetBillMonth = calendar.date(byAdding: .month, value: isNextBill ? 1 : 0, to: today) else {
-            return -1
-        }
-        
-        guard let rangeOfBillMonth = calendar.range(of: .day, in: .month, for: targetBillMonth) else {
-            return -1
-        }
-        let lengthOfBillMonth = rangeOfBillMonth.count
-        
-        // 目标账单日对齐该月最大天数
-        var billComponents = calendar.dateComponents([.year, .month], from: targetBillMonth)
-        billComponents.day = min(billDay, lengthOfBillMonth)
-        guard let targetBillDate = calendar.date(from: billComponents) else {
-            return -1
-        }
-        
-        // 2. 计算对应的还款日
-        let isNextMonthDue = dueDay <= billDay
-        guard let targetDueMonth = calendar.date(byAdding: .month, value: isNextMonthDue ? 1 : 0, to: targetBillDate) else {
-            return -1
-        }
-        
-        guard let rangeOfDueMonth = calendar.range(of: .day, in: .month, for: targetDueMonth) else {
-            return -1
-        }
-        let lengthOfDueMonth = rangeOfDueMonth.count
-        
-        var dueComponents = calendar.dateComponents([.year, .month], from: targetDueMonth)
-        dueComponents.day = min(dueDay, lengthOfDueMonth)
-        guard let targetDueDate = calendar.date(from: dueComponents) else {
-            return -1
-        }
-        
-        // 3. 计算免息天数
-        let startOfToday = calendar.startOfDay(for: today)
-        let startOfDueDate = calendar.startOfDay(for: targetDueDate)
-        let componentsDiff = calendar.dateComponents([.day], from: startOfToday, to: startOfDueDate)
-        let days = componentsDiff.day ?? 0
-        return days >= 0 ? days : 0
+        guard card.cardCategory != "debit" else { return -1 }
+        return CardCalendarRules.interestDays(bill: card.accountBillDate, due: card.dueDate,
+                                               nextBill: card.billingDaySpendingToNextBill, today: today)
     }
 
-    private static func dayNumber(_ value: String?) -> Int? {
-        guard let value,
-              let day = Int(value.trimmingCharacters(in: .whitespacesAndNewlines)),
-              (1...31).contains(day) else {
-            return nil
-        }
-        return day
-    }
+    private static func dayNumber(_ value: String?) -> Int? { CardCalendarRules.day(value) }
 
     private static func monthDayDate(day: Int, baseDate: Date, monthOffset: Int = 0) -> Date? {
-        let calendar = Calendar.current
-        guard let targetMonth = calendar.date(byAdding: .month, value: monthOffset, to: baseDate),
-              let range = calendar.range(of: .day, in: .month, for: targetMonth) else {
-            return nil
-        }
-        var components = calendar.dateComponents([.year, .month], from: targetMonth)
-        components.day = min(day, range.count)
-        return calendar.date(from: components)
+        CardCalendarRules.monthDay(day, from: baseDate, offset: monthOffset)
     }
 
     private static func daysUntil(_ date: Date, now: Date) -> Int {
@@ -332,17 +249,12 @@ public class DateCalculator {
               let dueDay = dayNumber(dueDate) else {
             return nil
         }
-        let dueMonthOffset = monthOffset + (dueDay < billDay ? 1 : 0)
+        let dueMonthOffset = monthOffset + (dueDay <= billDay ? 1 : 0)
         return monthDayDate(day: dueDay, baseDate: now, monthOffset: dueMonthOffset)
     }
 
     private static func nextDueDate(accountBillDate: String?, dueDate: String?, now: Date = Date()) -> Date? {
-        guard let current = dueDateForBillMonth(accountBillDate: accountBillDate, dueDate: dueDate, now: now) else {
-            return nil
-        }
-        return daysUntil(current, now: now) >= 0
-            ? current
-            : dueDateForBillMonth(accountBillDate: accountBillDate, dueDate: dueDate, now: now, monthOffset: 1)
+        CardCalendarRules.nextDue(bill: accountBillDate, due: dueDate, today: now)
     }
 
     public static func billingCycleReminders(

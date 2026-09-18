@@ -9,9 +9,7 @@ struct RootView: View {
 
     var body: some View {
         ZStack {
-            mainTabView
-                .disabled(lockManager.isLocked)
-
+            if !lockManager.isLocked { mainTabView }
             if lockManager.isLocked {
                 LockScreenView()
                     .transition(.opacity)
@@ -34,6 +32,7 @@ struct RootView: View {
             }
         }
         .onChange(of: lockManager.isLocked) { _, isLocked in
+            syncCoordinator.setSuspended(isLocked: isLocked)
             if !isLocked {
                 Task {
                     await CardSystemNotificationCenter.shared.refresh(cards: syncCoordinator.cards, locked: false)
@@ -41,6 +40,7 @@ struct RootView: View {
             }
         }
         .task {
+            syncCoordinator.setSuspended(isLocked: lockManager.isLocked)
             await CardSystemNotificationCenter.shared.refresh(cards: syncCoordinator.cards, locked: lockManager.isLocked)
         }
         .background {

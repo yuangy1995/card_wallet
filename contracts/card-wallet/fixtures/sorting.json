@@ -1,0 +1,386 @@
+[
+  {
+    "name": "limit-asc",
+    "cards": [
+      {
+        "id": "c",
+        "bank": "Bravo",
+        "cardCategory": "credit",
+        "limit": 200,
+        "lastModifyTime": 1789600000000,
+        "accountBillDate": "10",
+        "dueDate": "28",
+        "billingDaySpendingToNextBill": true
+      },
+      {
+        "id": "a",
+        "bank": "Alpha",
+        "cardCategory": "credit",
+        "limit": 100,
+        "lastModifyTime": 1789600000000,
+        "accountBillDate": "25",
+        "dueDate": "10",
+        "billingDaySpendingToNextBill": true
+      },
+      {
+        "id": "b",
+        "bank": "alpha (branch)",
+        "cardCategory": "credit",
+        "limit": 100,
+        "lastModifyTime": 1789600000000,
+        "accountBillDate": "25",
+        "dueDate": "10",
+        "billingDaySpendingToNextBill": true
+      },
+      {
+        "id": "d",
+        "bank": "Zulu",
+        "cardCategory": "debit",
+        "limit": 900,
+        "lastModifyTime": 1789601000000,
+        "accountBillDate": "",
+        "dueDate": "",
+        "billingDaySpendingToNextBill": true
+      },
+      {
+        "id": "e",
+        "bank": "Zulu",
+        "cardCategory": "credit",
+        "limit": 0,
+        "lastModifyTime": 1789600000000,
+        "accountBillDate": "",
+        "dueDate": "",
+        "billingDaySpendingToNextBill": true
+      }
+    ],
+    "today": "2026-09-18",
+    "mode": "limit-asc",
+    "expected": [
+      "d",
+      "e",
+      "a",
+      "b",
+      "c"
+    ]
+  },
+  {
+    "name": "limit-desc",
+    "cards": [
+      {
+        "id": "c",
+        "bank": "Bravo",
+        "cardCategory": "credit",
+        "limit": 200,
+        "lastModifyTime": 1789600000000,
+        "accountBillDate": "10",
+        "dueDate": "28",
+        "billingDaySpendingToNextBill": true
+      },
+      {
+        "id": "a",
+        "bank": "Alpha",
+        "cardCategory": "credit",
+        "limit": 100,
+        "lastModifyTime": 1789600000000,
+        "accountBillDate": "25",
+        "dueDate": "10",
+        "billingDaySpendingToNextBill": true
+      },
+      {
+        "id": "b",
+        "bank": "alpha (branch)",
+        "cardCategory": "credit",
+        "limit": 100,
+        "lastModifyTime": 1789600000000,
+        "accountBillDate": "25",
+        "dueDate": "10",
+        "billingDaySpendingToNextBill": true
+      },
+      {
+        "id": "d",
+        "bank": "Zulu",
+        "cardCategory": "debit",
+        "limit": 900,
+        "lastModifyTime": 1789601000000,
+        "accountBillDate": "",
+        "dueDate": "",
+        "billingDaySpendingToNextBill": true
+      },
+      {
+        "id": "e",
+        "bank": "Zulu",
+        "cardCategory": "credit",
+        "limit": 0,
+        "lastModifyTime": 1789600000000,
+        "accountBillDate": "",
+        "dueDate": "",
+        "billingDaySpendingToNextBill": true
+      }
+    ],
+    "today": "2026-09-18",
+    "mode": "limit-desc",
+    "expected": [
+      "c",
+      "a",
+      "b",
+      "d",
+      "e"
+    ]
+  },
+  {
+    "name": "interest-asc",
+    "cards": [
+      {
+        "id": "c",
+        "bank": "Bravo",
+        "cardCategory": "credit",
+        "limit": 200,
+        "lastModifyTime": 1789600000000,
+        "accountBillDate": "10",
+        "dueDate": "28",
+        "billingDaySpendingToNextBill": true
+      },
+      {
+        "id": "a",
+        "bank": "Alpha",
+        "cardCategory": "credit",
+        "limit": 100,
+        "lastModifyTime": 1789600000000,
+        "accountBillDate": "25",
+        "dueDate": "10",
+        "billingDaySpendingToNextBill": true
+      },
+      {
+        "id": "b",
+        "bank": "alpha (branch)",
+        "cardCategory": "credit",
+        "limit": 100,
+        "lastModifyTime": 1789600000000,
+        "accountBillDate": "25",
+        "dueDate": "10",
+        "billingDaySpendingToNextBill": true
+      },
+      {
+        "id": "d",
+        "bank": "Zulu",
+        "cardCategory": "debit",
+        "limit": 900,
+        "lastModifyTime": 1789601000000,
+        "accountBillDate": "",
+        "dueDate": "",
+        "billingDaySpendingToNextBill": true
+      },
+      {
+        "id": "e",
+        "bank": "Zulu",
+        "cardCategory": "credit",
+        "limit": 0,
+        "lastModifyTime": 1789600000000,
+        "accountBillDate": "",
+        "dueDate": "",
+        "billingDaySpendingToNextBill": true
+      }
+    ],
+    "today": "2026-09-18",
+    "mode": "interest-asc",
+    "expected": [
+      "a",
+      "b",
+      "c",
+      "d",
+      "e"
+    ]
+  },
+  {
+    "name": "interest-desc",
+    "cards": [
+      {
+        "id": "c",
+        "bank": "Bravo",
+        "cardCategory": "credit",
+        "limit": 200,
+        "lastModifyTime": 1789600000000,
+        "accountBillDate": "10",
+        "dueDate": "28",
+        "billingDaySpendingToNextBill": true
+      },
+      {
+        "id": "a",
+        "bank": "Alpha",
+        "cardCategory": "credit",
+        "limit": 100,
+        "lastModifyTime": 1789600000000,
+        "accountBillDate": "25",
+        "dueDate": "10",
+        "billingDaySpendingToNextBill": true
+      },
+      {
+        "id": "b",
+        "bank": "alpha (branch)",
+        "cardCategory": "credit",
+        "limit": 100,
+        "lastModifyTime": 1789600000000,
+        "accountBillDate": "25",
+        "dueDate": "10",
+        "billingDaySpendingToNextBill": true
+      },
+      {
+        "id": "d",
+        "bank": "Zulu",
+        "cardCategory": "debit",
+        "limit": 900,
+        "lastModifyTime": 1789601000000,
+        "accountBillDate": "",
+        "dueDate": "",
+        "billingDaySpendingToNextBill": true
+      },
+      {
+        "id": "e",
+        "bank": "Zulu",
+        "cardCategory": "credit",
+        "limit": 0,
+        "lastModifyTime": 1789600000000,
+        "accountBillDate": "",
+        "dueDate": "",
+        "billingDaySpendingToNextBill": true
+      }
+    ],
+    "today": "2026-09-18",
+    "mode": "interest-desc",
+    "expected": [
+      "c",
+      "a",
+      "b",
+      "d",
+      "e"
+    ]
+  },
+  {
+    "name": "modified-desc",
+    "cards": [
+      {
+        "id": "c",
+        "bank": "Bravo",
+        "cardCategory": "credit",
+        "limit": 200,
+        "lastModifyTime": 1789600000000,
+        "accountBillDate": "10",
+        "dueDate": "28",
+        "billingDaySpendingToNextBill": true
+      },
+      {
+        "id": "a",
+        "bank": "Alpha",
+        "cardCategory": "credit",
+        "limit": 100,
+        "lastModifyTime": 1789600000000,
+        "accountBillDate": "25",
+        "dueDate": "10",
+        "billingDaySpendingToNextBill": true
+      },
+      {
+        "id": "b",
+        "bank": "alpha (branch)",
+        "cardCategory": "credit",
+        "limit": 100,
+        "lastModifyTime": 1789600000000,
+        "accountBillDate": "25",
+        "dueDate": "10",
+        "billingDaySpendingToNextBill": true
+      },
+      {
+        "id": "d",
+        "bank": "Zulu",
+        "cardCategory": "debit",
+        "limit": 900,
+        "lastModifyTime": 1789601000000,
+        "accountBillDate": "",
+        "dueDate": "",
+        "billingDaySpendingToNextBill": true
+      },
+      {
+        "id": "e",
+        "bank": "Zulu",
+        "cardCategory": "credit",
+        "limit": 0,
+        "lastModifyTime": 1789600000000,
+        "accountBillDate": "",
+        "dueDate": "",
+        "billingDaySpendingToNextBill": true
+      }
+    ],
+    "today": "2026-09-18",
+    "mode": "modified-desc",
+    "expected": [
+      "d",
+      "a",
+      "b",
+      "c",
+      "e"
+    ]
+  },
+  {
+    "name": "bank-asc",
+    "cards": [
+      {
+        "id": "c",
+        "bank": "Bravo",
+        "cardCategory": "credit",
+        "limit": 200,
+        "lastModifyTime": 1789600000000,
+        "accountBillDate": "10",
+        "dueDate": "28",
+        "billingDaySpendingToNextBill": true
+      },
+      {
+        "id": "a",
+        "bank": "Alpha",
+        "cardCategory": "credit",
+        "limit": 100,
+        "lastModifyTime": 1789600000000,
+        "accountBillDate": "25",
+        "dueDate": "10",
+        "billingDaySpendingToNextBill": true
+      },
+      {
+        "id": "b",
+        "bank": "alpha (branch)",
+        "cardCategory": "credit",
+        "limit": 100,
+        "lastModifyTime": 1789600000000,
+        "accountBillDate": "25",
+        "dueDate": "10",
+        "billingDaySpendingToNextBill": true
+      },
+      {
+        "id": "d",
+        "bank": "Zulu",
+        "cardCategory": "debit",
+        "limit": 900,
+        "lastModifyTime": 1789601000000,
+        "accountBillDate": "",
+        "dueDate": "",
+        "billingDaySpendingToNextBill": true
+      },
+      {
+        "id": "e",
+        "bank": "Zulu",
+        "cardCategory": "credit",
+        "limit": 0,
+        "lastModifyTime": 1789600000000,
+        "accountBillDate": "",
+        "dueDate": "",
+        "billingDaySpendingToNextBill": true
+      }
+    ],
+    "today": "2026-09-18",
+    "mode": "bank-asc",
+    "expected": [
+      "a",
+      "b",
+      "c",
+      "d",
+      "e"
+    ]
+  }
+]

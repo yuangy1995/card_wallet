@@ -123,6 +123,11 @@
                   :class="{ 'is-selected': isCardSelected(card.id) }"
                   @contextmenu.prevent="handleContextMenu(card, $event)"
                 >
+                  <el-button class="card-favorite-action" circle size="small" :type="favoriteIds.has(card.id) ? 'warning' : 'default'"
+                    :aria-label="favoriteIds.has(card.id) ? '取消收藏' : '收藏卡片'" :aria-pressed="favoriteIds.has(card.id)"
+                    @click.stop="emit('toggle-favorite', card.id)">
+                    <el-icon><StarFilled v-if="favoriteIds.has(card.id)" /><Star v-else /></el-icon>
+                  </el-button>
                   <!-- 悬浮精细 Checkbox (用于批量操作) -->
                   <div class="card-selector-overlay">
                     <el-checkbox
@@ -186,6 +191,8 @@
 </template>
 
 <script setup>
+import { sortCards } from '@/utils/cardSearch'
+import { normalizeBankNameForMatch } from '@/utils/bankName'
 import { ref, computed, watch, toRef, onUnmounted, inject } from 'vue'
 import { creditLimitMetrics, formatCreditAmount } from '@/utils/cardMetrics'
 import { cardOrganization, cardOrganizationName } from '@/utils/cardBrand'
@@ -193,10 +200,11 @@ import { calculateCurrentInterestFreeDays } from '@/utils/dateCalculator'
 import { pageGroups } from '@/utils/cardPagination'
 import { usePagedCards } from '@/composables/usePagedCards'
 import { StorageManager } from '@/utils/storage'
-import { Edit, Delete, View, Check, Refresh, OfficeBuilding, Location, CreditCard, ArrowDown, ArrowUp } from '@element-plus/icons-vue'
+import { Edit, Delete, View, Check, Refresh, OfficeBuilding, Location, CreditCard, ArrowDown, ArrowUp, Star, StarFilled } from '@element-plus/icons-vue'
 import CreditCardPhysicsCard from './CreditCardPhysicsCard.vue'
 
 const props = defineProps({
+  favoriteIds: { type: Set, default: () => new Set() },
   tableData: {
     type: Array,
     required: true
@@ -208,6 +216,7 @@ const props = defineProps({
 })
 
 const emit = defineEmits([
+  'toggle-favorite',
   'edit',
   'delete',
   'view-details',
@@ -285,33 +294,7 @@ const calculateLimits = cards => creditLimitMetrics(cards).totals
 const day = inject('calendarDay', ref(Date.now()))
 const groupedCards = computed(() => {
   day.value
-  let sortedData = [...props.tableData]
-
-  // 1. 进行高级条件排序
-  if (sortBy.value === 'limit-desc') {
-    sortedData.sort((a, b) => parseFloat(b.limit || 0) - parseFloat(a.limit || 0))
-  } else if (sortBy.value === 'limit-asc') {
-    sortedData.sort((a, b) => parseFloat(a.limit || 0) - parseFloat(b.limit || 0))
-  } else if (sortBy.value.startsWith('interest-')) {
-    const days = new Map(sortedData.map(card => [card.id, calculateCurrentInterestFreeDays(card)]))
-    sortedData.sort((a, b) => {
-      const left = days.get(a.id), right = days.get(b.id)
-      if (left < 0 || right < 0) return left < 0 ? (right < 0 ? 0 : 1) : -1
-      return sortBy.value === 'interest-asc' ? left - right : right - left
-    })
-  } else if (sortBy.value === 'annualFee') {
-    sortedData.sort((a, b) => {
-      const timeA = a.nextAnnualFeeCollectionTime ? parseInt(a.nextAnnualFeeCollectionTime) : 9999999999999
-      const timeB = b.nextAnnualFeeCollectionTime ? parseInt(b.nextAnnualFeeCollectionTime) : 9999999999999
-      return timeA - timeB
-    })
-  } else if (sortBy.value === 'modifyTime') {
-    sortedData.sort((a, b) => {
-      const timeA = a.lastModifyTime ? parseInt(a.lastModifyTime) : 0
-      const timeB = b.lastModifyTime ? parseInt(b.lastModifyTime) : 0
-      return timeB - timeA
-    })
-  }
+  const sortedData = sortCards(props.tableData, sortBy.value, new Date(day.value))
 
   // 2. 如果不分组，直接作为单一整体返回
   if (groupBy.value === 'none') {
@@ -330,7 +313,7 @@ const groupedCards = computed(() => {
     let title = ''
 
     if (groupBy.value === 'bank') {
-      key = (card.bank || '未知发卡行').trim()
+      key = normalizeBankNameForMatch(card.bank)
       title = card.bank || '未知发卡行'
     } else if (groupBy.value === 'country') {
       key = (card.country || '其他地区').trim()
@@ -361,7 +344,7 @@ const groupedCards = computed(() => {
   })
 
   // 5. 对分组本身进行逻辑排序（卡数多的排前面，或按拼音排序）
-  groupList.sort((a, b) => b.cards.length - a.cards.length || a.title.localeCompare(b.title, 'zh-CN'))
+  groupList.sort((a, b) => b.cards.length - a.cards.length || (a.key < b.key ? -1 : a.key > b.key ? 1 : 0))
 
   return groupList
 })
@@ -478,6 +461,7 @@ defineExpose({
 </script>
 
 <style lang="scss" scoped>
+.card-favorite-action { position: absolute; right: 8px; top: -10px; z-index: 11; }
 .card-list-container {
   display: flex;
   flex-direction: column;

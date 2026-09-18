@@ -58,6 +58,7 @@ public struct CardImageAsset: Codable, Identifiable, Hashable, Sendable {
     public var createdAt: Double
     public var source: String
     public var name: String
+    public var extraFields: [String: CardJSONValue] = [:]
 
     public init(
         id: String = UUID().uuidString,
@@ -74,6 +75,28 @@ public struct CardImageAsset: Codable, Identifiable, Hashable, Sendable {
         self.source = source
         self.name = name
     }
+    private enum CodingKeys: String, CodingKey { case id, mimeType, data, createdAt, source, name }
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        mimeType = try container.decodeIfPresent(String.self, forKey: .mimeType) ?? "image/jpeg"
+        data = try container.decode(String.self, forKey: .data)
+        createdAt = try container.decodeIfPresent(Double.self, forKey: .createdAt) ?? 0
+        source = try container.decodeIfPresent(String.self, forKey: .source) ?? "manual"
+        name = try container.decodeIfPresent(String.self, forKey: .name) ?? ""
+        extraFields = try CardFutureFields.decode(from: decoder, known: ["id", "mimeType", "data", "createdAt", "source", "name"])
+    }
+    public func encode(to encoder: Encoder) throws {
+        try CardFutureFields.encode(extraFields, to: encoder, known: ["id", "mimeType", "data", "createdAt", "source", "name"])
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(mimeType, forKey: .mimeType)
+        try container.encode(data, forKey: .data)
+        try container.encode(createdAt, forKey: .createdAt)
+        try container.encode(source, forKey: .source)
+        try container.encode(name, forKey: .name)
+    }
+
 }
 
 /// 跨端同步主数据模型（与 Web 端 SharedCard 规范对齐）
@@ -101,6 +124,7 @@ public struct SharedCard: Codable, Identifiable, Hashable, Sendable {
     public var lastModifyTime: Double
     public var isSharedLimit: Bool
     public var cardImages: [CardImageAsset]
+    public var extraFields: [String: CardJSONValue] = [:]
 
     private enum CodingKeys: String, CodingKey {
         case id, cardCategory, country, bank, cardNumber, alias, level, type
@@ -183,8 +207,38 @@ public struct SharedCard: Codable, Identifiable, Hashable, Sendable {
         self.remark = Self.decodeString(container, forKey: .remark)
         self.lastModifyTime = Self.decodeTimestamp(container, forKey: .lastModifyTime) ?? DataMigrationManager.currentTimestampMilliseconds()
         self.isSharedLimit = Self.decodeBool(container, forKey: .isSharedLimit) ?? true
-        self.cardImages = (try? container.decode([CardImageAsset].self, forKey: .cardImages)) ?? []
+        self.cardImages = try container.decodeIfPresent([CardImageAsset].self, forKey: .cardImages) ?? []
+        self.extraFields = try CardFutureFields.decode(from: decoder, known: ["id", "cardCategory", "country", "bank", "cardNumber", "alias", "level", "type", "limit", "cvv", "valid", "annualFee", "isQualified", "nextAnnualFeeCollectionTime", "lastTime", "accountBillDate", "dueDate", "billingDaySpendingToNextBill", "equity", "remark", "lastModifyTime", "isSharedLimit", "cardImages"])
     }
+
+    public func encode(to encoder: Encoder) throws {
+        try CardFutureFields.encode(extraFields, to: encoder, known: ["id", "cardCategory", "country", "bank", "cardNumber", "alias", "level", "type", "limit", "cvv", "valid", "annualFee", "isQualified", "nextAnnualFeeCollectionTime", "lastTime", "accountBillDate", "dueDate", "billingDaySpendingToNextBill", "equity", "remark", "lastModifyTime", "isSharedLimit", "cardImages"])
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(Self.normalizeCardCategory(cardCategory), forKey: .cardCategory)
+        try container.encode(country, forKey: .country)
+        try container.encode(bank, forKey: .bank)
+        try container.encode(cardNumber, forKey: .cardNumber)
+        try container.encodeIfPresent(alias, forKey: .alias)
+        try container.encodeIfPresent(level, forKey: .level)
+        try container.encodeIfPresent(type, forKey: .type)
+        try container.encodeIfPresent(limit, forKey: .limit)
+        try container.encodeIfPresent(cvv, forKey: .cvv)
+        try container.encodeIfPresent(valid, forKey: .valid)
+        try container.encodeIfPresent(annualFee, forKey: .annualFee)
+        try container.encodeIfPresent(isQualified, forKey: .isQualified)
+        try container.encodeIfPresent(nextAnnualFeeCollectionTime, forKey: .nextAnnualFeeCollectionTime)
+        try container.encodeIfPresent(lastTime, forKey: .lastTime)
+        try container.encodeIfPresent(accountBillDate, forKey: .accountBillDate)
+        try container.encodeIfPresent(dueDate, forKey: .dueDate)
+        try container.encode(billingDaySpendingToNextBill, forKey: .billingDaySpendingToNextBill)
+        try container.encodeIfPresent(equity, forKey: .equity)
+        try container.encodeIfPresent(remark, forKey: .remark)
+        try container.encode(lastModifyTime, forKey: .lastModifyTime)
+        try container.encode(isSharedLimit, forKey: .isSharedLimit)
+        try container.encode(cardImages, forKey: .cardImages)
+    }
+
 
     private static func normalizeCardCategory(_ value: String) -> String {
         value == "debit" ? "debit" : "credit"

@@ -6,6 +6,7 @@ export const normalizeBankNameForMatch = (value = '') => displayBankName(value)
   .replace(BANK_PARENTHESES_PATTERN, '')
   .replace(/\s+/g, '')
   .trim()
+  .toLowerCase()
 
 export const bankNamesReferToSameBank = (left, right) => {
   const leftDisplay = displayBankName(left)

@@ -1,0 +1,324 @@
+[
+  {
+    "name": "2026-09-18-bill10-due28-True",
+    "today": "2026-09-18",
+    "card": {
+      "id": "test",
+      "country": "US",
+      "bank": "Test Bank",
+      "type": "USD",
+      "limit": 100,
+      "cardNumber": "4111111111111111",
+      "lastModifyTime": 1700000000000,
+      "accountBillDate": "10",
+      "dueDate": "28",
+      "billingDaySpendingToNextBill": true
+    },
+    "expected": 40
+  },
+  {
+    "name": "2026-09-18-bill25-due10-True",
+    "today": "2026-09-18",
+    "card": {
+      "id": "test",
+      "country": "US",
+      "bank": "Test Bank",
+      "type": "USD",
+      "limit": 100,
+      "cardNumber": "4111111111111111",
+      "lastModifyTime": 1700000000000,
+      "accountBillDate": "25",
+      "dueDate": "10",
+      "billingDaySpendingToNextBill": true
+    },
+    "expected": 22
+  },
+  {
+    "name": "2026-02-28-bill31-due10-True",
+    "today": "2026-02-28",
+    "card": {
+      "id": "test",
+      "country": "US",
+      "bank": "Test Bank",
+      "type": "USD",
+      "limit": 100,
+      "cardNumber": "4111111111111111",
+      "lastModifyTime": 1700000000000,
+      "accountBillDate": "31",
+      "dueDate": "10",
+      "billingDaySpendingToNextBill": true
+    },
+    "expected": 41
+  },
+  {
+    "name": "2026-02-28-bill31-due10-False",
+    "today": "2026-02-28",
+    "card": {
+      "id": "test",
+      "country": "US",
+      "bank": "Test Bank",
+      "type": "USD",
+      "limit": 100,
+      "cardNumber": "4111111111111111",
+      "lastModifyTime": 1700000000000,
+      "accountBillDate": "31",
+      "dueDate": "10",
+      "billingDaySpendingToNextBill": false
+    },
+    "expected": 10
+  },
+  {
+    "name": "2024-02-29-bill31-due10-True",
+    "today": "2024-02-29",
+    "card": {
+      "id": "test",
+      "country": "US",
+      "bank": "Test Bank",
+      "type": "USD",
+      "limit": 100,
+      "cardNumber": "4111111111111111",
+      "lastModifyTime": 1700000000000,
+      "accountBillDate": "31",
+      "dueDate": "10",
+      "billingDaySpendingToNextBill": true
+    },
+    "expected": 41
+  },
+  {
+    "name": "2024-02-29-bill31-due10-False",
+    "today": "2024-02-29",
+    "card": {
+      "id": "test",
+      "country": "US",
+      "bank": "Test Bank",
+      "type": "USD",
+      "limit": 100,
+      "cardNumber": "4111111111111111",
+      "lastModifyTime": 1700000000000,
+      "accountBillDate": "31",
+      "dueDate": "10",
+      "billingDaySpendingToNextBill": false
+    },
+    "expected": 10
+  },
+  {
+    "name": "2026-01-31-bill31-due31-True",
+    "today": "2026-01-31",
+    "card": {
+      "id": "test",
+      "country": "US",
+      "bank": "Test Bank",
+      "type": "USD",
+      "limit": 100,
+      "cardNumber": "4111111111111111",
+      "lastModifyTime": 1700000000000,
+      "accountBillDate": "31",
+      "dueDate": "31",
+      "billingDaySpendingToNextBill": true
+    },
+    "expected": 59
+  },
+  {
+    "name": "2026-01-31-bill31-due31-False",
+    "today": "2026-01-31",
+    "card": {
+      "id": "test",
+      "country": "US",
+      "bank": "Test Bank",
+      "type": "USD",
+      "limit": 100,
+      "cardNumber": "4111111111111111",
+      "lastModifyTime": 1700000000000,
+      "accountBillDate": "31",
+      "dueDate": "31",
+      "billingDaySpendingToNextBill": false
+    },
+    "expected": 28
+  },
+  {
+    "name": "2026-12-31-bill20-due5-True",
+    "today": "2026-12-31",
+    "card": {
+      "id": "test",
+      "country": "US",
+      "bank": "Test Bank",
+      "type": "USD",
+      "limit": 100,
+      "cardNumber": "4111111111111111",
+      "lastModifyTime": 1700000000000,
+      "accountBillDate": "20",
+      "dueDate": "5",
+      "billingDaySpendingToNextBill": true
+    },
+    "expected": 36
+  },
+  {
+    "name": "2026-03-07-bill10-due28-True",
+    "today": "2026-03-07",
+    "card": {
+      "id": "test",
+      "country": "US",
+      "bank": "Test Bank",
+      "type": "USD",
+      "limit": 100,
+      "cardNumber": "4111111111111111",
+      "lastModifyTime": 1700000000000,
+      "accountBillDate": "10",
+      "dueDate": "28",
+      "billingDaySpendingToNextBill": true
+    },
+    "expected": 21
+  },
+  {
+    "name": "2026-10-31-bill10-due28-True",
+    "today": "2026-10-31",
+    "card": {
+      "id": "test",
+      "country": "US",
+      "bank": "Test Bank",
+      "type": "USD",
+      "limit": 100,
+      "cardNumber": "4111111111111111",
+      "lastModifyTime": 1700000000000,
+      "accountBillDate": "10",
+      "dueDate": "28",
+      "billingDaySpendingToNextBill": true
+    },
+    "expected": 28
+  },
+  {
+    "name": "2026-09-10-bill10-due28-True",
+    "today": "2026-09-10",
+    "card": {
+      "id": "test",
+      "country": "US",
+      "bank": "Test Bank",
+      "type": "USD",
+      "limit": 100,
+      "cardNumber": "4111111111111111",
+      "lastModifyTime": 1700000000000,
+      "accountBillDate": "10",
+      "dueDate": "28",
+      "billingDaySpendingToNextBill": true
+    },
+    "expected": 48
+  },
+  {
+    "name": "2026-09-10-bill10-due28-False",
+    "today": "2026-09-10",
+    "card": {
+      "id": "test",
+      "country": "US",
+      "bank": "Test Bank",
+      "type": "USD",
+      "limit": 100,
+      "cardNumber": "4111111111111111",
+      "lastModifyTime": 1700000000000,
+      "accountBillDate": "10",
+      "dueDate": "28",
+      "billingDaySpendingToNextBill": false
+    },
+    "expected": 18
+  },
+  {
+    "name": "2026-04-30-bill31-due31-True",
+    "today": "2026-04-30",
+    "card": {
+      "id": "test",
+      "country": "US",
+      "bank": "Test Bank",
+      "type": "USD",
+      "limit": 100,
+      "cardNumber": "4111111111111111",
+      "lastModifyTime": 1700000000000,
+      "accountBillDate": "31",
+      "dueDate": "31",
+      "billingDaySpendingToNextBill": true
+    },
+    "expected": 61
+  },
+  {
+    "name": "2026-04-29-bill31-due31-False",
+    "today": "2026-04-29",
+    "card": {
+      "id": "test",
+      "country": "US",
+      "bank": "Test Bank",
+      "type": "USD",
+      "limit": 100,
+      "cardNumber": "4111111111111111",
+      "lastModifyTime": 1700000000000,
+      "accountBillDate": "31",
+      "dueDate": "31",
+      "billingDaySpendingToNextBill": false
+    },
+    "expected": 32
+  },
+  {
+    "name": "2026-09-18-bill0-due10-True",
+    "today": "2026-09-18",
+    "card": {
+      "id": "test",
+      "country": "US",
+      "bank": "Test Bank",
+      "type": "USD",
+      "limit": 100,
+      "cardNumber": "4111111111111111",
+      "lastModifyTime": 1700000000000,
+      "accountBillDate": "0",
+      "dueDate": "10",
+      "billingDaySpendingToNextBill": true
+    },
+    "expected": -1
+  },
+  {
+    "name": "2026-09-18-bill32-due10-True",
+    "today": "2026-09-18",
+    "card": {
+      "id": "test",
+      "country": "US",
+      "bank": "Test Bank",
+      "type": "USD",
+      "limit": 100,
+      "cardNumber": "4111111111111111",
+      "lastModifyTime": 1700000000000,
+      "accountBillDate": "32",
+      "dueDate": "10",
+      "billingDaySpendingToNextBill": true
+    },
+    "expected": -1
+  },
+  {
+    "name": "debit",
+    "today": "2026-09-18",
+    "card": {
+      "id": "test",
+      "country": "US",
+      "bank": "Test Bank",
+      "type": "USD",
+      "limit": 100,
+      "cardNumber": "4111111111111111",
+      "lastModifyTime": 1700000000000,
+      "cardCategory": "debit",
+      "accountBillDate": "10",
+      "dueDate": "28"
+    },
+    "expected": -1
+  },
+  {
+    "name": "malformed-bill",
+    "today": "2026-09-18",
+    "card": {
+      "id": "test",
+      "country": "US",
+      "bank": "Test Bank",
+      "type": "USD",
+      "limit": 100,
+      "cardNumber": "4111111111111111",
+      "lastModifyTime": 1700000000000,
+      "accountBillDate": "10oops",
+      "dueDate": "28"
+    },
+    "expected": -1
+  }
+]

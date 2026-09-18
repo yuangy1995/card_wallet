@@ -6,7 +6,10 @@ import android.database.Cursor
 import android.database.sqlite.SQLiteDatabase
 import android.database.sqlite.SQLiteOpenHelper
 import com.example.creditcard.utils.AppJson
+import com.example.creditcard.utils.LocalDataCipher
 import kotlinx.serialization.builtins.ListSerializer
+import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.jsonObject
 
 /**
  * Android 原生 SQLite 数据库辅助类
@@ -16,7 +19,7 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
 
     companion object {
         private const val DATABASE_NAME = "card_wallet.db"
-        private const val DATABASE_VERSION = 3
+        private const val DATABASE_VERSION = 5
 
         // 表名
         private const val TABLE_CARDS = "cards"
@@ -46,6 +49,9 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
         private const val KEY_EQUITY = "equity"
         private const val KEY_REMARK = "remark"
         private const val KEY_CARD_IMAGES = "cardImages"
+        private const val KEY_EXTRA_FIELDS = "extraFields"
+        private const val KEY_PAYLOAD = "encrypted_payload"
+        private const val TABLE_META = "local_sync_metadata"
 
         // sync_records 表字段名
         private const val KEY_REC_CARD_ID = "cardId"
@@ -80,7 +86,9 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
                 + KEY_LAST_MODIFY_TIME + " INTEGER,"
                 + KEY_EQUITY + " TEXT,"
                 + KEY_REMARK + " TEXT,"
-                + KEY_CARD_IMAGES + " TEXT DEFAULT '[]'" + ")")
+                + KEY_CARD_IMAGES + " TEXT DEFAULT '[]',"
+                + KEY_EXTRA_FIELDS + " TEXT NOT NULL DEFAULT '{}',"
+                + KEY_PAYLOAD + " TEXT" + ")")
         db.execSQL(createCardsTable)
 
         // 创建 sync_records 表
@@ -91,6 +99,7 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
                 + KEY_REC_STATE + " TEXT,"
                 + KEY_REC_CARD_JSON + " TEXT" + ")")
         db.execSQL(createSyncRecordsTable)
+        createMetadataTable(db)
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
@@ -100,122 +109,126 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
         if (oldVersion < 3) {
             addColumnIfMissing(db, TABLE_CARDS, KEY_CARD_CATEGORY, "TEXT DEFAULT 'credit'")
         }
+        if (oldVersion < 4) {
+            addColumnIfMissing(db, TABLE_CARDS, KEY_EXTRA_FIELDS, "TEXT NOT NULL DEFAULT '{}'")
+        }
+        if (oldVersion < 5) {
+            addColumnIfMissing(db, TABLE_CARDS, KEY_PAYLOAD, "TEXT")
+            createMetadataTable(db)
+            // SQLiteOpenHelper wraps the upgrade in a single transaction. Any unreadable image,
+            // encryption failure or write failure aborts it, preserving the complete old database.
+            db.query(TABLE_CARDS, null, null, null, null, null, null).use { cursor ->
+                while (cursor.moveToNext()) {
+                    val card = cursor.readLegacyCard()
+                    val encrypted = cardValues(card)
+                    check(db.update(TABLE_CARDS, encrypted, "$KEY_ID = ?", arrayOf(card.id)) == 1)
+                }
+            }
+            db.query(TABLE_SYNC_RECORDS, null, null, null, null, null, null).use { cursor ->
+                while (cursor.moveToNext()) {
+                    val id = cursor.getString(cursor.getColumnIndexOrThrow(KEY_REC_CARD_ID))
+                    val raw = cursor.getStringOrEmpty(KEY_REC_CARD_JSON)
+                    if(raw.isNotEmpty()) {
+                        AppJson.json.decodeFromString<SharedCard>(raw) // validate before migrating
+                        val values = ContentValues().apply { put(KEY_REC_CARD_JSON, LocalDataCipher.seal(raw,"record:$id")) }
+                        check(db.update(TABLE_SYNC_RECORDS, values, "$KEY_REC_CARD_ID = ?", arrayOf(id)) == 1)
+                    }
+                }
+            }
+        }
     }
+
+    private fun createMetadataTable(db: SQLiteDatabase) {
+        db.execSQL("CREATE TABLE IF NOT EXISTS $TABLE_META (id INTEGER PRIMARY KEY CHECK(id=1), pending INTEGER NOT NULL DEFAULT 0, revision INTEGER NOT NULL DEFAULT 0)")
+        db.execSQL("INSERT OR IGNORE INTO $TABLE_META(id) VALUES(1)")
+    }
+    fun <T> transaction(block: () -> T): T {
+        val db = writableDatabase
+        db.beginTransaction()
+        return try { val value = block(); db.setTransactionSuccessful(); value } finally { db.endTransaction() }
+    }
+    fun markLocalMutation() { writableDatabase.execSQL("UPDATE $TABLE_META SET pending=1, revision=revision+1 WHERE id=1") }
+    fun mutationRevision(): Long = readableDatabase.rawQuery("SELECT revision FROM $TABLE_META WHERE id=1", null).use { it.moveToFirst(); it.getLong(0) }
+    fun pending(): Boolean = readableDatabase.rawQuery("SELECT pending FROM $TABLE_META WHERE id=1", null).use { it.moveToFirst(); it.getInt(0) == 1 }
+    fun acknowledge(revision: Long) { writableDatabase.execSQL("UPDATE $TABLE_META SET pending=0 WHERE id=1 AND revision=?", arrayOf(revision)) }
+    fun setPending(value: Boolean) { writableDatabase.execSQL("UPDATE $TABLE_META SET pending=? WHERE id=1", arrayOf(if(value) 1 else 0)) }
+
 
     // ==========================================
     // CARDS 表的 CRUD
     // ==========================================
 
-    fun getAllCards(): List<SharedCard> {
-        val cardList = ArrayList<SharedCard>()
-        val selectQuery = "SELECT * FROM $TABLE_CARDS ORDER BY $KEY_BANK ASC, $KEY_ALIAS ASC"
-        val db = this.readableDatabase
-        val cursor = db.rawQuery(selectQuery, null)
-
-        if (cursor.moveToFirst()) {
-            do {
-                val card = SharedCard(
-                    id = cursor.getString(cursor.getColumnIndexOrThrow(KEY_ID)),
-                    cardCategory = cursor.getStringOrEmpty(KEY_CARD_CATEGORY).normalizeCardCategory(),
-                    country = cursor.getStringOrEmpty(KEY_COUNTRY),
-                    bank = cursor.getStringOrEmpty(KEY_BANK),
-                    alias = cursor.getStringOrEmpty(KEY_ALIAS),
-                    level = cursor.getStringOrEmpty(KEY_LEVEL),
-                    cardNumber = cursor.getStringOrEmpty(KEY_CARD_NUMBER),
-                    cvv = cursor.getStringOrEmpty(KEY_CVV),
-                    valid = cursor.getStringOrEmpty(KEY_VALID),
-                    limit = cursor.getDouble(cursor.getColumnIndexOrThrow(KEY_LIMIT)),
-                    type = cursor.getStringOrEmpty(KEY_TYPE),
-                    isSharedLimit = cursor.getInt(cursor.getColumnIndexOrThrow(KEY_IS_SHARED_LIMIT)) == 1,
-                    accountBillDate = cursor.getStringOrEmpty(KEY_ACCOUNT_BILL_DATE),
-                    dueDate = cursor.getStringOrEmpty(KEY_DUE_DATE),
-                    billingDaySpendingToNextBill = cursor.getInt(cursor.getColumnIndexOrThrow(KEY_BILLING_SPENDING_NEXT)) == 1,
-                    annualFee = cursor.getDouble(cursor.getColumnIndexOrThrow(KEY_ANNUAL_FEE)),
-                    isQualified = cursor.getStringOrEmpty(KEY_IS_QUALIFIED).ifEmpty { "2" },
-                    nextAnnualFeeCollectionTime = if (cursor.isNull(cursor.getColumnIndexOrThrow(KEY_NEXT_ANNUAL_FEE_TIME))) null else cursor.getLong(cursor.getColumnIndexOrThrow(KEY_NEXT_ANNUAL_FEE_TIME)),
-                    lastTime = if (cursor.isNull(cursor.getColumnIndexOrThrow(KEY_LAST_TIME))) null else cursor.getLong(cursor.getColumnIndexOrThrow(KEY_LAST_TIME)),
-                    lastModifyTime = cursor.getLong(cursor.getColumnIndexOrThrow(KEY_LAST_MODIFY_TIME)),
-                    equity = cursor.getStringOrEmpty(KEY_EQUITY),
-                    remark = cursor.getStringOrEmpty(KEY_REMARK),
-                    cardImages = cursor.getCardImages()
+    fun getAllCards(): List<SharedCard> = readableDatabase.query(TABLE_CARDS,null,null,null,null,null,null).use { cursor ->
+        buildList { while(cursor.moveToNext()) add(cursor.readCard()) }.sortedWith(compareBy({ it.bank }, { it.alias }, { it.id }))
+    }
+    fun getCardById(id: String): SharedCard? = readableDatabase.query(TABLE_CARDS,null,"$KEY_ID = ?",arrayOf(id),null,null,null).use { cursor ->
+        if(cursor.moveToFirst()) cursor.readCard() else null
+    }
+    private fun Cursor.readLegacyCard(): SharedCard {
+        return SharedCard(
+                    id = getString(getColumnIndexOrThrow(KEY_ID)),
+                    cardCategory = getStringOrEmpty(KEY_CARD_CATEGORY).normalizeCardCategory(),
+                    country = getStringOrEmpty(KEY_COUNTRY),
+                    bank = getStringOrEmpty(KEY_BANK),
+                    alias = getStringOrEmpty(KEY_ALIAS),
+                    level = getStringOrEmpty(KEY_LEVEL),
+                    cardNumber = getStringOrEmpty(KEY_CARD_NUMBER),
+                    cvv = getStringOrEmpty(KEY_CVV),
+                    valid = getStringOrEmpty(KEY_VALID),
+                    limit = getDouble(getColumnIndexOrThrow(KEY_LIMIT)),
+                    type = getStringOrEmpty(KEY_TYPE),
+                    isSharedLimit = getInt(getColumnIndexOrThrow(KEY_IS_SHARED_LIMIT)) == 1,
+                    accountBillDate = getStringOrEmpty(KEY_ACCOUNT_BILL_DATE),
+                    dueDate = getStringOrEmpty(KEY_DUE_DATE),
+                    billingDaySpendingToNextBill = getInt(getColumnIndexOrThrow(KEY_BILLING_SPENDING_NEXT)) == 1,
+                    annualFee = getDouble(getColumnIndexOrThrow(KEY_ANNUAL_FEE)),
+                    isQualified = getStringOrEmpty(KEY_IS_QUALIFIED).ifEmpty { "2" },
+                    nextAnnualFeeCollectionTime = if (isNull(getColumnIndexOrThrow(KEY_NEXT_ANNUAL_FEE_TIME))) null else getLong(getColumnIndexOrThrow(KEY_NEXT_ANNUAL_FEE_TIME)),
+                    lastTime = if (isNull(getColumnIndexOrThrow(KEY_LAST_TIME))) null else getLong(getColumnIndexOrThrow(KEY_LAST_TIME)),
+                    lastModifyTime = getLong(getColumnIndexOrThrow(KEY_LAST_MODIFY_TIME)),
+                    equity = getStringOrEmpty(KEY_EQUITY),
+                    remark = getStringOrEmpty(KEY_REMARK),
+                    cardImages = getCardImages(),
+                    extraFields = AppJson.json.parseToJsonElement(getStringOrEmpty(KEY_EXTRA_FIELDS).ifBlank { "{}" }).jsonObject
                 )
-                cardList.add(card)
-            } while (cursor.moveToNext())
-        }
-        cursor.close()
-        return cardList
     }
-
-    fun getCardById(id: String): SharedCard? {
-        val db = this.readableDatabase
-        val cursor = db.query(
-            TABLE_CARDS, null, "$KEY_ID = ?", arrayOf(id),
-            null, null, null
-        )
-
-        var card: SharedCard? = null
-        if (cursor.moveToFirst()) {
-            card = SharedCard(
-                id = cursor.getString(cursor.getColumnIndexOrThrow(KEY_ID)),
-                cardCategory = cursor.getStringOrEmpty(KEY_CARD_CATEGORY).normalizeCardCategory(),
-                country = cursor.getStringOrEmpty(KEY_COUNTRY),
-                bank = cursor.getStringOrEmpty(KEY_BANK),
-                alias = cursor.getStringOrEmpty(KEY_ALIAS),
-                level = cursor.getStringOrEmpty(KEY_LEVEL),
-                cardNumber = cursor.getStringOrEmpty(KEY_CARD_NUMBER),
-                cvv = cursor.getStringOrEmpty(KEY_CVV),
-                valid = cursor.getStringOrEmpty(KEY_VALID),
-                limit = cursor.getDouble(cursor.getColumnIndexOrThrow(KEY_LIMIT)),
-                type = cursor.getStringOrEmpty(KEY_TYPE),
-                isSharedLimit = cursor.getInt(cursor.getColumnIndexOrThrow(KEY_IS_SHARED_LIMIT)) == 1,
-                accountBillDate = cursor.getStringOrEmpty(KEY_ACCOUNT_BILL_DATE),
-                dueDate = cursor.getStringOrEmpty(KEY_DUE_DATE),
-                billingDaySpendingToNextBill = cursor.getInt(cursor.getColumnIndexOrThrow(KEY_BILLING_SPENDING_NEXT)) == 1,
-                annualFee = cursor.getDouble(cursor.getColumnIndexOrThrow(KEY_ANNUAL_FEE)),
-                isQualified = cursor.getStringOrEmpty(KEY_IS_QUALIFIED).ifEmpty { "2" },
-                nextAnnualFeeCollectionTime = if (cursor.isNull(cursor.getColumnIndexOrThrow(KEY_NEXT_ANNUAL_FEE_TIME))) null else cursor.getLong(cursor.getColumnIndexOrThrow(KEY_NEXT_ANNUAL_FEE_TIME)),
-                lastTime = if (cursor.isNull(cursor.getColumnIndexOrThrow(KEY_LAST_TIME))) null else cursor.getLong(cursor.getColumnIndexOrThrow(KEY_LAST_TIME)),
-                lastModifyTime = cursor.getLong(cursor.getColumnIndexOrThrow(KEY_LAST_MODIFY_TIME)),
-                equity = cursor.getStringOrEmpty(KEY_EQUITY),
-                remark = cursor.getStringOrEmpty(KEY_REMARK),
-                cardImages = cursor.getCardImages()
-            )
-        }
-        cursor.close()
-        return card
+    private fun Cursor.readCard(): SharedCard {
+        val id = getString(getColumnIndexOrThrow(KEY_ID))
+        val raw = getStringOrEmpty(KEY_PAYLOAD)
+        check(raw.isNotEmpty()) { "卡片加密数据缺失，原数据已保留" }
+        return AppJson.json.decodeFromString<SharedCard>(LocalDataCipher.open(raw,"card:$id")).also { check(it.id == id) }
     }
-
     fun saveCard(card: SharedCard) {
         val db = this.writableDatabase
-        db.insertWithOnConflict(TABLE_CARDS, null, cardValues(card), SQLiteDatabase.CONFLICT_REPLACE)
+        check(db.insertWithOnConflict(TABLE_CARDS, null, cardValues(card), SQLiteDatabase.CONFLICT_REPLACE) != -1L) { "本地数据未能保存" }
     }
 
-    private fun cardValues(card: SharedCard): ContentValues {
-        return ContentValues().apply {
-            put(KEY_ID, card.id)
-            put(KEY_CARD_CATEGORY, card.cardCategory.normalizeCardCategory())
-            put(KEY_COUNTRY, card.country)
-            put(KEY_BANK, card.bank)
-            put(KEY_ALIAS, card.alias)
-            put(KEY_LEVEL, card.level)
-            put(KEY_CARD_NUMBER, card.cardNumber)
-            put(KEY_CVV, card.cvv)
-            put(KEY_VALID, card.valid)
-            put(KEY_LIMIT, card.limit)
-            put(KEY_TYPE, card.type)
-            put(KEY_IS_SHARED_LIMIT, if (card.isSharedLimit) 1 else 0)
-            put(KEY_ACCOUNT_BILL_DATE, card.accountBillDate)
-            put(KEY_DUE_DATE, card.dueDate)
-            put(KEY_BILLING_SPENDING_NEXT, if (card.billingDaySpendingToNextBill) 1 else 0)
-            put(KEY_ANNUAL_FEE, card.annualFee)
-            put(KEY_IS_QUALIFIED, card.isQualified)
-            put(KEY_NEXT_ANNUAL_FEE_TIME, card.nextAnnualFeeCollectionTime)
-            put(KEY_LAST_TIME, card.lastTime)
-            put(KEY_LAST_MODIFY_TIME, card.lastModifyTime)
-            put(KEY_EQUITY, card.equity)
-            put(KEY_REMARK, card.remark)
-            put(KEY_CARD_IMAGES, encodeCardImages(card.cardImages))
-        }
+    private fun cardValues(card: SharedCard): ContentValues = ContentValues().apply {
+        put(KEY_ID,card.id)
+        put(KEY_LAST_MODIFY_TIME,card.lastModifyTime)
+        put(KEY_EXTRA_FIELDS,"{}")
+        putNull(KEY_CARD_CATEGORY)
+        putNull(KEY_COUNTRY)
+        putNull(KEY_BANK)
+        putNull(KEY_ALIAS)
+        putNull(KEY_LEVEL)
+        putNull(KEY_CARD_NUMBER)
+        putNull(KEY_CVV)
+        putNull(KEY_VALID)
+        putNull(KEY_LIMIT)
+        putNull(KEY_TYPE)
+        putNull(KEY_IS_SHARED_LIMIT)
+        putNull(KEY_ACCOUNT_BILL_DATE)
+        putNull(KEY_DUE_DATE)
+        putNull(KEY_BILLING_SPENDING_NEXT)
+        putNull(KEY_ANNUAL_FEE)
+        putNull(KEY_IS_QUALIFIED)
+        putNull(KEY_NEXT_ANNUAL_FEE_TIME)
+        putNull(KEY_LAST_TIME)
+        putNull(KEY_EQUITY)
+        putNull(KEY_REMARK)
+        putNull(KEY_CARD_IMAGES)
+        put(KEY_PAYLOAD,LocalDataCipher.seal(AppJson.json.encodeToString(SharedCard.serializer(),card),"card:${card.id}"))
     }
 
     fun deleteCardById(id: String) {
@@ -232,50 +245,36 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
     // SYNC_RECORDS 表的 CRUD
     // ==========================================
 
-    fun getAllSyncRecords(): List<CardSyncRecord> {
-        val recordList = ArrayList<CardSyncRecord>()
-        val selectQuery = "SELECT * FROM $TABLE_SYNC_RECORDS"
-        val db = this.readableDatabase
-        val cursor = db.rawQuery(selectQuery, null)
+    fun deletedCardIDs(): Set<String> = readableDatabase.query(TABLE_SYNC_RECORDS,
+        arrayOf(KEY_REC_CARD_ID), "$KEY_REC_STATE = ?", arrayOf("deleted"), null, null, null).use { cursor ->
+        buildSet { while(cursor.moveToNext()) add(cursor.getString(0)) }
+    }
 
-        if (cursor.moveToFirst()) {
-            do {
-                val cardJson = cursor.getString(cursor.getColumnIndexOrThrow(KEY_REC_CARD_JSON))
-                val cardObj = if (!cardJson.isNullOrEmpty()) {
-                    try {
-                        AppJson.json.decodeFromString<SharedCard>(cardJson)
-                    } catch (e: Exception) {
-                        null
-                    }
-                } else null
+    fun lastMutationTime(cardId: String): String? = readableDatabase.query(
+        TABLE_SYNC_RECORDS, arrayOf(KEY_REC_CHANGED_AT), "$KEY_REC_CARD_ID = ?", arrayOf(cardId), null, null, null
+    ).use { cursor -> if (cursor.moveToFirst()) cursor.getString(0) else null }
 
-                val record = CardSyncRecord(
-                    cardId = cursor.getString(cursor.getColumnIndexOrThrow(KEY_REC_CARD_ID)),
-                    mutationId = cursor.getString(cursor.getColumnIndexOrThrow(KEY_REC_MUTATION_ID)),
-                    changedAt = cursor.getString(cursor.getColumnIndexOrThrow(KEY_REC_CHANGED_AT)),
-                    state = cursor.getString(cursor.getColumnIndexOrThrow(KEY_REC_STATE)),
-                    card = cardObj
-                )
-                recordList.add(record)
-            } while (cursor.moveToNext())
+    fun getAllSyncRecords(): List<CardSyncRecord> = readableDatabase.query(TABLE_SYNC_RECORDS,null,null,null,null,null,null).use { cursor ->
+        buildList {
+            while(cursor.moveToNext()) {
+                val id = cursor.getString(cursor.getColumnIndexOrThrow(KEY_REC_CARD_ID))
+                val state = cursor.getString(cursor.getColumnIndexOrThrow(KEY_REC_STATE))
+                val raw = cursor.getStringOrEmpty(KEY_REC_CARD_JSON)
+                val card = if(raw.isEmpty()) null else AppJson.json.decodeFromString<SharedCard>(LocalDataCipher.open(raw,"record:$id"))
+                check(state == "deleted" || (state == "active" && card != null && card.id == id)) { "同步记录无法读取，原数据已保留" }
+                add(CardSyncRecord(cardId=id, mutationId=cursor.getString(cursor.getColumnIndexOrThrow(KEY_REC_MUTATION_ID)),
+                    changedAt=cursor.getString(cursor.getColumnIndexOrThrow(KEY_REC_CHANGED_AT)), state=state, card=card))
+            }
         }
-        cursor.close()
-        return recordList
     }
 
     fun saveSyncRecord(record: CardSyncRecord) {
         val db = this.writableDatabase
-        db.insertWithOnConflict(TABLE_SYNC_RECORDS, null, syncRecordValues(record), SQLiteDatabase.CONFLICT_REPLACE)
+        check(db.insertWithOnConflict(TABLE_SYNC_RECORDS, null, syncRecordValues(record), SQLiteDatabase.CONFLICT_REPLACE) != -1L) { "本地数据未能保存" }
     }
 
     private fun syncRecordValues(record: CardSyncRecord): ContentValues {
-        val cardJson = record.card?.let {
-            try {
-                AppJson.json.encodeToString(SharedCard.serializer(), it)
-            } catch (e: Exception) {
-                null
-            }
-        }
+        val cardJson = record.card?.let { LocalDataCipher.seal(AppJson.json.encodeToString(SharedCard.serializer(), it), "record:${record.cardId}") }
 
         val values = ContentValues().apply {
             put(KEY_REC_CARD_ID, record.cardId)
@@ -292,7 +291,7 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
         db.beginTransaction()
         try {
             for (record in records) {
-                db.insertWithOnConflict(TABLE_SYNC_RECORDS, null, syncRecordValues(record), SQLiteDatabase.CONFLICT_REPLACE)
+                check(db.insertWithOnConflict(TABLE_SYNC_RECORDS, null, syncRecordValues(record), SQLiteDatabase.CONFLICT_REPLACE) != -1L) { "本地数据未能保存" }
             }
             db.setTransactionSuccessful()
         } finally {
@@ -312,10 +311,10 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
             db.delete(TABLE_CARDS, null, null)
             db.delete(TABLE_SYNC_RECORDS, null, null)
             for (record in records) {
-                db.insertWithOnConflict(TABLE_SYNC_RECORDS, null, syncRecordValues(record), SQLiteDatabase.CONFLICT_REPLACE)
+                check(db.insertWithOnConflict(TABLE_SYNC_RECORDS, null, syncRecordValues(record), SQLiteDatabase.CONFLICT_REPLACE) != -1L) { "本地数据未能保存" }
             }
             for (card in cards) {
-                db.insertWithOnConflict(TABLE_CARDS, null, cardValues(card), SQLiteDatabase.CONFLICT_REPLACE)
+                check(db.insertWithOnConflict(TABLE_CARDS, null, cardValues(card), SQLiteDatabase.CONFLICT_REPLACE) != -1L) { "本地数据未能保存" }
             }
             db.setTransactionSuccessful()
         } finally {
@@ -325,8 +324,11 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
 
     fun resetDatabase() {
         val db = this.writableDatabase
-        db.delete(TABLE_CARDS, null, null)
-        db.delete(TABLE_SYNC_RECORDS, null, null)
+        transaction {
+            db.delete(TABLE_CARDS, null, null)
+            db.delete(TABLE_SYNC_RECORDS, null, null)
+            db.execSQL("UPDATE $TABLE_META SET pending=0, revision=revision+1 WHERE id=1")
+        }
     }
 
     private fun Cursor.getStringOrEmpty(columnName: String): String {
@@ -344,25 +346,11 @@ class DatabaseHelper(context: Context) : SQLiteOpenHelper(context, DATABASE_NAME
         if (index < 0 || isNull(index)) return emptyList()
         val raw = getString(index).orEmpty()
         if (raw.isBlank()) return emptyList()
-        return try {
-            AppJson.json.decodeFromString(
-                ListSerializer(CardImageAsset.serializer()),
-                raw
-            )
-        } catch (e: Exception) {
-            emptyList()
-        }
+        return AppJson.json.decodeFromString(ListSerializer(CardImageAsset.serializer()), raw)
     }
 
     private fun encodeCardImages(images: List<CardImageAsset>): String {
-        return try {
-            AppJson.json.encodeToString(
-                ListSerializer(CardImageAsset.serializer()),
-                images
-            )
-        } catch (e: Exception) {
-            "[]"
-        }
+        return AppJson.json.encodeToString(ListSerializer(CardImageAsset.serializer()), images)
     }
 
     private fun addColumnIfMissing(db: SQLiteDatabase, tableName: String, columnName: String, definition: String) {

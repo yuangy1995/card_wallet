@@ -90,7 +90,7 @@ export function completeDueDate(accountBillDate, dueDate, dateType = 'current') 
   let year = billDate.getFullYear()
   let month = billDate.getMonth() + 1
 
-  if (dueDateNum < billDateNum) {
+  if (dueDateNum <= billDateNum) {
     month++
     if (month > 12) {
       month = 1
@@ -110,19 +110,8 @@ export function completeDueDate(accountBillDate, dueDate, dateType = 'current') 
  * @param {string|number} dueDate - 还款日
  * @returns {number} 免息天数
  */
-export function calculateInterestFreePeriod(accountBillDate, dueDate) {
-  if (!accountBillDate || !dueDate) return 0
-
-  const today = new Date()
-  const currentBillDate = completeAccountBillDate(accountBillDate, 'current')
-  const todayString = timestampToTime(today.getTime())
-
-  if (todayString > currentBillDate) {
-    const nextBillDate = completeAccountBillDate(accountBillDate, 'next')
-    return getDaysDifference(nextBillDate, completeDueDate(accountBillDate, dueDate, 'next'))
-  }
-
-  return getDaysDifference(currentBillDate, completeDueDate(accountBillDate, dueDate, 'current'))
+export function calculateInterestFreePeriod(accountBillDate, dueDate, billingDaySpendingToNextBill = true, today = new Date()) {
+  return calculateCurrentInterestFreeDays({ accountBillDate, dueDate, billingDaySpendingToNextBill }, today)
 }
 
 /**
@@ -133,6 +122,8 @@ export function calculateInterestFreePeriod(accountBillDate, dueDate) {
  */
 export function calculateCurrentInterestFreeDays(card, today = new Date()) {
   if (!card || card.cardCategory === 'debit') return -1
+  if (!/^[0-9]{1,2}$/.test(String(card.accountBillDate ?? '').trim()) ||
+      !/^[0-9]{1,2}$/.test(String(card.dueDate ?? '').trim())) return -1
   const billDay = Number(card.accountBillDate)
   const dueDay = Number(card.dueDate)
   if (!Number.isInteger(billDay) || billDay < 1 || billDay > 31 ||
@@ -167,7 +158,8 @@ export function calculateCurrentInterestFreeDays(card, today = new Date()) {
     12
   )
 
-  return Math.max(0, Math.round((targetDueDate - base) / (24 * 60 * 60 * 1000)))
+  return Math.max(0, (Date.UTC(targetDueDate.getFullYear(), targetDueDate.getMonth(), targetDueDate.getDate()) -
+    Date.UTC(base.getFullYear(), base.getMonth(), base.getDate())) / (24 * 60 * 60 * 1000))
 }
 
 /**

@@ -9,29 +9,23 @@ public final class SyncLedgerStore {
 
     private init() {}
 
-    public func load(seeding cards: [SharedCard] = []) -> SyncLedger {
+    public func load(seeding cards: [SharedCard] = []) throws -> SyncLedger {
         let url = ledgerURL()
-        guard fileManager.fileExists(atPath: url.path),
-              let cipherText = try? String(contentsOf: url, encoding: .utf8),
-              let jsonString = try? CryptoManager.decrypt(cipherText: cipherText),
-              let data = jsonString.data(using: .utf8),
-              let ledger = try? JSONDecoder().decode(SyncLedger.self, from: data) else {
-            let ledger = SyncLedger(records: cards.map(CardSyncRecord.legacyActive))
-            save(ledger)
-            return ledger
-        }
-        return ledger
+        guard fileManager.fileExists(atPath: url.path) else { return SyncLedger(records: cards.map(CardSyncRecord.legacyActive)) }
+        let text = try String(contentsOf: url, encoding: .utf8)
+        let data = try LocalWalletCipher.open(text, purpose: "ledger")
+        return try JSONDecoder().decode(SyncLedger.self, from: data)
     }
 
-    public func save(_ ledger: SyncLedger) {
+    @discardableResult
+    public func save(_ ledger: SyncLedger) -> Bool {
         do {
             let data = try JSONEncoder().encode(ledger)
-            guard let json = String(data: data, encoding: .utf8) else { return }
-            let cipherText = try CryptoManager.encrypt(plainText: json)
-            try cipherText.write(to: ledgerURL(), atomically: true, encoding: .utf8)
-        } catch {
-            print("保存同步账本失败: \(error.localizedDescription)")
-        }
+            let text = try LocalWalletCipher.seal(data, purpose: "ledger")
+            try text.write(to: ledgerURL(), atomically: true, encoding: .utf8)
+            try fileManager.setAttributes([.posixPermissions: 0o600], ofItemAtPath: ledgerURL().path)
+            return true
+        } catch { return false }
     }
 
     private func ledgerURL() -> URL {

@@ -12,37 +12,17 @@ struct StatisticsView: View {
     private var debitCards: [SharedCard] { cards.filter { $0.cardCategory == "debit" } }
 
     private var totalLimitByCurrency: [String: Double] {
-        var dict: [String: Double] = [:]
-        var processedSharedGroups = Set<String>()
-        for card in creditCards {
-            let currency = normalizedCurrency(card.type)
-            if card.isSharedLimit {
-                let cleanBank = card.bank.replacingOccurrences(of: "\\(.*\\)", with: "", options: .regularExpression).trimmingCharacters(in: .whitespaces)
-                let groupKey = "\(card.country)-\(cleanBank)-\(currency)"
-                if processedSharedGroups.contains(groupKey) { continue }
-                processedSharedGroups.insert(groupKey)
-            }
-            dict[currency, default: 0.0] += card.limit ?? 0.0
-        }
-        return dict
+        CardMetrics.creditLimits(cards: cards)
     }
 
     private var bankLimits: [(bank: String, limit: Double, currency: String)] {
-        var dict: [String: Double] = [:]
-        var processedSharedGroups = Set<String>()
-        for card in creditCards {
-            let cleanBank = card.bank.replacingOccurrences(of: "\\(.*\\)", with: "", options: .regularExpression).trimmingCharacters(in: .whitespaces)
-            let currency = normalizedCurrency(card.type)
-            let bankCurrencyKey = "\(cleanBank) (\(currency))"
-            if card.isSharedLimit {
-                let groupKey = "\(card.country)-\(cleanBank)-\(currency)"
-                if processedSharedGroups.contains(groupKey) { continue }
-                processedSharedGroups.insert(groupKey)
+        Dictionary(grouping: creditCards, by: { BankNameNormalizer.normalizedKey($0.bank) })
+            .flatMap { _, bankCards in
+                CardMetrics.creditLimits(cards: bankCards).map { currency, amount in
+                    (bank: BankNameNormalizer.display(bankCards.first?.bank), limit: amount, currency: currency)
+                }
             }
-            dict[bankCurrencyKey, default: 0] += card.limit ?? 0
-        }
-        return dict.sorted { $0.value > $1.value }
-            .map { (bank: $0.key, limit: $0.value, currency: "") }
+            .sorted { $0.currency == $1.currency ? ($0.limit == $1.limit ? $0.bank < $1.bank : $0.limit > $1.limit) : $0.currency < $1.currency }
     }
 
     private var annualFeeAlertCards: [SharedCard] {
@@ -416,7 +396,7 @@ struct StatisticsView: View {
         formatter.numberStyle = .decimal
         let amountString = formatter.string(from: NSNumber(value: amount)) ?? "\(Int(amount))"
 
-        guard currency != "未设置" else {
+        guard !currency.isEmpty && currency != "未设置" else {
             return amountString
         }
         let symbol: String

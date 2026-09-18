@@ -1,0 +1,422 @@
+[
+  {
+    "name": "年费确认闰日只推进一个日历年",
+    "card": {
+      "id": "target",
+      "country": "US",
+      "bank": "Bank",
+      "cardNumber": "4000000000000000",
+      "cardCategory": "credit",
+      "annualFee": 99,
+      "isQualified": "2",
+      "valid": "2030-01",
+      "lastModifyTime": 1,
+      "futureBenefit": {
+        "enabled": true,
+        "label": "保留"
+      },
+      "cardImages": [
+        {
+          "id": "photo",
+          "data": "aGVsbG8=",
+          "mimeType": "image/jpeg",
+          "name": "原图",
+          "createdAt": 1,
+          "source": "test",
+          "futureCrop": {
+            "x": 1
+          }
+        }
+      ]
+    },
+    "target": "2024-02-29",
+    "today": "2024-02-01",
+    "selected": [
+      "target"
+    ],
+    "update": {
+      "status": "1"
+    },
+    "expected": {
+      "isQualified": "1",
+      "nextDate": "2025-02-28",
+      "annualFee": 99,
+      "valid": "2030-01",
+      "changed": true
+    }
+  },
+  {
+    "name": "已确认且远离提醒窗口重复点击不推进",
+    "card": {
+      "id": "target",
+      "country": "US",
+      "bank": "Bank",
+      "cardNumber": "4000000000000000",
+      "cardCategory": "credit",
+      "annualFee": 99,
+      "isQualified": "1",
+      "valid": "2030-01",
+      "lastModifyTime": 1,
+      "futureBenefit": {
+        "enabled": true,
+        "label": "保留"
+      },
+      "cardImages": [
+        {
+          "id": "photo",
+          "data": "aGVsbG8=",
+          "mimeType": "image/jpeg",
+          "name": "原图",
+          "createdAt": 1,
+          "source": "test",
+          "futureCrop": {
+            "x": 1
+          }
+        }
+      ]
+    },
+    "target": "2025-02-28",
+    "today": "2024-02-01",
+    "selected": [
+      "target"
+    ],
+    "update": {
+      "status": "1"
+    },
+    "expected": {
+      "isQualified": "1",
+      "nextDate": "2025-02-28",
+      "annualFee": 99,
+      "valid": "2030-01",
+      "changed": false
+    }
+  },
+  {
+    "name": "明确指定下一日期优先于便利推年",
+    "card": {
+      "id": "target",
+      "country": "US",
+      "bank": "Bank",
+      "cardNumber": "4000000000000000",
+      "cardCategory": "credit",
+      "annualFee": 99,
+      "isQualified": "2",
+      "valid": "2030-01",
+      "lastModifyTime": 1,
+      "futureBenefit": {
+        "enabled": true,
+        "label": "保留"
+      },
+      "cardImages": [
+        {
+          "id": "photo",
+          "data": "aGVsbG8=",
+          "mimeType": "image/jpeg",
+          "name": "原图",
+          "createdAt": 1,
+          "source": "test",
+          "futureCrop": {
+            "x": 1
+          }
+        }
+      ]
+    },
+    "target": "2024-02-29",
+    "today": "2024-02-01",
+    "selected": [
+      "target"
+    ],
+    "update": {
+      "status": "1",
+      "nextDate": "2027-03-31",
+      "annualFee": 1.25
+    },
+    "expected": {
+      "isQualified": "1",
+      "nextDate": "2027-03-31",
+      "annualFee": 1.25,
+      "valid": "2030-01",
+      "changed": true
+    }
+  },
+  {
+    "name": "终免清理日期但保留金额资料",
+    "card": {
+      "id": "target",
+      "country": "US",
+      "bank": "Bank",
+      "cardNumber": "4000000000000000",
+      "cardCategory": "credit",
+      "annualFee": 99,
+      "isQualified": "2",
+      "valid": "2030-01",
+      "lastModifyTime": 1,
+      "futureBenefit": {
+        "enabled": true,
+        "label": "保留"
+      },
+      "cardImages": [
+        {
+          "id": "photo",
+          "data": "aGVsbG8=",
+          "mimeType": "image/jpeg",
+          "name": "原图",
+          "createdAt": 1,
+          "source": "test",
+          "futureCrop": {
+            "x": 1
+          }
+        }
+      ]
+    },
+    "target": "2024-02-29",
+    "today": "2024-02-01",
+    "selected": [
+      "target"
+    ],
+    "update": {
+      "status": "3",
+      "nextDate": "2027-03-31"
+    },
+    "expected": {
+      "isQualified": "3",
+      "nextDate": null,
+      "annualFee": 99,
+      "valid": "2030-01",
+      "changed": true
+    }
+  },
+  {
+    "name": "储蓄卡跳过信用字段仍可改有效期",
+    "card": {
+      "id": "target",
+      "country": "US",
+      "bank": "Bank",
+      "cardNumber": "4000000000000000",
+      "cardCategory": "debit",
+      "annualFee": 99,
+      "isQualified": "2",
+      "valid": "2030-01",
+      "lastModifyTime": 1,
+      "futureBenefit": {
+        "enabled": true,
+        "label": "保留"
+      },
+      "cardImages": [
+        {
+          "id": "photo",
+          "data": "aGVsbG8=",
+          "mimeType": "image/jpeg",
+          "name": "原图",
+          "createdAt": 1,
+          "source": "test",
+          "futureCrop": {
+            "x": 1
+          }
+        }
+      ]
+    },
+    "target": "2024-02-29",
+    "today": "2024-02-01",
+    "selected": [
+      "target"
+    ],
+    "update": {
+      "status": "1",
+      "annualFee": 10,
+      "valid": "2031-12"
+    },
+    "expected": {
+      "isQualified": "2",
+      "nextDate": "2024-02-29",
+      "annualFee": 99,
+      "valid": "2031-12",
+      "changed": true
+    }
+  },
+  {
+    "name": "未选中的卡不受影响",
+    "card": {
+      "id": "target",
+      "country": "US",
+      "bank": "Bank",
+      "cardNumber": "4000000000000000",
+      "cardCategory": "credit",
+      "annualFee": 99,
+      "isQualified": "2",
+      "valid": "2030-01",
+      "lastModifyTime": 1,
+      "futureBenefit": {
+        "enabled": true,
+        "label": "保留"
+      },
+      "cardImages": [
+        {
+          "id": "photo",
+          "data": "aGVsbG8=",
+          "mimeType": "image/jpeg",
+          "name": "原图",
+          "createdAt": 1,
+          "source": "test",
+          "futureCrop": {
+            "x": 1
+          }
+        }
+      ]
+    },
+    "target": "2024-02-29",
+    "today": "2024-02-01",
+    "selected": [
+      "other"
+    ],
+    "update": {
+      "status": "1",
+      "annualFee": 10
+    },
+    "expected": {
+      "isQualified": "2",
+      "nextDate": "2024-02-29",
+      "annualFee": 99,
+      "valid": "2030-01",
+      "changed": false
+    }
+  },
+  {
+    "name": "没有更新项不修改时间戳",
+    "card": {
+      "id": "target",
+      "country": "US",
+      "bank": "Bank",
+      "cardNumber": "4000000000000000",
+      "cardCategory": "credit",
+      "annualFee": 99,
+      "isQualified": "2",
+      "valid": "2030-01",
+      "lastModifyTime": 1,
+      "futureBenefit": {
+        "enabled": true,
+        "label": "保留"
+      },
+      "cardImages": [
+        {
+          "id": "photo",
+          "data": "aGVsbG8=",
+          "mimeType": "image/jpeg",
+          "name": "原图",
+          "createdAt": 1,
+          "source": "test",
+          "futureCrop": {
+            "x": 1
+          }
+        }
+      ]
+    },
+    "target": "2024-02-29",
+    "today": "2024-02-01",
+    "selected": [
+      "target"
+    ],
+    "update": {},
+    "expected": {
+      "isQualified": "2",
+      "nextDate": "2024-02-29",
+      "annualFee": 99,
+      "valid": "2030-01",
+      "changed": false
+    }
+  },
+  {
+    "name": "拒绝负年费而不擦除原始资料",
+    "card": {
+      "id": "target",
+      "country": "US",
+      "bank": "Bank",
+      "cardNumber": "4000000000000000",
+      "cardCategory": "credit",
+      "annualFee": 99,
+      "isQualified": "2",
+      "valid": "2030-01",
+      "lastModifyTime": 1,
+      "futureBenefit": {
+        "enabled": true,
+        "label": "保留"
+      },
+      "cardImages": [
+        {
+          "id": "photo",
+          "data": "aGVsbG8=",
+          "mimeType": "image/jpeg",
+          "name": "原图",
+          "createdAt": 1,
+          "source": "test",
+          "futureCrop": {
+            "x": 1
+          }
+        }
+      ]
+    },
+    "target": "2024-02-29",
+    "today": "2024-02-01",
+    "selected": [
+      "target"
+    ],
+    "update": {
+      "annualFee": -1
+    },
+    "expected": {
+      "isQualified": "2",
+      "nextDate": "2024-02-29",
+      "annualFee": 99,
+      "valid": "2030-01",
+      "changed": false
+    }
+  },
+  {
+    "name": "转换储蓄卡不擦除保留的信用资料",
+    "card": {
+      "id": "target",
+      "country": "US",
+      "bank": "Bank",
+      "cardNumber": "4000000000000000",
+      "cardCategory": "credit",
+      "annualFee": 99,
+      "isQualified": "2",
+      "valid": "2030-01",
+      "lastModifyTime": 1,
+      "futureBenefit": {
+        "enabled": true,
+        "label": "保留"
+      },
+      "cardImages": [
+        {
+          "id": "photo",
+          "data": "aGVsbG8=",
+          "mimeType": "image/jpeg",
+          "name": "原图",
+          "createdAt": 1,
+          "source": "test",
+          "futureCrop": {
+            "x": 1
+          }
+        }
+      ]
+    },
+    "target": "2024-02-29",
+    "today": "2024-02-01",
+    "selected": [
+      "target"
+    ],
+    "update": {
+      "cardCategory": "debit",
+      "status": "3",
+      "annualFee": 0
+    },
+    "expected": {
+      "isQualified": "2",
+      "nextDate": "2024-02-29",
+      "annualFee": 99,
+      "valid": "2030-01",
+      "changed": true
+    }
+  }
+]

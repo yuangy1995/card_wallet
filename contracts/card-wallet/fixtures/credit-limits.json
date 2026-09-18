@@ -1,0 +1,266 @@
+[
+  {
+    "name": "empty",
+    "cards": [],
+    "expected": {}
+  },
+  {
+    "name": "shared-max-not-first",
+    "cards": [
+      {
+        "id": "a",
+        "country": "US",
+        "bank": "Test Bank",
+        "type": "USD",
+        "limit": 100,
+        "cardNumber": "4111111111111111",
+        "lastModifyTime": 1700000000000
+      },
+      {
+        "id": "b",
+        "country": "US",
+        "bank": "Test Bank",
+        "type": "USD",
+        "limit": 900,
+        "cardNumber": "4111111111111111",
+        "lastModifyTime": 1700000000000
+      }
+    ],
+    "expected": {
+      "USD": 900
+    }
+  },
+  {
+    "name": "shared-independent-debit",
+    "cards": [
+      {
+        "id": "a",
+        "country": "US",
+        "bank": "Test Bank",
+        "type": "USD",
+        "limit": 400,
+        "cardNumber": "4111111111111111",
+        "lastModifyTime": 1700000000000
+      },
+      {
+        "id": "b",
+        "country": "US",
+        "bank": "Test Bank",
+        "type": "USD",
+        "limit": 700,
+        "cardNumber": "4111111111111111",
+        "lastModifyTime": 1700000000000
+      },
+      {
+        "id": "c",
+        "country": "US",
+        "bank": "Test Bank",
+        "type": "USD",
+        "limit": 30,
+        "cardNumber": "4111111111111111",
+        "lastModifyTime": 1700000000000,
+        "isSharedLimit": false
+      },
+      {
+        "id": "d",
+        "country": "US",
+        "bank": "Test Bank",
+        "type": "USD",
+        "limit": 9999,
+        "cardNumber": "4111111111111111",
+        "lastModifyTime": 1700000000000,
+        "cardCategory": "debit"
+      }
+    ],
+    "expected": {
+      "USD": 730
+    }
+  },
+  {
+    "name": "distinct-regions",
+    "cards": [
+      {
+        "id": "a",
+        "country": "US",
+        "bank": "Test Bank",
+        "type": "USD",
+        "limit": 100,
+        "cardNumber": "4111111111111111",
+        "lastModifyTime": 1700000000000
+      },
+      {
+        "id": "b",
+        "country": "HK",
+        "bank": "Test Bank",
+        "type": "USD",
+        "limit": 200,
+        "cardNumber": "4111111111111111",
+        "lastModifyTime": 1700000000000
+      }
+    ],
+    "expected": {
+      "USD": 300
+    }
+  },
+  {
+    "name": "distinct-currencies",
+    "cards": [
+      {
+        "id": "a",
+        "country": "US",
+        "bank": "Test Bank",
+        "type": "USD",
+        "limit": 100,
+        "cardNumber": "4111111111111111",
+        "lastModifyTime": 1700000000000
+      },
+      {
+        "id": "b",
+        "country": "US",
+        "bank": "Test Bank",
+        "type": "HKD",
+        "limit": 200,
+        "cardNumber": "4111111111111111",
+        "lastModifyTime": 1700000000000
+      }
+    ],
+    "expected": {
+      "USD": 100,
+      "HKD": 200
+    }
+  },
+  {
+    "name": "unknown-is-not-cny",
+    "cards": [
+      {
+        "id": "a",
+        "country": "US",
+        "bank": "Test Bank",
+        "type": "",
+        "limit": 100,
+        "cardNumber": "4111111111111111",
+        "lastModifyTime": 1700000000000
+      },
+      {
+        "id": "b",
+        "country": "US",
+        "bank": "Test Bank",
+        "type": "CNY",
+        "limit": 200,
+        "cardNumber": "4111111111111111",
+        "lastModifyTime": 1700000000000
+      }
+    ],
+    "expected": {
+      "": 100,
+      "CNY": 200
+    }
+  },
+  {
+    "name": "bank-normalization",
+    "cards": [
+      {
+        "id": "a",
+        "country": "US",
+        "bank": "Test Bank（Gold）",
+        "type": " usd ",
+        "limit": 100,
+        "cardNumber": "4111111111111111",
+        "lastModifyTime": 1700000000000
+      },
+      {
+        "id": "b",
+        "country": "US",
+        "bank": "testbank",
+        "type": "USD",
+        "limit": 700,
+        "cardNumber": "4111111111111111",
+        "lastModifyTime": 1700000000000
+      }
+    ],
+    "expected": {
+      "USD": 700
+    }
+  },
+  {
+    "name": "decimal-rounding",
+    "cards": [
+      {
+        "id": "a",
+        "country": "US",
+        "bank": "Test Bank",
+        "type": "USD",
+        "limit": 0.1,
+        "cardNumber": "4111111111111111",
+        "lastModifyTime": 1700000000000,
+        "isSharedLimit": false
+      },
+      {
+        "id": "b",
+        "country": "US",
+        "bank": "Test Bank",
+        "type": "USD",
+        "limit": 0.2,
+        "cardNumber": "4111111111111111",
+        "lastModifyTime": 1700000000000,
+        "isSharedLimit": false
+      },
+      {
+        "id": "c",
+        "country": "US",
+        "bank": "Test Bank",
+        "type": "USD",
+        "limit": 1.005,
+        "cardNumber": "4111111111111111",
+        "lastModifyTime": 1700000000000,
+        "isSharedLimit": false
+      }
+    ],
+    "expected": {
+      "USD": 1.31
+    }
+  },
+  {
+    "name": "negative-ignored",
+    "cards": [
+      {
+        "id": "a",
+        "country": "US",
+        "bank": "Test Bank",
+        "type": "USD",
+        "limit": -100,
+        "cardNumber": "4111111111111111",
+        "lastModifyTime": 1700000000000
+      },
+      {
+        "id": "b",
+        "country": "US",
+        "bank": "Test Bank",
+        "type": "USD",
+        "limit": 50,
+        "cardNumber": "4111111111111111",
+        "lastModifyTime": 1700000000000
+      }
+    ],
+    "expected": {
+      "USD": 50
+    }
+  },
+  {
+    "name": "unknown-bank-retained",
+    "cards": [
+      {
+        "id": "a",
+        "country": "US",
+        "bank": "",
+        "type": "USD",
+        "limit": 900,
+        "cardNumber": "4111111111111111",
+        "lastModifyTime": 1700000000000
+      }
+    ],
+    "expected": {
+      "USD": 900
+    }
+  }
+]

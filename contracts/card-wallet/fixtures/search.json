@@ -1,0 +1,342 @@
+[
+  {
+    "name": "备注",
+    "card": {
+      "id": "a",
+      "cardCategory": "credit",
+      "country": "香港",
+      "bank": " HSBC（香港） ",
+      "alias": "旅行主卡",
+      "cardNumber": "4111 1111 1111 1111",
+      "level": "白金",
+      "type": "HKD",
+      "limit": 12000,
+      "equity": "机场贵宾室",
+      "remark": "返现优惠",
+      "cvv": "739",
+      "lastModifyTime": 1789600000000
+    },
+    "query": "返现",
+    "expected": true
+  },
+  {
+    "name": "权益",
+    "card": {
+      "id": "a",
+      "cardCategory": "credit",
+      "country": "香港",
+      "bank": " HSBC（香港） ",
+      "alias": "旅行主卡",
+      "cardNumber": "4111 1111 1111 1111",
+      "level": "白金",
+      "type": "HKD",
+      "limit": 12000,
+      "equity": "机场贵宾室",
+      "remark": "返现优惠",
+      "cvv": "739",
+      "lastModifyTime": 1789600000000
+    },
+    "query": "贵宾室",
+    "expected": true
+  },
+  {
+    "name": "币种",
+    "card": {
+      "id": "a",
+      "cardCategory": "credit",
+      "country": "香港",
+      "bank": " HSBC（香港） ",
+      "alias": "旅行主卡",
+      "cardNumber": "4111 1111 1111 1111",
+      "level": "白金",
+      "type": "HKD",
+      "limit": 12000,
+      "equity": "机场贵宾室",
+      "remark": "返现优惠",
+      "cvv": "739",
+      "lastModifyTime": 1789600000000
+    },
+    "query": "hkd",
+    "expected": true
+  },
+  {
+    "name": "国家",
+    "card": {
+      "id": "a",
+      "cardCategory": "credit",
+      "country": "香港",
+      "bank": " HSBC（香港） ",
+      "alias": "旅行主卡",
+      "cardNumber": "4111 1111 1111 1111",
+      "level": "白金",
+      "type": "HKD",
+      "limit": 12000,
+      "equity": "机场贵宾室",
+      "remark": "返现优惠",
+      "cvv": "739",
+      "lastModifyTime": 1789600000000
+    },
+    "query": "香港",
+    "expected": true
+  },
+  {
+    "name": "额度",
+    "card": {
+      "id": "a",
+      "cardCategory": "credit",
+      "country": "香港",
+      "bank": " HSBC（香港） ",
+      "alias": "旅行主卡",
+      "cardNumber": "4111 1111 1111 1111",
+      "level": "白金",
+      "type": "HKD",
+      "limit": 12000,
+      "equity": "机场贵宾室",
+      "remark": "返现优惠",
+      "cvv": "739",
+      "lastModifyTime": 1789600000000
+    },
+    "query": "12000",
+    "expected": true
+  },
+  {
+    "name": "等级",
+    "card": {
+      "id": "a",
+      "cardCategory": "credit",
+      "country": "香港",
+      "bank": " HSBC（香港） ",
+      "alias": "旅行主卡",
+      "cardNumber": "4111 1111 1111 1111",
+      "level": "白金",
+      "type": "HKD",
+      "limit": 12000,
+      "equity": "机场贵宾室",
+      "remark": "返现优惠",
+      "cvv": "739",
+      "lastModifyTime": 1789600000000
+    },
+    "query": "白金",
+    "expected": true
+  },
+  {
+    "name": "类别",
+    "card": {
+      "id": "a",
+      "cardCategory": "credit",
+      "country": "香港",
+      "bank": " HSBC（香港） ",
+      "alias": "旅行主卡",
+      "cardNumber": "4111 1111 1111 1111",
+      "level": "白金",
+      "type": "HKD",
+      "limit": 12000,
+      "equity": "机场贵宾室",
+      "remark": "返现优惠",
+      "cvv": "739",
+      "lastModifyTime": 1789600000000
+    },
+    "query": "CREDIT",
+    "expected": true
+  },
+  {
+    "name": "银行",
+    "card": {
+      "id": "a",
+      "cardCategory": "credit",
+      "country": "香港",
+      "bank": " HSBC（香港） ",
+      "alias": "旅行主卡",
+      "cardNumber": "4111 1111 1111 1111",
+      "level": "白金",
+      "type": "HKD",
+      "limit": 12000,
+      "equity": "机场贵宾室",
+      "remark": "返现优惠",
+      "cvv": "739",
+      "lastModifyTime": 1789600000000
+    },
+    "query": "hsbc",
+    "expected": true
+  },
+  {
+    "name": "别名",
+    "card": {
+      "id": "a",
+      "cardCategory": "credit",
+      "country": "香港",
+      "bank": " HSBC（香港） ",
+      "alias": "旅行主卡",
+      "cardNumber": "4111 1111 1111 1111",
+      "level": "白金",
+      "type": "HKD",
+      "limit": 12000,
+      "equity": "机场贵宾室",
+      "remark": "返现优惠",
+      "cvv": "739",
+      "lastModifyTime": 1789600000000
+    },
+    "query": "旅行",
+    "expected": true
+  },
+  {
+    "name": "格式卡号",
+    "card": {
+      "id": "a",
+      "cardCategory": "credit",
+      "country": "香港",
+      "bank": " HSBC（香港） ",
+      "alias": "旅行主卡",
+      "cardNumber": "4111 1111 1111 1111",
+      "level": "白金",
+      "type": "HKD",
+      "limit": 12000,
+      "equity": "机场贵宾室",
+      "remark": "返现优惠",
+      "cvv": "739",
+      "lastModifyTime": 1789600000000
+    },
+    "query": "4111-1111-1111-1111",
+    "expected": true
+  },
+  {
+    "name": "尾号",
+    "card": {
+      "id": "a",
+      "cardCategory": "credit",
+      "country": "香港",
+      "bank": " HSBC（香港） ",
+      "alias": "旅行主卡",
+      "cardNumber": "4111 1111 1111 1111",
+      "level": "白金",
+      "type": "HKD",
+      "limit": 12000,
+      "equity": "机场贵宾室",
+      "remark": "返现优惠",
+      "cvv": "739",
+      "lastModifyTime": 1789600000000
+    },
+    "query": "1111",
+    "expected": true
+  },
+  {
+    "name": "首尾空格",
+    "card": {
+      "id": "a",
+      "cardCategory": "credit",
+      "country": "香港",
+      "bank": " HSBC（香港） ",
+      "alias": "旅行主卡",
+      "cardNumber": "4111 1111 1111 1111",
+      "level": "白金",
+      "type": "HKD",
+      "limit": 12000,
+      "equity": "机场贵宾室",
+      "remark": "返现优惠",
+      "cvv": "739",
+      "lastModifyTime": 1789600000000
+    },
+    "query": " HKD ",
+    "expected": true
+  },
+  {
+    "name": "不搜索CVV",
+    "card": {
+      "id": "a",
+      "cardCategory": "credit",
+      "country": "香港",
+      "bank": " HSBC（香港） ",
+      "alias": "旅行主卡",
+      "cardNumber": "4111 1111 1111 1111",
+      "level": "白金",
+      "type": "HKD",
+      "limit": 12000,
+      "equity": "机场贵宾室",
+      "remark": "返现优惠",
+      "cvv": "739",
+      "lastModifyTime": 1789600000000
+    },
+    "query": "739",
+    "expected": false
+  },
+  {
+    "name": "分隔符",
+    "card": {
+      "id": "a",
+      "cardCategory": "credit",
+      "country": "香港",
+      "bank": " HSBC（香港） ",
+      "alias": "旅行主卡",
+      "cardNumber": "4111 1111 1111 1111",
+      "level": "白金",
+      "type": "HKD",
+      "limit": 12000,
+      "equity": "机场贵宾室",
+      "remark": "返现优惠",
+      "cvv": "739",
+      "lastModifyTime": 1789600000000
+    },
+    "query": "--",
+    "expected": false
+  },
+  {
+    "name": "不存在",
+    "card": {
+      "id": "a",
+      "cardCategory": "credit",
+      "country": "香港",
+      "bank": " HSBC（香港） ",
+      "alias": "旅行主卡",
+      "cardNumber": "4111 1111 1111 1111",
+      "level": "白金",
+      "type": "HKD",
+      "limit": 12000,
+      "equity": "机场贵宾室",
+      "remark": "返现优惠",
+      "cvv": "739",
+      "lastModifyTime": 1789600000000
+    },
+    "query": "酒店",
+    "expected": false
+  },
+  {
+    "name": "空查询",
+    "card": {
+      "id": "a",
+      "cardCategory": "credit",
+      "country": "香港",
+      "bank": " HSBC（香港） ",
+      "alias": "旅行主卡",
+      "cardNumber": "4111 1111 1111 1111",
+      "level": "白金",
+      "type": "HKD",
+      "limit": 12000,
+      "equity": "机场贵宾室",
+      "remark": "返现优惠",
+      "cvv": "739",
+      "lastModifyTime": 1789600000000
+    },
+    "query": "  ",
+    "expected": true
+  },
+  {
+    "name": "储蓄卡繁体",
+    "card": {
+      "id": "a",
+      "cardCategory": "debit",
+      "country": "香港",
+      "bank": " HSBC（香港） ",
+      "alias": "旅行主卡",
+      "cardNumber": "4111 1111 1111 1111",
+      "level": "白金",
+      "type": "HKD",
+      "limit": 12000,
+      "equity": "机场贵宾室",
+      "remark": "返现优惠",
+      "cvv": "739",
+      "lastModifyTime": 1789600000000
+    },
+    "query": "儲蓄卡",
+    "expected": true
+  }
+]

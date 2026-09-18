@@ -14,7 +14,7 @@ import java.util.UUID
 import kotlin.math.max
 
 object CardImageCodec {
-    private const val MAX_EDGE = 1600
+    private const val MAX_EDGE = CardAttachmentPolicy.MAX_EDGE
     private const val JPEG_QUALITY = 84
     private const val DATA_URL_PREFIX = "data:image/jpeg;base64,"
 
@@ -39,23 +39,53 @@ object CardImageCodec {
         }
     }
 
-    fun fromUri(context: Context, uri: Uri, source: String = "gallery"): CardImageAsset? {
-        return try {
-            context.contentResolver.openInputStream(uri)?.use { input ->
-                val bitmap = BitmapFactory.decodeStream(input) ?: return null
-                fromBitmap(bitmap, source, uri.lastPathSegment ?: "")
+    fun fromUri(context: Context, uri: Uri, source: String = "gallery"): CardImageAsset? = try {
+        context.contentResolver.openInputStream(uri)?.use { input ->
+            val output = ByteArrayOutputStream()
+            val buffer = ByteArray(8192)
+            while (true) {
+                val read = input.read(buffer)
+                if (read < 0) break
+                if (output.size() + read > CardAttachmentPolicy.MAX_SOURCE_BYTES) return null
+                output.write(buffer, 0, read)
             }
-        } catch (e: Exception) {
-            null
+            fromBytes(output.toByteArray(), source, uri.lastPathSegment.orEmpty())
         }
-    }
+    } catch (_: Exception) { null }
 
-    fun fromFile(file: File, source: String = "camera_scan"): CardImageAsset? {
+    fun fromFile(file: File, source: String = "camera_scan"): CardImageAsset? = try {
+        if (file.length() > CardAttachmentPolicy.MAX_SOURCE_BYTES) null
+        else fromBytes(file.readBytes(), source, file.name)
+    } catch (_: Exception) { null }
+
+    private fun fromBytes(bytes: ByteArray, source: String, name: String): CardImageAsset? {
+        if (bytes.size > CardAttachmentPolicy.MAX_SOURCE_BYTES) return null
+        val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
+        if (options.outWidth <= 0 || options.outHeight <= 0) return null
+        options.inJustDecodeBounds = false
+        options.inSampleSize = 1
+        while (max(options.outWidth, options.outHeight) / options.inSampleSize > MAX_EDGE * 2) options.inSampleSize *= 2
+        val bitmap = BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options) ?: return null
+        val orientation = runCatching { bytes.inputStream().use { ExifInterface(it).getAttributeInt(ExifInterface.TAG_ORIENTATION, ExifInterface.ORIENTATION_NORMAL) } }.getOrDefault(ExifInterface.ORIENTATION_NORMAL)
+        val matrix = Matrix().apply {
+            when (orientation) {
+                ExifInterface.ORIENTATION_FLIP_HORIZONTAL -> setScale(-1f, 1f)
+                ExifInterface.ORIENTATION_ROTATE_180 -> setRotate(180f)
+                ExifInterface.ORIENTATION_FLIP_VERTICAL -> setScale(1f, -1f)
+                ExifInterface.ORIENTATION_TRANSPOSE -> { setRotate(90f); postScale(-1f, 1f) }
+                ExifInterface.ORIENTATION_ROTATE_90 -> setRotate(90f)
+                ExifInterface.ORIENTATION_TRANSVERSE -> { setRotate(-90f); postScale(-1f, 1f) }
+                ExifInterface.ORIENTATION_ROTATE_270 -> setRotate(-90f)
+            }
+        }
+        var oriented = bitmap
         return try {
-            val bitmap = BitmapFactory.decodeFile(file.absolutePath) ?: return null
-            fromBitmap(rotateFileBitmapIfNeeded(file, bitmap), source, file.name)
-        } catch (e: Exception) {
-            null
+            if (!matrix.isIdentity) oriented = Bitmap.createBitmap(bitmap, 0, 0, bitmap.width, bitmap.height, matrix, true)
+            fromBitmap(oriented, source, name)
+        } finally {
+            if (oriented !== bitmap) oriented.recycle()
+            bitmap.recycle()
         }
     }
 
@@ -63,7 +93,12 @@ object CardImageCodec {
         return try {
             val base64 = asset.data.substringAfter("base64,", asset.data)
             val bytes = Base64.decode(base64, Base64.DEFAULT)
-            BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+            val options = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+            BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
+            options.inJustDecodeBounds = false
+        options.inSampleSize = 1
+            while (max(options.outWidth, options.outHeight) / options.inSampleSize > MAX_EDGE * 2) options.inSampleSize *= 2
+            BitmapFactory.decodeByteArray(bytes, 0, bytes.size, options)
         } catch (e: Exception) {
             null
         }

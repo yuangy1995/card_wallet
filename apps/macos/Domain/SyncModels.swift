@@ -183,6 +183,22 @@ public struct SyncEncryptedEnvelope: Codable, Hashable {
 }
 
 public enum CardSyncMergeEngine {
+    /// New local edits must follow every observed event, even with a stalled/backward wall clock.
+    public static func localEvents(_ events: [CardSyncRecord], after records: [CardSyncRecord]) -> [CardSyncRecord] {
+        var observed = Dictionary(merge([records]).map { ($0.cardId, $0) }, uniquingKeysWith: { a, _ in a })
+        return events.map { event in
+            var next = event
+            if let previous = observed[event.cardId] {
+                let before = SyncTimestamp.milliseconds(from: previous.changedAt)
+                let requested = SyncTimestamp.milliseconds(from: event.changedAt)
+                next.changedAt = SyncTimestamp.string(from: max(requested, before + 1))
+                next.card?.lastModifyTime = SyncTimestamp.milliseconds(from: next.changedAt)
+            }
+            observed[event.cardId] = next
+            return next
+        }
+    }
+
     public static func merge(_ recordSets: [[CardSyncRecord]]) -> [CardSyncRecord] {
         var winningRecords: [String: CardSyncRecord] = [:]
         for record in recordSets.flatMap({ $0 }) {

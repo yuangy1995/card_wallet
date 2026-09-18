@@ -1,0 +1,166 @@
+[
+  {
+    "name": "newer-wins",
+    "records": [
+      {
+        "cardId": "a",
+        "mutationId": "z",
+        "changedAt": "2026-09-18T00:00:00.000Z",
+        "state": "active",
+        "card": {
+          "id": "a",
+          "country": "US",
+          "bank": "Test Bank",
+          "type": "USD",
+          "limit": 100,
+          "cardNumber": "4111111111111111",
+          "lastModifyTime": 1700000000000
+        }
+      },
+      {
+        "cardId": "a",
+        "mutationId": "a",
+        "changedAt": "2026-09-18T00:00:00.001Z",
+        "state": "active",
+        "card": {
+          "id": "a",
+          "country": "US",
+          "bank": "Test Bank",
+          "type": "USD",
+          "limit": 100,
+          "cardNumber": "4111111111111111",
+          "lastModifyTime": 1700000000000
+        }
+      }
+    ],
+    "expected": [
+      {
+        "cardId": "a",
+        "mutationId": "a",
+        "state": "active"
+      }
+    ]
+  },
+  {
+    "name": "deletion-wins-tie",
+    "records": [
+      {
+        "cardId": "a",
+        "mutationId": "z",
+        "changedAt": "2026-09-18T00:00:00.000Z",
+        "state": "active",
+        "card": {
+          "id": "a",
+          "country": "US",
+          "bank": "Test Bank",
+          "type": "USD",
+          "limit": 100,
+          "cardNumber": "4111111111111111",
+          "lastModifyTime": 1700000000000
+        }
+      },
+      {
+        "cardId": "a",
+        "mutationId": "a",
+        "changedAt": "2026-09-18T00:00:00.000Z",
+        "state": "deleted"
+      }
+    ],
+    "expected": [
+      {
+        "cardId": "a",
+        "mutationId": "a",
+        "state": "deleted"
+      }
+    ]
+  },
+  {
+    "name": "time-zone-equivalence",
+    "records": [
+      {
+        "cardId": "a",
+        "mutationId": "a",
+        "changedAt": "2026-09-18T00:00:00.000Z",
+        "state": "active",
+        "card": {
+          "id": "a",
+          "country": "US",
+          "bank": "Test Bank",
+          "type": "USD",
+          "limit": 100,
+          "cardNumber": "4111111111111111",
+          "lastModifyTime": 1700000000000
+        }
+      },
+      {
+        "cardId": "a",
+        "mutationId": "z",
+        "changedAt": "2026-09-18T08:00:00.000+08:00",
+        "state": "active",
+        "card": {
+          "id": "a",
+          "country": "US",
+          "bank": "Test Bank",
+          "type": "USD",
+          "limit": 100,
+          "cardNumber": "4111111111111111",
+          "lastModifyTime": 1700000000000
+        }
+      }
+    ],
+    "expected": [
+      {
+        "cardId": "a",
+        "mutationId": "z",
+        "state": "active"
+      }
+    ]
+  },
+  {
+    "name": "distinct-identities-not-merged",
+    "records": [
+      {
+        "cardId": "a",
+        "mutationId": "a",
+        "changedAt": "2026-09-18T00:00:00.000Z",
+        "state": "active",
+        "card": {
+          "id": "a",
+          "country": "US",
+          "bank": "Test Bank",
+          "type": "USD",
+          "limit": 100,
+          "cardNumber": "4111111111111111",
+          "lastModifyTime": 1700000000000
+        }
+      },
+      {
+        "cardId": "b",
+        "mutationId": "b",
+        "changedAt": "2026-09-18T00:00:00.000Z",
+        "state": "active",
+        "card": {
+          "id": "b",
+          "country": "US",
+          "bank": "Test Bank",
+          "type": "USD",
+          "limit": 100,
+          "cardNumber": "4111111111111111",
+          "lastModifyTime": 1700000000000
+        }
+      }
+    ],
+    "expected": [
+      {
+        "cardId": "a",
+        "mutationId": "a",
+        "state": "active"
+      },
+      {
+        "cardId": "b",
+        "mutationId": "b",
+        "state": "active"
+      }
+    ]
+  }
+]

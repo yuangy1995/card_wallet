@@ -93,6 +93,10 @@ import com.example.creditcard.utils.BiometricAuthHelper
 import com.example.creditcard.utils.AnnualFeeDetectionKind
 import com.example.creditcard.utils.BillingCycleReminderKind
 import com.example.creditcard.utils.CardExpiryStatus
+import com.example.creditcard.utils.CardOperations
+import com.example.creditcard.utils.CardBatchUpdate
+import com.example.creditcard.utils.CardSearch
+import com.example.creditcard.utils.CardMetrics
 import com.example.creditcard.utils.CardReminderRules
 import com.example.creditcard.utils.CardSystemNotifier
 import com.example.creditcard.utils.SecurityLockManager
@@ -142,6 +146,7 @@ private enum class CardListSortOption(val storedValue: String, val label: String
     LIMIT_DESC("limit_desc", "额度从高到低"),
     LIMIT_ASC("limit_asc", "额度从低到高"),
     INTEREST_DESC("interest_desc", "当前免息期从长到短"),
+    INTEREST_ASC("interest_asc", "当前免息期从短到长"),
     MODIFIED_DESC("modified_desc", "最近修改"),
     BANK_ASC("bank_asc", "银行名称");
 
@@ -235,6 +240,7 @@ fun MainScreen(
     var sortOption by remember {
         mutableStateOf(CardListSortOption.from(cardListPrefs.getString(CARD_LIST_SORT_KEY, null)))
     }
+    val calendarDay = rememberCalendarDay()
     val walletPreferences = rememberWalletPreferences()
     val isCompactView = walletPreferences.state.isList
     val favoriteCardIDs = walletPreferences.state.favorites
@@ -256,27 +262,16 @@ fun MainScreen(
         selectedCardIDs = selectedCardIDs.intersect(cards.map { it.id }.toSet())
     }
 
-    val searchFilteredCards = remember(cards, searchQuery) {
-        if (searchQuery.isBlank()) {
-            cards
-        } else {
-            cards.filter { card ->
-                val categoryText = if (card.cardCategory == "debit") "储蓄卡 debit" else "信用卡 credit"
-                card.bank.contains(searchQuery, ignoreCase = true) ||
-                card.alias.contains(searchQuery, ignoreCase = true) ||
-                card.cardNumber.replace(" ", "").contains(searchQuery.replace(" ", "")) ||
-                card.remark.contains(searchQuery, ignoreCase = true) ||
-                getCardBrand(card.cardNumber).contains(searchQuery, ignoreCase = true) ||
-                categoryText.contains(searchQuery, ignoreCase = true)
-            }
-        }
+    val searchIndex = remember(cards) { cards.associate { it.id to CardSearch.index(it) } }
+    val searchFilteredCards = remember(cards, searchQuery, searchIndex) {
+        cards.filter { CardSearch.matches(searchIndex[it.id].orEmpty(), searchQuery) }
     }
 
     val creditCardCount = remember(searchFilteredCards) { searchFilteredCards.count { it.cardCategory != "debit" } }
     val debitCardCount = remember(searchFilteredCards) { searchFilteredCards.count { it.cardCategory == "debit" } }
-    val annualReminderCount = remember(cards) { cards.count { CardReminderRules.annualFeeDetection(it) != null } }
-    val billingReminderCount = remember(cards) { CardReminderRules.billingCycleAlerts(cards).size }
-    val expiryReminderCount = remember(cards) {
+    val annualReminderCount = remember(cards, calendarDay) { cards.count { CardReminderRules.annualFeeDetection(it) != null } }
+    val billingReminderCount = remember(cards, calendarDay) { CardReminderRules.billingCycleAlerts(cards).size }
+    val expiryReminderCount = remember(cards, calendarDay) {
         cards.count { card ->
             when (CardReminderRules.cardExpiryStatus(card.valid)) {
                 CardExpiryStatus.EXPIRED, CardExpiryStatus.SOON_EXPIRING -> true
@@ -285,7 +280,7 @@ fun MainScreen(
         }
     }
 
-    LaunchedEffect(cards, securityState.locked) {
+    LaunchedEffect(cards, securityState.locked, calendarDay) {
         if (!securityState.locked) {
             CardSystemNotifier.notifyDailySummary(context, cards)
         }
@@ -305,20 +300,14 @@ fun MainScreen(
     }
     val allVisibleCardsSelected = filteredCards.isNotEmpty() && filteredCards.all { it.id in selectedCardIDs }
 
-    val groupedCards = remember(filteredCards, groupOption, sortOption) {
-        val sortedCards = when (sortOption) {
-            CardListSortOption.LIMIT_DESC -> filteredCards.sortedByDescending { if (it.cardCategory == "debit") 0.0 else it.limit }
-            CardListSortOption.LIMIT_ASC -> filteredCards.sortedBy { if (it.cardCategory == "debit") 0.0 else it.limit }
-            CardListSortOption.INTEREST_DESC -> filteredCards.sortedByDescending { calculateInterestFreeDays(it) }
-            CardListSortOption.MODIFIED_DESC -> filteredCards.sortedByDescending { it.lastModifyTime }
-            CardListSortOption.BANK_ASC -> filteredCards.sortedWith(compareBy({ it.bank }, { it.alias }))
-        }
+    val groupedCards = remember(filteredCards, groupOption, sortOption, calendarDay) {
+        val sortedCards = CardSearch.sorted(filteredCards, sortOption.storedValue.replace('_', '-'), calendarDay)
         if (groupOption == CardListGroupOption.NONE) {
             listOf("" to sortedCards)
         } else {
             val grouped = sortedCards.groupBy { card ->
                 when (groupOption) {
-                    CardListGroupOption.BANK -> card.bank.ifBlank { "未设置银行" }
+                    CardListGroupOption.BANK -> CardMetrics.bankKey(card.bank)
                     CardListGroupOption.BRAND -> getCardBrand(card.cardNumber)
                     CardListGroupOption.LEVEL -> card.level.ifBlank { "未设置级别" }
                     CardListGroupOption.COUNTRY -> card.country.ifBlank { "未设置国家/地区" }
@@ -327,7 +316,7 @@ fun MainScreen(
             }
             grouped.entries
                 .sortedWith(compareByDescending<Map.Entry<String, List<SharedCard>>> { it.value.size }.thenBy { it.key })
-                .map { it.key to it.value }
+                .map { (key, value) -> (if (groupOption == CardListGroupOption.BANK) value.map { it.bank.trim() }.sorted().firstOrNull().orEmpty() else key) to value }
         }
     }
 
@@ -360,23 +349,9 @@ fun MainScreen(
             selectedCount = selectedCardIDs.size,
             onDismiss = { showBatchEditor = false },
             onApply = { update ->
-                val changedCards = cards.filter { it.id in selectedCardIDs }.map { card ->
-                    val nextCategory = update.category ?: card.cardCategory
-                    card.copy(
-                        cardCategory = nextCategory,
-                        isQualified = if (nextCategory != "debit") update.status ?: card.isQualified else card.isQualified,
-                        annualFee = if (nextCategory != "debit") update.annualFee ?: card.annualFee else card.annualFee,
-                        nextAnnualFeeCollectionTime = if (nextCategory != "debit") {
-                            when {
-                                update.status == "3" -> null
-                                update.nextAnnualFeeTime != null -> update.nextAnnualFeeTime
-                                else -> card.nextAnnualFeeCollectionTime
-                            }
-                        } else card.nextAnnualFeeCollectionTime,
-                        valid = update.valid ?: card.valid,
-                        lastModifyTime = System.currentTimeMillis()
-                    )
-                }
+                val changedCards = CardOperations.batch(cards.filter { it.id in selectedCardIDs }, selectedCardIDs,
+                    CardBatchUpdate(status=update.status, annualFee=update.annualFee, nextAnnualFeeDate=update.nextAnnualFeeTime,
+                        valid=update.valid, cardCategory=update.category))
                 SyncCoordinator.commitCardChanges(context, changedCards)
                 selectedCardIDs = emptySet()
                 selectionMode = false
@@ -1013,9 +988,10 @@ fun ReminderDetailsPanel(
     onCardClick: (String) -> Unit,
     onConfirmAnnualFeeQualified: (SharedCard) -> Unit
 ) {
-    val billingItems = remember(cards) { CardReminderRules.billingCycleAlerts(cards) }
-    val annualItems = remember(cards) { CardReminderRules.annualFeeAlerts(cards) }
-    val expiryItems = remember(cards) { CardReminderRules.cardExpiryAlerts(cards) }
+    val calendarDay = rememberCalendarDay()
+    val billingItems = remember(cards, calendarDay) { CardReminderRules.billingCycleAlerts(cards) }
+    val annualItems = remember(cards, calendarDay) { CardReminderRules.annualFeeAlerts(cards) }
+    val expiryItems = remember(cards, calendarDay) { CardReminderRules.cardExpiryAlerts(cards) }
     val accent = if (isDark) NeonCyan else GoldPrimary
 
     Column(
@@ -3016,6 +2992,7 @@ fun AnalyticsPanel(cards: List<SharedCard>, isDark: Boolean) {
         return
     }
 
+    val calendarDay = rememberCalendarDay()
     val creditCards = remember(cards) { cards.filter { it.cardCategory != "debit" } }
     val debitCards = remember(cards) { cards.filter { it.cardCategory == "debit" } }
     val debitCountryCount = remember(debitCards) { debitCards.map { it.country }.filter { it.isNotBlank() }.distinct().size }
@@ -3024,22 +3001,9 @@ fun AnalyticsPanel(cards: List<SharedCard>, isDark: Boolean) {
 
     // A. 重构多币种总资产额度算法 - 完美实现共享限额去重 (第 5 点)
     val currencySummary = remember(creditCards) {
-        creditCards.groupBy { it.type }.mapValues { entry ->
-            val cardList = entry.value
-            
-            // 1. 过滤出非共享额度的卡片，无条件直接求和
-            val nonSharedSum = cardList.filter { !it.isSharedLimit }.sumOf { it.limit }
-            
-            // 2. 过滤出共享额度的卡片，按 bank 银行分组，每个银行共享组只取额度最大值
-            val sharedSum = cardList.filter { it.isSharedLimit && it.bank.isNotEmpty() }
-                .groupBy { it.bank }
-                .map { bankGroup -> bankGroup.value.maxOfOrNull { it.limit } ?: 0.0 }
-                .sum()
-                
-            val totalLimit = nonSharedSum + sharedSum
-            val annualFeeSum = cardList.sumOf { it.annualFee }
-            val cardCount = cardList.size
-            Triple(totalLimit, annualFeeSum, cardCount)
+        val limits = CardMetrics.creditLimits(creditCards)
+        creditCards.groupBy(CardMetrics::currency).mapValues { (currency, cardList) ->
+            Triple(limits[currency] ?: 0.0, cardList.sumOf { if (it.isQualified == "2") it.annualFee else 0.0 }, cardList.size)
         }
     }
 
@@ -3050,22 +3014,22 @@ fun AnalyticsPanel(cards: List<SharedCard>, isDark: Boolean) {
     val feeAlerts = remember(creditCards) {
         CardReminderRules.annualFeeAlerts(creditCards)
     }
-    val expiryAlerts = remember(cards) {
+    val expiryAlerts = remember(cards, calendarDay) {
         CardReminderRules.cardExpiryAlerts(cards)
     }
-    val expiryStats = remember(cards) {
+    val expiryStats = remember(cards, calendarDay) {
         CardReminderRules.cardExpiryStats(cards)
     }
 
     // C. 共享额度组看板数据
     val sharedLimitGroups = remember(creditCards) {
-        creditCards.filter { it.isSharedLimit && it.bank.isNotEmpty() }
-            .groupBy { it.bank }
+        creditCards.filter { it.isSharedLimit }
+            .groupBy(CardMetrics::poolKey)
             .filter { it.value.size > 1 }
     }
 
     // D. 共享额度组折叠状态控制 (第 6 点)
-    var expandedGroups by remember { mutableStateOf(setOf<String>()) }
+    var expandedGroups by remember { mutableStateOf(setOf<CardMetrics.PoolKey>()) }
 
     Column(
         modifier = Modifier
@@ -3132,7 +3096,7 @@ fun AnalyticsPanel(cards: List<SharedCard>, isDark: Boolean) {
                         var startAngle = -90f
                         
                         // 使用去重共享后的总信用额度比例
-                        val totalLimit = currencySummary.values.sumOf { it.first }
+                        val totalLimit = currencySummary.values.sumOf { it.third }.toDouble()
 
                         if (totalLimit <= 0) {
                             drawArc(
@@ -3147,7 +3111,7 @@ fun AnalyticsPanel(cards: List<SharedCard>, isDark: Boolean) {
                             var colorIndex = 0
                             currencySummary.forEach { (currency, triple) ->
                                 val limit = triple.first
-                                val sweepAngle = ((limit / totalLimit) * 360f).toFloat()
+                                val sweepAngle = ((triple.third / totalLimit) * 360f).toFloat()
                                 drawArc(
                                     color = colors[colorIndex % colors.size],
                                     startAngle = startAngle,
@@ -3396,7 +3360,7 @@ fun AnalyticsPanel(cards: List<SharedCard>, isDark: Boolean) {
                                     modifier = Modifier.weight(1f)
                                 ) {
                                     Text(
-                                        text = bank,
+                                        text = "${representative.bank} · ${bank.country} · ${bank.currency.ifBlank { "未设置币种" }}",
                                         fontWeight = FontWeight.Bold,
                                         fontSize = 13.sp,
                                         maxLines = 2,
@@ -5139,45 +5103,7 @@ fun UnknownLogo(modifier: Modifier = Modifier) {
  * @return 免息天数；如果卡片账单日或还款日未设置/非法，则返回 -1
  */
 fun calculateInterestFreeDays(card: SharedCard, today: LocalDate = LocalDate.now()): Int {
-    val billDay = card.accountBillDate.toIntOrNull() ?: return -1
-    val dueDay = card.dueDate.toIntOrNull() ?: return -1
-
-    if (billDay !in 1..31 || dueDay !in 1..31) return -1
-
-    val spendDay = today.dayOfMonth
-
-    // 1. 确定消费会计入哪个月的账单日
-    val isNextBill = if (card.billingDaySpendingToNextBill) {
-        spendDay >= billDay
-    } else {
-        spendDay > billDay
-    }
-
-    val targetBillMonth = if (isNextBill) today.plusMonths(1) else today
-    val lengthOfBillMonth = targetBillMonth.lengthOfMonth()
-    
-    // 目标账单日对齐该月最大天数
-    val targetBillDate = LocalDate.of(
-        targetBillMonth.year,
-        targetBillMonth.month,
-        min(billDay, lengthOfBillMonth)
-    )
-
-    // 2. 计算对应的还款日
-    // 如果还款日天数 <= 账单日天数，说明在下个月还款
-    val isNextMonthDue = dueDay <= billDay
-    val targetDueMonth = if (isNextMonthDue) targetBillDate.plusMonths(1) else targetBillDate
-    val lengthOfDueMonth = targetDueMonth.lengthOfMonth()
-
-    val targetDueDate = LocalDate.of(
-        targetDueMonth.year,
-        targetDueMonth.month,
-        min(dueDay, lengthOfDueMonth)
-    )
-
-    // 3. 计算免息天数
-    val days = ChronoUnit.DAYS.between(today, targetDueDate).toInt()
-    return if (days >= 0) days else 0
+    return CardReminderRules.currentInterestFreeDays(card, today)
 }
 
 @Composable
@@ -5187,7 +5113,7 @@ fun BestUsagePanel(
     onConfigureCard: (String) -> Unit,
     onBack: () -> Unit
 ) {
-    val today = LocalDate.now()
+    val today = rememberCalendarDay()
     val creditCards = remember(cards) { cards.filter { it.cardCategory != "debit" } }
     
     // 过滤出能够计算免息期的信用卡并按天数降序排序
