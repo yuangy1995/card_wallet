@@ -25,6 +25,8 @@ concurrency:
 
 jobs:
   release:
+    permissions:
+      contents: write
     if: github.repository == 'yuangy1995/card_wallet' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     timeout-minutes: 45
@@ -33,7 +35,7 @@ jobs:
         shell: bash
         working-directory: apps/android
     env:
-      RELEASE_REPOSITORY: yuangy1995/card-wallet-releases
+      RELEASE_REPOSITORY: yuangy1995/card_wallet
     steps:
       - uses: actions/checkout@v4
         with:
@@ -44,12 +46,14 @@ jobs:
         env:
           RELEASE_VERSION: ${{ inputs.version }}
           RELEASE_BUILD: ${{ inputs.version_code }}
+          SIGNING_CONFIGURED: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' && secrets.ANDROID_KEYSTORE_PASSWORD != '' && secrets.ANDROID_KEY_ALIAS != '' && secrets.ANDROID_KEY_PASSWORD != '' && secrets.ANDROID_SIGNING_CERT_SHA256 != '' }}
           PUBLISH_RELEASE: ${{ inputs.publish }}
-          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
+          test "$SIGNING_CONFIGURED" = true || { echo '::error::请先配置新的 Android 签名 Secrets'; exit 1; }
           if [ "$PUBLISH_RELEASE" = true ]; then
-            test -n "$GH_TOKEN" || { echo '::error::自动发布需要配置 RELEASES_TOKEN'; exit 1; }
+            test -n "$GH_TOKEN" || { echo '::error::当前仓库发布需要 GITHUB_TOKEN 的 contents: write 权限'; exit 1; }
             test "$(gh api "repos/$RELEASE_REPOSITORY" --jq .full_name)" = "$RELEASE_REPOSITORY"
           fi
           python3 - <<'PY'
@@ -70,7 +74,7 @@ jobs:
       - name: Reject existing releases and older builds
         if: ${{ inputs.publish }}
         env:
-          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
           RELEASE_TAG: ${{ steps.metadata.outputs.tag }}
           RELEASE_BUILD: ${{ steps.metadata.outputs.build }}
         run: |
@@ -89,11 +93,6 @@ jobs:
         with:
           distribution: temurin
           java-version: '17'
-          cache: gradle
-          cache-dependency-path: |
-            apps/android/**/*.gradle.kts
-            apps/android/gradle/libs.versions.toml
-            apps/android/gradle/wrapper/gradle-wrapper.properties
 
       - uses: android-actions/setup-android@v3
 
@@ -104,19 +103,59 @@ jobs:
         run: |
           set -euo pipefail
           python3 -m unittest discover -s scripts -p 'test_*.py'
-          bash gradlew :app:testDebugUnitTest --max-workers=2
+          bash gradlew :app:testDebugUnitTest --max-workers=2 --no-daemon --no-configuration-cache
+
+      - name: Restore new signing key outside the checkout
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_SIGNING_CERT_SHA256: ${{ secrets.ANDROID_SIGNING_CERT_SHA256 }}
+        run: |
+          python3 - <<'PY'
+          import base64, importlib.util, os
+          from pathlib import Path
+          required = ("ANDROID_KEYSTORE_BASE64", "ANDROID_KEYSTORE_PASSWORD", "ANDROID_KEY_ALIAS", "ANDROID_KEY_PASSWORD", "ANDROID_SIGNING_CERT_SHA256")
+          missing = [name for name in required if not os.environ.get(name, "").strip()]
+          if missing:
+              raise SystemExit("Missing GitHub Secrets: " + ", ".join(missing))
+          spec = importlib.util.spec_from_file_location("verify_release", "scripts/verify-release.py")
+          verifier = importlib.util.module_from_spec(spec)
+          spec.loader.exec_module(verifier)
+          verifier.expected_certificate()
+          try:
+              key = base64.b64decode(os.environ["ANDROID_KEYSTORE_BASE64"], validate=True)
+          except ValueError:
+              raise SystemExit("ANDROID_KEYSTORE_BASE64 is invalid; no key material was printed")
+          if not key:
+              raise SystemExit("Empty Android signing key")
+          target = Path(os.environ["RUNNER_TEMP"]) / "card-wallet-release.p12"
+          fd = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+          with os.fdopen(fd, "wb") as output:
+              output.write(key)
+          PY
 
       - name: Build signed release APK
         env:
           RELEASE_VERSION: ${{ steps.metadata.outputs.version }}
           RELEASE_BUILD: ${{ steps.metadata.outputs.build }}
+          ANDROID_KEYSTORE_PATH: ${{ runner.temp }}/card-wallet-release.p12
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
         run: bash prepare-update.sh "$RELEASE_VERSION" "$RELEASE_BUILD"
+
+      - name: Delete temporary signing key
+        if: ${{ always() }}
+        run: rm -f -- "$RUNNER_TEMP/card-wallet-release.p12"
 
       - name: Verify APK identity, version and signing certificate
         env:
           RELEASE_VERSION: ${{ steps.metadata.outputs.version }}
           RELEASE_BUILD: ${{ steps.metadata.outputs.build }}
           RELEASE_TAG: ${{ steps.metadata.outputs.tag }}
+          ANDROID_SIGNING_CERT_SHA256: ${{ secrets.ANDROID_SIGNING_CERT_SHA256 }}
         run: |
           python3 scripts/verify-release.py \
             "dist/updates/$RELEASE_TAG/CardWallet-Android-$RELEASE_BUILD.apk" \
@@ -134,13 +173,13 @@ jobs:
       - name: Upload release draft and verify remote asset
         if: ${{ inputs.publish }}
         env:
-          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
           RELEASE_VERSION: ${{ steps.metadata.outputs.version }}
           RELEASE_BUILD: ${{ steps.metadata.outputs.build }}
           RELEASE_TAG: ${{ steps.metadata.outputs.tag }}
         run: |
           set -euo pipefail
-          gh release create "$RELEASE_TAG" --repo "$RELEASE_REPOSITORY" --draft --latest=false \
+          gh release create "$RELEASE_TAG" --repo "$RELEASE_REPOSITORY" --target "$GITHUB_SHA" --draft --latest=false \
             --title "卡包 ${RELEASE_VERSION}（Android）" --notes-file "release-notes/$RELEASE_VERSION.md" \
             "dist/updates/$RELEASE_TAG/CardWallet-Android-$RELEASE_BUILD.apk"
           gh release view "$RELEASE_TAG" --repo "$RELEASE_REPOSITORY" \
@@ -163,13 +202,13 @@ jobs:
       - name: Publish and verify public download
         if: ${{ inputs.publish }}
         env:
-          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
           RELEASE_BUILD: ${{ steps.metadata.outputs.build }}
           RELEASE_TAG: ${{ steps.metadata.outputs.tag }}
         run: |
           set -euo pipefail
           # Mac 的更新地址依赖 Latest，Android 不得抢占它。
-          gh release edit "$RELEASE_TAG" --repo "$RELEASE_REPOSITORY" --draft=false --latest=false
+          gh release edit "$RELEASE_TAG" --repo "$RELEASE_REPOSITORY" --target "$GITHUB_SHA" --draft=false --latest=false
           gh release view "$RELEASE_TAG" --repo "$RELEASE_REPOSITORY" --json isDraft,isPrerelease \
             --jq '.isDraft == false and .isPrerelease == false' | grep -qx true
           curl --fail --silent --show-error --location --retry 3 \
