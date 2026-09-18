@@ -94,3 +94,14 @@ a,
     }
   }
 }
+
+.wallet-table-sort {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin: 10px 0;
+  color: var(--el-text-color-secondary);
+  font-size: 13px;
+}

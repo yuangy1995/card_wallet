@@ -39,4 +39,22 @@ final class PlatformContractTests: XCTestCase {
             XCTAssertEqual(outcomes(CardSyncMergeEngine.merge([decoded])), item.expected, item.name)
         }
     }
+    private struct SearchCase: Decodable { let name: String; let query: String; let cards: [SharedCard]; let expected: [String] }
+    private struct SortCase: Decodable { let name: String; let key: String; let today: String; let cards: [SharedCard]; let expected: [String] }
+    func testUnifiedSearchFieldsAndSeparators() throws {
+        let cases: [SearchCase] = try fixtures("search")
+        for item in cases {
+            XCTAssertEqual(item.cards.filter { WalletCardRules.matches($0, query: item.query) }.map(\.id).sorted(), item.expected, item.name)
+        }
+    }
+    func testStableSortingAndInvalidDatesLast() throws {
+        let cases: [SortCase] = try fixtures("sorting")
+        let formatter = ISO8601DateFormatter()
+        for item in cases {
+            let today = try XCTUnwrap(formatter.date(from: item.today + "T12:00:00Z"))
+            for cards in [item.cards, Array(item.cards.reversed())] {
+                XCTAssertEqual(WalletCardRules.sorted(cards, key: item.key, today: today, timeZone: TimeZone(secondsFromGMT: 0)!).map(\.id), item.expected, item.name)
+            }
+        }
+    }
 }

@@ -24,8 +24,7 @@ struct CardCatalogItem: Identifiable, Sendable {
             interestFreeDays = nil
         }
         needsAnnualReview = DateCalculator.annualFeeDetection(for: card) != nil
-        let categoryKeywords = card.cardCategory == "debit" ? "储蓄卡 儲蓄卡 debit" : "信用卡 credit"
-        searchText = "\(card.bank) \(card.alias ?? "") \(card.cardNumber) \(card.cardNumber.filter(\.isNumber)) \(categoryKeywords)".lowercased()
+        searchText = WalletCardRules.searchText(card)
     }
 }
 
@@ -50,13 +49,13 @@ enum CardCatalog {
         let filtered = items.filter { item in
             let categoryMatches = query.category == .all || (query.category == .debit) == (item.card.cardCategory == "debit")
             let bankMatches = query.bank.isEmpty || BankNameNormalizer.namesReferToSameBank(query.bank, item.card.bank)
-            return categoryMatches && bankMatches && (search.isEmpty || item.searchText.contains(search))
+            return categoryMatches && bankMatches && WalletCardRules.matches(item.card, query: search, index: item.searchText)
         }
         let sorted = filtered.sorted { a, b in
             switch query.sort {
             case .limitAsc, .limitDesc:
-                let left = a.card.cardCategory == "debit" ? 0 : (a.card.limit ?? 0)
-                let right = b.card.cardCategory == "debit" ? 0 : (b.card.limit ?? 0)
+                let left = a.card.cardCategory == "debit" ? 0 : max(0, a.card.limit ?? 0)
+                let right = b.card.cardCategory == "debit" ? 0 : max(0, b.card.limit ?? 0)
                 if left != right { return query.sort == .limitAsc ? left < right : left > right }
             case .daysAsc, .daysDesc:
                 if a.interestFreeDays == nil && b.interestFreeDays != nil { return false }

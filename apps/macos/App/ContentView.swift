@@ -34,8 +34,8 @@ struct ContentView: View {
     @State private var searchText = ""
     
     // 💡 分组和排序状态管理
-    @State private var groupBy: GroupOption = .none
-    @State private var sortBy: SortOption = .limitDesc
+    @AppStorage("wallet_card_group") private var groupBy: GroupOption = .none
+    @AppStorage("wallet_card_sort") private var sortBy: SortOption = .limitDesc
     @State private var cardCategoryFilter: CardCategoryFilter = .all
     @State private var showingFilterPopover = false
     @State private var selectedBank = ""

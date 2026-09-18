@@ -214,6 +214,12 @@
         @toggle-select-all="toggleSelectAll"
       />
 
+      <div v-if="viewMode === 'table' && tableData.length" class="wallet-table-sort">
+        <span>排序：</span>
+        <el-select v-model="cardSortMode" size="small" aria-label="卡片排序" style="width: 190px">
+          <el-option v-for="[key, label] in sortOptions" :key="key" :label="label" :value="key" />
+        </el-select>
+      </div>
       <Transition name="view-fade" mode="out-in">
         <CreditCardTable
           v-if="viewMode === 'table'"
@@ -232,6 +238,7 @@
         />
         <CreditCardCardList
           v-else
+          v-model:sort-mode="cardSortMode"
           :table-data="tableData"
           :selected-rows="selectedRows"
           @edit="editCreditCard"
@@ -448,6 +455,7 @@ import {
   Search,
   Wallet
 } from '@element-plus/icons-vue'
+import { cardSearchText, matchesCard, sortCards, sortOptions } from '@/utils/cardCatalog'
 import CreditCardTable from '@/components/table/CreditCardTable.vue'
 import BatchOperationToolbar from '@/components/toolbar/BatchOperationToolbar.vue'
 // 懒加载组件
@@ -535,6 +543,12 @@ const selectedRows = ref([])
 const creditCardTableRef = ref(null)
 const creditCardCardListRef = ref(null)
 
+const calendarDay = inject('calendarDay', ref(Date.now()))
+const savedSort = localStorage.getItem('creditCardSortMode')
+const cardSortMode = ref(sortOptions.some(([key]) => key === savedSort) ? savedSort : 'default')
+watch(cardSortMode, value => localStorage.setItem('creditCardSortMode', value))
+const searchIndex = computed(() => new Map(cardData.value.map(card => [card.id, cardSearchText(card)])))
+
 const viewMode = ref(localStorage.getItem('creditCardViewMode') || 'table')
 watch(viewMode, (newValue) => {
   localStorage.setItem('creditCardViewMode', newValue)
@@ -552,28 +566,7 @@ const searchFilteredCards = computed(() => {
   const query = debouncedQuickSearchQuery.value ? debouncedQuickSearchQuery.value.trim().toLowerCase() : ''
 
   if (query) {
-    // 存在万能检索条件时：对卡片所有相关字段执行全局模糊检索
-    return cardData.value.filter(card => {
-      const cardCategoryMatch = (normalizeCardCategory(card) === 'credit' ? '信用卡 credit' : '储蓄卡 debit').includes(query)
-      const bankMatch = card.bank && card.bank.toLowerCase().includes(query)
-      const aliasMatch = card.alias && card.alias.toLowerCase().includes(query)
-
-      // 卡号去除多余的分隔符进行容错检索
-      const cleanQuery = query.replace(/[\s-]/g, '')
-      const cleanCardNumber = card.cardNumber ? card.cardNumber.replace(/[\s-]/g, '').toLowerCase() : ''
-      const cardNumberMatch = cleanQuery.length > 0 && cleanCardNumber.includes(cleanQuery)
-
-      const levelMatch = card.level && card.level.toLowerCase().includes(query)
-      const typeMatch = card.type && card.type.toLowerCase().includes(query)
-      const countryMatch = card.country && card.country.toLowerCase().includes(query)
-      const equityMatch = card.equity && card.equity.toLowerCase().includes(query)
-      const remarkMatch = card.remark && card.remark.toLowerCase().includes(query)
-
-      // 额度检索
-      const limitMatch = card.limit && card.limit.toString().includes(query)
-
-      return cardCategoryMatch || bankMatch || aliasMatch || cardNumberMatch || levelMatch || typeMatch || countryMatch || equityMatch || remarkMatch || limitMatch
-    })
+    return cardData.value.filter(card => matchesCard(card, query, searchIndex.value.get(card.id)))
   } else {
     // 否则，使用高级搜索逻辑（排除类别筛选，以便进行独立计数统计）
     const form = debouncedSearchForm.value
@@ -610,7 +603,7 @@ const searchFilteredCards = computed(() => {
       // 卡号匹配 - 去除空格和其他格式字符进行匹配
       const matchCardNumber = !form.cardNumber ||
                              (card.cardNumber &&
-                              card.cardNumber.replace(/[\s-]/g, '').includes(form.cardNumber.replace(/[\s-]/g, '')));
+                              form.cardNumber.replace(/[\s-]/g, '').length > 0 && card.cardNumber.replace(/[\s-]/g, '').includes(form.cardNumber.replace(/[\s-]/g, '')));
 
       // 额度匹配
       const matchLimit = !form.limit ||
@@ -967,21 +960,7 @@ const tableData = computed(() => {
     return matchCategoryFilter && matchFormCategory
   })
 
-  // 默认排序：先按国家，再按银行
-  const sorted = filtered.sort((a, b) => {
-    // 首先按国家排序
-    const countryCompare = (a.country || '').localeCompare(b.country || '', 'zh-CN');
-    if (countryCompare !== 0) return countryCompare;
-
-    // 然后按银行排序
-    const bankCompare = (a.bank || '').localeCompare(b.bank || '', 'zh-CN');
-    if (bankCompare !== 0) return bankCompare;
-
-    // 最后按别名排序
-    return (a.alias || '').localeCompare(b.alias || '', 'zh-CN');
-  });
-
-  return sorted
+  return sortCards(filtered, cardSortMode.value, new Date(calendarDay.value))
 })
 
 // 显示加载状态

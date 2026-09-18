@@ -27,4 +27,8 @@ public enum BankNameNormalizer {
     }
 
 
+    public static func groupDisplayName(_ values: [String]) -> String {
+        let names = values.map { display($0) }.filter { !$0.isEmpty }.sorted()
+        return names.first(where: { $0 == normalizedKey($0) }) ?? names.first ?? String(localized: "未填写银行")
+    }
 }

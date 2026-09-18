@@ -47,4 +47,22 @@ class PlatformContractTest {
             assertEquals(expected, outcomes(SyncMergeEngine.merge(decoded)))
         }
     }
+    @org.junit.Test fun commonSearchAndSorting() {
+        val search = cases("search")
+        search.forEach { value ->
+            val item = value.jsonObject
+            val cards = AppJson.json.decodeFromJsonElement<List<SharedCard>>(item.getValue("cards"))
+            val expected = item.getValue("expected").jsonArray.map { it.jsonPrimitive.content }
+            assertEquals(expected, cards.filter { WalletCardRules.matches(it, item.getValue("query").jsonPrimitive.content) }.map { it.id }.sorted())
+        }
+        cases("sorting").forEach { value ->
+            val item = value.jsonObject
+            val cards = AppJson.json.decodeFromJsonElement<List<SharedCard>>(item.getValue("cards"))
+            val expected = item.getValue("expected").jsonArray.map { it.jsonPrimitive.content }
+            val key = item.getValue("key").jsonPrimitive.content
+            val day = LocalDate.parse(item.getValue("today").jsonPrimitive.content)
+            assertEquals(expected, WalletCardRules.sorted(cards, key, day).map { it.id })
+            assertEquals(expected, WalletCardRules.sorted(cards.reversed(), key, day).map { it.id })
+        }
+    }
 }
