@@ -123,9 +123,23 @@ with sync_playwright() as pw:
         page.get_by_role('button', name='解锁', exact=True).click()
         expect(page.locator('.physics-card-wrapper')).to_have_count(24, timeout=15000)
         # A second tab needs its own key even if localStorage says unlocked.
-        other = context.new_page(); other.goto(url, wait_until='networkidle')
+        other = context.new_page()
+        other.on('pageerror', lambda error: errors.append(str(error)))
+        other.goto(url, wait_until='networkidle')
         expect(other.get_by_text('应用已锁定', exact=True)).to_be_visible()
         results['new_tab_requires_password'] = True
+        # Real queued storage events: a later unlock flag must not erase the received lock.
+        other.evaluate('''() => {
+          localStorage.setItem('app_lock_state', JSON.stringify({isLocked:true, lockTime:Date.now()}));
+          localStorage.setItem('app_lock_state', JSON.stringify({isLocked:false}));
+        }''')
+        expect(page.get_by_text('应用已锁定', exact=True)).to_be_visible()
+        assert 'Regression Bank' not in page.locator('body').inner_text()
+        assert page.evaluate("JSON.parse(localStorage.getItem('app_lock_state')).isLocked") is False
+        results['remote_lock_survives_later_unlock_flag'] = True
+        page.get_by_placeholder('请输入密码', exact=True).fill(PASSWORD)
+        page.get_by_role('button', name='解锁', exact=True).click()
+        expect(page.locator('.physics-card-wrapper')).to_have_count(24, timeout=15000)
         other.close()
         page.set_viewport_size({'width': 390, 'height': 844})
         expect(page.locator('.el-message')).to_have_count(0, timeout=10000)
