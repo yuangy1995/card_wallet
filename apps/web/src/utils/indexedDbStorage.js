@@ -132,9 +132,14 @@ class IndexedDbStorage {
           return
         }
         request.result.onversionchange = () => {
-          this.lock()
-          request.result.close()
+          const connection = request.result
+          connection.close()
+          if (this.db !== connection) return
+          this.db = null
+          this.initialized = false
           this.available = false
+          this.initPromise = null
+          this.lock()
         }
         resolve(request.result)
       }
@@ -155,10 +160,18 @@ class IndexedDbStorage {
 
   async loadCacheFromDatabase() {
     if (!this.db) return
+    this.cache.clear()
+    // 锁屏只读取包装密钥等小型元数据，不重复载入整份密文及图片。
+    const transaction = this.db.transaction(STORE_NAME, 'readonly')
+    const done = transactionDone(transaction)
+    const [metadata] = await Promise.all([
+      requestToPromise(transaction.objectStore(STORE_NAME).get(VAULT_META_KEY)), done
+    ])
+    this.vaultMetadata = metadata?.value || null
+    if (this.vaultMetadata) return
+    // 旧库仍完整检查：元数据被删除时不能把残留密文误当作旧明文。
     const entries = await this.readEntries()
     this.vaultMetadata = entries.find(entry => entry.key === VAULT_META_KEY)?.value || null
-    this.cache.clear()
-    // 加密数据库打开时只读取元数据，解锁前不向业务层提供卡片或凭证。
     if (!this.vaultMetadata && entries.some(entry => entry.value?.format === 'card-wallet-sealed-v1')) throw new Error('本地加密信息缺失，请从备份恢复；未修改原数据。')
     if (!this.vaultMetadata) entries.forEach(entry => this.cache.set(entry.key, entry.value))
   }
