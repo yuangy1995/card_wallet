@@ -30,15 +30,6 @@
     "vite": "^6.4.3",
     "vitest": "^3.2.6"
   },
-  "pnpm": {
-    "overrides": {
-      "vite": "6.4.3",
-      "esbuild": "0.25.12",
-      "rollup": "4.61.1",
-      "picomatch@<2.3.2": "2.3.2",
-      "picomatch@>=4.0.0 <4.0.4": "4.0.4"
-    }
-  },
   "description": "一个基于 Vue.js 的现代化卡包应用，帮助用户高效管理信用卡和储蓄卡信息。",
   "main": "vite.config.mjs",
   "repository": {

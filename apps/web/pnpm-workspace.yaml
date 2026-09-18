@@ -1,0 +1,10 @@
+overrides:
+  vite: 6.4.3
+  esbuild: 0.25.12
+  rollup: 4.61.1
+  picomatch@<2.3.2: 2.3.2
+  picomatch@>=4.0.0 <4.0.4: 4.0.4
+
+allowBuilds:
+  '@parcel/watcher': true
+  esbuild: true
