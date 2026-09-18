@@ -13,26 +13,31 @@ public enum CardBrand: String, Codable, CaseIterable, Sendable {
 
     /// 根据卡号实时侦测卡组织品牌的高精度正则算法
     public static func detect(from cardNumber: String, level: String? = nil) -> CardBrand {
-        if let levelStr = level {
-            if levelStr.contains("银联") || levelStr.lowercased().contains("unionpay") { return .unionpay }
-            if levelStr.contains("Discover") || levelStr.contains("发现") { return .discover }
-            if levelStr.lowercased().contains("visa") { return .visa }
-            if levelStr.lowercased().contains("mastercard") || levelStr.contains("万事达") { return .mastercard }
-            if levelStr.lowercased().contains("jcb") { return .jcb }
-            if levelStr.lowercased().contains("ae") || levelStr.contains("运通") { return .amex }
+        if let level {
+            let value = level.lowercased()
+            let words = Set(value.components(separatedBy: CharacterSet.alphanumerics.inverted).filter { !$0.isEmpty })
+            var hints = Set<CardBrand>()
+            if value.contains("银联") || value.contains("銀聯") || words.contains("unionpay") { hints.insert(.unionpay) }
+            if words.contains("discover") || value.contains("发现") || value.contains("發現") { hints.insert(.discover) }
+            if words.contains("visa") { hints.insert(.visa) }
+            if words.contains("mastercard") || value.contains("万事达") || value.contains("萬事達") { hints.insert(.mastercard) }
+            if words.contains("jcb") { hints.insert(.jcb) }
+            if !words.isDisjoint(with: ["amex", "ae"]) || value.contains("american express") || value.contains("运通") || value.contains("運通") { hints.insert(.amex) }
+            if words.contains("diners") || value.contains("大莱") || value.contains("大萊") { hints.insert(.dinersClub) }
+            if hints.count == 1, let hint = hints.first { return hint }
         }
-        let cleanNumber = cardNumber.replacingOccurrences(of: "\\D", with: "", options: .regularExpression)
-        if cleanNumber.hasPrefix("4") { return .visa }
-        let mcPattern = "^(5[1-5]|222[1-9]|22[3-9]\\d|2[3-6]\\d{2}|27[0-1]\\d|2720)"
-        if cleanNumber.range(of: mcPattern, options: .regularExpression) != nil { return .mastercard }
-        if cleanNumber.hasPrefix("34") || cleanNumber.hasPrefix("37") { return .amex }
-        let dinersPattern = "^(30[0-5]|3095|36|38|39)"
-        if cleanNumber.range(of: dinersPattern, options: .regularExpression) != nil { return .dinersClub }
-        if cleanNumber.hasPrefix("62") { return .unionpay }
-        let discoverPattern = "^(6011|622(12[6-9]|1[3-9]\\d|[2-8]\\d{2}|9[0-1]\\d|92[0-5])|64[4-9]|65)"
-        if cleanNumber.range(of: discoverPattern, options: .regularExpression) != nil { return .discover }
-        let jcbPattern = "^35(2[8-9]|[3-8]\\d)"
-        if cleanNumber.range(of: jcbPattern, options: .regularExpression) != nil { return .jcb }
+        let digits = cardNumber.filter { $0 >= "0" && $0 <= "9" }
+        guard let two = Int(digits.prefix(2)), let three = Int(digits.prefix(3)),
+              let four = Int(digits.prefix(4)), digits.count >= 4 else { return .unknown }
+        let count = digits.count
+        if count == 15 && [34, 37].contains(two) { return .amex }
+        if count == 16 && ((51...55).contains(two) || (2221...2720).contains(four)) { return .mastercard }
+        if (16...19).contains(count) && (3528...3589).contains(four) { return .jcb }
+        if (16...19).contains(count) && (four == 6011 || two == 65 || (644...649).contains(three)) { return .discover }
+        if [13, 16, 19].contains(count) && digits.hasPrefix("4") { return .visa }
+        // 62 is shared acceptance space, not evidence of Discover co-branding.
+        if (16...19).contains(count) && [62, 81].contains(two) { return .unionpay }
+        if count == 14 && ((300...305).contains(three) || [36, 38, 39].contains(two)) { return .dinersClub }
         return .unknown
     }
 
@@ -253,6 +258,16 @@ public enum SortOption: String, CaseIterable, Identifiable, Sendable {
     case daysDesc = "免息期从长到短"
     case daysAsc = "免息期从短到长"
     case lastModify = "最近修改时间"
+
+    public var contractKey: String {
+        switch self {
+        case .limitDesc: return "limit-desc"
+        case .limitAsc: return "limit-asc"
+        case .daysDesc: return "interest-desc"
+        case .daysAsc: return "interest-asc"
+        case .lastModify: return "modifyTime"
+        }
+    }
 
     public var id: String { rawValue }
 

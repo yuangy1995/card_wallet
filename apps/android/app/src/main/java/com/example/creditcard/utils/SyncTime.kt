@@ -34,6 +34,12 @@ object SyncTime {
 
     fun nowIso(): String = isoFromMillis(nowMillis())
 
+    fun nextMillis(previous: String?, now: Long = nowMillis()): Long {
+        val observed = parseMillis(previous) ?: 0L
+        check(observed < Long.MAX_VALUE) { "修改时间超出支持范围" }
+        return maxOf(now, observed + 1)
+    }
+
     fun isoFromMillis(epochMillis: Long): String {
         return isoOutput.get()!!.format(Date(epochMillis))
     }

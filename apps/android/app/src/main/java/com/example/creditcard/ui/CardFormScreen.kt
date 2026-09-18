@@ -4,6 +4,8 @@ import androidx.compose.ui.res.stringResource
 import com.example.creditcard.R
 import android.app.DatePickerDialog
 import android.widget.Toast
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import androidx.activity.OnBackPressedCallback
@@ -250,13 +252,17 @@ fun CardFormScreen(
     var scannedTempImagePath by remember { mutableStateOf<String?>(null) }
     var scannedTempSource by remember { mutableStateOf("NFC") }
 
+    val imageScope = rememberCoroutineScope()
+    val imageImportErrorMessage = stringResource(R.string.wallet_image_import_error)
+    fun imageImportError() { Toast.makeText(context, imageImportErrorMessage, Toast.LENGTH_LONG).show() }
     val galleryLauncher = rememberLauncherForActivityResult(ActivityResultContracts.GetMultipleContents()) { uris ->
-        val newImages = uris.mapNotNull { uri ->
-            CardImageCodec.fromUri(context, uri, "gallery")
-        }
-        if (newImages.isNotEmpty()) {
-            cardImages = cardImages + newImages
-            Toast.makeText(context, "已添加 ${newImages.size} 张卡片图片", Toast.LENGTH_SHORT).show()
+        if (uris.isNotEmpty()) {
+            if (!CardImageCodec.canAppend(cardImages.size, uris.size)) imageImportError()
+            else imageScope.launch {
+                val imported = withContext(Dispatchers.IO) { uris.mapNotNull { CardImageCodec.fromUri(context, it, "gallery") } }
+                if (CardImageCodec.canAppend(cardImages.size, imported.size)) cardImages = cardImages + imported
+                if (imported.size != uris.size) imageImportError()
+            }
         }
     }
 
@@ -265,18 +271,17 @@ fun CardFormScreen(
         val photoFile = pendingCameraPhotoFile
         pendingCameraPhotoFile = null
 
-        if (success && photoFile != null && photoFile.exists() && photoFile.length() > 0L) {
-            CardImageCodec.fromFile(photoFile, "manual_camera")?.let { image ->
-                cardImages = cardImages + image
-                Toast.makeText(context, "已添加拍摄图片", Toast.LENGTH_SHORT).show()
-            } ?: Toast.makeText(context, "拍摄图片读取失败", Toast.LENGTH_SHORT).show()
-        }
+        if (success && photoFile != null && photoFile.exists()) {
+            imageScope.launch {
+                try {
+                    if (!CardImageCodec.canAppend(cardImages.size, 1)) { imageImportError(); return@launch }
+                    val image = withContext(Dispatchers.IO) { CardImageCodec.fromFile(photoFile, "manual_camera") }
+                    if (image != null && CardImageCodec.canAppend(cardImages.size, 1)) cardImages = cardImages + image
+                    else imageImportError()
+                } finally { photoFile.delete() }
+            }
+        } else { photoFile?.delete() }
 
-        try {
-            photoFile?.delete()
-        } catch (e: Exception) {
-            // 临时拍照文件会随系统缓存清理，删除失败不影响图片保存。
-        }
     }
 
     fun launchManualCameraPhoto() {
@@ -320,8 +325,12 @@ fun CardFormScreen(
 
     fun appendScannedImage(imagePath: String?, source: String) {
         if (imagePath.isNullOrBlank()) return
-        val image = CardImageCodec.fromFile(File(imagePath), source.lowercase()) ?: return
-        cardImages = cardImages + image
+        if (!CardImageCodec.canAppend(cardImages.size, 1)) { imageImportError(); return }
+        imageScope.launch {
+            val image = withContext(Dispatchers.IO) { CardImageCodec.fromFile(File(imagePath), source.lowercase()) }
+            if (image != null && CardImageCodec.canAppend(cardImages.size, 1)) cardImages = cardImages + image
+            else imageImportError()
+        }
     }
 
     /**

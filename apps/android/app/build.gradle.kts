@@ -8,6 +8,7 @@ android {
     namespace = "com.example.creditcard"
     compileSdk = 36
     defaultConfig {
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         manifestPlaceholders["appLabel"] = "@string/app_name"
         applicationId = "com.applist.cardwallet"
         minSdk = 23
@@ -53,6 +54,8 @@ android {
       buildConfig = false
       shaders = false
     }
+
+    sourceSets.getByName("test").resources.srcDir("../../../contracts/card-wallet/fixtures")
 
     testOptions {
         unitTests.isIncludeAndroidResources = true

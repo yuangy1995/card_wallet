@@ -56,6 +56,9 @@ targets:
     deploymentTarget: "14.0"
     sources:
       - path: Tests
+      - path: ../../contracts/card-wallet/fixtures
+        type: folder
+        buildPhase: resources
     dependencies:
       - target: CreditCardMac
     settings:

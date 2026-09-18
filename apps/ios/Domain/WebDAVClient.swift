@@ -117,6 +117,9 @@ public final class WebDAVClient: Sendable {
     private static let transferTimeout: TimeInterval = 300
     private static let transferResourceTimeout: TimeInterval = 3600
 
+    private let requestRegistry = WebDAVRequestRegistry()
+    public func cancelRequests() { requestRegistry.cancelAll() }
+    public func setSuspended(_ value: Bool) { requestRegistry.setSuspended(value) }
     private init() {}
 
     private static func transferSessionConfiguration(allowsCellularAccess: Bool) -> URLSessionConfiguration {
@@ -229,7 +232,7 @@ public final class WebDAVClient: Sendable {
                 request.setValue("1", forHTTPHeaderField: "Depth")
                 request.setValue(self.authHeader(username: username, password: password), forHTTPHeaderField: "Authorization")
 
-                URLSession.shared.dataTask(with: request) { data, response, error in
+                self.requestRegistry.start(URLSession.shared.dataTask(with: request) { data, response, error in
                     if let error {
                         completion(.failure(WebDAVError.networkError(error)))
                         return
@@ -257,7 +260,7 @@ public final class WebDAVClient: Sendable {
                             return $0.filename > $1.filename
                         }
                     completion(.success(files))
-                }.resume()
+                })
             }
         }
     }
@@ -340,7 +343,7 @@ public final class WebDAVClient: Sendable {
         request.httpMethod = "DELETE"
         request.timeoutInterval = Self.requestTimeout
         request.setValue(authHeader(username: username, password: password), forHTTPHeaderField: "Authorization")
-        URLSession.shared.dataTask(with: request) { _, response, error in
+        self.requestRegistry.start(URLSession.shared.dataTask(with: request) { _, response, error in
             if let error {
                 completion(.failure(WebDAVError.networkError(error)))
                 return
@@ -351,7 +354,7 @@ public final class WebDAVClient: Sendable {
                 return
             }
             completion(.success(()))
-        }.resume()
+        })
     }
 
     public func upload(
@@ -393,13 +396,13 @@ public final class WebDAVClient: Sendable {
                 }
                 completion(.success(()))
             }
-            task.resume()
+            self.requestRegistry.start(task)
         } else {
             request.httpBody = data
             let session = URLSession(
                 configuration: Self.transferSessionConfiguration(allowsCellularAccess: allowsCellularAccess)
             )
-            session.dataTask(with: request) { _, response, error in
+            self.requestRegistry.start(session.dataTask(with: request) { _, response, error in
                 session.finishTasksAndInvalidate()
                 if let error {
                     completion(.failure(WebDAVError.networkError(error)))
@@ -411,7 +414,7 @@ public final class WebDAVClient: Sendable {
                     return
                 }
                 completion(.success(()))
-            }.resume()
+            })
         }
     }
 
@@ -463,12 +466,12 @@ public final class WebDAVClient: Sendable {
                 delegateQueue: nil
             )
             let task = session.downloadTask(with: request)
-            task.resume()
+            self.requestRegistry.start(task)
         } else {
             let session = URLSession(
                 configuration: Self.transferSessionConfiguration(allowsCellularAccess: allowsCellularAccess)
             )
-            session.dataTask(with: request) { data, response, error in
+            self.requestRegistry.start(session.dataTask(with: request) { data, response, error in
                 session.finishTasksAndInvalidate()
                 if let error {
                     completion(.failure(WebDAVError.networkError(error)))
@@ -480,7 +483,7 @@ public final class WebDAVClient: Sendable {
                     return
                 }
                 completion(.success(data))
-            }.resume()
+            })
         }
     }
 
@@ -501,7 +504,7 @@ public final class WebDAVClient: Sendable {
         request.allowsCellularAccess = allowsCellularAccess
         request.setValue("0", forHTTPHeaderField: "Depth")
         request.setValue(authHeader(username: username, password: password), forHTTPHeaderField: "Authorization")
-        URLSession.shared.dataTask(with: request) { _, response, error in
+        self.requestRegistry.start(URLSession.shared.dataTask(with: request) { _, response, error in
             if let error {
                 completion(.failure(WebDAVError.networkError(error)))
                 return
@@ -528,7 +531,7 @@ public final class WebDAVClient: Sendable {
             mkcolRequest.timeoutInterval = Self.requestTimeout
             mkcolRequest.allowsCellularAccess = allowsCellularAccess
             mkcolRequest.setValue(self.authHeader(username: username, password: password), forHTTPHeaderField: "Authorization")
-            URLSession.shared.dataTask(with: mkcolRequest) { _, mkcolResponse, mkcolError in
+            self.requestRegistry.start(URLSession.shared.dataTask(with: mkcolRequest) { _, mkcolResponse, mkcolError in
                 if let mkcolError {
                     completion(.failure(WebDAVError.networkError(mkcolError)))
                     return
@@ -539,8 +542,8 @@ public final class WebDAVClient: Sendable {
                     return
                 }
                 completion(.success(()))
-            }.resume()
-        }.resume()
+            })
+        })
     }
 
     private func authHeader(username: String, password: String) -> String {

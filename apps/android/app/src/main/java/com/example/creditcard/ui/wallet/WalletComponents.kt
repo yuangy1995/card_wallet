@@ -133,7 +133,7 @@ internal fun WalletCardFace(
 ) {
     val issuer = remember(card.bank, card.country) { WalletLogoCatalog.match(card.bank, card.country) }
     val bank = remember(card.bank) { WalletBank.fromName(card.bank) }
-    val network = remember(card.cardNumber) { WalletNetwork.fromNumber(card.cardNumber) }
+    val network = remember(card.cardNumber, card.level) { WalletNetwork.fromCard(card.cardNumber, card.level) }
     val bankName = card.bank.ifBlank { stringResource(R.string.bank_unset) }
     val cardName = card.alias.ifBlank { bankName }
     val category = stringResource(if (card.cardCategory == "debit") R.string.debit_cards else R.string.credit_cards)
@@ -193,7 +193,7 @@ internal fun WalletCardFace(
 internal fun WalletListRow(card: SharedCard, favorite: Boolean, onFavoriteClick: () -> Unit,
     selectionMode: Boolean = false, selected: Boolean = false, first: Boolean = true, last: Boolean = true, onClick: () -> Unit) {
     val issuer = remember(card.bank, card.country) { WalletLogoCatalog.match(card.bank, card.country) }
-    val network = remember(card.cardNumber) { WalletNetwork.fromNumber(card.cardNumber) }
+    val network = remember(card.cardNumber, card.level) { WalletNetwork.fromCard(card.cardNumber, card.level) }
     val bankName = card.bank.ifBlank { stringResource(R.string.bank_unset) }
     val cardName = card.alias.ifBlank { bankName }
     Surface(onClick = onClick,

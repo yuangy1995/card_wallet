@@ -94,3 +94,17 @@ a,
     }
   }
 }
+
+.wallet-table-sort {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  margin: 10px 0;
+  color: var(--el-text-color-secondary);
+  font-size: 13px;
+}
+
+.wallet-favorites-filter { display: flex; align-items: center; gap: 12px; padding: 8px 0; color: var(--el-text-color-secondary); font-size: 12px; }
+.card-item-wrapper .card-favorite-control { position: absolute; right: 10px; top: 10px; z-index: 3; color: var(--el-color-primary); background: var(--el-bg-color); }

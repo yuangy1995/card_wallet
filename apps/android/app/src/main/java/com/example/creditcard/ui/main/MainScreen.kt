@@ -1,5 +1,8 @@
 package com.example.creditcard.ui.main
 
+import com.example.creditcard.utils.WalletCardRules
+import com.example.creditcard.utils.normalizeBankNameForMatch
+
 import android.Manifest
 import android.content.Context
 import android.content.Intent
@@ -126,24 +129,25 @@ private const val CARD_LIST_PREFS = "card_list_preferences"
 private const val CARD_LIST_GROUP_KEY = "card_list_group"
 private const val CARD_LIST_SORT_KEY = "card_list_sort"
 
-private enum class CardListGroupOption(val storedValue: String, val label: String) {
-    NONE("none", "不分组"),
-    BANK("bank", "按银行"),
-    BRAND("brand", "按卡组织"),
-    LEVEL("level", "按卡级别"),
-    COUNTRY("country", "按国家/地区");
+private enum class CardListGroupOption(val storedValue: String, val labelRes: Int) {
+    NONE("none", R.string.group_none),
+    BANK("bank", R.string.group_bank),
+    BRAND("brand", R.string.group_brand),
+    LEVEL("level", R.string.group_level),
+    COUNTRY("country", R.string.group_country);
 
     companion object {
         fun from(value: String?): CardListGroupOption = entries.firstOrNull { it.storedValue == value } ?: NONE
     }
 }
 
-private enum class CardListSortOption(val storedValue: String, val label: String) {
-    LIMIT_DESC("limit_desc", "额度从高到低"),
-    LIMIT_ASC("limit_asc", "额度从低到高"),
-    INTEREST_DESC("interest_desc", "当前免息期从长到短"),
-    MODIFIED_DESC("modified_desc", "最近修改"),
-    BANK_ASC("bank_asc", "银行名称");
+private enum class CardListSortOption(val storedValue: String, val labelRes: Int) {
+    LIMIT_DESC("limit_desc", R.string.sort_limit_desc),
+    LIMIT_ASC("limit_asc", R.string.sort_limit_asc),
+    INTEREST_DESC("interest_desc", R.string.sort_interest_desc),
+    INTEREST_ASC("interest_asc", R.string.sort_interest_asc),
+    MODIFIED_DESC("modified_desc", R.string.sort_modified),
+    BANK_ASC("bank_asc", R.string.sort_bank);
 
     companion object {
         fun from(value: String?): CardListSortOption = entries.firstOrNull { it.storedValue == value } ?: MODIFIED_DESC
@@ -187,6 +191,17 @@ fun MainScreen(
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
+    var calendarDay by remember { mutableStateOf(LocalDate.now()) }
+    DisposableEffect(context) {
+        val receiver = object : android.content.BroadcastReceiver() {
+            override fun onReceive(context: Context?, intent: Intent?) { calendarDay = LocalDate.now() }
+        }
+        val filter = android.content.IntentFilter().apply {
+            addAction(Intent.ACTION_DATE_CHANGED); addAction(Intent.ACTION_TIME_CHANGED); addAction(Intent.ACTION_TIMEZONE_CHANGED)
+        }
+        androidx.core.content.ContextCompat.registerReceiver(context, receiver, filter, androidx.core.content.ContextCompat.RECEIVER_NOT_EXPORTED)
+        onDispose { context.unregisterReceiver(receiver) }
+    }
     
     // 监听全局核心状态
     val cards by SyncCoordinator.cardsFlow.collectAsState()
@@ -238,7 +253,7 @@ fun MainScreen(
     val walletPreferences = rememberWalletPreferences()
     val isCompactView = walletPreferences.state.isList
     val favoriteCardIDs = walletPreferences.state.favorites
-    var favoritesOnly by rememberSaveable { mutableStateOf(false) }
+    val favoritesOnly = walletPreferences.state.favoritesOnly
     var showGroupMenu by remember { mutableStateOf(false) }
     var showSortMenu by remember { mutableStateOf(false) }
     var selectionMode by remember { mutableStateOf(false) }
@@ -256,20 +271,9 @@ fun MainScreen(
         selectedCardIDs = selectedCardIDs.intersect(cards.map { it.id }.toSet())
     }
 
-    val searchFilteredCards = remember(cards, searchQuery) {
-        if (searchQuery.isBlank()) {
-            cards
-        } else {
-            cards.filter { card ->
-                val categoryText = if (card.cardCategory == "debit") "储蓄卡 debit" else "信用卡 credit"
-                card.bank.contains(searchQuery, ignoreCase = true) ||
-                card.alias.contains(searchQuery, ignoreCase = true) ||
-                card.cardNumber.replace(" ", "").contains(searchQuery.replace(" ", "")) ||
-                card.remark.contains(searchQuery, ignoreCase = true) ||
-                getCardBrand(card.cardNumber).contains(searchQuery, ignoreCase = true) ||
-                categoryText.contains(searchQuery, ignoreCase = true)
-            }
-        }
+    val searchIndex = remember(cards) { cards.associate { it.id to WalletCardRules.searchText(it) } }
+    val searchFilteredCards = remember(cards, searchQuery, searchIndex) {
+        cards.filter { WalletCardRules.matches(it, searchQuery, searchIndex.getValue(it.id)) }
     }
 
     val creditCardCount = remember(searchFilteredCards) { searchFilteredCards.count { it.cardCategory != "debit" } }
@@ -305,21 +309,16 @@ fun MainScreen(
     }
     val allVisibleCardsSelected = filteredCards.isNotEmpty() && filteredCards.all { it.id in selectedCardIDs }
 
-    val groupedCards = remember(filteredCards, groupOption, sortOption) {
-        val sortedCards = when (sortOption) {
-            CardListSortOption.LIMIT_DESC -> filteredCards.sortedByDescending { if (it.cardCategory == "debit") 0.0 else it.limit }
-            CardListSortOption.LIMIT_ASC -> filteredCards.sortedBy { if (it.cardCategory == "debit") 0.0 else it.limit }
-            CardListSortOption.INTEREST_DESC -> filteredCards.sortedByDescending { calculateInterestFreeDays(it) }
-            CardListSortOption.MODIFIED_DESC -> filteredCards.sortedByDescending { it.lastModifyTime }
-            CardListSortOption.BANK_ASC -> filteredCards.sortedWith(compareBy({ it.bank }, { it.alias }))
-        }
+    val groupedCards = remember(filteredCards, groupOption, sortOption, calendarDay) {
+        val key = if (sortOption == CardListSortOption.MODIFIED_DESC) "modifyTime" else sortOption.storedValue.replace('_', '-')
+        val sortedCards = WalletCardRules.sorted(filteredCards, key, calendarDay)
         if (groupOption == CardListGroupOption.NONE) {
             listOf("" to sortedCards)
         } else {
             val grouped = sortedCards.groupBy { card ->
                 when (groupOption) {
-                    CardListGroupOption.BANK -> card.bank.ifBlank { "未设置银行" }
-                    CardListGroupOption.BRAND -> getCardBrand(card.cardNumber)
+                    CardListGroupOption.BANK -> normalizeBankNameForMatch(card.bank).ifBlank { "未设置银行" }
+                    CardListGroupOption.BRAND -> getCardBrand(card.cardNumber, card.level)
                     CardListGroupOption.LEVEL -> card.level.ifBlank { "未设置级别" }
                     CardListGroupOption.COUNTRY -> card.country.ifBlank { "未设置国家/地区" }
                     CardListGroupOption.NONE -> ""
@@ -370,6 +369,7 @@ fun MainScreen(
                             when {
                                 update.status == "3" -> null
                                 update.nextAnnualFeeTime != null -> update.nextAnnualFeeTime
+                                update.status == "1" -> CardReminderRules.confirmAnnualFeeQualified(card.copy(cardCategory = nextCategory)).nextAnnualFeeCollectionTime
                                 else -> card.nextAnnualFeeCollectionTime
                             }
                         } else card.nextAnnualFeeCollectionTime,
@@ -510,7 +510,7 @@ fun MainScreen(
                                 onListModeChange = walletPreferences::setListMode,
                                 favoritesOnly = favoritesOnly,
                                 favoriteCount = favoriteCount,
-                                onFavoritesChange = { favoritesOnly = it },
+                                onFavoritesChange = walletPreferences::setFavoritesOnly,
                                 isSyncing = syncStatus.isSyncing,
                                 syncType = syncStatus.type,
                                 syncReady = syncConfig.isReadyForSync,
@@ -558,7 +558,7 @@ fun MainScreen(
                             item(key = "empty_state", contentType = "empty") {
                                 WalletEmptyState(
                                     hasCards = cards.isNotEmpty(), favoritesOnly = favoritesOnly,
-                                    onReset = { searchQuery = ""; cardCategoryFilter = "all"; favoritesOnly = false }
+                                    onReset = { searchQuery = ""; cardCategoryFilter = "all"; walletPreferences.setFavoritesOnly(false) }
                                 )
                             }
                         } else {
@@ -768,12 +768,12 @@ private fun CardManagementPanel(
                 ) {
                     Icon(Icons.Filled.ViewAgenda, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text(groupOption.label, maxLines = 1)
+                    Text(stringResource(groupOption.labelRes), maxLines = 1)
                 }
                 DropdownMenu(expanded = showGroupMenu, onDismissRequest = { onShowGroupMenuChange(false) }) {
                     CardListGroupOption.entries.forEach { option ->
                         DropdownMenuItem(
-                            text = { Text(option.label) },
+                            text = { Text(stringResource(option.labelRes)) },
                             trailingIcon = { if (groupOption == option) Icon(Icons.Filled.Check, contentDescription = null) },
                             onClick = {
                                 onGroupOptionChange(option)
@@ -791,12 +791,12 @@ private fun CardManagementPanel(
                 ) {
                     Icon(Icons.AutoMirrored.Filled.Sort, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text(sortOption.label, maxLines = 1)
+                    Text(stringResource(sortOption.labelRes), maxLines = 1)
                 }
                 DropdownMenu(expanded = showSortMenu, onDismissRequest = { onShowSortMenuChange(false) }) {
                     CardListSortOption.entries.forEach { option ->
                         DropdownMenuItem(
-                            text = { Text(option.label) },
+                            text = { Text(stringResource(option.labelRes)) },
                             trailingIcon = { if (sortOption == option) Icon(Icons.Filled.Check, contentDescription = null) },
                             onClick = {
                                 onSortOptionChange(option)
@@ -886,7 +886,7 @@ private fun CompactCardRow(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val brand = getCardBrand(card.cardNumber)
+    val brand = getCardBrand(card.cardNumber, card.level)
     val lastFour = card.cardNumber.filter(Char::isDigit).takeLast(4).ifBlank { "----" }
     val colors = remember(card.bank) { bankCardColors(card.bank) }
     Row(
@@ -1548,7 +1548,7 @@ fun CreditCardTile(
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
-    val brand = remember(card.cardNumber) { getCardBrand(card.cardNumber) }
+    val brand = remember(card.cardNumber, card.level) { getCardBrand(card.cardNumber, card.level) }
     val isDebit = card.cardCategory == "debit"
     val reminder = remember(card) {
         CardReminderRules.annualFeeDetection(card) != null ||
@@ -3022,25 +3022,12 @@ fun AnalyticsPanel(cards: List<SharedCard>, isDark: Boolean) {
     val debitBankCount = remember(debitCards) { debitCards.map { it.bank }.filter { it.isNotBlank() }.distinct().size }
     val debitCurrencyCount = remember(debitCards) { debitCards.map { it.type }.filter { it.isNotBlank() }.distinct().size }
 
-    // A. 重构多币种总资产额度算法 - 完美实现共享限额去重 (第 5 点)
+    // Keep independent amounts and region/bank/currency pools separate.
     val currencySummary = remember(creditCards) {
-        creditCards.groupBy { it.type }.mapValues { entry ->
-            val cardList = entry.value
-            
-            // 1. 过滤出非共享额度的卡片，无条件直接求和
-            val nonSharedSum = cardList.filter { !it.isSharedLimit }.sumOf { it.limit }
-            
-            // 2. 过滤出共享额度的卡片，按 bank 银行分组，每个银行共享组只取额度最大值
-            val sharedSum = cardList.filter { it.isSharedLimit && it.bank.isNotEmpty() }
-                .groupBy { it.bank }
-                .map { bankGroup -> bankGroup.value.maxOfOrNull { it.limit } ?: 0.0 }
-                .sum()
-                
-            val totalLimit = nonSharedSum + sharedSum
-            val annualFeeSum = cardList.sumOf { it.annualFee }
-            val cardCount = cardList.size
-            Triple(totalLimit, annualFeeSum, cardCount)
-        }
+        val totals = WalletCardRules.creditLimits(creditCards)
+        creditCards.groupBy { WalletCardRules.currency(it) }.mapValues { (currency, group) ->
+            Triple(totals[currency] ?: 0.0, group.sumOf { it.annualFee }, group.size)
+        }.toSortedMap()
     }
 
     // B. 还款/账单、年费与有效期提醒，规则与 Web/macOS/iOS 对齐，呈现保持移动端非阻塞列表
@@ -3060,7 +3047,7 @@ fun AnalyticsPanel(cards: List<SharedCard>, isDark: Boolean) {
     // C. 共享额度组看板数据
     val sharedLimitGroups = remember(creditCards) {
         creditCards.filter { it.isSharedLimit && it.bank.isNotEmpty() }
-            .groupBy { it.bank }
+            .groupBy { "${WalletCardRules.pool(it).country} · ${WalletCardRules.pool(it).bank} · ${WalletCardRules.currency(it).ifEmpty { "未设置币种" }}" }
             .filter { it.value.size > 1 }
     }
 
@@ -3112,8 +3099,8 @@ fun AnalyticsPanel(cards: List<SharedCard>, isDark: Boolean) {
             Spacer(modifier = Modifier.height(30.dp))
         } else {
 
-        // 1. Canvas 手工绘制的拟真资产额度占比 Donut 环形图 (按去重额度比例展示)
-        DetailSection(title = "信用额度占比", isCollapsible = true) {
+        // 不同币种的金额不能直接比较占比；环形图显示各币种的卡片数量。
+        DetailSection(title = "币种卡片数量分布", isCollapsible = true) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -3131,8 +3118,8 @@ fun AnalyticsPanel(cards: List<SharedCard>, isDark: Boolean) {
                         val stroke = Stroke(width = 14.dp.toPx())
                         var startAngle = -90f
                         
-                        // 使用去重共享后的总信用额度比例
-                        val totalLimit = currencySummary.values.sumOf { it.first }
+                        // 用卡片数量计算比例，不把不同货币直接相加。
+                        val totalLimit = currencySummary.values.sumOf { it.third }.toDouble()
 
                         if (totalLimit <= 0) {
                             drawArc(
@@ -3145,9 +3132,8 @@ fun AnalyticsPanel(cards: List<SharedCard>, isDark: Boolean) {
                         } else {
                             val colors = listOf(NeonCyan, NeonPurple, NeonGreen, Color(0xFFFF9100), NeonRed, GoldPrimary, NavySecondary)
                             var colorIndex = 0
-                            currencySummary.forEach { (currency, triple) ->
-                                val limit = triple.first
-                                val sweepAngle = ((limit / totalLimit) * 360f).toFloat()
+                            currencySummary.forEach { (_, triple) ->
+                                val sweepAngle = ((triple.third / totalLimit) * 360f).toFloat()
                                 drawArc(
                                     color = colors[colorIndex % colors.size],
                                     startAngle = startAngle,
@@ -3185,7 +3171,7 @@ fun AnalyticsPanel(cards: List<SharedCard>, isDark: Boolean) {
                             )
                             Spacer(modifier = Modifier.width(6.dp))
                             Text(
-                                text = "$currency 信用总额",
+                                text = "${currency.ifEmpty { "未设置币种" }} 信用总额",
                                 fontSize = 11.sp,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
@@ -3514,7 +3500,7 @@ fun AnalyticsPanel(cards: List<SharedCard>, isDark: Boolean) {
                             modifier = Modifier.weight(0.9f)
                         ) {
                             Text(
-                                text = "$currency $${String.format("%,.0f", totalLimit)}",
+                                text = "${currency.ifEmpty { "未设置币种" }} ${String.format("%,.2f", totalLimit)}",
                                 fontWeight = FontWeight.Black,
                                 fontSize = 15.sp,
                                 color = if (isDark) NeonCyan else GoldPrimary,
@@ -4828,16 +4814,12 @@ fun getOutlinedTextFieldColors(isDark: Boolean) = OutlinedTextFieldDefaults.colo
 /**
  * 智能判定卡组织
  */
-fun getCardBrand(cardNumber: String): String {
-    val clean = cardNumber.replace(" ", "")
-    return when {
-        clean.startsWith("4") -> "Visa"
-        clean.startsWith("5") -> "Mastercard"
-        clean.startsWith("62") || clean.startsWith("81") -> "UnionPay"
-        clean.startsWith("34") || clean.startsWith("37") -> "Amex"
-        clean.startsWith("35") -> "JCB"
-        clean.startsWith("6011") || clean.startsWith("64") || clean.startsWith("65") -> "Discover"
-        else -> "Unknown"
+fun getCardBrand(cardNumber: String, level: String = ""): String {
+    val network = com.example.creditcard.ui.wallet.WalletNetwork.fromCard(cardNumber, level)
+    return when (network) {
+        com.example.creditcard.ui.wallet.WalletNetwork.AMEX -> "Amex"
+        com.example.creditcard.ui.wallet.WalletNetwork.UNKNOWN -> "Unknown"
+        else -> network.label
     }
 }
 
@@ -5138,47 +5120,8 @@ fun UnknownLogo(modifier: Modifier = Modifier) {
  * @param today 今天日期，方便进行单体测试或多边界检验（默认为 LocalDate.now()）
  * @return 免息天数；如果卡片账单日或还款日未设置/非法，则返回 -1
  */
-fun calculateInterestFreeDays(card: SharedCard, today: LocalDate = LocalDate.now()): Int {
-    val billDay = card.accountBillDate.toIntOrNull() ?: return -1
-    val dueDay = card.dueDate.toIntOrNull() ?: return -1
-
-    if (billDay !in 1..31 || dueDay !in 1..31) return -1
-
-    val spendDay = today.dayOfMonth
-
-    // 1. 确定消费会计入哪个月的账单日
-    val isNextBill = if (card.billingDaySpendingToNextBill) {
-        spendDay >= billDay
-    } else {
-        spendDay > billDay
-    }
-
-    val targetBillMonth = if (isNextBill) today.plusMonths(1) else today
-    val lengthOfBillMonth = targetBillMonth.lengthOfMonth()
-    
-    // 目标账单日对齐该月最大天数
-    val targetBillDate = LocalDate.of(
-        targetBillMonth.year,
-        targetBillMonth.month,
-        min(billDay, lengthOfBillMonth)
-    )
-
-    // 2. 计算对应的还款日
-    // 如果还款日天数 <= 账单日天数，说明在下个月还款
-    val isNextMonthDue = dueDay <= billDay
-    val targetDueMonth = if (isNextMonthDue) targetBillDate.plusMonths(1) else targetBillDate
-    val lengthOfDueMonth = targetDueMonth.lengthOfMonth()
-
-    val targetDueDate = LocalDate.of(
-        targetDueMonth.year,
-        targetDueMonth.month,
-        min(dueDay, lengthOfDueMonth)
-    )
-
-    // 3. 计算免息天数
-    val days = ChronoUnit.DAYS.between(today, targetDueDate).toInt()
-    return if (days >= 0) days else 0
-}
+fun calculateInterestFreeDays(card: SharedCard, today: LocalDate = LocalDate.now()): Int =
+    WalletCardRules.interestFreeDays(card, today)
 
 @Composable
 fun BestUsagePanel(
@@ -5288,7 +5231,7 @@ fun BestUsageCardTile(
     isDark: Boolean,
     onClick: () -> Unit
 ) {
-    val brand = getCardBrand(card.cardNumber)
+    val brand = getCardBrand(card.cardNumber, card.level)
     val gradientBrush = when (brand) {
         "Visa" -> Brush.linearGradient(listOf(Color(0xFF0F2027), Color(0xFF203A43), Color(0xFF2C5364)))
         "Mastercard" -> Brush.linearGradient(listOf(Color(0xFF373B44), Color(0xFF4286f4)))

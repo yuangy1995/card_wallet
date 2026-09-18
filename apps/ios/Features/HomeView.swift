@@ -2,10 +2,15 @@ import SwiftUI
 
 struct HomeView: View {
     @EnvironmentObject private var syncCoordinator: SyncCoordinator
+    @Environment(\.scenePhase) private var scenePhase
+    @State private var calendarDay = Date()
+    @AppStorage("wallet_favorite_card_ids_v1") private var favoriteStorage = ""
+    @AppStorage("wallet_only_favorites_v1") private var onlyFavorites = false
+    private var favoriteIDs: Set<String> { LocalCardPreferences.favoriteIDs(favoriteStorage) }
     @State private var searchText = ""
     @State private var categoryFilter: CardCategoryFilter = .all
-    @State private var groupBy: GroupOption = .bank
-    @State private var sortBy: SortOption = .limitDesc
+    @AppStorage("wallet_card_group") private var groupBy: GroupOption = .bank
+    @AppStorage("wallet_card_sort") private var sortBy: SortOption = .limitDesc
     @State private var showingAddMenu = false
     @State private var cardToEdit: SharedCard?
     @State private var isAddingNewCard = false
@@ -36,16 +41,7 @@ struct HomeView: View {
     }
 
     var searchFilteredCards: [SharedCard] {
-        if searchText.isEmpty {
-            return syncCoordinator.cards
-        } else {
-            return syncCoordinator.cards.filter { card in
-                card.bank.localizedCaseInsensitiveContains(searchText) ||
-                (card.alias ?? "").localizedCaseInsensitiveContains(searchText) ||
-                card.cardNumber.contains(searchText) ||
-                (card.level ?? "").localizedCaseInsensitiveContains(searchText)
-            }
-        }
+        syncCoordinator.cards.filter { (!onlyFavorites || favoriteIDs.contains($0.id)) && WalletCardRules.matches($0, query: searchText) }
     }
 
     var filteredCards: [SharedCard] {
@@ -65,14 +61,15 @@ struct HomeView: View {
             let key: String
             switch groupBy {
             case .none:    key = "全部"
-            case .bank:    key = card.bank.replacingOccurrences(of: "\\(.*\\)", with: "", options: .regularExpression).trimmingCharacters(in: .whitespaces)
+            case .bank:    key = BankNameNormalizer.normalizedKey(card.bank)
             case .brand:   key = CardBrand.detect(from: card.cardNumber, level: card.level).displayName
             case .level:   key = card.level ?? "未知级别"
             case .country: key = card.country
             }
             groups[key, default: []].append(card)
         }
-        return groups.sorted { $0.key < $1.key }.map { (key: $0.key, cards: $0.value) }
+        return groups.sorted { $0.value.count != $1.value.count ? $0.value.count > $1.value.count : $0.key < $1.key }
+            .map { (key: groupBy == .bank ? BankNameNormalizer.groupDisplayName($0.value.map(\.bank)) : $0.key, cards: $0.value) }
     }
 
 
@@ -128,7 +125,7 @@ struct HomeView: View {
             .overlay(alignment: .top) {
                 syncFeedbackBanner
             }
-            .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: "搜索银行、卡号、别名…")
+            .searchable(text: $searchText, placement: .navigationBarDrawer(displayMode: .always), prompt: "搜索银行、卡号、备注或权益")
             .navigationDestination(isPresented: $isAddingNewCard) {
                 CardEditView(
                     mode: "add",
@@ -185,7 +182,10 @@ struct HomeView: View {
             .navigationDestination(isPresented: $showCloudSync) {
                 CloudSyncView()
             }
+            .onReceive(NotificationCenter.default.publisher(for: .NSCalendarDayChanged)) { _ in calendarDay = Date() }
+            .onChange(of: scenePhase) { _, phase in if phase == .active { calendarDay = Date() } }
             .onAppear {
+                calendarDay = Date()
                 syncCoordinator.refreshWebDAVConfigurationState()
             }
             .onChange(of: showCloudSync) { _, isShowing in
@@ -355,6 +355,11 @@ struct HomeView: View {
                     .padding(.vertical, 4)
                     .background(Color(.secondarySystemGroupedBackground))
 
+                if !isSelectionMode && favoriteIDs.contains(card.id) {
+                    Image(systemName: "star.fill")
+                        .font(.system(size: 14, weight: .semibold)).foregroundStyle(Color.accentColor)
+                        .padding(.top, 14).padding(.trailing, 26).accessibilityLabel("已收藏")
+                }
                 if isSelectionMode {
                     Image(systemName: selectedCardIDs.contains(card.id) ? "checkmark.circle.fill" : "circle")
                         .font(.system(size: 24, weight: .semibold))
@@ -368,6 +373,9 @@ struct HomeView: View {
         .buttonStyle(.plain)
         .contextMenu {
             if !isSelectionMode {
+                Button { LocalCardPreferences.toggle(card.id) } label: {
+                    Label(favoriteIDs.contains(card.id) ? "取消收藏" : "收藏卡片", systemImage: favoriteIDs.contains(card.id) ? "star.slash" : "star")
+                }
                 Button { cardToEdit = card } label: { Label("编辑", systemImage: "pencil") }
                 if card.cardCategory != "debit" {
                     Button { updateAnnualFeeStatus(card, status: "1") } label: {
@@ -523,6 +531,11 @@ struct HomeView: View {
                     .frame(width: 22, height: 22)
                 }
                 .accessibilityLabel(syncAccessibilityLabel)
+                Button { onlyFavorites.toggle() } label: {
+                    Image(systemName: onlyFavorites ? "star.fill" : "star").font(.system(size: 16))
+                }
+                .accessibilityLabel(onlyFavorites ? "显示全部卡片" : "只看收藏")
+                .accessibilityValue(onlyFavorites ? "已开启" : "已关闭")
                 // 筛选排序
                 Button { showFilterSheet = true } label: {
                     Image(systemName: "line.3.horizontal.decrease.circle")
@@ -604,32 +617,7 @@ struct HomeView: View {
 
     // MARK: - Helpers
     private func sortCards(_ cards: [SharedCard]) -> [SharedCard] {
-        switch sortBy {
-        case .limitDesc: return cards.sorted { ($0.limit ?? 0) > ($1.limit ?? 0) }
-        case .limitAsc:  return cards.sorted { ($0.limit ?? 0) < ($1.limit ?? 0) }
-        case .daysDesc:
-            return cards.sorted {
-                let d0 = DateCalculator.calculateInterestFreePeriod(
-                    accountBillDate: $0.accountBillDate ?? "", dueDate: $0.dueDate ?? "",
-                    billingDayToNextBill: $0.billingDaySpendingToNextBill)
-                let d1 = DateCalculator.calculateInterestFreePeriod(
-                    accountBillDate: $1.accountBillDate ?? "", dueDate: $1.dueDate ?? "",
-                    billingDayToNextBill: $1.billingDaySpendingToNextBill)
-                return d0 > d1
-            }
-        case .daysAsc:
-            return cards.sorted {
-                let d0 = DateCalculator.calculateInterestFreePeriod(
-                    accountBillDate: $0.accountBillDate ?? "", dueDate: $0.dueDate ?? "",
-                    billingDayToNextBill: $0.billingDaySpendingToNextBill)
-                let d1 = DateCalculator.calculateInterestFreePeriod(
-                    accountBillDate: $1.accountBillDate ?? "", dueDate: $1.dueDate ?? "",
-                    billingDayToNextBill: $1.billingDaySpendingToNextBill)
-                return d0 < d1
-            }
-        case .lastModify:
-            return cards.sorted { $0.lastModifyTime > $1.lastModifyTime }
-        }
+        WalletCardRules.sorted(cards, key: sortBy.contractKey, today: calendarDay)
     }
 
     private func deleteCard(_ card: SharedCard) {
@@ -661,10 +649,7 @@ struct HomeView: View {
             }
             if allCards[index].cardCategory != "debit" {
                 if let status = request.status {
-                    allCards[index].isQualified = status
-                    if status == "3" {
-                        allCards[index].nextAnnualFeeCollectionTime = nil
-                    }
+                    allCards[index] = WalletCardRules.settingAnnualStatus(status, for: allCards[index])
                 }
                 if let annualFee = request.annualFee {
                     allCards[index].annualFee = annualFee
@@ -691,13 +676,7 @@ struct HomeView: View {
         guard card.cardCategory != "debit" else { return }
         var allCards = syncCoordinator.cards
         guard let index = allCards.firstIndex(where: { $0.id == card.id }) else { return }
-        allCards[index].isQualified = status
-        if status == "1" {
-            allCards[index].nextAnnualFeeCollectionTime = DateCalculator.timestampByAddingOneYear(allCards[index].nextAnnualFeeCollectionTime)
-        } else if status == "3" {
-            allCards[index].nextAnnualFeeCollectionTime = nil
-        }
-        allCards[index].lastModifyTime = DataMigrationManager.currentTimestampMilliseconds()
+        allCards[index] = WalletCardRules.settingAnnualStatus(status, for: allCards[index])
         syncCoordinator.commit(cards: allCards)
     }
 

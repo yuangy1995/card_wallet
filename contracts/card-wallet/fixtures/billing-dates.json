@@ -1,0 +1,225 @@
+[
+  {
+    "name": "before bill",
+    "today": "2026-09-09",
+    "card": {
+      "id": "before bill",
+      "cardCategory": "credit",
+      "country": "CN",
+      "bank": "Test Bank",
+      "cardNumber": "4111111111111111",
+      "lastModifyTime": 1789700000000,
+      "accountBillDate": "10",
+      "dueDate": "28",
+      "billingDaySpendingToNextBill": true
+    },
+    "expected": 19
+  },
+  {
+    "name": "bill next",
+    "today": "2026-09-10",
+    "card": {
+      "id": "bill next",
+      "cardCategory": "credit",
+      "country": "CN",
+      "bank": "Test Bank",
+      "cardNumber": "4111111111111111",
+      "lastModifyTime": 1789700000000,
+      "accountBillDate": "10",
+      "dueDate": "28",
+      "billingDaySpendingToNextBill": true
+    },
+    "expected": 48
+  },
+  {
+    "name": "bill current",
+    "today": "2026-09-10",
+    "card": {
+      "id": "bill current",
+      "cardCategory": "credit",
+      "country": "CN",
+      "bank": "Test Bank",
+      "cardNumber": "4111111111111111",
+      "lastModifyTime": 1789700000000,
+      "accountBillDate": "10",
+      "dueDate": "28",
+      "billingDaySpendingToNextBill": false
+    },
+    "expected": 18
+  },
+  {
+    "name": "after bill",
+    "today": "2026-09-11",
+    "card": {
+      "id": "after bill",
+      "cardCategory": "credit",
+      "country": "CN",
+      "bank": "Test Bank",
+      "cardNumber": "4111111111111111",
+      "lastModifyTime": 1789700000000,
+      "accountBillDate": "10",
+      "dueDate": "28",
+      "billingDaySpendingToNextBill": false
+    },
+    "expected": 47
+  },
+  {
+    "name": "february clipped next",
+    "today": "2026-02-28",
+    "card": {
+      "id": "february clipped next",
+      "cardCategory": "credit",
+      "country": "CN",
+      "bank": "Test Bank",
+      "cardNumber": "4111111111111111",
+      "lastModifyTime": 1789700000000,
+      "accountBillDate": "31",
+      "dueDate": "10",
+      "billingDaySpendingToNextBill": true
+    },
+    "expected": 41
+  },
+  {
+    "name": "february clipped current",
+    "today": "2026-02-28",
+    "card": {
+      "id": "february clipped current",
+      "cardCategory": "credit",
+      "country": "CN",
+      "bank": "Test Bank",
+      "cardNumber": "4111111111111111",
+      "lastModifyTime": 1789700000000,
+      "accountBillDate": "31",
+      "dueDate": "10",
+      "billingDaySpendingToNextBill": false
+    },
+    "expected": 10
+  },
+  {
+    "name": "leap clipped next",
+    "today": "2028-02-29",
+    "card": {
+      "id": "leap clipped next",
+      "cardCategory": "credit",
+      "country": "CN",
+      "bank": "Test Bank",
+      "cardNumber": "4111111111111111",
+      "lastModifyTime": 1789700000000,
+      "accountBillDate": "31",
+      "dueDate": "10",
+      "billingDaySpendingToNextBill": true
+    },
+    "expected": 41
+  },
+  {
+    "name": "same billing and due day",
+    "today": "2026-09-10",
+    "card": {
+      "id": "same billing and due day",
+      "cardCategory": "credit",
+      "country": "CN",
+      "bank": "Test Bank",
+      "cardNumber": "4111111111111111",
+      "lastModifyTime": 1789700000000,
+      "accountBillDate": "10",
+      "dueDate": "10",
+      "billingDaySpendingToNextBill": true
+    },
+    "expected": 61
+  },
+  {
+    "name": "due day clipped",
+    "today": "2026-01-25",
+    "card": {
+      "id": "due day clipped",
+      "cardCategory": "credit",
+      "country": "CN",
+      "bank": "Test Bank",
+      "cardNumber": "4111111111111111",
+      "lastModifyTime": 1789700000000,
+      "accountBillDate": "25",
+      "dueDate": "31",
+      "billingDaySpendingToNextBill": true
+    },
+    "expected": 34
+  },
+  {
+    "name": "year rollover",
+    "today": "2026-12-31",
+    "card": {
+      "id": "year rollover",
+      "cardCategory": "credit",
+      "country": "CN",
+      "bank": "Test Bank",
+      "cardNumber": "4111111111111111",
+      "lastModifyTime": 1789700000000,
+      "accountBillDate": "31",
+      "dueDate": "10",
+      "billingDaySpendingToNextBill": true
+    },
+    "expected": 41
+  },
+  {
+    "name": "invalid bill",
+    "today": "2026-09-10",
+    "card": {
+      "id": "invalid bill",
+      "cardCategory": "credit",
+      "country": "CN",
+      "bank": "Test Bank",
+      "cardNumber": "4111111111111111",
+      "lastModifyTime": 1789700000000,
+      "accountBillDate": "0",
+      "dueDate": "10",
+      "billingDaySpendingToNextBill": true
+    },
+    "expected": -1
+  },
+  {
+    "name": "invalid due",
+    "today": "2026-09-10",
+    "card": {
+      "id": "invalid due",
+      "cardCategory": "credit",
+      "country": "CN",
+      "bank": "Test Bank",
+      "cardNumber": "4111111111111111",
+      "lastModifyTime": 1789700000000,
+      "accountBillDate": "10",
+      "dueDate": "32",
+      "billingDaySpendingToNextBill": true
+    },
+    "expected": -1
+  },
+  {
+    "name": "DST civil days",
+    "today": "2026-03-07",
+    "card": {
+      "id": "DST civil days",
+      "cardCategory": "credit",
+      "country": "CN",
+      "bank": "Test Bank",
+      "cardNumber": "4111111111111111",
+      "lastModifyTime": 1789700000000,
+      "accountBillDate": "10",
+      "dueDate": "28",
+      "billingDaySpendingToNextBill": true
+    },
+    "expected": 21
+  },
+  {
+    "name": "debit excluded",
+    "today": "2026-09-09",
+    "card": {
+      "id": "debit",
+      "cardCategory": "debit",
+      "country": "CN",
+      "bank": "Test Bank",
+      "cardNumber": "4111111111111111",
+      "lastModifyTime": 1789700000000,
+      "accountBillDate": "10",
+      "dueDate": "28"
+    },
+    "expected": -1
+  }
+]

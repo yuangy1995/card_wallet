@@ -65,15 +65,18 @@ public final class KeychainManager {
         return String(data: data, encoding: .utf8)
     }
 
-    public static func loadData(key: String) -> Data? {
+    public static func loadData(key: String) -> Data? { try? loadDataResult(key: key).get() }
+
+    static func loadDataResult(key: String) -> Result<Data?, Error> {
         var query = baseQuery(key: key)
         query[kSecMatchLimit as String] = kSecMatchLimitOne
         query[kSecReturnData as String] = kCFBooleanTrue
-
         var item: CFTypeRef?
         let status = SecItemCopyMatching(query as CFDictionary, &item)
-        guard status == errSecSuccess else { return nil }
-        return item as? Data
+        if status == errSecItemNotFound { return .success(nil) }
+        guard status == errSecSuccess else { return .failure(KeychainError.unexpectedStatus(status)) }
+        guard let data = item as? Data else { return .failure(KeychainError.conversionError) }
+        return .success(data)
     }
 
     @discardableResult

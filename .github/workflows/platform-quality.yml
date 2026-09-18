@@ -1,0 +1,172 @@
+name: Platform quality
+on:
+  pull_request:
+    paths: ['apps/**', 'contracts/**', 'scripts/**', '.github/workflows/platform-quality.yml']
+  push:
+    branches: [main]
+    paths: ['apps/**', 'contracts/**', 'scripts/**', '.github/workflows/platform-quality.yml']
+  workflow_call:
+    inputs:
+      checkout_ref:
+        type: string
+        required: true
+permissions:
+  contents: read
+jobs:
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.checkout_ref || github.sha }}
+          persist-credentials: false
+      - name: Verify shared offline assets
+        run: python3 scripts/sync-wallet-brand-assets.py --check
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+          cache-dependency-path: apps/web/pnpm-lock.yaml
+      - name: Locked dependencies, regressions and production build
+        working-directory: apps/web
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm test:run
+          pnpm build
+      - name: Production browser regressions
+        working-directory: apps/web
+        run: |
+          python3 -m pip install playwright==1.57.0
+          python3 -m playwright install --with-deps chromium
+          python3 scripts/browser-regression.py
+          python3 scripts/parity-browser-regression.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: parity-web-${{ github.run_id }}
+          retention-days: 7
+          path: apps/web/browser-results/
+  android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.checkout_ref || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+          cache-dependency-path: apps/android/**/*.gradle.kts
+      - name: Native build and regression suite
+        working-directory: apps/android
+        run: bash gradlew :app:testDebugUnitTest :app:assembleDebug :app:lintDebug --stacktrace --max-workers=2
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: parity-android-${{ github.run_id }}
+          retention-days: 7
+          path: |
+            apps/android/app/build/test-results/
+            apps/android/app/build/reports/
+            apps/android/app/build/outputs/ui-review/
+  android-keystore:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.checkout_ref || github.sha }}
+          persist-credentials: false
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+          cache-dependency-path: apps/android/**/*.gradle.kts
+      - name: Reserve space for the Android virtual device
+        run: |
+          # This disposable Android-only runner does not use these preinstalled SDKs.
+          # Keep the repository, Android SDK, Java and Gradle caches untouched.
+          df -h /
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/share/boost /opt/hostedtoolcache/CodeQL
+          df -h /
+      - name: Enable emulator acceleration
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+      - name: Verify real AndroidKeyStore and encryption lifecycle
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          arch: x86_64
+          target: google_apis
+          disk-size: 4096M
+          disable-animations: true
+          working-directory: apps/android
+          script: bash gradlew :app:connectedDebugAndroidTest --stacktrace --max-workers=2
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: parity-android-keystore-${{ github.run_id }}
+          retention-days: 7
+          path: |
+            apps/android/app/build/outputs/androidTest-results/
+            apps/android/app/build/reports/androidTests/
+  apple:
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [ios, macos]
+    runs-on: macos-15
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ inputs.checkout_ref || github.sha }}
+          persist-credentials: false
+      - name: Generate native project
+        run: |
+          if ! command -v xcodegen >/dev/null; then brew install xcodegen; fi
+          cd apps/${{ matrix.platform }}
+          xcodegen generate
+          mkdir -p build
+          git rev-parse HEAD > build/source-commit.txt
+      - name: Native tests
+        working-directory: apps/${{ matrix.platform }}
+        env:
+          PLATFORM: ${{ matrix.platform }}
+        run: |
+          set -o pipefail
+          if [ "$PLATFORM" = macos ]; then
+            xcodebuild test -project CreditCardMac.xcodeproj -scheme CreditCardMac -destination 'platform=macOS' -derivedDataPath build/DerivedData -resultBundlePath build/Parity.xcresult CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM= ENABLE_APP_SANDBOX=NO WALLET_CODE_SIGN_ENTITLEMENTS=Resources/CreditCardMacAdHoc.entitlements 2>&1 | tee build/tests.log
+          else
+            DEVICE=$(xcrun simctl list devices available --json | python3 -c 'import sys,json; d=json.load(sys.stdin); print(next(x["udid"] for devices in d["devices"].values() for x in devices if x["name"].startswith("iPhone")))')
+            xcodebuild test -project CreditCardIOS.xcodeproj -scheme CreditCardIOS -destination "platform=iOS Simulator,id=$DEVICE" -parallel-testing-enabled NO -derivedDataPath build/DerivedData -resultBundlePath build/Parity.xcresult CODE_SIGNING_ALLOWED=NO 2>&1 | tee build/tests.log
+          fi
+      - name: Summarize tests and export synthetic screenshots
+        if: always()
+        working-directory: apps/${{ matrix.platform }}
+        run: |
+          if test -d build/Parity.xcresult; then
+            xcrun xcresulttool get test-results summary --path build/Parity.xcresult > build/test-summary.json || true
+            xcrun xcresulttool export attachments --path build/Parity.xcresult --output-path build/attachments || true
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: parity-${{ matrix.platform }}-${{ github.run_id }}
+          retention-days: 7
+          path: |
+            apps/${{ matrix.platform }}/build/tests.log
+            apps/${{ matrix.platform }}/build/source-commit.txt
+            apps/${{ matrix.platform }}/build/test-summary.json
+            apps/${{ matrix.platform }}/build/brand-review/
+            apps/${{ matrix.platform }}/build/attachments/
