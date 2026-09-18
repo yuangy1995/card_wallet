@@ -71,7 +71,7 @@ final class CardFutureFieldsTests: XCTestCase {
     }
     func testSyncRecordRoundTripPreservesOpaqueFields() throws {
         let card = try JSONDecoder().decode(SharedCard.self, from: fixtureData())
-        let record = CardSyncRecord.activeUsingCardTimestamp(card)
+        let record = CardSyncRecord.legacyActive(card)
         let decoded = try JSONDecoder().decode(CardSyncRecord.self, from: JSONEncoder().encode(record))
         XCTAssertEqual(decoded.card?.extraFields, card.extraFields)
         XCTAssertEqual(decoded.card?.cardImages, card.cardImages)
