@@ -6,6 +6,7 @@ struct CreditCardView: View {
     var onTap: (() -> Void)?
     var onCopyCardNumber: (() -> Void)?
 
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @State private var isShowingNumber = false
     @State private var isShowingCVV = false
     @State private var remainingShowSeconds = 5.0
@@ -345,6 +346,10 @@ struct CreditCardView: View {
     private func formattedCardNumber() -> String {
         let clean = card.cardNumber.replacingOccurrences(of: " ", with: "")
         if !isShowingNumber {
+            // 大字体下优先保留识别卡片所需的末四位，不让掩码挤掉尾号。
+            if dynamicTypeSize.isAccessibilitySize && clean.count >= 4 {
+                return "•••• \(clean.suffix(4))"
+            }
             if clean.count >= 16 {
                 let last4 = String(clean.suffix(4))
                 return "•••• •••• •••• \(last4)"
