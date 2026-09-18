@@ -8,20 +8,22 @@
   </span>
 </template>
 <script setup>
-import { computed, ref, watch } from 'vue'
+import { computed, ref, watch, inject, unref } from 'vue'
 import { matchIssuer } from '../../utils/walletLogoCatalog'
 const props = defineProps({ bank: { type: String, default: '' }, country: { type: String, default: '' },
   network: { type: String, default: '' }, onCard: Boolean })
 const failed = ref(false)
+const theme = inject('theme', null)
+const dark = computed(() => Boolean(unref(theme?.isDarkMode)))
 const networks = { visa: 'Visa', mastercard: 'Mastercard', amex: 'American Express', unionpay: 'UnionPay',
   jcb: 'JCB', discover: 'Discover', diners: 'Diners Club' }
 const issuer = computed(() => props.network ? null : matchIssuer(props.bank, props.country))
 const resource = computed(() => props.network
   ? (Object.hasOwn(networks, props.network) ? `wallet_network_${props.network}` : null)
-  : issuer.value ? `${issuer.value.resource}${props.onCard ? '_card' : ''}` : null)
+  : issuer.value ? `${issuer.value.resource}${props.onCard || dark.value ? '_card' : ''}` : null)
 const label = computed(() => props.network ? networks[props.network] || '银行卡' : issuer.value?.name || '银行卡')
 const source = computed(() => resource.value ? `${import.meta.env.BASE_URL}wallet-brands/${resource.value}.webp` : '')
-const whiteMark = computed(() => props.onCard && ['visa', 'amex'].includes(props.network))
+const whiteMark = computed(() => (props.onCard || dark.value) && ['visa', 'amex'].includes(props.network))
 watch(source, () => { failed.value = false })
 </script>
 <style scoped>

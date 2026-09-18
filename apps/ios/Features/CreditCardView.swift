@@ -53,8 +53,6 @@ struct CreditCardView: View {
     }
 
     var body: some View {
-        let cardWidth = UIScreen.main.bounds.width - 40
-        let cardHeight = cardWidth / 1.586
 
         ZStack {
             // 1. 渐变底层
@@ -101,6 +99,7 @@ struct CreditCardView: View {
             VStack(alignment: .leading, spacing: 0) {
                 // 顶部：银行 + 品牌图标
                 HStack(alignment: .top) {
+                    WalletBankLogo(bank: card.bank, country: card.country, onCard: true, width: 32, height: 28).accessibilityHidden(true)
                     VStack(alignment: .leading, spacing: 3) {
                         Text(card.bank)
                             .font(.system(.headline, design: .rounded, weight: .bold))
@@ -235,7 +234,8 @@ struct CreditCardView: View {
                     lineWidth: 1.2
                 )
         }
-        .frame(width: cardWidth, height: cardHeight)
+        .frame(maxWidth: .infinity)
+        .aspectRatio(1.586, contentMode: .fit)
         .shadow(color: glowColor.opacity(0.35), radius: 20, x: 0, y: 10)
         .shadow(color: Color.black.opacity(0.4), radius: 8, x: 0, y: 4)
         .scaleEffect(isPressed ? 0.97 : 1.0)
@@ -413,8 +413,7 @@ struct CreditCardMiniView: View {
     var body: some View {
         HStack(spacing: 14) {
             // 仅显示卡组织品牌 logo，去除了外部渐变卡片框容器
-            CardBrandIcon(brand: brand, size: 26)
-                .frame(width: 52, height: 34)
+            WalletBankLogo(bank: card.bank, country: card.country, width: 38, height: 32).accessibilityHidden(true)
 
             VStack(alignment: .leading, spacing: 3) {
                 HStack(spacing: 6) {
@@ -440,6 +439,8 @@ struct CreditCardMiniView: View {
                 }
             }
             Spacer()
+
+            CardBrandIcon(brand: brand, size: 20)
 
             // 年费预警指示
             if let result = DateCalculator.annualFeeDetection(for: card) {

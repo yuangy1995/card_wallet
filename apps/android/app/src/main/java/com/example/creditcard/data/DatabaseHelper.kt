@@ -63,7 +63,9 @@ class DatabaseHelper(
 
     override fun onConfigure(db: SQLiteDatabase) {
         super.onConfigure(db)
-        db.execSQL("PRAGMA secure_delete=ON")
+        db.rawQuery("PRAGMA secure_delete=ON", null).use { cursor ->
+            check(cursor.moveToFirst() && cursor.getInt(0) == 1) { "无法启用本地数据清理保护" }
+        }
     }
     override fun onCreate(db: SQLiteDatabase) {
         db.execSQL("CREATE TABLE $TABLE_CARDS ($KEY_ID TEXT PRIMARY KEY, $KEY_FORMAT TEXT NOT NULL)")

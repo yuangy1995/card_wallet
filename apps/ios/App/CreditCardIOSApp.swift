@@ -4,7 +4,7 @@ import SwiftUI
 struct CreditCardIOSApp: App {
     @StateObject private var syncCoordinator = SyncCoordinator.shared
     @StateObject private var lockManager = AutoLockManager.shared
-    @AppStorage("app_appearance") private var appAppearance: String = "light"
+    @AppStorage("app_appearance") private var appAppearance: String = "system"
 
     var body: some Scene {
         WindowGroup {

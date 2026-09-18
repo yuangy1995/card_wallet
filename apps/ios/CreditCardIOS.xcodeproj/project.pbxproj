@@ -8,21 +8,35 @@
 
 /* Begin PBXBuildFile section */
 		02FE2B670B7A75884A899CD4 /* LocalStorageManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 476719549CC29080AC87BDBD /* LocalStorageManager.swift */; };
+		075EF1210966FAE4B6B8A1FF /* WalletBrandCatalog.json in Resources */ = {isa = PBXBuildFile; fileRef = D64B992242838E3CD6324C96 /* WalletBrandCatalog.json */; };
 		08B22B96120789E5233224CB /* CardModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = FC5936EF84B246269DF374F6 /* CardModels.swift */; };
 		09CF454D72F6E02F4F8866AD /* CreditCardView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1247E85801306F9F10C16DDA /* CreditCardView.swift */; };
 		0C96F4675F0939C92A30869A /* KeychainManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31AE7BB12D1C481C44C96D08 /* KeychainManager.swift */; };
 		0E5D66489558C030F16BB48C /* CardEditView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C39E1AEB71EE70C80C70BF8B /* CardEditView.swift */; };
+		12FF3C0925A4D8C6B00553DF /* LocalCardPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = D16092882AF8EC503E0DADCF /* LocalCardPreferences.swift */; };
 		1436FAB30C201F255A21F895 /* StorageManagementView.swift in Sources */ = {isa = PBXBuildFile; fileRef = B9AF4ABBB8E854EB78116A1B /* StorageManagementView.swift */; };
 		1602AA337A87B79B2E627E39 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = E8878DAC2C7FD2B74943390A /* Assets.xcassets */; };
 		1E2370F0947330B7B77B9999 /* DateCalculator.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4D2A388DAFD05E68F3B7F5AB /* DateCalculator.swift */; };
+		1E9DA1C85FAE159A2AC2AA77 /* WalletBranding.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 6A3D5850CD19EFCEE874E9B9 /* WalletBranding.xcassets */; };
+		1F464EBD352BA1E05F08497D /* Localizable.xcstrings in Resources */ = {isa = PBXBuildFile; fileRef = B0F7B8321885125FECE15EC9 /* Localizable.xcstrings */; };
 		1F5095512BEAA827E824F682 /* DataMigrationManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 726DC57CEFEB6339A7DE1A77 /* DataMigrationManager.swift */; };
+		22151003A2A55A2D5021EC15 /* WalletBankLogo.swift in Sources */ = {isa = PBXBuildFile; fileRef = 9347CDAEDA7FD26311CA7E21 /* WalletBankLogo.swift */; };
+		2904D39112902374595C3C1E /* fixtures in Resources */ = {isa = PBXBuildFile; fileRef = 5389DA4159C38AC7DFB1ABFD /* fixtures */; };
 		33B72EBBB135B6B3F7271CDE /* SyncCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = BC5DE3BF7E9EEEF80BD290D9 /* SyncCoordinator.swift */; };
 		3B9BC1DEF1D318AF1A78B2A2 /* AutoLockManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 316F4552D449B6714BC64402 /* AutoLockManager.swift */; };
+		3D8F0B6B12CAA954CC84D42B /* BrandingContractTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB50F3C474685FD14C1DEC27 /* BrandingContractTests.swift */; };
 		4D103626125B366EA6C33A26 /* CardDetailView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 28931C6003862119AF27EC9B /* CardDetailView.swift */; };
+		4DC7B7EDDFABBF6B97BC20FB /* wallet-catalog-simple.txt in Resources */ = {isa = PBXBuildFile; fileRef = 491C8F4EC20FA7A373B3E630 /* wallet-catalog-simple.txt */; };
 		572B37D44F3CA5DA36604A9C /* HomeView.swift in Sources */ = {isa = PBXBuildFile; fileRef = EBE0640D82A3645BC5B5C2EF /* HomeView.swift */; };
+		6B64B7AB131279C2EC6FC8E7 /* WalletCardRules.swift in Sources */ = {isa = PBXBuildFile; fileRef = 40AF9C6BB5133460C4442D17 /* WalletCardRules.swift */; };
+		6CFD8AC87107AA1388E93C54 /* wallet-catalog-banks.txt in Resources */ = {isa = PBXBuildFile; fileRef = 0F33C770ED67258ECD0E581F /* wallet-catalog-banks.txt */; };
+		6FE75BFAE1AB3E6A4CD5557A /* CardImagePolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6F289756819B0C456490B5BB /* CardImagePolicy.swift */; };
+		74C9315BE9329944BD65597E /* LocalSyncHistory.swift in Sources */ = {isa = PBXBuildFile; fileRef = 57916918E0FE960E98F49E5E /* LocalSyncHistory.swift */; };
 		787E24A42ED3020188F6D5FF /* CardBrandIcon.swift in Sources */ = {isa = PBXBuildFile; fileRef = 787A33BC82604278589D5205 /* CardBrandIcon.swift */; };
+		92CC22F50A21EAEE84590F48 /* WebDAVRequestRegistry.swift in Sources */ = {isa = PBXBuildFile; fileRef = F3E33AD22335F3831B04DD26 /* WebDAVRequestRegistry.swift */; };
 		97B3179978D5C9C2ED2A2C5E /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 2CC35D59C30E53108E7A19F5 /* InfoPlist.strings */; };
 		9BF4888967E9ED6722815813 /* SyncModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A9D2C20EA19F78C50E0F475D /* SyncModels.swift */; };
+		9C80AD4AC57167389D1BE13D /* LocalParityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = FD7F8EF058E10A04CFFA0360 /* LocalParityTests.swift */; };
 		A030EE302B6C508FC99F7F19 /* CreditCardIOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 543A6481C530F53709472E22 /* CreditCardIOSApp.swift */; };
 		A98D55FDCB4087C8C58AB2E0 /* BestUsageView.swift in Sources */ = {isa = PBXBuildFile; fileRef = DD4E62252DC49635A578434D /* BestUsageView.swift */; };
 		AA398B9C07CAED4E64641284 /* AppRootView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 8CD18A2990D61727EBF4D5E7 /* AppRootView.swift */; };
@@ -34,6 +48,11 @@
 		BF1B20E4C5E46E69E1432FF7 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 2D36F5164C5879138C0EC33C /* PrivacyInfo.xcprivacy */; };
 		C3011045AEE56A0EFD0AF606 /* SyncLedgerStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 079808CBB0C02B0CA485288A /* SyncLedgerStore.swift */; };
 		C51E97C1B2785EAD04738C09 /* StatDetailListView.swift in Sources */ = {isa = PBXBuildFile; fileRef = D6A36B477C2159195BDFE1F3 /* StatDetailListView.swift */; };
+		C9573FBB0E3C205AE482C19E /* WalletLogoCatalog.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82FA32C9E5C80AEBBE6324CF /* WalletLogoCatalog.swift */; };
+		CC660C83273BB27293F07B02 /* PlatformContractTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 96407E1A276677E9A5749A7B /* PlatformContractTests.swift */; };
+		CD6FCA56D7D62DD75AE95D71 /* wallet-catalog-supplement.txt in Resources */ = {isa = PBXBuildFile; fileRef = 005FEA5890232D2F50014BEC /* wallet-catalog-supplement.txt */; };
+		D04C8A12F1251B9537EBC582 /* wallet-catalog-global.txt in Resources */ = {isa = PBXBuildFile; fileRef = A8E0B2FD4DD5C4E7B2E3A28C /* wallet-catalog-global.txt */; };
+		D1FD2E0AFF7BD12BB3E0B004 /* wallet-catalog-networks.txt in Resources */ = {isa = PBXBuildFile; fileRef = 903C018E1986A879CA1C4387 /* wallet-catalog-networks.txt */; };
 		DC59FFF9C899D3F8585129A4 /* InfoPlist.strings in Resources */ = {isa = PBXBuildFile; fileRef = 906F9B6FCA419E0F25C3A8F4 /* InfoPlist.strings */; };
 		E94AA6FC9017E673C7714514 /* CloudSyncView.swift in Sources */ = {isa = PBXBuildFile; fileRef = C6A16C8D18C9F588D348882F /* CloudSyncView.swift */; };
 		EF491E5BDD6A4F625AD6433A /* WebDAVClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = 74E0333D109FF39A3288E30F /* WebDAVClient.swift */; };
@@ -41,45 +60,92 @@
 		F709394AC682FEB8949D2524 /* SyncNetworkPolicy.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1B61891A9E29513F45C92E09 /* SyncNetworkPolicy.swift */; };
 /* End PBXBuildFile section */
 
+/* Begin PBXContainerItemProxy section */
+		838798CB112781613CEC7E6B /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = AE4CE533FD21681FCA129AAD /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = A03E3BAF3E23593BDD6FAB41;
+			remoteInfo = CreditCardIOS;
+		};
+/* End PBXContainerItemProxy section */
+
 /* Begin PBXFileReference section */
+		005FEA5890232D2F50014BEC /* wallet-catalog-supplement.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "wallet-catalog-supplement.txt"; sourceTree = "<group>"; };
 		079808CBB0C02B0CA485288A /* SyncLedgerStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncLedgerStore.swift; sourceTree = "<group>"; };
+		0F33C770ED67258ECD0E581F /* wallet-catalog-banks.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "wallet-catalog-banks.txt"; sourceTree = "<group>"; };
 		1247E85801306F9F10C16DDA /* CreditCardView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreditCardView.swift; sourceTree = "<group>"; };
 		1B61891A9E29513F45C92E09 /* SyncNetworkPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncNetworkPolicy.swift; sourceTree = "<group>"; };
 		226B5C17E25F53DF8BC27EE8 /* StatisticsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatisticsView.swift; sourceTree = "<group>"; };
 		28931C6003862119AF27EC9B /* CardDetailView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardDetailView.swift; sourceTree = "<group>"; };
 		2CC35D59C30E53108E7A19F5 /* InfoPlist.strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = InfoPlist.strings; path = "zh-Hant.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
-		2D17720EDE529BA21E2C0F76 /* CreditCardIOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = CreditCardIOS.entitlements; sourceTree = "<group>"; };
 		2D36F5164C5879138C0EC33C /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
 		316F4552D449B6714BC64402 /* AutoLockManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AutoLockManager.swift; sourceTree = "<group>"; };
 		31AE7BB12D1C481C44C96D08 /* KeychainManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainManager.swift; sourceTree = "<group>"; };
 		3F9D98A2DB05DC6C93BC37F3 /* CryptoManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CryptoManager.swift; sourceTree = "<group>"; };
+		40AF9C6BB5133460C4442D17 /* WalletCardRules.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalletCardRules.swift; sourceTree = "<group>"; };
 		476719549CC29080AC87BDBD /* LocalStorageManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalStorageManager.swift; sourceTree = "<group>"; };
+		491C8F4EC20FA7A373B3E630 /* wallet-catalog-simple.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "wallet-catalog-simple.txt"; sourceTree = "<group>"; };
 		4D2A388DAFD05E68F3B7F5AB /* DateCalculator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DateCalculator.swift; sourceTree = "<group>"; };
+		5389DA4159C38AC7DFB1ABFD /* fixtures */ = {isa = PBXFileReference; lastKnownFileType = folder; name = fixtures; path = "../../contracts/card-wallet/fixtures"; sourceTree = SOURCE_ROOT; };
 		543A6481C530F53709472E22 /* CreditCardIOSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CreditCardIOSApp.swift; sourceTree = "<group>"; };
+		57916918E0FE960E98F49E5E /* LocalSyncHistory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalSyncHistory.swift; sourceTree = "<group>"; };
 		66B1A9FE6395E0CA12D49DBB /* CreditCardIOS.app */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.application; path = CreditCardIOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		6A3D5850CD19EFCEE874E9B9 /* WalletBranding.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = WalletBranding.xcassets; sourceTree = "<group>"; };
 		6ACE63D0C6122205974E2095 /* ToolsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToolsView.swift; sourceTree = "<group>"; };
+		6F289756819B0C456490B5BB /* CardImagePolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardImagePolicy.swift; sourceTree = "<group>"; };
 		726DC57CEFEB6339A7DE1A77 /* DataMigrationManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DataMigrationManager.swift; sourceTree = "<group>"; };
 		74E0333D109FF39A3288E30F /* WebDAVClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebDAVClient.swift; sourceTree = "<group>"; };
 		787A33BC82604278589D5205 /* CardBrandIcon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardBrandIcon.swift; sourceTree = "<group>"; };
+		78C30FCF5EF14CF994D7C39B /* CreditCardIOSTests.xctest */ = {isa = PBXFileReference; includeInIndex = 0; lastKnownFileType = wrapper.cfbundle; path = CreditCardIOSTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		7AADEB492941A9A06492F786 /* BankNameNormalizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BankNameNormalizer.swift; sourceTree = "<group>"; };
+		82FA32C9E5C80AEBBE6324CF /* WalletLogoCatalog.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalletLogoCatalog.swift; sourceTree = "<group>"; };
 		8AFF3A94B9E779A1F13F88F7 /* LockScreenView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LockScreenView.swift; sourceTree = "<group>"; };
 		8CD18A2990D61727EBF4D5E7 /* AppRootView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppRootView.swift; sourceTree = "<group>"; };
+		903C018E1986A879CA1C4387 /* wallet-catalog-networks.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "wallet-catalog-networks.txt"; sourceTree = "<group>"; };
 		906F9B6FCA419E0F25C3A8F4 /* InfoPlist.strings */ = {isa = PBXFileReference; lastKnownFileType = text.plist.strings; name = InfoPlist.strings; path = "zh-Hans.lproj/InfoPlist.strings"; sourceTree = "<group>"; };
+		9347CDAEDA7FD26311CA7E21 /* WalletBankLogo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WalletBankLogo.swift; sourceTree = "<group>"; };
+		96407E1A276677E9A5749A7B /* PlatformContractTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlatformContractTests.swift; sourceTree = "<group>"; };
+		A8E0B2FD4DD5C4E7B2E3A28C /* wallet-catalog-global.txt */ = {isa = PBXFileReference; lastKnownFileType = text; path = "wallet-catalog-global.txt"; sourceTree = "<group>"; };
 		A9D2C20EA19F78C50E0F475D /* SyncModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncModels.swift; sourceTree = "<group>"; };
+		B0F7B8321885125FECE15EC9 /* Localizable.xcstrings */ = {isa = PBXFileReference; lastKnownFileType = text.json.xcstrings; path = Localizable.xcstrings; sourceTree = "<group>"; };
 		B40C8D0B6739686670839F69 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		B9AF4ABBB8E854EB78116A1B /* StorageManagementView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StorageManagementView.swift; sourceTree = "<group>"; };
 		B9BE56243153DD904EEE5BF0 /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
 		BC5DE3BF7E9EEEF80BD290D9 /* SyncCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncCoordinator.swift; sourceTree = "<group>"; };
 		C39E1AEB71EE70C80C70BF8B /* CardEditView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardEditView.swift; sourceTree = "<group>"; };
 		C6A16C8D18C9F588D348882F /* CloudSyncView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CloudSyncView.swift; sourceTree = "<group>"; };
+		D16092882AF8EC503E0DADCF /* LocalCardPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalCardPreferences.swift; sourceTree = "<group>"; };
+		D64B992242838E3CD6324C96 /* WalletBrandCatalog.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = WalletBrandCatalog.json; sourceTree = "<group>"; };
 		D6A36B477C2159195BDFE1F3 /* StatDetailListView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatDetailListView.swift; sourceTree = "<group>"; };
 		DD4E62252DC49635A578434D /* BestUsageView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BestUsageView.swift; sourceTree = "<group>"; };
 		E8878DAC2C7FD2B74943390A /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		EBE0640D82A3645BC5B5C2EF /* HomeView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HomeView.swift; sourceTree = "<group>"; };
+		F3E33AD22335F3831B04DD26 /* WebDAVRequestRegistry.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WebDAVRequestRegistry.swift; sourceTree = "<group>"; };
+		FB50F3C474685FD14C1DEC27 /* BrandingContractTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BrandingContractTests.swift; sourceTree = "<group>"; };
 		FC5936EF84B246269DF374F6 /* CardModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CardModels.swift; sourceTree = "<group>"; };
+		FD7F8EF058E10A04CFFA0360 /* LocalParityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalParityTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXGroup section */
+		0107F9B85634189D264FE340 /* Tests */ = {
+			isa = PBXGroup;
+			children = (
+				FB50F3C474685FD14C1DEC27 /* BrandingContractTests.swift */,
+				FD7F8EF058E10A04CFFA0360 /* LocalParityTests.swift */,
+				96407E1A276677E9A5749A7B /* PlatformContractTests.swift */,
+			);
+			path = Tests;
+			sourceTree = "<group>";
+		};
+		0B9936BFC7653EAD9A7CDFED /* contracts */ = {
+			isa = PBXGroup;
+			children = (
+				308B684167837BB99204225E /* card-wallet */,
+			);
+			path = contracts;
+			sourceTree = "<group>";
+		};
 		0BC8832701DEA67CF4A2145F /* Resources */ = {
 			isa = PBXGroup;
 			children = (
@@ -87,15 +153,28 @@
 				B40C8D0B6739686670839F69 /* Info.plist */,
 				906F9B6FCA419E0F25C3A8F4 /* InfoPlist.strings */,
 				2CC35D59C30E53108E7A19F5 /* InfoPlist.strings */,
+				B0F7B8321885125FECE15EC9 /* Localizable.xcstrings */,
 				2D36F5164C5879138C0EC33C /* PrivacyInfo.xcprivacy */,
+				D64B992242838E3CD6324C96 /* WalletBrandCatalog.json */,
+				6A3D5850CD19EFCEE874E9B9 /* WalletBranding.xcassets */,
+				826A196F2FB81AEFCD2025D3 /* WalletBrandLicenses */,
 			);
 			path = Resources;
+			sourceTree = "<group>";
+		};
+		308B684167837BB99204225E /* card-wallet */ = {
+			isa = PBXGroup;
+			children = (
+				5389DA4159C38AC7DFB1ABFD /* fixtures */,
+			);
+			path = "card-wallet";
 			sourceTree = "<group>";
 		};
 		3AA47BA02FF22C3DBF36B5F6 /* Products */ = {
 			isa = PBXGroup;
 			children = (
 				66B1A9FE6395E0CA12D49DBB /* CreditCardIOS.app */,
+				78C30FCF5EF14CF994D7C39B /* CreditCardIOSTests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -105,19 +184,34 @@
 			children = (
 				316F4552D449B6714BC64402 /* AutoLockManager.swift */,
 				7AADEB492941A9A06492F786 /* BankNameNormalizer.swift */,
+				6F289756819B0C456490B5BB /* CardImagePolicy.swift */,
 				FC5936EF84B246269DF374F6 /* CardModels.swift */,
 				3F9D98A2DB05DC6C93BC37F3 /* CryptoManager.swift */,
 				726DC57CEFEB6339A7DE1A77 /* DataMigrationManager.swift */,
 				4D2A388DAFD05E68F3B7F5AB /* DateCalculator.swift */,
 				31AE7BB12D1C481C44C96D08 /* KeychainManager.swift */,
+				D16092882AF8EC503E0DADCF /* LocalCardPreferences.swift */,
 				476719549CC29080AC87BDBD /* LocalStorageManager.swift */,
+				57916918E0FE960E98F49E5E /* LocalSyncHistory.swift */,
 				BC5DE3BF7E9EEEF80BD290D9 /* SyncCoordinator.swift */,
 				079808CBB0C02B0CA485288A /* SyncLedgerStore.swift */,
 				A9D2C20EA19F78C50E0F475D /* SyncModels.swift */,
 				1B61891A9E29513F45C92E09 /* SyncNetworkPolicy.swift */,
+				40AF9C6BB5133460C4442D17 /* WalletCardRules.swift */,
+				82FA32C9E5C80AEBBE6324CF /* WalletLogoCatalog.swift */,
 				74E0333D109FF39A3288E30F /* WebDAVClient.swift */,
+				F3E33AD22335F3831B04DD26 /* WebDAVRequestRegistry.swift */,
 			);
 			path = Domain;
+			sourceTree = "<group>";
+		};
+		52674C2EE401740E5C5EDD04 /* card_wallet */ = {
+			isa = PBXGroup;
+			children = (
+				0B9936BFC7653EAD9A7CDFED /* contracts */,
+			);
+			name = card_wallet;
+			path = ../..;
 			sourceTree = "<group>";
 		};
 		6C089C34D1CBEB962A09CBA4 /* Features */ = {
@@ -136,6 +230,7 @@
 				226B5C17E25F53DF8BC27EE8 /* StatisticsView.swift */,
 				B9AF4ABBB8E854EB78116A1B /* StorageManagementView.swift */,
 				6ACE63D0C6122205974E2095 /* ToolsView.swift */,
+				9347CDAEDA7FD26311CA7E21 /* WalletBankLogo.swift */,
 			);
 			path = Features;
 			sourceTree = "<group>";
@@ -149,14 +244,27 @@
 			path = App;
 			sourceTree = "<group>";
 		};
+		826A196F2FB81AEFCD2025D3 /* WalletBrandLicenses */ = {
+			isa = PBXGroup;
+			children = (
+				0F33C770ED67258ECD0E581F /* wallet-catalog-banks.txt */,
+				A8E0B2FD4DD5C4E7B2E3A28C /* wallet-catalog-global.txt */,
+				903C018E1986A879CA1C4387 /* wallet-catalog-networks.txt */,
+				491C8F4EC20FA7A373B3E630 /* wallet-catalog-simple.txt */,
+				005FEA5890232D2F50014BEC /* wallet-catalog-supplement.txt */,
+			);
+			path = WalletBrandLicenses;
+			sourceTree = "<group>";
+		};
 		C20E03B8F502B35C7487FB69 = {
 			isa = PBXGroup;
 			children = (
-				2D17720EDE529BA21E2C0F76 /* CreditCardIOS.entitlements */,
 				819DA7FF5A68784A546113C1 /* App */,
+				52674C2EE401740E5C5EDD04 /* card_wallet */,
 				42C9927AD94A1ABB0E6D4A10 /* Domain */,
 				6C089C34D1CBEB962A09CBA4 /* Features */,
 				0BC8832701DEA67CF4A2145F /* Resources */,
+				0107F9B85634189D264FE340 /* Tests */,
 				3AA47BA02FF22C3DBF36B5F6 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -164,6 +272,25 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
+		0F2CD5272C9101A86A0CF38A /* CreditCardIOSTests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 5F945833E34086B1D14A67F4 /* Build configuration list for PBXNativeTarget "CreditCardIOSTests" */;
+			buildPhases = (
+				BBCA084CD60F75C6780CED18 /* Sources */,
+				6C9FCDADBA657D643DC7A0AF /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				A0C673FAAEAC32A81FADA250 /* PBXTargetDependency */,
+			);
+			name = CreditCardIOSTests;
+			packageProductDependencies = (
+			);
+			productName = CreditCardIOSTests;
+			productReference = 78C30FCF5EF14CF994D7C39B /* CreditCardIOSTests.xctest */;
+			productType = "com.apple.product-type.bundle.unit-test";
+		};
 		A03E3BAF3E23593BDD6FAB41 /* CreditCardIOS */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 67A6267F753FD618B3942F33 /* Build configuration list for PBXNativeTarget "CreditCardIOS" */;
@@ -210,6 +337,7 @@
 			projectRoot = "";
 			targets = (
 				A03E3BAF3E23593BDD6FAB41 /* CreditCardIOS */,
+				0F2CD5272C9101A86A0CF38A /* CreditCardIOSTests */,
 			);
 		};
 /* End PBXProject section */
@@ -222,7 +350,23 @@
 				1602AA337A87B79B2E627E39 /* Assets.xcassets in Resources */,
 				DC59FFF9C899D3F8585129A4 /* InfoPlist.strings in Resources */,
 				97B3179978D5C9C2ED2A2C5E /* InfoPlist.strings in Resources */,
+				1F464EBD352BA1E05F08497D /* Localizable.xcstrings in Resources */,
 				BF1B20E4C5E46E69E1432FF7 /* PrivacyInfo.xcprivacy in Resources */,
+				075EF1210966FAE4B6B8A1FF /* WalletBrandCatalog.json in Resources */,
+				1E9DA1C85FAE159A2AC2AA77 /* WalletBranding.xcassets in Resources */,
+				6CFD8AC87107AA1388E93C54 /* wallet-catalog-banks.txt in Resources */,
+				D04C8A12F1251B9537EBC582 /* wallet-catalog-global.txt in Resources */,
+				D1FD2E0AFF7BD12BB3E0B004 /* wallet-catalog-networks.txt in Resources */,
+				4DC7B7EDDFABBF6B97BC20FB /* wallet-catalog-simple.txt in Resources */,
+				CD6FCA56D7D62DD75AE95D71 /* wallet-catalog-supplement.txt in Resources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		6C9FCDADBA657D643DC7A0AF /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				2904D39112902374595C3C1E /* fixtures in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -240,6 +384,7 @@
 				787E24A42ED3020188F6D5FF /* CardBrandIcon.swift in Sources */,
 				4D103626125B366EA6C33A26 /* CardDetailView.swift in Sources */,
 				0E5D66489558C030F16BB48C /* CardEditView.swift in Sources */,
+				6FE75BFAE1AB3E6A4CD5557A /* CardImagePolicy.swift in Sources */,
 				08B22B96120789E5233224CB /* CardModels.swift in Sources */,
 				E94AA6FC9017E673C7714514 /* CloudSyncView.swift in Sources */,
 				A030EE302B6C508FC99F7F19 /* CreditCardIOSApp.swift in Sources */,
@@ -249,7 +394,9 @@
 				1E2370F0947330B7B77B9999 /* DateCalculator.swift in Sources */,
 				572B37D44F3CA5DA36604A9C /* HomeView.swift in Sources */,
 				0C96F4675F0939C92A30869A /* KeychainManager.swift in Sources */,
+				12FF3C0925A4D8C6B00553DF /* LocalCardPreferences.swift in Sources */,
 				02FE2B670B7A75884A899CD4 /* LocalStorageManager.swift in Sources */,
+				74C9315BE9329944BD65597E /* LocalSyncHistory.swift in Sources */,
 				AD99F216F570C82EF17DC82F /* LockScreenView.swift in Sources */,
 				B63ACBA233613B1CE43BA2D8 /* SettingsView.swift in Sources */,
 				C51E97C1B2785EAD04738C09 /* StatDetailListView.swift in Sources */,
@@ -260,11 +407,33 @@
 				9BF4888967E9ED6722815813 /* SyncModels.swift in Sources */,
 				F709394AC682FEB8949D2524 /* SyncNetworkPolicy.swift in Sources */,
 				F4A58F2B7DB756F3D9BD4BD9 /* ToolsView.swift in Sources */,
+				22151003A2A55A2D5021EC15 /* WalletBankLogo.swift in Sources */,
+				6B64B7AB131279C2EC6FC8E7 /* WalletCardRules.swift in Sources */,
+				C9573FBB0E3C205AE482C19E /* WalletLogoCatalog.swift in Sources */,
 				EF491E5BDD6A4F625AD6433A /* WebDAVClient.swift in Sources */,
+				92CC22F50A21EAEE84590F48 /* WebDAVRequestRegistry.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		BBCA084CD60F75C6780CED18 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				3D8F0B6B12CAA954CC84D42B /* BrandingContractTests.swift in Sources */,
+				9C80AD4AC57167389D1BE13D /* LocalParityTests.swift in Sources */,
+				CC660C83273BB27293F07B02 /* PlatformContractTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
+
+/* Begin PBXTargetDependency section */
+		A0C673FAAEAC32A81FADA250 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = A03E3BAF3E23593BDD6FAB41 /* CreditCardIOS */;
+			targetProxy = 838798CB112781613CEC7E6B /* PBXContainerItemProxy */;
+		};
+/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		448D465A4D9F4344DFBD4A51 /* Release */ = {
@@ -291,6 +460,25 @@
 				SDKROOT = iphoneos;
 				SWIFT_VERSION = 6.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
+		735C31172BC4609B9671315B /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.applist.CreditCardIOSTests;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/CreditCardIOS.app/CreditCardIOS";
 			};
 			name = Release;
 		};
@@ -411,6 +599,25 @@
 			};
 			name = Release;
 		};
+		C15882B68C630BBBD05C92A8 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				BUNDLE_LOADER = "$(TEST_HOST)";
+				GENERATE_INFOPLIST_FILE = YES;
+				IPHONEOS_DEPLOYMENT_TARGET = 17.0;
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@loader_path/Frameworks",
+				);
+				PRODUCT_BUNDLE_IDENTIFIER = com.applist.CreditCardIOSTests;
+				SDKROOT = iphoneos;
+				SWIFT_VERSION = 6.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/CreditCardIOS.app/CreditCardIOS";
+			};
+			name = Debug;
+		};
 		C5B9699293C967721E183A42 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -441,6 +648,15 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
+		5F945833E34086B1D14A67F4 /* Build configuration list for PBXNativeTarget "CreditCardIOSTests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				C15882B68C630BBBD05C92A8 /* Debug */,
+				735C31172BC4609B9671315B /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Debug;
+		};
 		62922ED689F0E3E6CFE5C4BE /* Build configuration list for PBXProject "CreditCardIOS" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (

@@ -22,7 +22,7 @@ struct SettingsView: View {
     @State private var showIconSelection = false
     @State private var currentIconName: String? = nil
     @State private var showAppearanceDialog = false
-    @AppStorage("app_appearance") private var appAppearance = "light"
+    @AppStorage("app_appearance") private var appAppearance = "system"
     @AppStorage("enable_face_id") private var enableFaceID = false
     @AppStorage("app_lock_enabled") private var appLockEnabled = false
     @AppStorage("enable_webdav_sync") private var enableWebDAVSync = false
