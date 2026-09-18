@@ -19,6 +19,7 @@ let plist: [String: Any] = [
 let plistData = try PropertyListSerialization.data(fromPropertyList: plist, format: .xml, options: 0)
 try plistData.write(to: contents.appendingPathComponent("Info.plist"))
 let namespace = "http://www.andymatuschak.org/xml-namespaces/sparkle"
+let downloadRepository = "https://github.com/yuangy1995/card_wallet/"
 var items: [String] = []
 for arch in ["arm64", "x86_64"] {
     let data = Data("测试安装包 \(arch)".utf8)
@@ -31,7 +32,7 @@ for arch in ["arm64", "x86_64"] {
       <sparkle:shortVersionString>1.0.2</sparkle:shortVersionString>
       <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
       \(arch == "arm64" ? "<sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>" : "")
-      <enclosure url="https://github.com/yuangy1995/card_wallet/releases/download/mac-v1.0.2-4/\(name)"
+      <enclosure url="\(downloadRepository)releases/download/mac-v1.0.2-4/\(name)"
         length="\(data.count)" sparkle:edSignature="\(signature)"/>
     </item>
     """)
@@ -67,7 +68,16 @@ func check(_ name: String, _ feed: String, succeeds: Bool = false) throws {
 try check("两个架构的有效签名", xml, succeeds: true)
 try check("阻止错误构建号", xml.replacingOccurrences(of: "<sparkle:version>4", with: "<sparkle:version>3"))
 try check("阻止错误版本", xml.replacingOccurrences(of: "<sparkle:shortVersionString>1.0.2", with: "<sparkle:shortVersionString>1.0.1"))
-try check("阻止错误下载仓库", xml.replacingOccurrences(of: "card-wallet-releases/", with: "other-releases/"))
+for (name, repository) in [
+    ("阻止错误下载仓库", "https://github.com/yuangy1995/other-releases/"),
+    ("阻止旧下载仓库", "https://github.com/yuangy1995/card-wallet-releases/"),
+    ("阻止错误下载所有者", "https://github.com/other-owner/card_wallet/")
+] {
+    let changed = xml.replacingOccurrences(of: downloadRepository, with: repository)
+    // 迁移地址后也必须真正改坏样本，不能把有效 feed 当作反例。
+    guard changed != xml else { fatalError("下载仓库测试没有修改样本") }
+    try check(name, changed)
+}
 try check("阻止错误大小", xml.replacingOccurrences(of: "length=\"", with: "length=\"9"))
 try check("阻止缺失签名", xml.replacingOccurrences(of: "sparkle:edSignature=", with: "unsigned="))
 try check("阻止错误签名命名空间", xml.replacingOccurrences(of: namespace, with: "https://example.invalid"))
