@@ -23,9 +23,23 @@ describe('password persistence and reset', () => {
   })
 
   it('locks exactly at the inactivity deadline', () => {
-    storage.get.mockImplementation((key, fallback) => key === PasswordManager.LAST_ACTIVITY_KEY ? Date.now() - 300_000 : fallback)
-    expect(PasswordManager.shouldAutoLock()).toBe(true)
-    expect(PasswordManager.getRemainingLockTime()).toBe(0)
+    // 固定“现在”及已保存的活动时间，不能让 mock 在读取时生成新的活动时间。
+    const now = 1_789_689_600_000
+    const clock = vi.spyOn(Date, 'now').mockReturnValue(now)
+    const lastActivity = now - PasswordManager.AUTO_LOCK_TIMEOUT
+    storage.get.mockImplementation((key, fallback) => key === PasswordManager.LAST_ACTIVITY_KEY ? lastActivity : fallback)
+    try {
+      expect(PasswordManager.shouldAutoLock()).toBe(true)
+      expect(PasswordManager.getRemainingLockTime()).toBe(0)
+      clock.mockReturnValue(now - 1)
+      expect(PasswordManager.shouldAutoLock()).toBe(false)
+      expect(PasswordManager.getRemainingLockTime()).toBe(1)
+      clock.mockReturnValue(now + 1)
+      expect(PasswordManager.shouldAutoLock()).toBe(true)
+      expect(PasswordManager.getRemainingLockTime()).toBe(0)
+    } finally {
+      clock.mockRestore()
+    }
   })
 
   it('removes snapshots and history as well as cards before clearing the password', async () => {
