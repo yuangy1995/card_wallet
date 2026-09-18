@@ -2,6 +2,8 @@
 import functools
 import http.server
 import json
+from datetime import datetime, timezone
+import traceback
 from pathlib import Path
 import subprocess
 import threading
@@ -22,9 +24,12 @@ url = f'http://127.0.0.1:{server.server_port}'
 results = {}
 with sync_playwright() as pw:
     browser = pw.chromium.launch(headless=True)
-    context = browser.new_context(viewport={'width': 1280, 'height': 1000}, color_scheme='light')
+    context = browser.new_context(viewport={'width': 1280, 'height': 1000}, color_scheme='light', timezone_id='UTC')
     context.route('**/*', lambda route: route.continue_() if route.request.url.startswith(url + '/') else route.abort())
     page = context.new_page()
+    # A fixed civil date keeps the real automatic reminder deterministic, without
+    # pausing timers or skipping the reminder flow that runs after wallet loading.
+    page.clock.set_fixed_time(datetime(2026, 9, 18, 12, 0, tzinfo=timezone.utc))
     errors = []
     page.on('pageerror', lambda error: errors.append(str(error)))
     seed = json.dumps({'cards': cards, 'password': legacy_hash})
@@ -39,8 +44,12 @@ with sync_playwright() as pw:
         page.get_by_placeholder('请输入密码', exact=True).fill(PASSWORD)
         page.get_by_role('button', name='解锁', exact=True).click()
         expect(page.locator('.wallet-favorites-filter')).to_be_visible(timeout=30000)
-        if page.locator('.el-message-box').is_visible():
-            page.locator('.el-message-box button').last.click()
+        reminder = page.locator('.annual-fee-dialog')
+        expect(reminder).to_be_visible(timeout=30000)
+        expect(reminder).to_contain_text('账单日提醒')
+        reminder.get_by_role('button', name='知道了', exact=True).click()
+        expect(reminder).not_to_be_visible()
+        results['initial_reminder_dismissals'] = results.get('initial_reminder_dismissals', 0) + 1
     try:
         page.goto(url, wait_until='networkidle')
         unlock()
@@ -69,7 +78,7 @@ with sync_playwright() as pw:
         network = page.locator('[data-resource="wallet_network_visa"] img').first
         expect(bank).to_be_visible()
         expect(network).to_be_visible()
-        page.wait_for_function("[...document.querySelectorAll('.physics-card-wrapper:first-child .wallet-brand-mark img')].every(img => img.complete && img.naturalWidth > 0)")
+        page.wait_for_function("() => { const images = [...document.querySelectorAll('.physics-card-wrapper:first-child .wallet-brand-mark img')]; return images.length >= 2 && images.every(img => img.complete && img.naturalWidth > 0); }")
         assert bank.evaluate("image => new URL(image.src).origin === location.origin")
         results['same_origin_bank_and_network_artwork_loaded'] = True
         for theme in ['light', 'dark']:
@@ -85,6 +94,7 @@ with sync_playwright() as pw:
         assert not errors, errors
         results['page_errors'] = errors
     except Exception:
+        (OUT / 'parity-failure.txt').write_text(traceback.format_exc() + '\n\n' + page.locator('body').inner_text() + '\n\n' + repr(errors), encoding='utf-8')
         page.screenshot(path=str(OUT / 'parity-failure.png'), full_page=True)
         raise
     finally:
