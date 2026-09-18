@@ -33,7 +33,9 @@ export class PasswordManager {
     const hashedPassword = this.hashPassword(password)
     const encryptedHash = CryptoJS.AES.encrypt(hashedPassword, 'password_encryption_key').toString()
     
-    StorageManager.set(this.PASSWORD_KEY, encryptedHash)
+    if (!StorageManager.set(this.PASSWORD_KEY, encryptedHash)) {
+      throw new Error('密码未能保存，请检查浏览器存储设置后重试。')
+    }
     this.resetFailedAttempts()
     return true
   }
@@ -109,16 +111,18 @@ export class PasswordManager {
     StorageManager.set(this.LAST_ACTIVITY_KEY, Date.now())
   }
 
+  static getRemainingLockTime() {
+    const now = Date.now()
+    const lastActivity = StorageManager.get(this.LAST_ACTIVITY_KEY, now)
+    return Math.max(0, this.AUTO_LOCK_TIMEOUT - Math.max(0, now - lastActivity))
+  }
+
   /**
    * 检查是否应该自动锁定
    */
   static shouldAutoLock() {
     if (!this.hasPassword()) return false
-    
-    const lastActivity = StorageManager.get(this.LAST_ACTIVITY_KEY, Date.now())
-    const timeSinceLastActivity = Date.now() - lastActivity
-    
-    return timeSinceLastActivity > this.AUTO_LOCK_TIMEOUT
+    return this.getRemainingLockTime() <= 0
   }
 
   /**
@@ -167,28 +171,31 @@ export class PasswordManager {
    */
     static async clearAllAppData() {
       try {
-        // 清除所有业务数据
-        const keysToRemove = [
+        // 快照同样包含完整卡片资料，不能在重置密码后留下。
+        const localDataKeys = [
           STORAGE_KEYS.CARD_DATA,
-          'cardDataBackups', 
+          STORAGE_KEYS.SYNC_RECORDS,
+          STORAGE_KEYS.SYNC_PENDING,
+          STORAGE_KEYS.SYNC_REVISION,
+          STORAGE_KEYS.SYNC_LAST_SNAPSHOT,
+          STORAGE_KEYS.SYNC_HISTORY
+        ]
+        const keysToRemove = [
+          ...localDataKeys,
+          'cardDataBackups',
           STORAGE_KEYS.WEBDAV_CONFIG,
           STORAGE_KEYS.TABLE_CUSTOM_COLUMNS,
           'platform_unlock_credential'
         ]
         
-        keysToRemove.forEach(key => {
-          StorageManager.remove(key)
-        })
+        for (const key of keysToRemove) {
+          if (!StorageManager.remove(key)) throw new Error('本地数据未能清除，请重试。')
+        }
 
         if (!localDataStore.initialized) {
           await localDataStore.initialize()
         }
-        await Promise.all([
-          STORAGE_KEYS.CARD_DATA,
-          STORAGE_KEYS.SYNC_RECORDS,
-          STORAGE_KEYS.SYNC_PENDING,
-          STORAGE_KEYS.SYNC_REVISION
-        ].map((key) => localDataStore.remove(key)))
+        await Promise.all(localDataKeys.map((key) => localDataStore.remove(key)))
         
         // 清除安全相关数据
         this.clearSecurityData()
