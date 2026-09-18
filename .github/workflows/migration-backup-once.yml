@@ -1,0 +1,76 @@
+name: Encrypted migration backup
+on:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/migration-backup-once.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: card-wallet-migration-maintenance
+  cancel-in-progress: false
+jobs:
+  backup:
+    if: github.repository == 'yuangy1995/card_wallet' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Encrypt complete Git backup without publishing plaintext
+        env:
+          ANDROID_READY: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' && secrets.ANDROID_KEYSTORE_PASSWORD != '' && secrets.ANDROID_KEY_ALIAS != '' && secrets.ANDROID_KEY_PASSWORD != '' && secrets.ANDROID_SIGNING_CERT_SHA256 != '' }}
+          SPARKLE_PRESENT: ${{ secrets.SPARKLE_PRIVATE_KEY != '' }}
+        run: |
+          set -euo pipefail
+          umask 077
+          mkdir "$RUNNER_TEMP/migration-backup"
+          cat > "$RUNNER_TEMP/backup-recipient.pem" <<'CERT'
+          -----BEGIN CERTIFICATE-----
+          MIIELTCCApWgAwIBAgIUPNiz7AhQKpTNS5lo7XRX2jNiylgwDQYJKoZIhvcNAQEL
+          BQAwJjEkMCIGA1UEAwwbQ2FyZFdhbGxldCBtaWdyYXRpb24gYmFja3VwMB4XDTI2
+          MDkxODEwNTE0M1oXDTI2MDkyNTEwNTE0M1owJjEkMCIGA1UEAwwbQ2FyZFdhbGxl
+          dCBtaWdyYXRpb24gYmFja3VwMIIBojANBgkqhkiG9w0BAQEFAAOCAY8AMIIBigKC
+          AYEAsRZQkUD9mUCmafdGNJxqRlLt28RKTDaX/+GAMJgeifMnq/LygsZ/JoeYiGrb
+          zI/IOGw0cFhnR6JYMQ85hE2AFZhVrNLYH7Bi+hlY1xF7f2KO5RgUeAsgVeQe8lKG
+          gxaum7GR0rNMWxRoO1eMzMa5BRRRZA0429+vPlI35/+I1VWdYglvqIjQLr9yZ3ok
+          GPwNdXC77ypBjqMEmVpGtj+ok/uZlhJr6R2uHBNcouhqs69CRINYGBlWt7rSP+Cd
+          sJdrxcqDPh48bSk0wiIePjSlj6RUhrH3U83wf6L+ENv8/Kvhd0dwYxw12B/XW0wD
+          yAbeNRVj4mb8pVWVQjvcf9HnloWGOoXX7HySj/dwwZ3cyymxMcR8pNF663mr0th9
+          /mcL6suiPMsUABzc1s7SWmuekph4rUibw+PeHQxGNCzfC8lHNH0KnfwyeQ3rg0sc
+          J3HT702oQWZ3J/CjmleNtAdb1Y/vk8T/VM5MIuwBWKQlriPmFBqwLz8ByCq8Fo1v
+          tHAPAgMBAAGjUzBRMB0GA1UdDgQWBBR4Lepgzg53chPwKm6kwnbfovRtqzAfBgNV
+          HSMEGDAWgBR4Lepgzg53chPwKm6kwnbfovRtqzAPBgNVHRMBAf8EBTADAQH/MA0G
+          CSqGSIb3DQEBCwUAA4IBgQAIggh2MI1ppX7FJHZZbWxC53wTrVx79x9/J6dPpknV
+          zNwuR2NMCvbFFosdC5fL2oxQgJ8iQZxXKqB9135YEVX121nNcLjdW/esCcBUUYo4
+          6qjFC0QHfzlVYxWvlPKn550IjPgTN7C79rv3WGrSZbBmE4lHFOm1GANYM/3VKuih
+          WO1Cw49UH/VoFC7DpHZXcXZ/lOxu7ITZ5W/wvGNaSTIuokAB0oaUjJXd6Q/Yt2PO
+          yxO/GGIXJXV318SJy0c5s4hTXAc8aMz4olfXy09SM33u01ecbM8Bj2mFtOxEtsbi
+          UTf4WhYiXtmUgVdqbICDyfcyeGG5MMUiCFAXSfjm8B7mXQsAFDm09RKN7jyrho7m
+          g5FXrG4kbu529A6+zjUyRCIb/bcwR6GEvEudZJr5++OnZBLiaZ37ohWZ9AnuFqlB
+          OkKeFthI3bufsBg4+rzE/QbTduwr5vmBQUnV2WCun0yJNY/mphc6OIUQPnVsxxII
+          aQD4Hk7CRyG9feT7q92+AbQ=
+          -----END CERTIFICATE-----
+          CERT
+          git fetch origin '+refs/heads/*:refs/remotes/origin/*' --tags
+          git bundle create "$RUNNER_TEMP/before-cleanup.bundle" --all
+          git bundle verify "$RUNNER_TEMP/before-cleanup.bundle"
+          sha256sum "$RUNNER_TEMP/before-cleanup.bundle" | cut -d' ' -f1 > "$RUNNER_TEMP/migration-backup/plaintext.sha256"
+          openssl cms -encrypt -binary -aes-256-cbc -in "$RUNNER_TEMP/before-cleanup.bundle" -outform DER -out "$RUNNER_TEMP/migration-backup/repository.bundle.cms" "$RUNNER_TEMP/backup-recipient.pem"
+          rm -f "$RUNNER_TEMP/before-cleanup.bundle"
+          git for-each-ref --format='%(objectname) %(refname)' refs/heads refs/remotes refs/tags > "$RUNNER_TEMP/migration-backup/refs.txt"
+          python3 - <<'PY'
+          import json, os
+          from pathlib import Path
+          report = {'head': os.environ['GITHUB_SHA'], 'android_secrets_configured': os.environ['ANDROID_READY'] == 'true', 'sparkle_secret_present_not_yet_verified': os.environ['SPARKLE_PRESENT'] == 'true'}
+          (Path(os.environ['RUNNER_TEMP']) / 'migration-backup/readiness.json').write_text(json.dumps(report, indent=2) + '\n')
+          print(json.dumps(report))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: encrypted-migration-backup
+          path: ${{ runner.temp }}/migration-backup/
+          if-no-files-found: error
+          retention-days: 1
