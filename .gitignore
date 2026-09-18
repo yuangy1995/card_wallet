@@ -1,4 +1,4 @@
-# 通用系统文件与本地配置；各客户端继续使用自己的 .gitignore。
+# 系统文件与本地配置
 .DS_Store
 .env
 .env.*
@@ -8,8 +8,7 @@
 .idea/
 .vscode/
 .codex-derived/
-
-# 本地生成的依赖、构建产物和测试报告。
+# 依赖、构建产物和测试报告
 node_modules/
 build/
 dist/
@@ -20,13 +19,22 @@ DerivedData/
 coverage/
 venv/
 .venv/
-
-# 不再添加新的签名材料；已导入的历史文件不受忽略规则影响。
+__pycache__/
+*.pyc
+# 签名私钥和机器配置不得加入公开源码
 *.jks
 *.keystore
 *.p12
+*.pfx
+*.p8
+*.key
 *.mobileprovision
 *.provisionprofile
 local.properties
 keystore.properties
+key.properties
 signing.properties
+signing.json
+signing.env
+sparkle_private_key
+sparkle_ed25519_key

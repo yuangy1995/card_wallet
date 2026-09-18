@@ -1,0 +1,20 @@
+name: Signing security
+on:
+  pull_request:
+  push:
+    branches: [main]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - run: python3 scripts/check-signing-secrets.py
+      - run: python3 -m unittest discover -s scripts -p 'test_signing_security.py'
+      - run: python3 -m unittest discover -s apps/android/scripts -p 'test_*.py'
+      - run: python3 -m unittest discover -s apps/macos/scripts -p 'test_*.py'
