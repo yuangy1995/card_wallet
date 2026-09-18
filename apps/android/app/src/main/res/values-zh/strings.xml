@@ -117,4 +117,5 @@
     <string name="sort_interest_asc">当前免息期从短到长</string>
     <string name="sort_modified">最近修改</string>
     <string name="sort_bank">银行名称</string>
+    <string name="wallet_image_import_error">每张卡最多20张图片，单张原图不超过10MB；图片会压缩保存。原有图片不受影响。</string>
 </resources>

@@ -8,6 +8,7 @@ android {
     namespace = "com.example.creditcard"
     compileSdk = 36
     defaultConfig {
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         manifestPlaceholders["appLabel"] = "@string/app_name"
         applicationId = "com.applist.cardwallet"
         minSdk = 23

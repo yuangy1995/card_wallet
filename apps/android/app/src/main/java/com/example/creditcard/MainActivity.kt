@@ -51,7 +51,6 @@ class MainActivity : FragmentActivity() {
 
         // 1. 初始化本地主题偏好及数据仓库
         ThemeManager.init(this)
-        SyncCoordinator.initLocalData(this)
         SecurityLockManager.init(this)
         if (savedInstanceState == null) {
             SecurityLockManager.lockIfEnabled(this)
@@ -72,6 +71,7 @@ class MainActivity : FragmentActivity() {
         }
         lifecycleScope.launch {
             SecurityLockManager.state.collect {
+                SyncCoordinator.setSuspended(applicationContext, it.locked)
                 updateNfcForegroundDispatch()
             }
         }
@@ -95,7 +95,7 @@ class MainActivity : FragmentActivity() {
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) { 
                     Box(modifier = Modifier.fillMaxSize()) {
                         CompositionLocalProvider(LocalAppUpdater provides appUpdater) {
-                            MainNavigation()
+                            if (!securityState.locked) MainNavigation()
                             AppUpdateHost(locked = securityState.locked)
                         }
                         if (securityState.locked) {

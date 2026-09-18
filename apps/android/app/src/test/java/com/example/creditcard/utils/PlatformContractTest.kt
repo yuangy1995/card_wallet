@@ -65,4 +65,27 @@ class PlatformContractTest {
             assertEquals(expected, WalletCardRules.sorted(cards.reversed(), key, day).map { it.id })
         }
     }
+    @Test fun imageLimitsAndExistingImagePreservation() {
+        val input = checkNotNull(javaClass.classLoader?.getResourceAsStream("card-images.json"))
+        val spec = input.bufferedReader().use { Json.parseToJsonElement(it.readText()).jsonObject }
+        assertEquals(20, CardImageCodec.MAX_COUNT)
+        assertEquals(10485760, CardImageCodec.MAX_INPUT_BYTES)
+        assertEquals(2097152, CardImageCodec.MAX_STORED_BYTES)
+        spec.getValue("appendCases").jsonArray.forEach { value ->
+            val c=value.jsonObject
+            assertEquals(c.getValue("expected").jsonPrimitive.boolean, CardImageCodec.canAppend(c.getValue("existing").jsonPrimitive.int,c.getValue("incoming").jsonPrimitive.int))
+        }
+    }
+    @Test fun annualConfirmationUsesCommonCases() {
+        cases("annual-fees").forEach { value ->
+            val c=value.jsonObject
+            val card=SharedCard(id=c.getValue("id").jsonPrimitive.content, cardCategory=c.getValue("cardCategory").jsonPrimitive.content,
+                isQualified=c.getValue("isQualified").jsonPrimitive.content, nextAnnualFeeCollectionTime=c.getValue("nextAnnualFeeCollectionTime").jsonPrimitive.long,
+                cardImages=listOf(com.example.creditcard.data.CardImageAsset(id="existing",data="preserved")))
+            val result=CardReminderRules.confirmAnnualFeeQualified(card,c.getValue("now").jsonPrimitive.long)
+            assertEquals(c.getValue("expectedStatus").jsonPrimitive.content,result.isQualified)
+            assertEquals(c.getValue("expectedDate").jsonPrimitive.long,result.nextAnnualFeeCollectionTime)
+            assertEquals(card.cardImages,result.cardImages)
+        }
+    }
 }

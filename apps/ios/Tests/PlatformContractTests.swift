@@ -57,4 +57,30 @@ final class PlatformContractTests: XCTestCase {
             }
         }
     }
+    private struct AppendCase: Decodable { let existing: Int; let incoming: Int; let expected: Bool }
+    private struct ImageCases: Decodable { let limits: [String: Int]; let appendCases: [AppendCase] }
+    private struct AnnualCase: Decodable {
+        let id: String; let cardCategory: String; let isQualified: String
+        let nextAnnualFeeCollectionTime: Double; let now: Double; let expectedDate: Double; let expectedStatus: String
+    }
+    func testSharedImagePolicy() throws {
+        let input: ImageCases = try fixtures("card-images")
+        XCTAssertEqual(input.limits, ["count": CardImagePolicy.maximumCount, "inputBytes": CardImagePolicy.maximumInputBytes, "storedBytes": CardImagePolicy.maximumStoredBytes, "edge": CardImagePolicy.maximumEdge])
+        for c in input.appendCases { XCTAssertEqual(CardImagePolicy.canAppend(existing: c.existing, incoming: c.incoming), c.expected) }
+        XCTAssertNil(CardImagePolicy.jpeg(from: Data("not-an-image".utf8)))
+        XCTAssertNil(CardImagePolicy.jpeg(from: Data(repeating: 0, count: CardImagePolicy.maximumInputBytes + 1)))
+    }
+    func testAnnualConfirmationAndExistingImagePreservation() throws {
+        let cases: [AnnualCase] = try fixtures("annual-fees")
+        for c in cases {
+            var card = SharedCard(id: c.id, country: "", bank: "Synthetic", cardNumber: "")
+            card.cardCategory = c.cardCategory; card.isQualified = c.isQualified
+            card.nextAnnualFeeCollectionTime = c.nextAnnualFeeCollectionTime
+            card.cardImages = [CardImageAsset(id: "preserved", data: "existing-data")]
+            let updated = WalletCardRules.settingAnnualStatus("1", for: card, now: Date(timeIntervalSince1970: c.now / 1000))
+            XCTAssertEqual(updated.isQualified, c.expectedStatus, c.id)
+            XCTAssertEqual(updated.nextAnnualFeeCollectionTime, c.expectedDate, c.id)
+            XCTAssertEqual(updated.cardImages, card.cardImages)
+        }
+    }
 }

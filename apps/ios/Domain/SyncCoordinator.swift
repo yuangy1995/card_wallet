@@ -134,6 +134,7 @@ public final class SyncCoordinator: ObservableObject {
 
     private var ledger = SyncLedger()
     private var hasBootstrapped = false
+    private var isSuspended = true
     private var queuedForceUpload = false
     private var queuedCellularOverride = false
     private var activeCellularOverride = false
@@ -190,7 +191,7 @@ public final class SyncCoordinator: ObservableObject {
     private init() {}
 
     public func bootstrap() {
-        guard !hasBootstrapped else { return }
+        guard !isSuspended, !AutoLockManager.shared.isLocked, !hasBootstrapped else { return }
         hasBootstrapped = true
         refreshWebDAVConfigurationState(disableAutoSyncWhenInvalid: true)
         restoreLastSyncMetadata()
@@ -198,15 +199,22 @@ public final class SyncCoordinator: ObservableObject {
         let localResult = LocalStorageManager.read()
         switch localResult {
         case .success(let localCards):
-            ledger = SyncLedgerStore.shared.load(seeding: localCards)
+            do { ledger = try SyncLedgerStore.shared.load(seeding: localCards) }
+            catch {
+                hasBootstrapped = false
+                syncStatus = .failure("未能读取本机同步记录；已有数据和云端备份已保留")
+                return
+            }
             if ledger.records.isEmpty && !localCards.isEmpty {
                 ledger.records = localCards.map(CardSyncRecord.activeUsingCardTimestamp)
                 SyncLedgerStore.shared.saveInBackground(ledger)
             }
             cards = CardSyncMergeEngine.activeCards(from: ledger.records)
+            LocalCardPreferences.retain(Set(cards.map(\.id)))
         case .failure:
-            ledger = SyncLedger()
-            cards = []
+            hasBootstrapped = false
+            syncStatus = .failure("未能读取本机卡片，请重试；已有数据没有被更改")
+            return
         }
         repairPendingUploadStateIfNeeded()
 
@@ -223,10 +231,10 @@ public final class SyncCoordinator: ObservableObject {
         let inputIDs = Set(normalized.map(\.id))
         for card in normalized {
             if let existing = existingByID[card.id], existing.state == .active, existing.card == card { continue }
-            events.append(.active(card))
+            events.append(.active(card, changedAt: CardSyncRecord.nextTimestamp(after: existingByID[card.id])))
         }
         for cardID in deletedCardIDs where !inputIDs.contains(cardID) {
-            events.append(.deleted(cardId: cardID))
+            events.append(.deleted(cardId: cardID, changedAt: CardSyncRecord.nextTimestamp(after: existingByID[cardID])))
         }
         return writeLocal(events: events)
     }
@@ -236,8 +244,9 @@ public final class SyncCoordinator: ObservableObject {
         let normalized = cards.map(normalizedCard)
         let restoredIDs = Set(normalized.map(\.id))
         let existingActiveIDs = Set(ledger.records.filter { $0.state == .active }.map(\.cardId))
-        var events = normalized.map { CardSyncRecord.active($0) }
-        events.append(contentsOf: existingActiveIDs.subtracting(restoredIDs).map { CardSyncRecord.deleted(cardId: $0) })
+        let existingByID = latestRecordsByID(ledger.records)
+        var events = normalized.map { CardSyncRecord.active($0, changedAt: CardSyncRecord.nextTimestamp(after: existingByID[$0.id])) }
+        events.append(contentsOf: existingActiveIDs.subtracting(restoredIDs).map { CardSyncRecord.deleted(cardId: $0, changedAt: CardSyncRecord.nextTimestamp(after: existingByID[$0])) })
         return writeLocal(events: events)
     }
 
@@ -252,9 +261,25 @@ public final class SyncCoordinator: ObservableObject {
         }
     }
 
+    public func setSuspended(isLocked: Bool) {
+        isSuspended = isLocked
+        WebDAVClient.shared.setSuspended(isLocked)
+        if isLocked {
+            stopAutoSync()
+            needsCellularSyncConfirmation = false
+            queuedCellularOverride = false
+            cancelCurrentSync()
+            WebDAVClient.shared.cancelRequests()
+        } else if !hasBootstrapped {
+            bootstrap()
+        } else {
+            startAutoSync()
+        }
+    }
+
     public func startAutoSync() {
         stopAutoSync()
-        guard UserDefaults.standard.bool(forKey: "enable_webdav_sync") else { return }
+        guard !isSuspended, hasBootstrapped, !AutoLockManager.shared.isLocked, UserDefaults.standard.bool(forKey: "enable_webdav_sync") else { return }
         guard refreshWebDAVConfigurationState(disableAutoSyncWhenInvalid: true) else { return }
         let configuredInterval = UserDefaults.standard.double(forKey: "auto_sync_interval")
         let interval = configuredInterval > 0 ? configuredInterval : 300
@@ -288,6 +313,7 @@ public final class SyncCoordinator: ObservableObject {
     public func cancelCurrentSync() {
         guard isSynchronizing else { return }
         cancelRequested = true
+        WebDAVClient.shared.cancelRequests()
         queuedForceUpload = false
         ledger.pendingWebDAVUpload = true
         SyncLedgerStore.shared.saveInBackground(ledger)
@@ -305,12 +331,15 @@ public final class SyncCoordinator: ObservableObject {
     }
 
     public func requestManualSync() {
+        guard !isSuspended, !AutoLockManager.shared.isLocked else { return }
+        if !hasBootstrapped { bootstrap() }
         Task {
             guard refreshWebDAVConfigurationState() else {
                 await synchronize(forceUpload: true, trigger: .manual(cellularConfirmed: false))
                 return
             }
             if await SyncNetworkMonitor.shared.connection() == .cellular {
+                guard !isSuspended, !AutoLockManager.shared.isLocked else { return }
                 needsCellularSyncConfirmation = true
                 return
             }
@@ -328,6 +357,7 @@ public final class SyncCoordinator: ObservableObject {
     }
 
     private func synchronize(forceUpload: Bool, trigger: SyncTrigger) async {
+        guard hasBootstrapped, !isSuspended, !AutoLockManager.shared.isLocked else { return }
         guard UserDefaults.standard.bool(forKey: "enable_webdav_sync") || forceUpload else { return }
         guard refreshWebDAVConfigurationState(disableAutoSyncWhenInvalid: true) else { return }
         if await SyncNetworkMonitor.shared.connection() == .cellular {
@@ -337,12 +367,14 @@ public final class SyncCoordinator: ObservableObject {
                 updateProgress("等待 Wi‑Fi", step: 0, total: 0, detail: "自动同步仅使用 Wi‑Fi，连接 Wi‑Fi 后将自动重试")
                 return
             case .manual(let confirmed) where !confirmed:
+                guard !isSuspended, !AutoLockManager.shared.isLocked else { return }
                 needsCellularSyncConfirmation = true
                 return
             default:
                 break
             }
         }
+        guard !isSuspended, !AutoLockManager.shared.isLocked else { return }
         if isSynchronizing {
             if forceUpload {
                 queuedForceUpload = true
@@ -464,8 +496,8 @@ public final class SyncCoordinator: ObservableObject {
                 }
             }
             try ensureSyncNotCancelled()
-            if !filesToRead.isEmpty && snapshots.isEmpty {
-                throw WebDAVError.httpError(statusCode: 0, message: "无法解密云端同步文件，请检查同步密钥")
+            if snapshots.count != filesToRead.count {
+                throw WebDAVError.httpError(statusCode: 0, message: "部分同步文件未能读取或解密；已保留本机数据和云端备份")
             }
 
             updateProgress("合并数据", step: 4, total: 6, detail: "正在比对本机与云端变更")
@@ -475,12 +507,20 @@ public final class SyncCoordinator: ObservableObject {
                 records: localRecordsBeforeMerge,
                 since: Self.snapshotDate(fromFilename: ledger.lastWebDAVSnapshotFilename ?? "")
             )
-            let mergeResult = await Self.prepareMerge(localRecords: localRecordsBeforeMerge, remoteRecords: remoteRecords)
+            var mergeRevision = localRevision
+            var mergeResult = await Self.prepareMerge(localRecords: ledger.records, remoteRecords: remoteRecords)
             try ensureSyncNotCancelled()
+            while mergeRevision != localRevision {
+                mergeRevision = localRevision
+                mergeResult = await Self.prepareMerge(localRecords: ledger.records, remoteRecords: remoteRecords)
+                try ensureSyncNotCancelled()
+            }
             if mergeResult.changedByRemote {
-                ledger.records = mergeResult.mergedRecords
-                await SyncLedgerStore.shared.saveAsync(ledger)
-                await persistActiveCardsAsync()
+                var candidate = ledger
+                candidate.records = mergeResult.mergedRecords
+                guard SyncLedgerStore.shared.save(candidate) else { throw CocoaError(.fileWriteUnknown) }
+                ledger = candidate
+                persistActiveCards()
                 let activeCardsAfterMerge = await Self.activeCards(from: mergeResult.mergedRecords)
                 remoteChanges = Self.cardChanges(before: activeCardsBeforeSync, after: activeCardsAfterMerge, kind: "云端更新")
             }
@@ -515,7 +555,7 @@ public final class SyncCoordinator: ObservableObject {
                 updateProgress("同步完成", step: 6, total: 6, detail: message)
                 finishSync(status: .success, markSuccess: true)
                 if let uploadedFile {
-                    pruneAutomaticSnapshots(from: files + [
+                    pruneAutomaticSnapshots(from: files.filter { downloadedFiles.contains($0.filename) } + [
                         WebDAVBackupFile(filename: uploadedFile, size: 0, lastModified: SyncTimestamp.now())
                     ])
                 }
@@ -574,11 +614,16 @@ public final class SyncCoordinator: ObservableObject {
     }
 
     private func writeLocal(events: [CardSyncRecord]) -> [SharedCard] {
-        guard !events.isEmpty else { return cards }
-        ledger.records = CardSyncMergeEngine.merge([ledger.records, events])
-        ledger.pendingWebDAVUpload = true
+        guard hasBootstrapped, !isSuspended, !AutoLockManager.shared.isLocked, !events.isEmpty else { return cards }
+        var candidate = ledger
+        candidate.records = CardSyncMergeEngine.merge([ledger.records, events])
+        candidate.pendingWebDAVUpload = true
+        guard SyncLedgerStore.shared.save(candidate) else {
+            syncStatus = .failure("未能保存卡片，请重试；已有数据没有被更改")
+            return cards
+        }
+        ledger = candidate
         localRevision += 1
-        SyncLedgerStore.shared.saveInBackground(ledger)
         persistActiveCards()
         if UserDefaults.standard.bool(forKey: "enable_webdav_sync") {
             Task { await synchronize(forceUpload: true) }
@@ -589,13 +634,8 @@ public final class SyncCoordinator: ObservableObject {
     private func persistActiveCards() {
         let activeCards = CardSyncMergeEngine.activeCards(from: ledger.records)
         cards = activeCards
+        LocalCardPreferences.retain(Set(activeCards.map(\.id)))
         LocalStorageManager.writeInBackground(cards: activeCards)
-    }
-
-    private func persistActiveCardsAsync() async {
-        let activeCards = await Self.activeCards(from: ledger.records)
-        await Self.writeLocalCards(activeCards)
-        cards = activeCards
     }
 
     private func latestRecordsByID(_ records: [CardSyncRecord]) -> [String: CardSyncRecord] {
@@ -633,7 +673,7 @@ public final class SyncCoordinator: ObservableObject {
     }
 
     private func ensureSyncNotCancelled() throws {
-        if cancelRequested {
+        if cancelRequested || isSuspended || AutoLockManager.shared.isLocked || Task.isCancelled {
             throw CancellationError()
         }
     }
@@ -646,6 +686,7 @@ public final class SyncCoordinator: ObservableObject {
         totalBytes: Int64? = nil,
         downloadedBytes: Int64? = nil
     ) {
+        guard !isSuspended, !AutoLockManager.shared.isLocked else { return }
         syncProgress = SyncProgress(
             phase: phase,
             step: step,
@@ -682,17 +723,18 @@ public final class SyncCoordinator: ObservableObject {
         saveSyncHistory()
     }
 
+    private var historyAvailable = false
     private func loadSyncHistory() -> [SyncHistoryEntry] {
-        guard let data = UserDefaults.standard.data(forKey: Self.syncHistoryKey),
-              let entries = try? JSONDecoder().decode([SyncHistoryEntry].self, from: data) else {
-            return []
-        }
-        return entries
+        do {
+            let entries = try LocalSyncHistory.read([SyncHistoryEntry].self, legacyKey: Self.syncHistoryKey) ?? []
+            historyAvailable = true
+            return entries
+        } catch { historyAvailable = false; return [] }
     }
 
     private func saveSyncHistory() {
-        guard let data = try? JSONEncoder().encode(syncHistory) else { return }
-        UserDefaults.standard.set(data, forKey: Self.syncHistoryKey)
+        guard historyAvailable else { return }
+        try? LocalSyncHistory.write(syncHistory)
     }
 
     private nonisolated static func snapshotDate(fromFilename filename: String) -> Date? {
@@ -927,6 +969,7 @@ public final class SyncCoordinator: ObservableObject {
         allowsCellularAccess: Bool
     ) async throws -> String {
         let prepared = try await Self.prepareUploadSnapshot(records: records, syncPassword: syncPassword)
+        try ensureSyncNotCancelled()
         let uploadSize = Int64(prepared.cipherText.data(using: .utf8)?.count ?? 0)
 
         let progressBox = ProgressBox()
@@ -972,13 +1015,14 @@ public final class SyncCoordinator: ObservableObject {
             downloadedBytes: uploadSize
         )
 
+        try ensureSyncNotCancelled()
         ledger.records = CardSyncMergeEngine.merge([ledger.records, records])
         ledger.processedWebDAVSnapshotIDs.formUnion(downloadedSnapshots.map(\.snapshotId))
         ledger.processedWebDAVSnapshotIDs.insert(prepared.snapshot.snapshotId)
         ledger.lastWebDAVSnapshotFilename = prepared.filename
-        ledger.pendingWebDAVUpload = localRevision != snapshotRevision
-        await SyncLedgerStore.shared.saveAsync(ledger)
-        await persistActiveCardsAsync()
+        ledger.pendingWebDAVUpload = CardSyncMergeEngine.merge([ledger.records]) != CardSyncMergeEngine.merge([records])
+        guard SyncLedgerStore.shared.save(ledger) else { throw CocoaError(.fileWriteUnknown) }
+        persistActiveCards()
         print("[SyncCoordinator] 已上传 WebDAV 快照: \(prepared.filename), pending=\(ledger.pendingWebDAVUpload)")
         return prepared.filename
     }
@@ -1115,7 +1159,7 @@ public final class SyncCoordinator: ObservableObject {
             persistLastSyncMetadata(date: now, duration: duration)
         }
 
-        let shouldContinue = continueQueued && (queuedForceUpload || ledger.pendingWebDAVUpload)
+        let shouldContinue = continueQueued && markSuccess && !isSuspended && (queuedForceUpload || ledger.pendingWebDAVUpload)
         let shouldContinueOnCellular = queuedCellularOverride || activeCellularOverride
         queuedForceUpload = false
         queuedCellularOverride = false

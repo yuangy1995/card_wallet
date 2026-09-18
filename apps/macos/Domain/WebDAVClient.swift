@@ -113,6 +113,9 @@ public class WebDAVClient {
     private static let transferTimeout: TimeInterval = 300
     private static let transferResourceTimeout: TimeInterval = 3600
     
+    private let requestRegistry = WebDAVRequestRegistry()
+    public func cancelRequests() { requestRegistry.cancelAll() }
+    public func setSuspended(_ value: Bool) { requestRegistry.setSuspended(value) }
     private init() {}
 
     private static func transferSessionConfiguration() -> URLSessionConfiguration {
@@ -202,7 +205,7 @@ public class WebDAVClient {
                         completion(.failure(WebDAVError.httpError(statusCode: httpResponse.statusCode, message: "连接测试失败")))
                     }
                 }
-                task.resume()
+                self.requestRegistry.start(task)
                 
             case .failure(let error):
                 completion(.failure(error))
@@ -269,7 +272,7 @@ public class WebDAVClient {
                 session.finishTasksAndInvalidate()
                 completionHandler(data, response, error)
             }
-            task.resume()
+            self.requestRegistry.start(task)
         } else {
             request.httpBody = data
             let session = URLSession(configuration: Self.transferSessionConfiguration())
@@ -277,7 +280,7 @@ public class WebDAVClient {
                 session.finishTasksAndInvalidate()
                 completionHandler(data, response, error)
             }
-            task.resume()
+            self.requestRegistry.start(task)
         }
     }
     
@@ -340,7 +343,7 @@ public class WebDAVClient {
                 completion(.failure(WebDAVError.xmlParsingFailed))
             }
         }
-        task.resume()
+        self.requestRegistry.start(task)
     }
     
     /// 下载加密备份内容
@@ -416,14 +419,14 @@ public class WebDAVClient {
             )
             let session = URLSession(configuration: Self.transferSessionConfiguration(), delegate: delegate, delegateQueue: nil)
             let task = session.downloadTask(with: request)
-            task.resume()
+            self.requestRegistry.start(task)
         } else {
             let session = URLSession(configuration: Self.transferSessionConfiguration())
             let task = session.dataTask(with: request) { data, response, error in
                 session.finishTasksAndInvalidate()
                 handleResponse(data, response, error)
             }
-            task.resume()
+            self.requestRegistry.start(task)
         }
     }
     
@@ -467,7 +470,7 @@ public class WebDAVClient {
                 completion(.failure(WebDAVError.httpError(statusCode: httpResponse.statusCode, message: "删除失败")))
             }
         }
-        task.resume()
+        self.requestRegistry.start(task)
     }
     
     /// 重命名云端备份 (HTTP MOVE)
@@ -515,7 +518,7 @@ public class WebDAVClient {
                 completion(.failure(WebDAVError.httpError(statusCode: httpResponse.statusCode, message: "重命名失败")))
             }
         }
-        task.resume()
+        self.requestRegistry.start(task)
     }
     
     /// 如果云端 credit-card-backup 文件夹不存在，自动发送 MKCOL 创建之
@@ -572,9 +575,9 @@ public class WebDAVClient {
                     completion(.failure(WebDAVError.httpError(statusCode: mkcolRes.statusCode, message: "无法在云端创建备份目录")))
                 }
             }
-            mkcolTask.resume()
+            self.requestRegistry.start(mkcolTask)
         }
-        task.resume()
+        self.requestRegistry.start(task)
     }
 
     private func backupFileURL(baseURLString: String, filename: String) -> URL? {

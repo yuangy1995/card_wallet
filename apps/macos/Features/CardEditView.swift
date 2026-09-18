@@ -572,12 +572,21 @@ public struct CardEditView: View {
     }
 
     private func importImageFiles(_ urls: [URL]) {
+        guard CardImagePolicy.canAppend(existing: cardImages.count, incoming: urls.count) else {
+            imageImportError = String(localized: "每张卡最多添加20张图片，原有图片不受影响。")
+            return
+        }
         isImportingPhotoData = true
         imageImportError = ""
         importTask?.cancel()
         importTask = Task {
             let imported = await Task.detached(priority: .utility) { CardImageImporter.read(urls) }.value
             guard !Task.isCancelled else { return }
+            guard CardImagePolicy.canAppend(existing: cardImages.count, incoming: imported.count) else {
+                isImportingPhotoData = false
+                imageImportError = String(localized: "图片未能添加，请检查数量、格式及大小。")
+                return
+            }
             cardImages.append(contentsOf: imported)
             isImportingPhotoData = false
             if imported.count != urls.count { imageImportError = String(localized: "部分图片未能添加，请检查文件后重试。") }
