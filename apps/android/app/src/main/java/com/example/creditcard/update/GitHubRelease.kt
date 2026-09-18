@@ -4,7 +4,7 @@ import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
 import okhttp3.HttpUrl.Companion.toHttpUrlOrNull
 
-const val UPDATE_REPOSITORY = "yuangy1995/card-wallet-releases"
+const val UPDATE_REPOSITORY = "yuangy1995/card_wallet"
 
 @Serializable
 data class GitHubRelease(

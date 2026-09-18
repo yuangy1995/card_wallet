@@ -70,9 +70,9 @@ xcodebuild -project CreditCardMac.xcodeproj -scheme CreditCardMac \
 
 ## GitHub Releases 自动更新
 
-- 源码仓库保持私有；公开仓库 `yuangy1995/card-wallet-releases` 仅用于发布经过检查的安装包和更新清单，禁止推送源码、历史记录或签名材料。
+- 源码仓库保持私有；公开仓库 `yuangy1995/card_wallet` 仅用于发布经过检查的安装包和更新清单，禁止推送源码、历史记录或签名材料。
 - 应用通过「设置 → 软件更新」或应用菜单「检查更新…」手动检查，两处共用同一个更新器；设置页同时显示当前版本。默认由 Sparkle 定期检查，发现新版后提示用户确认安装，不默认静默安装。
-- 更新地址固定为 `https://github.com/yuangy1995/card-wallet-releases/releases/latest/download/appcast.xml`。首个正式 Release 发布前该地址不可用，检查更新会报连接失败，而不是显示已是最新版。
+- 更新地址固定为 `https://github.com/yuangy1995/card_wallet/releases/latest/download/appcast.xml`。首个正式 Release 发布前该地址不可用，检查更新会报连接失败，而不是显示已是最新版。
 - 保留应用标识和本地数据位置。Xcode 默认构建保留原有沙盒；`build.sh` 保持旧临时签名产物的非沙盒运行方式，使用单独的 `CreditCardMacAdHoc.entitlements`，避免新启用沙盒后改读容器内的数据。单元测试宿主不创建更新器或请求更新服务。
 - 每次发布都必须递增 `project.yml` 中的 `CURRENT_PROJECT_VERSION`，并按需修改 `MARKETING_VERSION`。Sparkle 用构建号判断新旧，不以 GitHub 标签排序判断。
 
@@ -84,7 +84,7 @@ xcodebuild -project CreditCardMac.xcodeproj -scheme CreditCardMac \
 
 ### GitHub Actions 打包并发布（推荐）
 
-私有源码仓库的 `Publish macOS release` 工作流（`.github/workflows/macos-release.yml`）从 `main` 手动触发，在 GitHub 的 macOS 执行器上测试、打包和签名，再发布到 `yuangy1995/card-wallet-releases`。不会向公开仓库推送源码、Git 历史或签名材料，也不会因普通提交或 PR 自动发布。
+私有源码仓库的 `Publish macOS release` 工作流（`.github/workflows/macos-release.yml`）从 `main` 手动触发，在 GitHub 的 macOS 执行器上测试、打包和签名，再发布到 `yuangy1995/card_wallet`。不会向公开仓库推送源码、Git 历史或签名材料，也不会因普通提交或 PR 自动发布。
 
 默认开启 `publish`，一次触发后自动完成上传、远端附件核验和正式发布，不需要下载后再手工上传；缺少发布权限时会停止，不自动降级成人工上传。Android 的 **Publish Android release** 工作流共用 `RELEASES_TOKEN` 和发布并发组；Mac 设为 Latest，Android 不更改 Latest，避免影响固定更新地址。关闭 `publish` 仅用于明确选择的构建演练或备用流程。
 
@@ -95,7 +95,7 @@ xcodebuild -project CreditCardMac.xcodeproj -scheme CreditCardMac \
 | Secret | 内容与权限 |
 | --- | --- |
 | `SPARKLE_PRIVATE_KEY` | 当前正式发布系列的 Sparkle 私钥文件内容，保持 `generate_keys -x` 导出的 Base64 文本原样，不再次编码。沿用 1.0.0（构建号 4）的新密钥，不使用早期版本密钥。 |
-| `RELEASES_TOKEN` | Fine-grained personal access token，仅选择公开产物仓库 `yuangy1995/card-wallet-releases`，授予 Contents: Read and write；Metadata 只读。设置适当有效期，到期前更新。 |
+| `RELEASES_TOKEN` | Fine-grained personal access token，仅选择公开产物仓库 `yuangy1995/card_wallet`，授予 Contents: Read and write；Metadata 只读。设置适当有效期，到期前更新。 |
 
 GitHub 默认的 `GITHUB_TOKEN` 仅能访问工作流所在仓库，不能替代跨仓库发布令牌。不要把自己的全权限令牌用于发布，也不要将这两个值提交到仓库或贴入聊天、Issue、日志中。
 
@@ -149,7 +149,7 @@ bash prepare-update.sh "$(pwd)/dist/卡包.app"
 
 首个含自动更新功能的版本需要用户手动安装一次。正式发布前，用两个构建号的 Ad-Hoc 签名应用在独立 macOS 测试账户中验证发现新版、下载安装、重启后版本与数据保留；不要拿真实卡包数据进行升级测试。
 
-当前最新正式版为 [1.0.2（构建号 6）](https://github.com/yuangy1995/card-wallet-releases/releases/tag/mac-v1.0.2-6)。[GitHub Actions 运行 34892447667](https://github.com/yuangy1995/card_wallet/actions/runs/34892447667) 从源码提交 `b3d5c65` 完成 76 项应用回归测试、更新包校验、双架构构建与签名、上传草稿及正式发布；公开下载的大小、SHA-256、EdDSA 签名、应用标识、版本和架构已独立核验，Latest 更新清单一致。此版沿用更新公钥，可供现有客户端检查升级。
+当前最新正式版为 [1.0.2（构建号 6）](https://github.com/yuangy1995/card_wallet/releases/tag/mac-v1.0.2-6)。[GitHub Actions 运行 34892447667](https://github.com/yuangy1995/card_wallet/actions/runs/34892447667) 从源码提交 `b3d5c65` 完成 76 项应用回归测试、更新包校验、双架构构建与签名、上传草稿及正式发布；公开下载的大小、SHA-256、EdDSA 签名、应用标识、版本和架构已独立核验，Latest 更新清单一致。此版沿用更新公钥，可供现有客户端检查升级。
 
 2026-09-15 按维护者要求清理旧 Mac Release `mac-v1.0.0-4`，保留其标签和已校验的本地备份 `dist/release-backups/mac-v1.0.0-4/`（含说明、元数据与三个附件，可用于重建发布）。清理后再次核对 Latest 更新入口正常，公开仓库保留 Mac 1.0.1（5）和 Android 1.2.0（4）。旧 Mac 发布 `mac-v1.0.0-2` 和 `mac-v1.0.1-3` 已在此前首发重置时移除。公开安装说明和版本说明的维护副本位于 `releases/`。
 

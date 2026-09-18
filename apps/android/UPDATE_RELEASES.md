@@ -11,7 +11,7 @@
 
 ## 发布约定
 
-使用与 macOS 相同的公开产物仓库 **yuangy1995/card-wallet-releases**，私有源码仓库不变，不向客户端写入 GitHub token。
+使用与 macOS 相同的公开产物仓库 **yuangy1995/card_wallet**，私有源码仓库不变，不向客户端写入 GitHub token。
 
 | 内容 | 约定 |
 | --- | --- |
@@ -26,7 +26,7 @@
 
 私有源码仓库的 `Publish Android release` 工作流（`.github/workflows/android-release.yml`）从 `main` 手动触发，一次触发后自动完成测试、正式签名构建、APK 校验、上传草稿、远端 SHA-256 核验及正式发布。不需要下载产物后再手工上传，也不会因普通提交或 PR 自动发布。
 
-两端共用私有源码仓库的 `RELEASES_TOKEN` Secret：使用 Fine-grained personal access token，仅选择公开产物仓库 `yuangy1995/card-wallet-releases`，授予 Contents: Read and write，Metadata 只读。不要把本机全权限登录令牌复制到 CI，也不要把令牌写入客户端、源码或日志。令牌到期前须更新此 Secret；缺少权限时正式发布会停止，不自动改走人工上传。
+两端共用私有源码仓库的 `RELEASES_TOKEN` Secret：使用 Fine-grained personal access token，仅选择公开产物仓库 `yuangy1995/card_wallet`，授予 Contents: Read and write，Metadata 只读。不要把本机全权限登录令牌复制到 CI，也不要把令牌写入客户端、源码或日志。令牌到期前须更新此 Secret；缺少权限时正式发布会停止，不自动改走人工上传。
 
 Android 沿用私有仓库现有签名配置与签名身份，不新增或轮换签名材料。工作流以已发布的 1.2.0（4）签名证书 SHA-256 为基准，验证 APK 应用标识、版本、最低系统版本、非调试状态及 v1/v2 签名；校验失败不得发布。公开附件仅包含 APK，不包含源码、签名文件、测试报告或本地配置。
 

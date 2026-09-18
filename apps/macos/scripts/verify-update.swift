@@ -21,7 +21,7 @@ func verify(app: URL, output: URL) throws {
     }
     let key = try Curve25519.Signing.PublicKey(rawRepresentation: keyData)
     let tag = "mac-v\(version)-\(build)"
-    let prefix = "https://github.com/yuangy1995/card-wallet-releases/releases/download/\(tag)/"
+    let prefix = "https://github.com/yuangy1995/card_wallet/releases/download/\(tag)/"
     let feed = try XMLDocument(contentsOf: output.appendingPathComponent("appcast.xml"),
                                options: .nodeLoadExternalEntitiesNever)
     let items = try feed.nodes(forXPath: "/rss/channel/item")
