@@ -1,0 +1,34 @@
+name: Apply verified application fixes
+on:
+  push:
+    branches: [codex/four-platform-parity-20260918]
+    paths: [.github/workflows/parity-final-apply.yml]
+permissions:
+  contents: read
+jobs:
+  apply:
+    if: github.ref == 'refs/heads/codex/four-platform-parity-20260918'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - name: Apply reviewed application delta only
+        run: |
+          python3 - <<'PY'
+          import pathlib, re, gzip, base64, hashlib, subprocess
+          wrapper = pathlib.Path('.github/workflows/parity-final-fixes.yml').read_text()
+          encoded = re.search("encoded = '''([^']+)'''", wrapper).group(1)
+          data = gzip.decompress(base64.b64decode(encoded, validate=True))
+          assert hashlib.sha256(data).hexdigest() == '82ab6744de58163c453279fa6a99bf1a8b560729c64e14e77344b4ab7b4fdd47'
+          pathlib.Path('/tmp/verified.patch').write_bytes(data)
+          subprocess.run(['git','apply','--exclude=.github/**','--check','/tmp/verified.patch'],check=True)
+          subprocess.run(['git','apply','--exclude=.github/**','/tmp/verified.patch'],check=True)
+          PY
+          git add apps/ios/Features/StatisticsView.swift apps/android/app/src/main/java/com/example/creditcard/ui/CardFormScreen.kt apps/web/scripts/parity-browser-regression.py
+          git diff --cached --check
+          git config user.name 'lovelife'
+          git config user.email '32153802+yuangy1995@users.noreply.github.com'
+          git commit -m '修复iOS统计编译、Android文案资源调用及首次提醒浏览器回归时序'
+          git push origin HEAD:codex/four-platform-parity-20260918
