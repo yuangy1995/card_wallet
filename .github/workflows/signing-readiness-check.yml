@@ -1,0 +1,37 @@
+name: Release signing readiness
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/signing-readiness-check.yml]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  readiness:
+    if: github.repository == 'yuangy1995/card_wallet' && github.ref == 'refs/heads/main'
+    runs-on: macos-15
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Report Android configuration presence only
+        env:
+          HAS_KEYSTORE: ${{ secrets.ANDROID_KEYSTORE_BASE64 != '' }}
+          HAS_STORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD != '' }}
+          HAS_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS != '' }}
+          HAS_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD != '' }}
+          HAS_FINGERPRINT: ${{ secrets.ANDROID_SIGNING_CERT_SHA256 != '' }}
+        run: |
+          python3 - <<'PY'
+          import os
+          names = {'HAS_KEYSTORE': 'ANDROID_KEYSTORE_BASE64', 'HAS_STORE_PASSWORD': 'ANDROID_KEYSTORE_PASSWORD',
+                   'HAS_ALIAS': 'ANDROID_KEY_ALIAS', 'HAS_KEY_PASSWORD': 'ANDROID_KEY_PASSWORD',
+                   'HAS_FINGERPRINT': 'ANDROID_SIGNING_CERT_SHA256'}
+          missing = [name for flag, name in names.items() if os.environ.get(flag) != 'true']
+          print('Missing Android signing configuration: ' + (', '.join(missing) if missing else 'none'))
+          PY
+      - name: Verify existing Sparkle Secret matches the new public key
+        env:
+          SPARKLE_PRIVATE_KEY: ${{ secrets.SPARKLE_PRIVATE_KEY }}
+        run: swift apps/macos/scripts/check-signing-key.swift apps/macos/Resources/Info.plist
