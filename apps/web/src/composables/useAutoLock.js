@@ -12,102 +12,95 @@ export function useAutoLock() {
   const activityEvents = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click']
   const hasPassword = ref(PasswordManager.hasPassword())
   const ACTIVITY_THROTTLE_INTERVAL = 1000
-  let lastActivityUpdateTime = 0
+  let lastActivityUpdateTime = -Infinity
   let activityListenersActive = false
   let visibilityChangeHandler = null
   let storageChangeHandler = null
-  
-  // 更新活动时间并重置定时器
+
+  // 高频事件先节流，再读取同步 localStorage。
   const updateActivity = (eventOrForce = false) => {
-    if (PasswordManager.hasPassword() && !PasswordManager.isAppLocked()) {
-      const force = eventOrForce === true
-      const now = Date.now()
-      if (!force && now - lastActivityUpdateTime < ACTIVITY_THROTTLE_INTERVAL) {
-        return
-      }
-      lastActivityUpdateTime = now
-      PasswordManager.updateLastActivity()
-      resetLockTimer()
+    const now = Date.now()
+    if (eventOrForce !== true && now - lastActivityUpdateTime < ACTIVITY_THROTTLE_INTERVAL) return
+    lastActivityUpdateTime = now
+    if (!PasswordManager.hasPassword()) return
+    // 后台计时器可能延迟，不能让恢复后的第一个事件延长已过期的会话。
+    if (PasswordManager.isAppLocked() || PasswordManager.shouldAutoLock()) {
+      lockApp()
+      return
     }
+    PasswordManager.updateLastActivity()
+    resetLockTimer()
   }
 
-  // 开始倒计时
-  const startCountdown = () => {
-    if (countdownTimer.value) {
-      clearInterval(countdownTimer.value)
-    }
-    
-    remainingTime.value = Math.floor(PasswordManager.AUTO_LOCK_TIMEOUT / 1000)
-    
+  const startCountdown = (remainingMs) => {
+    const deadline = Date.now() + remainingMs
+    remainingTime.value = Math.ceil(remainingMs / 1000)
     countdownTimer.value = setInterval(() => {
-      remainingTime.value -= 1
-      if (remainingTime.value <= 0) {
+      remainingTime.value = Math.max(0, Math.ceil((deadline - Date.now()) / 1000))
+      if (remainingTime.value === 0) {
         clearInterval(countdownTimer.value)
         countdownTimer.value = null
       }
     }, 1000)
   }
 
-  // 重置锁定定时器
   const resetLockTimer = () => {
-    if (lockTimer.value) {
-      clearTimeout(lockTimer.value)
+    clearLockTimer()
+    if (!PasswordManager.hasPassword() || PasswordManager.isAppLocked()) return
+    const remainingMs = PasswordManager.getRemainingLockTime()
+    if (remainingMs <= 0) {
+      lockApp()
+      return
     }
-    
-    if (countdownTimer.value) {
-      clearInterval(countdownTimer.value)
-    }
-    
-    if (PasswordManager.hasPassword() && !PasswordManager.isAppLocked()) {
-      lockTimer.value = setTimeout(() => {
-        lockApp()
-      }, PasswordManager.AUTO_LOCK_TIMEOUT)
-      
-      // 开始倒计时
-      startCountdown()
-    }
+    // 到期后重新核对共享活动时间，避免闲置标签页锁住正在使用的另一页。
+    lockTimer.value = setTimeout(checkLockStatus, remainingMs)
+    startCountdown(remainingMs)
   }
 
-  // 锁定应用
   const lockApp = () => {
     PasswordManager.lockApp()
     isLocked.value = true
     clearLockTimer()
   }
 
-  // 解锁应用
   const unlockApp = () => {
     PasswordManager.unlockApp()
     isLocked.value = false
+    lastActivityUpdateTime = -Infinity
     resetLockTimer()
   }
 
-  // 清除定时器
   const clearLockTimer = () => {
-    if (lockTimer.value) {
+    if (lockTimer.value !== null) {
       clearTimeout(lockTimer.value)
       lockTimer.value = null
     }
-    if (countdownTimer.value) {
+    if (countdownTimer.value !== null) {
       clearInterval(countdownTimer.value)
       countdownTimer.value = null
     }
     remainingTime.value = 0
   }
 
-  // 检查锁定状态
   const checkLockStatus = () => {
     hasPassword.value = PasswordManager.hasPassword()
-    if (PasswordManager.hasPassword()) {
-      const locked = PasswordManager.isAppLocked() || PasswordManager.shouldAutoLock()
-      if (locked && !isLocked.value) {
-        lockApp()
-      }
-      isLocked.value = locked
+    if (!hasPassword.value) {
+      isLocked.value = false
+      clearLockTimer()
+      removeActivityListeners()
+      return
+    }
+    addActivityListeners()
+    const locked = PasswordManager.isAppLocked() || PasswordManager.shouldAutoLock()
+    if (locked) {
+      if (!isLocked.value) lockApp()
+      else clearLockTimer()
+    } else {
+      isLocked.value = false
+      resetLockTimer()
     }
   }
 
-  // 添加活动监听器
   const addActivityListeners = () => {
     if (activityListenersActive) return
     activityListenersActive = true
@@ -116,7 +109,6 @@ export function useAutoLock() {
     })
   }
 
-  // 移除活动监听器
   const removeActivityListeners = () => {
     if (!activityListenersActive) return
     activityListenersActive = false
@@ -125,18 +117,6 @@ export function useAutoLock() {
     })
   }
 
-  // 初始化
-  const init = () => {
-    checkLockStatus()
-    if (PasswordManager.hasPassword()) {
-      addActivityListeners()
-      if (!isLocked.value) {
-        updateActivity(true)
-      }
-    }
-  }
-
-  // 销毁
   const destroy = () => {
     removeActivityListeners()
     if (visibilityChangeHandler) {
@@ -151,44 +131,33 @@ export function useAutoLock() {
     hasPassword.value = false
   }
 
-  // 手动锁定
   const manualLock = () => {
-    if (PasswordManager.hasPassword()) {
-      lockApp()
-    }
+    if (PasswordManager.hasPassword()) lockApp()
   }
 
-  // 设置密码后初始化
   const initAfterPasswordSet = () => {
-    hasPassword.value = true
+    hasPassword.value = PasswordManager.hasPassword()
     addActivityListeners()
-    updateActivity(true)
-    isLocked.value = false
+    unlockApp()
   }
 
   onMounted(() => {
-    init()
-    
-    // 监听页面可见性变化
+    checkLockStatus()
     visibilityChangeHandler = () => {
-      if (document.visibilityState === 'visible') {
-        checkLockStatus()
-      }
+      if (document.visibilityState === 'visible') checkLockStatus()
     }
     document.addEventListener('visibilitychange', visibilityChangeHandler)
-
-    // 监听存储变化（多标签页同步）
     storageChangeHandler = (e) => {
-      if (e.key === PasswordManager.LOCK_STATE_KEY) {
-        checkLockStatus()
-      }
+      if (e.key === null || [
+        PasswordManager.LOCK_STATE_KEY,
+        PasswordManager.LAST_ACTIVITY_KEY,
+        PasswordManager.PASSWORD_KEY
+      ].includes(e.key)) checkLockStatus()
     }
     window.addEventListener('storage', storageChangeHandler)
   })
 
-  onUnmounted(() => {
-    destroy()
-  })
+  onUnmounted(destroy)
 
   return {
     isLocked,
