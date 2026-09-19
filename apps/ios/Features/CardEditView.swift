@@ -13,7 +13,7 @@ struct CardEditView: View {
     var cardToEdit: SharedCard?
     var initialCardCategory: String
     var existingCards: [SharedCard]
-    var onSubmit: (SharedCard) -> Void
+    var onSubmit: @MainActor (SharedCard) async throws -> Void
 
     // 表单状态
     @State private var cardCategory = "credit"
@@ -46,6 +46,8 @@ struct CardEditView: View {
     @State private var showCameraScanner = false
     @State private var isScanningImage = false
     @State private var photoImportTask: Task<Void, Never>?
+    @State private var saveTask: Task<Void, Never>?
+    @State private var isSaving = false
     @State private var scanTask: Task<Void, Never>?
     @State private var viewSession: WalletSession?
     @State private var isActive = false
@@ -158,7 +160,7 @@ struct CardEditView: View {
         cardToEdit: SharedCard? = nil,
         initialCardCategory: String = "credit",
         existingCards: [SharedCard],
-        onSubmit: @escaping (SharedCard) -> Void
+        onSubmit: @escaping @MainActor (SharedCard) async throws -> Void
     ) {
         self.mode = mode
         self.cardToEdit = cardToEdit
@@ -193,23 +195,27 @@ struct CardEditView: View {
                 mainFormView
             }
         }
+        .disabled(isSaving)
+        .interactiveDismissDisabled(isSaving)
         .navigationTitle(navigationTitleText)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
             ToolbarItem(placement: .navigationBarLeading) {
-                Button("取消") { dismiss() }
+                Button("取消") { dismiss() }.disabled(isSaving)
             }
             if currentStep == .form {
                 ToolbarItem(placement: .navigationBarTrailing) {
-                    Button("保存") { saveCard() }
-                        .fontWeight(.semibold)
+                    Button(action: saveCard) {
+                        if isSaving { ProgressView().accessibilityLabel("保存") }
+                        else { Text("保存").fontWeight(.semibold) }
+                    }.disabled(isSaving)
                 }
             }
         }
         .onAppear { isActive = true; viewSession = SyncCoordinator.shared.currentSession; setupInitialValues() }
         .onDisappear {
             isActive = false
-            photoImportTask?.cancel(); scanTask?.cancel()
+            photoImportTask?.cancel(); scanTask?.cancel(); saveTask?.cancel()
             selectedPhotoItems = []; scanPhotoItem = nil; cardImages = []
         }
         .onChange(of: selectedPhotoItems) { _, newItems in
@@ -866,6 +872,7 @@ struct CardEditView: View {
 
     // MARK: - Save
     private func saveCard() {
+        guard !isSaving, isActive, viewSession?.isValid == true else { return }
         let cleanCountry = country.trimmingCharacters(in: .whitespacesAndNewlines)
         let cleanBank = bank.trimmingCharacters(in: .whitespacesAndNewlines)
         let cleanNumber = cardNumber.filter { $0.isNumber }
@@ -939,8 +946,21 @@ struct CardEditView: View {
             cardImages: cardImages,
             extraFields: cardToEdit?.extraFields ?? [:]
         )
-        onSubmit(newCard)
-        dismiss()
+        isSaving = true
+        let token = viewSession
+        saveTask = Task {
+            defer { isSaving = false }
+            do {
+                guard let token, token.isValid, isActive, !Task.isCancelled else { throw CancellationError() }
+                try await WalletSession.$current.withValue(token) { try await onSubmit(newCard) }
+                guard isActive, viewSession?.isValid == true, !Task.isCancelled else { return }
+                dismiss()
+            } catch is CancellationError { }
+            catch {
+                guard isActive, viewSession?.isValid == true else { return }
+                showValidation("未能保存卡片，请重试；已有数据没有被更改")
+            }
+        }
     }
 
     private func showValidation(_ message: String) {

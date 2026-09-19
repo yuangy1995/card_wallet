@@ -53,6 +53,7 @@ struct ContentView: View {
     @State private var alertQueue: [AppAlertType] = []
     @State private var activeAppAlert: AppAlertType? = nil
     @State private var notificationRefreshTask: Task<Void, Never>?
+    @State private var localLoadTask: Task<Void, Never>?
     @State private var pendingEditTask: Task<Void, Never>?
     
     // 监听自动锁定状态
@@ -112,8 +113,9 @@ struct ContentView: View {
                                 onShowCard: { detailCard = $0 },
                                 onEditCard: { cardEditRequest = CardEditRequest(mode: "edit", card: $0) },
                                 onConfirmAnnualFees: { ids in
-                                    let updated = cards.map { ids.contains($0.id) ? CardEditing.settingAnnualStatus("1", for: $0) : $0 }
-                                    cards = syncCoordinator.commit(cards: updated)
+                                    syncCoordinator.enqueueEdit { current in
+                                        current.map { ids.contains($0.id) ? CardEditing.settingAnnualStatus("1", for: $0) : $0 }
+                                    }
                                 }
                             )
                         case .statistics:
@@ -209,9 +211,11 @@ struct ContentView: View {
                 initialCardCategory: request.card?.cardCategory ?? request.cardCategory,
                 existingCards: cards,
                 onSubmit: { submittedCard in
-                    guard syncCoordinator.isCurrentSession(generation), hasLoadedCards else { return }
-                    let updated = CardEditing.applySubmission(submittedCard, previous: request.mode == "add" ? nil : request.card, to: cards)
-                    cards = syncCoordinator.commit(cards: updated)
+                    guard syncCoordinator.isCurrentSession(generation), hasLoadedCards else { throw CancellationError() }
+                    _ = try await syncCoordinator.mutateCards { latest in
+                        CardEditing.applySubmission(submittedCard, previous: request.mode == "add" ? nil : request.card, to: latest)
+                    }
+                    guard syncCoordinator.isCurrentSession(generation) else { throw CancellationError() }
                     if let previous = request.card, !selectedBank.isEmpty, BankNameNormalizer.namesReferToSameBank(selectedBank, previous.bank) {
                         selectedBank = BankNameNormalizer.display(submittedCard.bank)
                     }
@@ -226,6 +230,18 @@ struct ContentView: View {
                     scheduleCardEdit(id: card.id)
                 }
             )
+        }
+        .overlay(alignment: .bottom) {
+            if hasLoadedCards, !lockManager.isLocked,
+               syncCoordinator.pendingStatus.hasPrefix("未能保存") || syncCoordinator.pendingStatus.hasPrefix("卡片已保存，部分") {
+                Label {
+                    Text(LocalizedStringKey(syncCoordinator.pendingStatus))
+                } icon: { Image(systemName: "exclamationmark.triangle") }
+                .font(.callout).foregroundStyle(palette.warning).padding(12)
+                .background(palette.surface, in: RoundedRectangle(cornerRadius: 12))
+                .overlay(RoundedRectangle(cornerRadius: 12).stroke(palette.line))
+                .padding(16).accessibilityAddTraits(.updatesFrequently)
+            }
         }
         .environment(\.walletIsLocked, lockManager.isLocked)
     }
@@ -311,6 +327,8 @@ struct ContentView: View {
         notificationRefreshTask = nil
         pendingEditTask?.cancel()
         pendingEditTask = nil
+        localLoadTask?.cancel()
+        localLoadTask = nil
         syncCoordinator.onCardsChanged = nil
         cards.removeAll()
         hasLoadedCards = false
@@ -338,26 +356,29 @@ struct ContentView: View {
     }
 
     private func loadCards() {
-        guard !lockManager.isLocked else { return }
-        let result = LocalStorageManager.read()
-        switch result {
-        case .success(let loadedCards):
+        guard !lockManager.isLocked, localLoadTask == nil else { return }
+        loadingFailed = false
+        let generation = syncCoordinator.currentSessionGeneration
+        localLoadTask = Task { @MainActor in
+            defer {
+                if syncCoordinator.currentSessionGeneration == generation { localLoadTask = nil }
+            }
             do {
-                self.cards = try syncCoordinator.bootstrap(localCards: loadedCards)
-                loadingFailed = false
+                _ = try await syncCoordinator.bootstrap()
+                guard syncCoordinator.isCurrentSession(generation), !Task.isCancelled else { return }
+                cards = syncCoordinator.currentCards
                 hasLoadedCards = true
                 refreshSystemNotifications()
-            } catch {
+                runInitialAnnualFeeCheckIfNeeded()
+            } catch is CancellationError { }
+            catch {
+                guard !lockManager.isLocked, syncCoordinator.currentSessionGeneration == generation else { return }
                 loadingFailed = true
                 hasLoadedCards = false
             }
-        case .failure(let error):
-            print("读取本地数据失败，可能密码错误或数据损坏: \(error.localizedDescription)")
-            loadingFailed = true
-            hasLoadedCards = false
         }
     }
-    
+
     private func runInitialAnnualFeeCheckIfNeeded() {
         guard hasLoadedCards, !hasCheckedAnnualFeeStatus, !lockManager.isLocked else { return }
         hasCheckedAnnualFeeStatus = true
@@ -396,8 +417,7 @@ struct ContentView: View {
             selection = .annualFeeAlert
             dismissActiveAlert()
         case .deleteCard(let card):
-            cards.removeAll { $0.id == card.id }
-            cards = syncCoordinator.commit(cards: cards, deletedCardIDs: [card.id])
+            syncCoordinator.enqueueEdit(deletedCardIDs: [card.id]) { $0.filter { $0.id != card.id } }
             dismissActiveAlert()
         }
     }
@@ -480,15 +500,15 @@ struct ContentView: View {
     
     private func updateCardStatus(_ card: SharedCard, status: String) {
         guard card.cardCategory != "debit" else { return }
-        if let index = cards.firstIndex(where: { $0.id == card.id }) {
-            let updatedCard = CardEditing.settingAnnualStatus(status, for: cards[index])
-            cards[index] = updatedCard
-            cards = syncCoordinator.commit(cards: cards)
+        syncCoordinator.enqueueEdit { current in
+            current.map { $0.id == card.id ? CardEditing.settingAnnualStatus(status, for: $0) : $0 }
         }
     }
 
     private func applyBatchUpdate(cardIDs: Set<String>, request: BatchUpdateRequest) {
         guard !cardIDs.isEmpty else { return }
+        syncCoordinator.enqueueEdit { current in
+        var cards = current
         for index in cards.indices where cardIDs.contains(cards[index].id) {
             if let category = request.cardCategory {
                 cards[index].cardCategory = category == "debit" ? "debit" : "credit"
@@ -512,13 +532,13 @@ struct ContentView: View {
             }
             cards[index].lastModifyTime = DateCalculator.timestamp(from: Date())
         }
-        cards = syncCoordinator.commit(cards: cards)
+        return cards
+        }
     }
 
     private func deleteCards(cardIDs: Set<String>) {
         guard !cardIDs.isEmpty else { return }
-        cards.removeAll { cardIDs.contains($0.id) }
-        cards = syncCoordinator.commit(cards: cards, deletedCardIDs: cardIDs)
+        syncCoordinator.enqueueEdit(deletedCardIDs: cardIDs) { $0.filter { !cardIDs.contains($0.id) } }
     }
 }
 

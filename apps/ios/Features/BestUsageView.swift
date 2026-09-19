@@ -65,7 +65,7 @@ struct BestUsageView: View {
                 initialCardCategory: card.cardCategory,
                 existingCards: syncCoordinator.cards
             ) { updatedCard in
-                commitSubmittedCard(updatedCard, previousCard: card)
+                try await commitSubmittedCard(updatedCard, previousCard: card)
             }
         }
     }
@@ -158,8 +158,9 @@ struct BestUsageView: View {
     }
 
     // MARK: - 数据保存提交
-    private func commitSubmittedCard(_ submittedCard: SharedCard, previousCard: SharedCard?) {
-        var allCards = syncCoordinator.cards
+    private func commitSubmittedCard(_ submittedCard: SharedCard, previousCard: SharedCard?) async throws {
+        _ = try await syncCoordinator.mutateCards { latest in
+        var allCards = latest
         var finalCard = submittedCard
         let now = DataMigrationManager.currentTimestampMilliseconds()
         finalCard.lastModifyTime = now
@@ -193,7 +194,8 @@ struct BestUsageView: View {
             }
         }
 
-        syncCoordinator.commit(cards: allCards)
+        return allCards
+        }
     }
 }
 

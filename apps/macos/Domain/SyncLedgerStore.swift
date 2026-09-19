@@ -1,6 +1,6 @@
 import Foundation
 
-public final class SyncLedgerStore {
+public final class SyncLedgerStore: @unchecked Sendable {
     public static let shared = SyncLedgerStore()
     private let directory: URL
     private let queue = DispatchQueue(label: "wallet.macos.ledger-writes", qos: .utility)
@@ -8,15 +8,16 @@ public final class SyncLedgerStore {
     init(directory: URL? = nil) {
         self.directory = directory ?? FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0].appendingPathComponent("CardWallet")
     }
+    /// A valid ledger is authoritative. Do not decode a second full cards.json on each unlock.
+    public func loadExisting() throws -> SyncLedger? { try queue.sync { try readExisting() } }
+    private func readExisting() throws -> SyncLedger? {
+        guard FileManager.default.fileExists(atPath: fileURL.path) else { return nil }
+        let encrypted = try Data(contentsOf: fileURL)
+        let data = try LocalDataCipher.shared.open(encrypted)
+        return try JSONDecoder().decode(SyncLedger.self, from: data)
+    }
     public func load(seeding cards: [SharedCard] = []) throws -> SyncLedger {
-        try queue.sync {
-            guard FileManager.default.fileExists(atPath: fileURL.path) else {
-                return SyncLedger(records: cards.map(CardSyncRecord.legacyActive))
-            }
-            let encrypted = try Data(contentsOf: fileURL)
-            let data = try LocalDataCipher.shared.open(encrypted)
-            return try JSONDecoder().decode(SyncLedger.self, from: data)
-        }
+        try queue.sync { try readExisting() ?? SyncLedger(records: cards.map(CardSyncRecord.legacyActive)) }
     }
     @discardableResult
     public func save(_ ledger: SyncLedger) -> Bool { queue.sync { write(ledger) } }

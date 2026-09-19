@@ -414,7 +414,7 @@ struct SettingsView: View {
             }
             .alert("确认清除所有数据", isPresented: $showResetAlert) {
                 Button("清除", role: .destructive) {
-                    syncCoordinator.commit(cards: [], deletedCardIDs: Set(syncCoordinator.cards.map(\.id)))
+                    syncCoordinator.enqueueEdit(deletedCardIDs: Set(syncCoordinator.cards.map(\.id))) { _ in [] }
                 }
                 Button("取消", role: .cancel) {}
             } message: {

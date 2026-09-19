@@ -42,6 +42,7 @@ struct RootView: View {
         .onReceive(syncCoordinator.$cards) { cards in
             refreshNotifications()
         }
+        .onChange(of: syncCoordinator.localLoadState) { _, _ in refreshNotifications() }
         .task(id: lockManager.isLocked) {
             syncCoordinator.setSuspended(isLocked: lockManager.isLocked)
             refreshNotifications()

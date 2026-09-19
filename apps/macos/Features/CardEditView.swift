@@ -11,6 +11,8 @@ public struct CardEditView: View {
     @State private var imageImportError = ""
     @State private var showingDiscardConfirmation = false
     @State private var isImportingPhotoData = false
+    @State private var isSaving = false
+    @State private var saveTask: Task<Void, Never>?
     @State private var importTask: Task<Void, Never>?
     @Environment(\.dismiss) var dismiss
     
@@ -22,7 +24,7 @@ public struct CardEditView: View {
     public var initialCardCategory: String
     public var existingCards: [SharedCard]
     
-    public var onSubmit: (SharedCard) -> Void
+    public var onSubmit: @MainActor (SharedCard) async throws -> Void
     
     // 💡 表单数据绑定 (对齐 SharedCard)
     @State private var country = ""
@@ -120,7 +122,7 @@ public struct CardEditView: View {
         cardToEdit: SharedCard? = nil,
         initialCardCategory: String = "credit",
         existingCards: [SharedCard],
-        onSubmit: @escaping (SharedCard) -> Void
+        onSubmit: @escaping @MainActor (SharedCard) async throws -> Void
     ) {
         self.mode = mode
         self.cardToEdit = cardToEdit
@@ -174,15 +176,16 @@ public struct CardEditView: View {
                 }
             }
         }
+        .disabled(isSaving)
         .modifier(WalletThemeModifier())
         .animation(walletAnimation, value: isLocked)
-        .interactiveDismissDisabled(hasUnsavedChanges)
+        .interactiveDismissDisabled(hasUnsavedChanges || isSaving)
         .alert("放弃这次修改？", isPresented: $showingDiscardConfirmation) {
             Button("继续编辑", role: .cancel) {}
             Button("放弃修改", role: .destructive) { dismiss() }
         } message: { Text("尚未保存的内容将丢失，已有卡片不会改变。") }
         .onChange(of: draftSnapshot) { _, _ in validationMessage = "" }
-        .onDisappear { importTask?.cancel() }
+        .onDisappear { importTask?.cancel(); saveTask?.cancel() }
         .frame(width: sheetSize.width, height: sheetSize.height)
     }
 
@@ -355,8 +358,11 @@ public struct CardEditView: View {
                 Label("仅在保存后更新卡片", systemImage: "lock").font(.caption).foregroundStyle(.secondary)
                 Spacer()
                 Button("取消", action: requestDismiss).keyboardShortcut(.cancelAction)
-                Button("保存卡片", action: saveCard)
-                    .buttonStyle(.borderedProminent).disabled(isImportingPhotoData).keyboardShortcut(.defaultAction)
+                Button(action: saveCard) {
+                    if isSaving { ProgressView().controlSize(.small).accessibilityLabel("保存卡片") }
+                    else { Text("保存卡片") }
+                }
+                    .buttonStyle(.borderedProminent).disabled(isImportingPhotoData || isSaving).keyboardShortcut(.defaultAction)
             }
         }
         .padding(.horizontal, 22).padding(.vertical, 16)
@@ -371,6 +377,7 @@ public struct CardEditView: View {
     }
     private var hasUnsavedChanges: Bool { didLoad && draftSnapshot != originalDraft }
     private func requestDismiss() {
+        guard !isSaving else { return }
         if hasUnsavedChanges { showingDiscardConfirmation = true } else { dismiss() }
     }
     
@@ -504,6 +511,7 @@ public struct CardEditView: View {
     }
     
     private func saveCard() {
+        guard !isSaving, !isLocked else { return }
         guard !country.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             validationMessage = String(localized: "请填写国家或地区。")
             return
@@ -568,8 +576,18 @@ public struct CardEditView: View {
             extraFields: cardToEdit?.extraFields ?? [:]
         )
         
-        onSubmit(finalCard)
-        dismiss()
+        isSaving = true
+        saveTask = Task { @MainActor in
+            defer { isSaving = false }
+            do {
+                try Task.checkCancellation()
+                guard !isLocked else { throw CancellationError() }
+                try await onSubmit(finalCard)
+                guard !isLocked, !Task.isCancelled else { return }
+                dismiss()
+            } catch is CancellationError { }
+            catch { if !isLocked { validationMessage = String(localized: "未能保存卡片，请重试；已有数据没有被更改") } }
+        }
     }
 
     private func importImageFiles(_ urls: [URL]) {

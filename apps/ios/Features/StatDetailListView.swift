@@ -79,9 +79,9 @@ struct StatDetailListView: View {
                 card: card,
                 onEdit: { cardToEdit = $0 },
                 onDelete: { cardToDelete in
-                    var current = syncCoordinator.cards
-                    current.removeAll { $0.id == cardToDelete.id }
-                    syncCoordinator.commit(cards: current, deletedCardIDs: [cardToDelete.id])
+                    syncCoordinator.enqueueEdit(deletedCardIDs: [cardToDelete.id]) {
+                        $0.filter { $0.id != cardToDelete.id }
+                    }
                 }
             )
         }
@@ -92,10 +92,10 @@ struct StatDetailListView: View {
                 initialCardCategory: card.cardCategory,
                 existingCards: syncCoordinator.cards
             ) { updatedCard in
-                if let idx = syncCoordinator.cards.firstIndex(where: { $0.id == card.id }) {
-                    var current = syncCoordinator.cards
-                    current[idx] = updatedCard
-                    syncCoordinator.commit(cards: current)
+                _ = try await syncCoordinator.mutateCards { latest in
+                    var current = latest
+                    if let idx = current.firstIndex(where: { $0.id == card.id }) { current[idx] = updatedCard }
+                    return current
                 }
             }
         }

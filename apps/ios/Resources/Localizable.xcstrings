@@ -192,6 +192,38 @@
           }
         }
       }
+    },
+    "未能保存卡片，请重试；已有数据没有被更改": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未能保存卡片，请重试；已有数据没有被更改"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "未能儲存卡片，請重試；已有資料沒有被更改"
+          }
+        }
+      }
+    },
+    "卡片已保存，部分本地信息未能更新": {
+      "localizations": {
+        "zh-Hans": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "卡片已保存，部分本地信息未能更新"
+          }
+        },
+        "zh-Hant": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "卡片已儲存，部分本機資訊未能更新"
+          }
+        }
+      }
     }
   },
   "version": "1.0"

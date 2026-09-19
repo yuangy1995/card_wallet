@@ -1,6 +1,6 @@
 import Foundation
 
-public enum CardSyncState: String, Codable, Hashable {
+public enum CardSyncState: String, Codable, Hashable, Sendable {
     case active
     case deleted
 }
@@ -46,7 +46,7 @@ public enum SyncTimestamp {
     }
 }
 
-public struct CardSyncRecord: Codable, Identifiable, Hashable {
+public struct CardSyncRecord: Codable, Identifiable, Hashable, Sendable {
     public var id: String { cardId }
     public var cardId: String
     public var mutationId: String
@@ -324,7 +324,7 @@ public enum CardRestoreIdentityResolver {
     }
 }
 
-public struct SyncLedger: Codable {
+public struct SyncLedger: Codable, Sendable {
     public var records: [CardSyncRecord]
     public var processedWebDAVSnapshotIDs: Set<String>
     public var lastWebDAVSnapshotFilename: String?

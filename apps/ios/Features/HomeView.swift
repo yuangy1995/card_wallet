@@ -132,7 +132,7 @@ struct HomeView: View {
                     initialCardCategory: newCardCategory,
                     existingCards: syncCoordinator.cards
                 ) { newCard in
-                    commitSubmittedCard(newCard, previousCard: nil)
+                    try await commitSubmittedCard(newCard, previousCard: nil)
                 }
             }
             .navigationDestination(item: $cardToEdit) { card in
@@ -142,7 +142,7 @@ struct HomeView: View {
                     initialCardCategory: card.cardCategory,
                     existingCards: syncCoordinator.cards
                 ) { updatedCard in
-                    commitSubmittedCard(updatedCard, previousCard: card)
+                    try await commitSubmittedCard(updatedCard, previousCard: card)
                 }
             }
             .sheet(isPresented: $showFilterSheet) {
@@ -621,8 +621,7 @@ struct HomeView: View {
     }
 
     private func deleteCard(_ card: SharedCard) {
-        let remaining = syncCoordinator.cards.filter { $0.id != card.id }
-        syncCoordinator.commit(cards: remaining, deletedCardIDs: [card.id])
+        syncCoordinator.enqueueEdit(deletedCardIDs: [card.id]) { $0.filter { $0.id != card.id } }
     }
 
     private func toggleSelection(_ card: SharedCard) {
@@ -640,10 +639,12 @@ struct HomeView: View {
 
     private func applyBatchUpdate(_ request: IOSBatchUpdateRequest) {
         guard !selectedCardIDs.isEmpty else { return }
-        var allCards = syncCoordinator.cards
+        let ids = selectedCardIDs
+        syncCoordinator.enqueueEdit { latest in
+        var allCards = latest
         let now = DataMigrationManager.currentTimestampMilliseconds()
 
-        for index in allCards.indices where selectedCardIDs.contains(allCards[index].id) {
+        for index in allCards.indices where ids.contains(allCards[index].id) {
             if let category = request.cardCategory {
                 allCards[index].cardCategory = category == "debit" ? "debit" : "credit"
             }
@@ -663,25 +664,29 @@ struct HomeView: View {
             }
             allCards[index].lastModifyTime = now
         }
-        syncCoordinator.commit(cards: allCards)
+        return allCards
+        }
     }
 
     private func deleteSelectedCards() {
         guard !selectedCardIDs.isEmpty else { return }
-        let remaining = syncCoordinator.cards.filter { !selectedCardIDs.contains($0.id) }
-        syncCoordinator.commit(cards: remaining, deletedCardIDs: selectedCardIDs)
+        let ids = selectedCardIDs
+        syncCoordinator.enqueueEdit(deletedCardIDs: ids) { $0.filter { !ids.contains($0.id) } }
     }
 
     private func updateAnnualFeeStatus(_ card: SharedCard, status: String) {
         guard card.cardCategory != "debit" else { return }
-        var allCards = syncCoordinator.cards
-        guard let index = allCards.firstIndex(where: { $0.id == card.id }) else { return }
+        syncCoordinator.enqueueEdit { latest in
+        var allCards = latest
+        guard let index = allCards.firstIndex(where: { $0.id == card.id }) else { return allCards }
         allCards[index] = WalletCardRules.settingAnnualStatus(status, for: allCards[index])
-        syncCoordinator.commit(cards: allCards)
+        return allCards
+        }
     }
 
-    private func commitSubmittedCard(_ submittedCard: SharedCard, previousCard: SharedCard?) {
-        var allCards = syncCoordinator.cards
+    private func commitSubmittedCard(_ submittedCard: SharedCard, previousCard: SharedCard?) async throws {
+        _ = try await syncCoordinator.mutateCards { latest in
+        var allCards = latest
         var finalCard = submittedCard
 
         // 编辑时首次切换为已达标，需要同时完成当前周期并顺延年费日期。
@@ -723,7 +728,8 @@ struct HomeView: View {
             }
         }
 
-        syncCoordinator.commit(cards: allCards)
+        return allCards
+        }
     }
 }
 

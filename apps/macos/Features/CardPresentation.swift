@@ -220,9 +220,9 @@ final class CardImageCache {
     private let cache = NSCache<NSString, NSImage>()
     private var generation: UInt64 = 0
     private var decoders: [UUID: Task<CGImage?, Never>] = [:]
-    private let readLock: () -> Bool
+    private let readLock: @MainActor () -> Bool
     private let decode: @Sendable (String, Int) -> CGImage?
-    init(readLock: @escaping () -> Bool = { AutoLockManager.shared.isLocked },
+    init(readLock: @escaping @MainActor () -> Bool = { AutoLockManager.shared.isLocked },
          decode: @escaping @Sendable (String, Int) -> CGImage? = { CardImageCache.decodeThumbnail($0, pixels: $1) }) {
         self.readLock = readLock
         self.decode = decode

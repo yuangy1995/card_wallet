@@ -34,14 +34,14 @@ public struct SyncFileProgress: Codable, Hashable {
     }
 }
 
-public struct SyncFieldChangeDetail: Codable, Hashable, Identifiable {
+public struct SyncFieldChangeDetail: Codable, Hashable, Identifiable, Sendable {
     public var id: String { "\(label)-\(oldValue)-\(newValue)" }
     public var label: String
     public var oldValue: String
     public var newValue: String
 }
 
-public struct SyncCardChangeDetail: Codable, Hashable, Identifiable {
+public struct SyncCardChangeDetail: Codable, Hashable, Identifiable, Sendable {
     public var id: String { "\(kind)-\(cardId)" }
     public var kind: String
     public var cardId: String
@@ -49,7 +49,7 @@ public struct SyncCardChangeDetail: Codable, Hashable, Identifiable {
     public var fields: [SyncFieldChangeDetail]
 }
 
-public struct SyncHistoryEntry: Codable, Hashable, Identifiable {
+public struct SyncHistoryEntry: Codable, Hashable, Identifiable, Sendable {
     public var id: String
     public var startedAt: Date
     public var finishedAt: Date
@@ -62,6 +62,7 @@ public struct SyncHistoryEntry: Codable, Hashable, Identifiable {
     public var remoteChanges: [SyncCardChangeDetail]
 }
 
+@MainActor
 public final class WebDAVBridgeService: ObservableObject {
     public static let shared = WebDAVBridgeService()
 
@@ -76,13 +77,17 @@ public final class WebDAVBridgeService: ObservableObject {
     private var timer: Timer?
     private var elapsedTimer: Timer?
     private var syncStartedAt: Date?
-    private var recordsProvider: (() -> [CardSyncRecord])?
-    private var onMergedRecords: (([CardSyncRecord]) -> Bool)?
+    private var callbacks: WalletBridgeCallbacks?
+    private let historyStorage = WalletStorageExecutor()
+    private var historyAccess = LockScopedValue(true)
+    private var historyLoadTask: Task<Void, Never>?
+    private var historyWriteTask: Task<Void, Never>?
+    private var pendingStartForce = false
     private var queuedForceUpload = false
     private var syncGeneration: UInt64 = 0
     private let syncPasswordKey = "webdav_sync_password_v4"
     private static let syncHistoryKey = "webdav_bridge_sync_history_v1"
-    private static let progressUIUpdateInterval: TimeInterval = 0.25
+    private nonisolated static let progressUIUpdateInterval: TimeInterval = 0.25
 
     private struct PreparedWebDAVUpload {
         let snapshotID: String
@@ -97,12 +102,12 @@ public final class WebDAVBridgeService: ObservableObject {
 
     private var historyAvailable = false
     private var revokeSyncValues: [() -> Void] = []
-    private let readLock: () -> Bool
-    private let readHistory: () throws -> [SyncHistoryEntry]
+    private let readLock: @MainActor () -> Bool
+    private let readHistory: @Sendable () throws -> [SyncHistoryEntry]
     private let bridgeEnabled: () -> Bool
 
-    init(readLock: @escaping () -> Bool = { AutoLockManager.shared.isLocked },
-         readHistory: @escaping () throws -> [SyncHistoryEntry] = {
+    init(readLock: @escaping @MainActor () -> Bool = { AutoLockManager.shared.isLocked },
+         readHistory: @escaping @Sendable () throws -> [SyncHistoryEntry] = {
              try LocalSyncHistory.read([SyncHistoryEntry].self, legacyKey: "webdav_bridge_sync_history_v1") ?? []
          },
          bridgeEnabled: @escaping () -> Bool = {
@@ -127,8 +132,11 @@ public final class WebDAVBridgeService: ObservableObject {
 
     public func suspendForLock() {
         stop()
-        recordsProvider = nil
-        onMergedRecords = nil
+        callbacks = nil
+        historyAccess.invalidate()
+        historyLoadTask?.cancel(); historyLoadTask = nil
+        historyWriteTask?.cancel(); historyWriteTask = nil
+        pendingStartForce = false
         syncHistory.removeAll()
         historyAvailable = false
         syncProgress = SyncFileProgress()
@@ -140,23 +148,33 @@ public final class WebDAVBridgeService: ObservableObject {
         // Deliberately do not save the empty in-memory history.
     }
 
-    public func configure(
-        recordsProvider: @escaping () -> [CardSyncRecord],
-        onMergedRecords: @escaping ([CardSyncRecord]) -> Bool
-    ) {
+    func configure(callbacks: WalletBridgeCallbacks) {
         guard !readLock() else { return }
-        self.recordsProvider = recordsProvider
-        self.onMergedRecords = onMergedRecords
-        if !historyAvailable {
-            do {
-                syncHistory = try readHistory()
-                historyAvailable = true
-            } catch { syncHistory = [] }
+        self.callbacks = callbacks
+        if historyAccess.value == nil { historyAccess = LockScopedValue(true) }
+        if historyAvailable {
+            if isEnabled { start() }
+            return
         }
-        if isEnabled {
-            start()
+        guard historyLoadTask == nil else { return }
+        let access = historyAccess, reader = readHistory
+        historyLoadTask = Task { [weak self] in
+            guard let self else { return }
+            let entries = try? await self.historyStorage.perform {
+                guard access.value != nil else { throw CancellationError() }
+                return try reader()
+            }
+            guard access.value != nil, !self.readLock(), self.callbacks != nil else { return }
+            self.historyAvailable = entries != nil
+            self.syncHistory = entries ?? []
+            self.historyLoadTask = nil
+            let force = self.pendingStartForce
+            self.pendingStartForce = false
+            if self.isEnabled { self.start(forceUpload: force) }
         }
     }
+
+    func waitForHistory() async { await historyLoadTask?.value }
 
     public func setEnabled(_ enabled: Bool) {
         UserDefaults.standard.set(enabled, forKey: "enable_webdav_bridge")
@@ -168,15 +186,15 @@ public final class WebDAVBridgeService: ObservableObject {
         }
     }
 
-    public func start() {
+    public func start(forceUpload: Bool = false) {
         stop()
-        guard isEnabled, !readLock(), recordsProvider != nil, onMergedRecords != nil else { return }
+        guard isEnabled, !readLock(), callbacks != nil, historyLoadTask == nil else { return }
         let configuredInterval = UserDefaults.standard.double(forKey: "auto_check_interval")
         let interval = configuredInterval > 0 ? configuredInterval : 300
         timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
-            self?.synchronize(forceUpload: false)
+            Task { @MainActor in self?.synchronize(forceUpload: false) }
         }
-        synchronize(forceUpload: false)
+        synchronize(forceUpload: forceUpload)
     }
 
     public func stop() {
@@ -191,7 +209,8 @@ public final class WebDAVBridgeService: ObservableObject {
     }
 
     public func synchronize(forceUpload: Bool) {
-        guard isEnabled, !readLock(), recordsProvider != nil, onMergedRecords != nil else { return }
+        guard isEnabled, !readLock(), callbacks != nil else { return }
+        if historyLoadTask != nil { pendingStartForce = pendingStartForce || forceUpload; return }
         if isSyncing {
             if forceUpload {
                 queuedForceUpload = true
@@ -253,7 +272,7 @@ public final class WebDAVBridgeService: ObservableObject {
         let startedAt = syncStartedAt ?? Date()
         guard !automaticFiles.isEmpty else {
             if forceUpload || hasPendingUpload {
-                uploadConsolidatedSnapshot(records: recordsProvider?() ?? [], downloadedSnapshots: [], listedFiles: files)
+                uploadConsolidatedSnapshot(records: callbacks?.records() ?? [], downloadedSnapshots: [], listedFiles: files)
             } else {
                 let duration = finishSyncTiming()
                 isSyncing = false
@@ -368,62 +387,61 @@ public final class WebDAVBridgeService: ObservableObject {
             }
         }
         group.notify(queue: .main) {
-            guard self.syncGeneration == generation, !self.readLock() else { return }
-            guard let snapshots = snapshotsBuffer.value else { return }
-            if snapshots.count != filesToRead.count {
-                self.completeWithError("部分同步文件未能读取或解密；已保留本机数据和云端备份")
-                return
-            }
-            self.updateProgress("合并数据", step: 3, total: 5, detail: "正在合并本机与云端修改")
-            let localRecords = self.recordsProvider?() ?? []
-            let activeBefore = CardSyncMergeEngine.activeCards(from: localRecords)
-            let remoteRecords = snapshots.flatMap(\.records)
-            let mergedRecords = CardSyncMergeEngine.merge([localRecords, remoteRecords])
-            let hasChange = mergedRecords != CardSyncMergeEngine.merge([localRecords])
-            if hasChange {
-                guard self.onMergedRecords?(mergedRecords) == true else {
+            Task { @MainActor in
+                guard self.syncGeneration == generation, !self.readLock(),
+                      let snapshots = snapshotsBuffer.value else { return }
+                guard snapshots.count == filesToRead.count else {
+                    self.completeWithError("部分同步文件未能读取或解密；已保留本机数据和云端备份")
+                    return
+                }
+                self.updateProgress("合并数据", step: 3, total: 5, detail: "正在合并本机与云端修改")
+                let localRecords = self.callbacks?.records() ?? []
+                let remoteRecords = snapshots.flatMap(\.records)
+                let applied = await self.callbacks?.merge(remoteRecords) ?? false
+                guard self.syncGeneration == generation, !self.readLock() else { return }
+                guard applied else {
                     self.completeWithError("未能保存卡片，请重试；已有数据没有被更改")
                     return
                 }
-            }
-            guard var ledger = self.readLedger() else { return }
-            let hasPendingUpload = ledger.pendingWebDAVUpload
-            let activeAfter = CardSyncMergeEngine.activeCards(from: mergedRecords)
-            let remoteChanges = hasChange ? Self.diffCards(before: activeBefore, after: activeAfter) : []
-            let localChanges = Self.recentLocalChanges(records: localRecords, since: Self.snapshotDate(fromFilename: ledger.lastWebDAVSnapshotFilename ?? ""))
-            if hasChange || hasPendingUpload {
-                self.updateProgress("保存云端", step: 4, total: 5, detail: "正在上传合并后的加密快照")
-                self.uploadConsolidatedSnapshot(
-                    records: mergedRecords,
-                    downloadedSnapshots: snapshots,
-                    listedFiles: files,
-                    startedAt: startedAt,
-                    downloadedFiles: filesToRead.map(\.filename),
-                    localChanges: localChanges,
-                    remoteChanges: remoteChanges
-                )
-            } else {
-                ledger.lastWebDAVSnapshotFilename = newestFilename
-                guard SyncLedgerStore.shared.save(ledger) else {
-                    self.completeWithError("未能保存同步状态，请重试")
-                    return
+                guard let ledger = self.readLedger() else { return }
+                let after = self.callbacks?.records() ?? []
+                let metadata = try? await self.historyStorage.perform {
+                    let beforeCards = CardSyncMergeEngine.activeCards(from: localRecords)
+                    let afterCards = CardSyncMergeEngine.activeCards(from: after)
+                    return (Self.diffCards(before: beforeCards, after: afterCards),
+                            Self.recentLocalChanges(records: localRecords, since: Self.snapshotDate(fromFilename: ledger.lastWebDAVSnapshotFilename ?? "")))
                 }
-                let duration = self.finishSyncTiming()
-                self.isSyncing = false
-                self.statusDescription = "云端与本机已同步"
-                self.lastConvergenceAt = Date()
-                self.updateProgress("同步完成", step: 5, total: 5, detail: self.statusDescription)
-                self.appendSyncHistory(
-                    status: "success",
-                    message: self.statusDescription,
-                    startedAt: startedAt,
-                    uploadedFile: nil,
-                    downloadedFiles: filesToRead.map(\.filename),
-                    localChanges: localChanges,
-                    remoteChanges: remoteChanges,
-                    duration: duration
-                )
-                self.runQueuedForceUploadIfNeeded()
+                guard self.syncGeneration == generation, !self.readLock(), let metadata else { return }
+                let currentRecords = self.callbacks?.records() ?? []
+                let hasChange = currentRecords != localRecords
+                let pending = self.readLedger()?.pendingWebDAVUpload ?? false
+                if hasChange || pending || forceUpload {
+                    self.updateProgress("保存云端", step: 4, total: 5, detail: "正在上传合并后的加密快照")
+                    self.uploadConsolidatedSnapshot(
+                        records: currentRecords, downloadedSnapshots: snapshots, listedFiles: files,
+                        startedAt: startedAt, downloadedFiles: filesToRead.map(\.filename),
+                        localChanges: metadata.1, remoteChanges: metadata.0
+                    )
+                } else {
+                    let ids = snapshots.map(\.snapshotId)
+                    let saved = await self.callbacks?.update { candidate in
+                        candidate.lastWebDAVSnapshotFilename = newestFilename
+                        candidate.processedWebDAVSnapshotIDs.formUnion(ids)
+                    } ?? false
+                    guard self.syncGeneration == generation, !self.readLock() else { return }
+                    guard saved else { self.completeWithError("未能保存同步状态，请重试"); return }
+                    let duration = self.finishSyncTiming()
+                    self.isSyncing = false
+                    self.statusDescription = "云端与本机已同步"
+                    self.lastConvergenceAt = Date()
+                    self.updateProgress("同步完成", step: 5, total: 5, detail: self.statusDescription)
+                    self.appendSyncHistory(
+                        status: "success", message: self.statusDescription, startedAt: startedAt,
+                        uploadedFile: nil, downloadedFiles: filesToRead.map(\.filename),
+                        localChanges: metadata.1, remoteChanges: metadata.0, duration: duration
+                    )
+                    self.runQueuedForceUploadIfNeeded()
+                }
             }
         }
     }
@@ -516,20 +534,20 @@ public final class WebDAVBridgeService: ObservableObject {
                 }
             }
         ) { [weak self] result in
-            DispatchQueue.main.async {
+            Task { @MainActor in
                 guard let self, self.syncGeneration == generation, !self.readLock(), let input = context.value else { return }
                 switch result {
                 case .failure(let error):
                     self.completeWithError("云端写入失败，将重试：\(error.localizedDescription)")
                 case .success:
-                    guard var ledger = self.readLedger() else { return }
-                    let latestRecords = CardSyncMergeEngine.merge([ledger.records, input.records])
-                    ledger.records = latestRecords
-                    ledger.processedWebDAVSnapshotIDs.formUnion(input.snapshotIDs)
-                    ledger.processedWebDAVSnapshotIDs.insert(prepared.snapshotID)
-                    ledger.lastWebDAVSnapshotFilename = prepared.filename
-                    ledger.pendingWebDAVUpload = latestRecords != CardSyncMergeEngine.merge([input.records])
-                    guard SyncLedgerStore.shared.save(ledger) else {
+                    let saved = await self.callbacks?.update { candidate in
+                        candidate.processedWebDAVSnapshotIDs.formUnion(input.snapshotIDs)
+                        candidate.processedWebDAVSnapshotIDs.insert(prepared.snapshotID)
+                        candidate.lastWebDAVSnapshotFilename = prepared.filename
+                        candidate.pendingWebDAVUpload = CardSyncMergeEngine.merge([candidate.records]) != CardSyncMergeEngine.merge([input.records])
+                    } ?? false
+                    guard self.syncGeneration == generation, !self.readLock() else { return }
+                    guard saved, let ledger = self.readLedger() else {
                         self.completeWithError("未能保存同步状态，请重试")
                         return
                     }
@@ -570,8 +588,7 @@ public final class WebDAVBridgeService: ObservableObject {
     }
 
     private func readLedger() -> SyncLedger? {
-        do { return try SyncLedgerStore.shared.load() }
-        catch { completeWithError("未能读取本机同步记录；已有数据和云端备份已保留"); return nil }
+        callbacks?.ledger()
     }
 
     private func completeWithError(_ message: String) {
@@ -612,8 +629,18 @@ public final class WebDAVBridgeService: ObservableObject {
     }
 
     private func saveSyncHistory() {
-        guard historyAvailable else { return }
-        try? LocalSyncHistory.write(syncHistory)
+        guard historyAvailable, !readLock() else { return }
+        let value = syncHistory, access = historyAccess, previous = historyWriteTask
+        historyWriteTask = Task { [weak self] in
+            await previous?.value
+            guard let self else { return }
+            do {
+                try await self.historyStorage.perform {
+                    guard access.value != nil else { throw CancellationError() }
+                    try LocalSyncHistory.write(value)
+                }
+            } catch { if access.value != nil { self.historyAvailable = false } }
+        }
     }
 
     private func appendSyncHistory(
@@ -643,7 +670,7 @@ public final class WebDAVBridgeService: ObservableObject {
         saveSyncHistory()
     }
 
-    private static func diffCards(before: [SharedCard], after: [SharedCard]) -> [SyncCardChangeDetail] {
+    private nonisolated static func diffCards(before: [SharedCard], after: [SharedCard]) -> [SyncCardChangeDetail] {
         let beforeById = Dictionary(uniqueKeysWithValues: before.map { ($0.id, $0) })
         let afterById = Dictionary(uniqueKeysWithValues: after.map { ($0.id, $0) })
         let cardIds = Array(Set(beforeById.keys).union(afterById.keys)).sorted()
@@ -664,7 +691,7 @@ public final class WebDAVBridgeService: ObservableObject {
         }
     }
 
-    private static func recentLocalChanges(records: [CardSyncRecord], since date: Date?) -> [SyncCardChangeDetail] {
+    private nonisolated static func recentLocalChanges(records: [CardSyncRecord], since date: Date?) -> [SyncCardChangeDetail] {
         let cutoff = date ?? .distantPast
         return CardSyncMergeEngine.merge([records]).compactMap { record in
             guard let changedAt = SyncTimestamp.date(from: record.changedAt), changedAt > cutoff else {
@@ -693,7 +720,7 @@ public final class WebDAVBridgeService: ObservableObject {
         .sorted { $0.cardName.localizedStandardCompare($1.cardName) == .orderedAscending }
     }
 
-    private static func snapshotDate(fromFilename filename: String) -> Date? {
+    private nonisolated static func snapshotDate(fromFilename filename: String) -> Date? {
         guard let prefix = filename.split(separator: "---", maxSplits: 1).first else {
             return nil
         }
@@ -716,7 +743,7 @@ public final class WebDAVBridgeService: ObservableObject {
         return SyncTimestamp.date(from: raw)
     }
 
-    private static func buildCardChange(kind: String, before: SharedCard?, after: SharedCard?) -> SyncCardChangeDetail? {
+    private nonisolated static func buildCardChange(kind: String, before: SharedCard?, after: SharedCard?) -> SyncCardChangeDetail? {
         guard let card = after ?? before else { return nil }
         let fields: [SyncFieldChangeDetail]
         switch kind {
@@ -739,7 +766,7 @@ public final class WebDAVBridgeService: ObservableObject {
         )
     }
 
-    private static func snapshotFields(_ card: SharedCard, isNew: Bool) -> [SyncFieldChangeDetail] {
+    private nonisolated static func snapshotFields(_ card: SharedCard, isNew: Bool) -> [SyncFieldChangeDetail] {
         let values: [(String, String)] = [
             ("卡类别", categoryText(card.cardCategory)),
             ("国家 / 地区", displayValue(card.country)),
@@ -773,7 +800,7 @@ public final class WebDAVBridgeService: ObservableObject {
         }
     }
 
-    private static func fieldChanges(before: SharedCard, after: SharedCard) -> [SyncFieldChangeDetail] {
+    private nonisolated static func fieldChanges(before: SharedCard, after: SharedCard) -> [SyncFieldChangeDetail] {
         var fields: [SyncFieldChangeDetail] = []
         appendFieldChange(&fields, label: "卡类别", oldValue: categoryText(before.cardCategory), newValue: categoryText(after.cardCategory))
         appendFieldChange(&fields, label: "国家 / 地区", oldValue: before.country, newValue: after.country)
@@ -798,14 +825,14 @@ public final class WebDAVBridgeService: ObservableObject {
         return Array(fields.prefix(20))
     }
 
-    private static func appendFieldChange(_ fields: inout [SyncFieldChangeDetail], label: String, oldValue: String?, newValue: String?) {
+    private nonisolated static func appendFieldChange(_ fields: inout [SyncFieldChangeDetail], label: String, oldValue: String?, newValue: String?) {
         let oldText = displayValue(oldValue)
         let newText = displayValue(newValue)
         guard oldText != newText else { return }
         fields.append(SyncFieldChangeDetail(label: label, oldValue: oldText, newValue: newText))
     }
 
-    private static func cardDisplayName(_ card: SharedCard) -> String {
+    private nonisolated static func cardDisplayName(_ card: SharedCard) -> String {
         let bank = displayValue(card.bank)
         let alias = displayValue(card.alias)
         let number = maskCardNumber(card.cardNumber)
@@ -814,22 +841,22 @@ public final class WebDAVBridgeService: ObservableObject {
             .joined(separator: " / ")
     }
 
-    private static func displayValue(_ value: String?) -> String {
+    private nonisolated static func displayValue(_ value: String?) -> String {
         let trimmed = (value ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.isEmpty ? "未设置" : trimmed
     }
 
-    private static func categoryText(_ value: String) -> String {
+    private nonisolated static func categoryText(_ value: String) -> String {
         value == "debit" ? "储蓄卡" : "信用卡"
     }
 
-    private static func maskCardNumber(_ value: String) -> String {
+    private nonisolated static func maskCardNumber(_ value: String) -> String {
         let digits = value.filter(\.isNumber)
         guard !digits.isEmpty else { return "未设置" }
         return "•••• \(digits.suffix(4))"
     }
 
-    private static func amountText(_ value: Double?, currency: String?) -> String {
+    private nonisolated static func amountText(_ value: Double?, currency: String?) -> String {
         guard let value else { return "未设置" }
         let amount: String
         if value.rounded() == value {
@@ -841,7 +868,7 @@ public final class WebDAVBridgeService: ObservableObject {
         return currencyText == "未设置" ? amount : "\(currencyText) \(amount)"
     }
 
-    private static func qualificationText(_ value: String?) -> String {
+    private nonisolated static func qualificationText(_ value: String?) -> String {
         switch value {
         case "1":
             return "已达标"
@@ -852,7 +879,7 @@ public final class WebDAVBridgeService: ObservableObject {
         }
     }
 
-    private static func dateText(_ timestamp: Double?) -> String {
+    private nonisolated static func dateText(_ timestamp: Double?) -> String {
         guard let timestamp, timestamp > 0,
               let date = DataMigrationManager.date(fromTimestamp: timestamp) else {
             return "未设置"
@@ -869,8 +896,10 @@ public final class WebDAVBridgeService: ObservableObject {
         lastSyncDurationSeconds = nil
         elapsedTimer?.invalidate()
         elapsedTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
-            guard let self, let startedAt = self.syncStartedAt else { return }
-            self.syncElapsedSeconds = max(0, Date().timeIntervalSince(startedAt))
+            Task { @MainActor in
+                guard let self, let startedAt = self.syncStartedAt else { return }
+                self.syncElapsedSeconds = max(0, Date().timeIntervalSince(startedAt))
+            }
         }
     }
 

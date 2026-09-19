@@ -13,7 +13,7 @@ struct CreditCardApp: App {
         // 单元测试宿主不读取卡包、钥匙串或启动云同步。
         guard !Self.isRunningTests else { return }
         NSEvent.addLocalMonitorForEvents(matching: [.mouseMoved, .leftMouseDown, .rightMouseDown, .keyDown]) { event in
-            AutoLockManager.shared.resetActivity()
+            MainActor.assumeIsolated { AutoLockManager.shared.resetActivity() }
             return event
         }
     }

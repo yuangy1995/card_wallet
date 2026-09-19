@@ -3,7 +3,7 @@ import XCTest
 
 @MainActor
 final class LockSessionTests: XCTestCase {
-    private final class Store {
+    private final class Store: @unchecked Sendable {
         var locked = true
         var reads = 0
         var saves = 0
@@ -27,7 +27,7 @@ final class LockSessionTests: XCTestCase {
                 return store.disk.records.isEmpty ? SyncLedger(records: cards.map(CardSyncRecord.activeUsingCardTimestamp)) : store.disk
             },
             saveLedger: { store.saves += 1; store.disk = $0; return true },
-            persistCards: { store.source = $0 },
+            persistCards: { store.source = $0; return true },
             readHistory: {
                 if store.failHistory { throw CocoaError(.fileReadCorruptFile) }
                 return store.history
@@ -36,7 +36,7 @@ final class LockSessionTests: XCTestCase {
             configurationReady: { false }, suspendClient: { _ in }, defaults: defaults
         )
     }
-    func testColdLockedStartDoesNotReadOrWrite() {
+    func testColdLockedStartDoesNotReadOrWrite() async {
         let store = Store(); let sut = make(store)
         sut.bootstrap(); sut.setSuspended(isLocked: true)
         XCTAssertEqual(store.reads, 0)
@@ -44,11 +44,11 @@ final class LockSessionTests: XCTestCase {
         XCTAssertTrue(sut.cards.isEmpty)
         XCTAssertEqual(sut.retainedRecordCount, 0)
     }
-    func testLockReleasesLedgerHistoryAndCardsWithoutSavingAnEmptyWallet() {
+    func testLockReleasesLedgerHistoryAndCardsWithoutSavingAnEmptyWallet() async {
         let store = Store(); let sut = make(store)
-        store.locked = false; sut.setSuspended(isLocked: false)
+        store.locked = false; sut.setSuspended(isLocked: false); await sut.waitForLocalData()
         XCTAssertEqual(sut.cards.count, 1)
-        _ = sut.commit(cards: sut.cards, deletedCardIDs: [])
+        _ = try? await sut.commit(cards: sut.cards, deletedCardIDs: [])
         let saved = store.saves
         store.locked = true; sut.setSuspended(isLocked: true)
         XCTAssertEqual(sut.localLoadState, .locked)
@@ -57,28 +57,28 @@ final class LockSessionTests: XCTestCase {
         XCTAssertEqual(store.saves, saved)
         XCTAssertEqual(store.source.count, 1)
     }
-    func testUnlockRestoresTombstonesAndPendingStateOffline() {
+    func testUnlockRestoresTombstonesAndPendingStateOffline() async {
         let store = Store()
         store.disk = SyncLedger(records: [CardSyncRecord.activeUsingCardTimestamp(store.source[0]),
                                         .deleted(cardId: "deleted", changedAt: "2026-09-19T00:00:00Z")])
         store.disk.pendingWebDAVUpload = true
         let sut = make(store)
-        store.locked = false; sut.setSuspended(isLocked: false)
+        store.locked = false; sut.setSuspended(isLocked: false); await sut.waitForLocalData()
         XCTAssertEqual(sut.localLoadState, .ready)
         XCTAssertEqual(sut.cards.count, 1)
         XCTAssertEqual(sut.retainedRecordCount, 2)
         XCTAssertTrue(sut.retainedPendingUpload)
         store.locked = true; sut.setSuspended(isLocked: true)
-        store.locked = false; sut.setSuspended(isLocked: false)
+        store.locked = false; sut.setSuspended(isLocked: false); await sut.waitForLocalData()
         XCTAssertEqual(sut.retainedRecordCount, 2)
         XCTAssertTrue(sut.retainedPendingUpload)
     }
     func testPreviousSessionRemainsInvalidAfterUnlock() async {
         let store = Store(); let sut = make(store)
-        store.locked = false; sut.setSuspended(isLocked: false)
+        store.locked = false; sut.setSuspended(isLocked: false); await sut.waitForLocalData()
         let token = sut.currentSession
         store.locked = true; sut.setSuspended(isLocked: true)
-        store.locked = false; sut.setSuspended(isLocked: false)
+        store.locked = false; sut.setSuspended(isLocked: false); await sut.waitForLocalData()
         XCTAssertFalse(sut.accepts(token))
         XCTAssertThrowsError(try token.check())
         let writes = store.saves
@@ -86,44 +86,44 @@ final class LockSessionTests: XCTestCase {
         XCTAssertEqual(store.saves, writes)
         XCTAssertEqual(sut.localLoadState, .ready)
     }
-    func testReadFailureIsNotAnEmptyWalletAndCanRetry() {
+    func testReadFailureIsNotAnEmptyWalletAndCanRetry() async {
         let store = Store(); let sut = make(store)
-        store.failRead = true; store.locked = false; sut.setSuspended(isLocked: false)
+        store.failRead = true; store.locked = false; sut.setSuspended(isLocked: false); await sut.waitForLocalData()
         XCTAssertEqual(sut.localLoadState, .error)
         XCTAssertEqual(store.saves, 0)
         XCTAssertEqual(store.source.count, 1)
-        store.failRead = false; sut.bootstrap()
+        store.failRead = false; sut.bootstrap(); await sut.waitForLocalData()
         XCTAssertEqual(sut.localLoadState, .ready)
         XCTAssertEqual(sut.cards.count, 1)
     }
-    func testBrokenLedgerDoesNotPublishSeedCardsOrOverwriteDisk() {
+    func testBrokenLedgerDoesNotPublishSeedCardsOrOverwriteDisk() async {
         let store = Store(); store.failLedger = true
         let sut = make(store)
-        store.locked = false; sut.setSuspended(isLocked: false)
+        store.locked = false; sut.setSuspended(isLocked: false); await sut.waitForLocalData()
         XCTAssertEqual(sut.localLoadState, .error)
         XCTAssertTrue(sut.cards.isEmpty)
         XCTAssertEqual(store.saves, 0)
     }
-    func testOptionalHistoryFailureDoesNotHideHealthyCards() {
+    func testOptionalHistoryFailureDoesNotHideHealthyCards() async {
         let store = Store(); store.failHistory = true
         let sut = make(store)
-        store.locked = false; sut.setSuspended(isLocked: false)
+        store.locked = false; sut.setSuspended(isLocked: false); await sut.waitForLocalData()
         XCTAssertEqual(sut.localLoadState, .ready)
         XCTAssertEqual(sut.cards.count, 1)
     }
-    func testActualEmptyWalletIsReadyAndRepeatedResumeDoesNotReload() {
+    func testActualEmptyWalletIsReadyAndRepeatedResumeDoesNotReload() async {
         let store = Store(); store.source = []
         let sut = make(store)
-        store.locked = false; sut.setSuspended(isLocked: false)
-        sut.setSuspended(isLocked: false)
+        store.locked = false; sut.setSuspended(isLocked: false); await sut.waitForLocalData()
+        sut.setSuspended(isLocked: false); await sut.waitForLocalData()
         XCTAssertEqual(sut.localLoadState, .ready)
         XCTAssertTrue(sut.cards.isEmpty)
         XCTAssertEqual(store.reads, 1)
     }
-    func testEditsWhileLockedCannotCreateTombstones() {
+    func testEditsWhileLockedCannotCreateTombstones() async {
         let store = Store(); let sut = make(store)
-        _ = sut.commit(cards: [], deletedCardIDs: ["one"])
-        _ = sut.restore(cards: [])
+        _ = try? await sut.commit(cards: [], deletedCardIDs: ["one"])
+        _ = try? await sut.restore(cards: [])
         XCTAssertEqual(store.saves, 0)
         XCTAssertEqual(store.source.count, 1)
     }

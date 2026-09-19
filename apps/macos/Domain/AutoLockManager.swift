@@ -3,6 +3,7 @@ import SwiftUI
 import LocalAuthentication
 
 @Observable
+@MainActor
 public class AutoLockManager {
     public static let shared = AutoLockManager()
     
@@ -101,7 +102,7 @@ public class AutoLockManager {
         }
     }
     
-    /// 设定应用解锁密码并保存至系统安全钥匙串
+    /// 设定应用解锁密码并保存至既有本地加密凭证文件（历史接口名不代表钥匙串后端）。
     @discardableResult
     public func setPassword(_ password: String) -> Bool {
         guard case .success = KeychainManager.save(key: "app_lock_password", value: password) else { return false }
@@ -166,7 +167,7 @@ public class AutoLockManager {
         
         // 开启 10 秒轮询一次的闲置状态检查
         inactivityTimer = Timer.scheduledTimer(withTimeInterval: 10.0, repeats: true) { [weak self] _ in
-            self?.checkInactivity()
+            Task { @MainActor in self?.checkInactivity() }
         }
     }
     
@@ -191,18 +192,18 @@ public class AutoLockManager {
         
         // 1. 监听应用重新回到前台活跃状态
         center.addObserver(forName: NSApplication.didBecomeActiveNotification, object: nil, queue: .main) { [weak self] _ in
-            self?.checkLifecycleLock()
+            MainActor.assumeIsolated { self?.checkLifecycleLock() }
         }
         
         // 2. 监听 macOS 系统进入休眠
         center.addObserver(forName: NSWorkspace.willSleepNotification, object: nil, queue: .main) { [weak self] _ in
             // 系统将要休眠，直接强制上锁，确保唤醒时处于安全锁定状态
-            self?.lock()
+            MainActor.assumeIsolated { self?.lock() }
         }
         
         // 3. 监听 macOS 屏幕进入休眠
         center.addObserver(forName: NSWorkspace.screensDidSleepNotification, object: nil, queue: .main) { [weak self] _ in
-            self?.lock()
+            MainActor.assumeIsolated { self?.lock() }
         }
     }
     
