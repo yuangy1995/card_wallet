@@ -10,7 +10,7 @@ Kotlin + Jetpack Compose 的原生 Android 卡包客户端，用于本地管理�
 
 - 平台：Android 原生应用，`minSdk 23`，`targetSdk 36`，Java/Kotlin 17。
 - UI：Jetpack Compose + Material 3。
-- 本地数据：SQLite 数据库 `credit_card.db`，包含 `cards` 和 `sync_records` 两张核心表。数据库名保留旧值用于兼容已有安装。
+- 本地数据：SQLite 数据库 `card_wallet.db`，包含 `cards`、`sync_records` 和加密数据块表 `encrypted_payload_chunks`。保留已有文件名和版本；`DatabaseHelper` 显式实现 `Closeable`，保证 Android API 23–28 的 `use {}` 也能安全关闭数据库。
 - 偏好配置：主题、工具菜单、WebDAV 配置、同步状态等使用 `SharedPreferences`。
 - 云同步：`SyncCoordinator` 负责本地 SQLite 与 WebDAV SyncV4 快照合并。
 - NFC：只在快速验卡或添加卡片的 NFC 页面开启前台读卡会话，离开页面后关闭。

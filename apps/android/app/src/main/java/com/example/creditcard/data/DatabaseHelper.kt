@@ -12,12 +12,13 @@ import kotlinx.serialization.builtins.ListSerializer
 import java.io.ByteArrayOutputStream
 import java.util.UUID
 
-/** Version 4 keeps the existing file and IDs, migrating plaintext rows in one SQLite transaction. */
+/** Version 4 keeps the existing file and IDs, migrating plaintext rows in one SQLite transaction.
+ * Explicit Closeable keeps use{} safe on API 23-28, before SQLiteOpenHelper added AutoCloseable. */
 class DatabaseHelper(
     context: Context,
     private val cipher: LocalRecordCipher = AndroidLocalDataCipher(context),
     name: String = DATABASE_NAME
-) : SQLiteOpenHelper(context, name, null, DATABASE_VERSION) {
+) : SQLiteOpenHelper(context, name, null, DATABASE_VERSION), java.io.Closeable {
     companion object {
         private const val DATABASE_NAME = "card_wallet.db"
         private const val DATABASE_VERSION = 4
