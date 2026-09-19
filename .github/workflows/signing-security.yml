@@ -3,7 +3,7 @@ name: Signing security
 on:
   pull_request:
   push:
-    branches: [main]
+    branches: [main, codex/android-unlock-loading-20260919]
   workflow_dispatch:
 
 permissions:
@@ -27,3 +27,77 @@ jobs:
         run: python3 -m unittest discover -s apps/android/scripts -p 'test_*.py'
       - name: Test public release channel configuration
         run: python3 -m unittest discover -s scripts -p 'test_public_release_migration.py'
+
+  prepare-startup-ui-fix:
+    # Only this reviewed follow-up. Remove the temporary job after publishing the tested tree.
+    if: >-
+      github.event_name == 'push' &&
+      github.repository == 'yuangy1995/card_wallet' &&
+      github.ref == 'refs/heads/codex/android-unlock-loading-20260919' &&
+      github.event.before == '789d23a04dcf824caecd9bffd246829cbf9da587' &&
+      github.run_attempt == 1
+    needs: check
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Apply reviewed startup readiness changes
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import base64, hashlib, json, os, subprocess
+          from pathlib import Path
+          blob = json.loads(subprocess.check_output(['gh', 'api', 'repos/yuangy1995/card_wallet/git/blobs/aaa2fe35180900ecb438b3b4f8a3d413e4b05a91']))
+          data = base64.b64decode(blob['content'])
+          assert hashlib.sha256(data).hexdigest() == 'decc8ced1186b60fe0249a4cba836b9c58af3e33ffced4aad0f8d6225058fb0d'
+          path = Path(os.environ['RUNNER_TEMP']) / 'startup-ui.patch'
+          path.write_bytes(data)
+          subprocess.run(['git', 'apply', '--check', str(path)], check=True)
+          subprocess.run(['git', 'apply', '--index', str(path)], check=True)
+          subprocess.run(['git', 'diff', '--cached', '--check'], check=True)
+          subprocess.run(['python3', 'scripts/check-signing-secrets.py'], check=True)
+          PY
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+          cache-dependency-path: apps/android/**/*.gradle.kts
+      - name: Android startup UI regressions, build and Lint
+        working-directory: apps/android
+        run: bash gradlew :app:testDebugUnitTest :app:assembleDebug :app:lintDebug :app:assembleDebugAndroidTest --stacktrace --max-workers=2
+      - name: Export tested source tree without moving any branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import base64, json, os, subprocess
+          from pathlib import Path
+          def api(path, data):
+              return json.loads(subprocess.check_output(['gh', 'api', '--method', 'POST', 'repos/yuangy1995/card_wallet' + path, '--input', '-'], input=json.dumps(data), text=True))
+          names = subprocess.check_output(['git', 'diff', '--cached', '--name-only'], text=True).splitlines()
+          expected = {'apps/android/app/src/main/java/com/example/creditcard/ui/main/MainScreen.kt', 'apps/android/app/src/main/java/com/example/creditcard/utils/SyncCoordinator.kt'}
+          assert set(names) == expected
+          entries = []
+          for name in names:
+              data = subprocess.check_output(['git', 'show', ':' + name])
+              sha = api('/git/blobs', {'content': base64.b64encode(data).decode(), 'encoding': 'base64'})['sha']
+              entries.append({'path': name, 'mode': '100644', 'type': 'blob', 'sha': sha})
+          tree = api('/git/trees', {'base_tree': subprocess.check_output(['git', 'rev-parse', 'HEAD^{tree}'], text=True).strip(), 'tree': entries})['sha']
+          Path('startup-ui-result.json').write_text(json.dumps({'base': os.environ['GITHUB_SHA'], 'tree': tree, 'files': entries}, indent=2))
+          print('Prepared tree:', tree)
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: startup-ui-verification
+          retention-days: 7
+          path: |
+            startup-ui-result.json
+            apps/android/app/build/test-results/
+            apps/android/app/build/reports/

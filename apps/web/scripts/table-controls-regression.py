@@ -53,6 +53,40 @@ with sync_playwright() as pw:
         page.get_by_role('option', name=re.compile(r'^' + str(size) + r'\s*条\/页$')).click()
     def row(alias):
         return page.locator('.credit-card-table .el-table__body tr').filter(has=page.get_by_text(alias, exact=True))
+    def verify_merged_hover(alias, bank):
+        # The current implementation has one row band plus non-overlapping merged-cell strips.
+        # Verify their union, not an obsolete assumption that one band spans every bank row.
+        overlay = page.locator('.table-row-hover-overlay:not(.table-row-hover-overlay--cell)')
+        expect(overlay).to_have_count(1)
+        expect(overlay).to_be_visible()
+        band = overlay.bounding_box()
+        hovered = row(alias).bounding_box()
+        viewport = page.locator('.credit-card-table .el-table__body-wrapper .el-scrollbar__wrap').evaluate(
+            'el => { const r = el.getBoundingClientRect(); return {top:r.top, bottom:r.top+el.clientHeight, left:r.left, right:r.left+el.clientWidth}; }')
+        assert abs(band['y'] - max(hovered['y'], viewport['top'])) < 2, (band, hovered)
+        assert abs(band['y'] + band['height'] - min(hovered['y'] + hovered['height'], viewport['bottom'])) < 2, (band, hovered)
+        regions = page.locator('.table-row-hover-overlay').evaluate_all(
+            'els => els.filter(el => getComputedStyle(el).display !== "none").map(el => { const r = el.getBoundingClientRect(); return {top:r.top,bottom:r.bottom,left:r.left,right:r.right}; })')
+        for region in regions:
+            assert region['bottom'] > region['top'] and region['right'] > region['left'], region
+            assert region['top'] >= viewport['top'] - 2 and region['bottom'] <= viewport['bottom'] + 2, (region, viewport)
+        merged = page.locator('.wallet-bank-cell').filter(has_text=bank).locator('xpath=ancestor::td').bounding_box()
+        x = merged['x'] + merged['width'] / 2
+        top, bottom = max(merged['y'], viewport['top']), min(merged['y'] + merged['height'], viewport['bottom'])
+        intervals = sorted((max(region['top'], top), min(region['bottom'], bottom)) for region in regions
+                           if region['left'] <= x <= region['right'] and region['bottom'] > top and region['top'] < bottom)
+        assert bottom > top and intervals, (merged, viewport, regions)
+        covered = top
+        for start, end in intervals:
+            assert start <= covered + 2, ('Gap in merged bank highlight', intervals)
+            covered = max(covered, end)
+        assert covered >= bottom - 2, ('Merged bank not fully highlighted', intervals, merged)
+        # Other cards' alias cells must not receive the full-row band.
+        neighbour = row('Controls-000' if bank == '上海银行' else 'Controls-003').get_by_text(
+            'Controls-000' if bank == '上海银行' else 'Controls-003', exact=True).bounding_box()
+        px, py = neighbour['x'] + neighbour['width'] / 2, neighbour['y'] + neighbour['height'] / 2
+        assert not any(region['left'] < px < region['right'] and region['top'] < py < region['bottom'] for region in regions), regions
+        return overlay
     try:
         page.goto(url, wait_until='networkidle')
         unlock()
@@ -63,20 +97,14 @@ with sync_playwright() as pw:
             expect(page.locator('html')).to_have_class('dark' if theme == 'dark' else '')
             for bank, alias in [('上海银行', 'Controls-001'), ('建设银行', 'Controls-004')]:
                 row(alias).get_by_text(alias, exact=True).hover()
-                overlay = page.locator('.table-row-hover-overlay')
-                expect(overlay).to_be_visible()
-                bank_cell = page.locator('.wallet-bank-cell').filter(has_text=bank).locator('xpath=ancestor::td')
-                band = overlay.bounding_box(); merged = bank_cell.bounding_box()
-                viewport = page.locator('.credit-card-table .el-table__body-wrapper .el-scrollbar__wrap').bounding_box()
-                assert abs(band['y'] - max(merged['y'], viewport['y'])) < 2, (band, merged)
-                assert abs(band['y'] + band['height'] - min(merged['y'] + merged['height'], viewport['y'] + viewport['height'])) < 2, (band, merged)
-                results[f'{theme}_{bank}_whole_group'] = True
+                overlay = verify_merged_hover(alias, bank)
+                results[f'{theme}_{bank}_row_and_merged_cell'] = True
                 if bank == '上海银行':
                     # Full-page capture can resize the viewport and intentionally clear hover.
                     page.screenshot(path=str(OUT / f'table-controls-{theme}.png'))
                     expect(overlay).to_be_visible()
             page.locator('.wallet-list-controls').hover()
-            expect(page.locator('.table-row-hover-overlay')).not_to_be_visible()
+            expect(page.locator('.table-row-hover-overlay')).to_have_count(0)
         choose_size(20); expect(rows).to_have_count(20)
         page.locator('.wallet-pagination .btn-next').click()
         expect(rows.first).to_contain_text('Controls-020')
