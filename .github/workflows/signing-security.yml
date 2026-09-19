@@ -33,7 +33,7 @@ jobs:
     if: >-
       github.repository == 'yuangy1995/card_wallet' &&
       github.event_name == 'push' && github.ref == 'refs/heads/main' &&
-      github.event.before == '76674755ec217ce50f564c68edab6d3592985654' &&
+      github.event.before == '12edcecef129d48a5fcfed4759979d8b03aa1517' &&
       github.run_attempt == 1
     needs: check
     runs-on: ubuntu-latest
@@ -43,17 +43,8 @@ jobs:
         with:
           ref: e6ab2b11f2cc47fc78273edb014290f23f0a8538
           persist-credentials: false
-      - name: Decode saved source changes as data only
-        run: |
-          python3 - <<'PY'
-          import base64, gzip, os
-          from pathlib import Path
-          payload = Path('scripts/web-controls-changes.b64').read_text().strip()
-          decoded = gzip.decompress(base64.b64decode(payload, validate=True))
-          assert len(decoded) < 2000000
-          (Path(os.environ['RUNNER_TEMP']) / 'web-controls-changes.txt').write_bytes(decoded)
-          print('Recovered source data bytes:', len(decoded))
-          PY
+      - name: Save incomplete source payload for inspection only
+        run: cp scripts/web-controls-changes.b64 "$RUNNER_TEMP/web-controls-changes.b64"
       - uses: pnpm/action-setup@v4
         with:
           version: 10
@@ -71,5 +62,5 @@ jobs:
           retention-days: 1
           if-no-files-found: error
           path: |
-            ${{ runner.temp }}/web-controls-changes.txt
+            ${{ runner.temp }}/web-controls-changes.b64
             ${{ runner.temp }}/web-verification-deps.tar.gz
