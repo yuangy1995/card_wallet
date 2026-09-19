@@ -36,13 +36,20 @@ class AesLocalRecordCipher(private val key: (Boolean) -> SecretKey) : LocalRecor
 
 class AndroidLocalDataCipher(context: Context, private val alias: String = "card_wallet_local_data_v1") : LocalRecordCipher {
     private val marker = File(context.filesDir, "$alias.marker")
+    // Cache only the non-exportable Keystore handle for this short-lived cipher instance.
+    // Resolving it again for every card/image chunk adds many service round trips at unlock.
+    private var keyHandle: SecretKey? = null
     private val delegate = AesLocalRecordCipher { allowCreation -> loadKey(allowCreation) }
     override fun seal(plaintext: ByteArray, purpose: String) = delegate.seal(plaintext, purpose)
     override fun open(envelope: ByteArray, purpose: String) = delegate.open(envelope, purpose)
 
     private fun loadKey(allowCreation: Boolean): SecretKey = synchronized(keyLock) {
+        keyHandle?.let { return@synchronized it }
         val store = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
-        (store.getKey(alias, null) as? SecretKey)?.let { return@synchronized it }
+        (store.getKey(alias, null) as? SecretKey)?.let {
+            keyHandle = it
+            return@synchronized it
+        }
         check(allowCreation && !marker.exists()) { "未能读取本地加密密钥；请保留原数据并从备份恢复" }
         val generator = KeyGenerator.getInstance(KeyProperties.KEY_ALGORITHM_AES, "AndroidKeyStore")
         generator.init(KeyGenParameterSpec.Builder(alias, KeyProperties.PURPOSE_ENCRYPT or KeyProperties.PURPOSE_DECRYPT)
@@ -52,6 +59,7 @@ class AndroidLocalDataCipher(context: Context, private val alias: String = "card
         val key = generator.generateKey()
         marker.parentFile?.mkdirs()
         marker.writeText("1")
+        keyHandle = key
         key
     }
     companion object { private val keyLock = Any() }

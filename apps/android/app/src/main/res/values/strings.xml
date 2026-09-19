@@ -117,4 +117,7 @@
     <string name="sort_modified">Recently modified</string>
     <string name="sort_bank">Bank name</string>
     <string name="wallet_image_import_error">Add up to 20 images per card, with each original up to 10 MB. New images are compressed; existing images are unchanged.</string>
+    <string name="local_cards_loading">Loading cards from this device…</string>
+    <string name="local_cards_load_error">Cards could not be loaded. Your saved data is unchanged. Please try again.</string>
+    <string name="local_cards_retry">Try again</string>
 </resources>

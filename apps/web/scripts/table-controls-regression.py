@@ -63,14 +63,26 @@ with sync_playwright() as pw:
             expect(page.locator('html')).to_have_class('dark' if theme == 'dark' else '')
             for bank, alias in [('上海银行', 'Controls-001'), ('建设银行', 'Controls-004')]:
                 row(alias).get_by_text(alias, exact=True).hover()
-                overlay = page.locator('.table-row-hover-overlay')
+                overlay = page.locator('.table-row-hover-overlay:not(.table-row-hover-overlay--cell)')
                 expect(overlay).to_be_visible()
                 bank_cell = page.locator('.wallet-bank-cell').filter(has_text=bank).locator('xpath=ancestor::td')
+                # Current UI highlights the hovered row plus shared rowspan cells, not sibling rows.
+                # Verify the merged bank block is covered by the union of the disjoint overlays.
                 band = overlay.bounding_box(); merged = bank_cell.bounding_box()
                 viewport = page.locator('.credit-card-table .el-table__body-wrapper .el-scrollbar__wrap').bounding_box()
-                assert abs(band['y'] - max(merged['y'], viewport['y'])) < 2, (band, merged)
-                assert abs(band['y'] + band['height'] - min(merged['y'] + merged['height'], viewport['y'] + viewport['height'])) < 2, (band, merged)
-                results[f'{theme}_{bank}_whole_group'] = True
+                hovered = row(alias).bounding_box()
+                assert abs(band['y'] - max(hovered['y'], viewport['y'])) < 2, (band, hovered)
+                assert abs(band['y'] + band['height'] - min(hovered['y'] + hovered['height'], viewport['y'] + viewport['height'])) < 2
+                center_x = merged['x'] + merged['width'] / 2
+                intervals = page.locator('.table-row-hover-overlay').evaluate_all(
+                    "els => els.map(el => { const r=el.getBoundingClientRect(); return {left:r.left,right:r.right,top:r.top,bottom:r.bottom}; })")
+                covered = max(merged['y'], viewport['y'])
+                for part in sorted(intervals, key=lambda item: item['top']):
+                    if part['left'] <= center_x <= part['right'] and part['bottom'] >= covered - 2:
+                        assert part['top'] <= covered + 2, (bank, part, covered)
+                        covered = max(covered, part['bottom'])
+                assert covered >= min(merged['y'] + merged['height'], viewport['y'] + viewport['height']) - 2
+                results[f'{theme}_{bank}_merged_block'] = True
                 if bank == '上海银行':
                     # Full-page capture can resize the viewport and intentionally clear hover.
                     page.screenshot(path=str(OUT / f'table-controls-{theme}.png'))

@@ -71,4 +71,46 @@ class LocalVaultInstrumentedTest {
             java.io.File(context.filesDir, "$alias.marker").delete()
         }
     }
+    @Test fun cachedHandleRemainsNonExportableAndCannotUseADeletedKey() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val alias = "wallet_cached_${UUID.randomUUID()}"
+        try {
+            val cipher = AndroidLocalDataCipher(context, alias)
+            val plain = "synthetic-unlock-fixture".toByteArray()
+            val sealed = cipher.seal(plain, "record")
+            repeat(115) { assertArrayEquals(plain, cipher.open(sealed, "record")) }
+            assertNull(keyStore().getKey(alias, null).encoded)
+            keyStore().deleteEntry(alias)
+            assertTrue(runCatching { cipher.open(sealed, "record") }.isFailure)
+            assertTrue(runCatching { cipher.seal(plain, "record") }.isFailure)
+            assertFalse(keyStore().containsAlias(alias))
+        } finally {
+            keyStore().deleteEntry(alias)
+            java.io.File(context.filesDir, "$alias.marker").delete()
+        }
+    }
+
+    @Test fun cancelledCardReadLeavesTheDatabaseIntact() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val alias = "wallet_cancel_read_${UUID.randomUUID()}"
+        val name = "$alias.db"
+        try {
+            val cards = (1..3).map { SharedCard(id = "read-$it", bank = "SyntheticBank") }
+            DatabaseHelper(context, AndroidLocalDataCipher(context, alias), name).use { db ->
+                db.saveCards(cards)
+                var checkpoints = 0
+                assertThrows(kotlinx.coroutines.CancellationException::class.java) {
+                    db.getAllCards {
+                        if (++checkpoints >= 2) throw kotlinx.coroutines.CancellationException("Locked")
+                    }
+                }
+                assertEquals(cards, db.getAllCards())
+            }
+        } finally {
+            context.deleteDatabase(name)
+            keyStore().deleteEntry(alias)
+            java.io.File(context.filesDir, "$alias.marker").delete()
+        }
+    }
+
 }

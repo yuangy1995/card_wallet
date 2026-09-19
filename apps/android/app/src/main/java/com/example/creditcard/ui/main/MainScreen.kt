@@ -206,6 +206,7 @@ fun MainScreen(
     // 监听全局核心状态
     val cards by SyncCoordinator.cardsFlow.collectAsState()
     val syncStatus by SyncCoordinator.syncStatus.collectAsState()
+    val syncConfigured by SyncCoordinator.syncConfigured.collectAsState()
     val needsCellularSyncConfirmation by SyncCoordinator.needsCellularSyncConfirmation.collectAsState()
     val securityState by SecurityLockManager.state.collectAsState()
     val isDark by ThemeManager.isDarkTheme.collectAsState()
@@ -487,8 +488,6 @@ fun MainScreen(
             tabStateHolder.SaveableStateProvider(selectedTab) {
             when (selectedTab) {
                 0 -> {
-                    val syncConfig = remember(context) { SyncCoordinator.loadConfig(context) }
-
                     LazyColumn(
                         state = walletListState,
                         modifier = Modifier
@@ -513,10 +512,10 @@ fun MainScreen(
                                 onFavoritesChange = walletPreferences::setFavoritesOnly,
                                 isSyncing = syncStatus.isSyncing,
                                 syncType = syncStatus.type,
-                                syncReady = syncConfig.isReadyForSync,
+                                syncReady = syncConfigured,
                                 onSync = {
                                     if (syncStatus.isSyncing) { selectedTab = 1; toolsMode = ToolsMode.SYNC_LOG }
-                                    else if (!syncConfig.isReadyForSync) { selectedTab = 2; settingsMode = SettingsMode.WEBDAV }
+                                    else if (!syncConfigured) { selectedTab = 2; settingsMode = SettingsMode.WEBDAV }
                                     else SyncCoordinator.requestManualSync(context)
                                 },
                                 onManage = { showCardManagement = !showCardManagement },

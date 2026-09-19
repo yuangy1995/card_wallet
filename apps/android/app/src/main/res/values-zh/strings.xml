@@ -118,4 +118,7 @@
     <string name="sort_modified">最近修改</string>
     <string name="sort_bank">银行名称</string>
     <string name="wallet_image_import_error">每张卡最多20张图片，单张原图不超过10MB；图片会压缩保存。原有图片不受影响。</string>
+    <string name="local_cards_loading">正在读取本机卡片…</string>
+    <string name="local_cards_load_error">暂时无法读取本机卡片，原数据已保留。请重试。</string>
+    <string name="local_cards_retry">重新读取</string>
 </resources>
