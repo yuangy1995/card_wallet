@@ -54,6 +54,10 @@ class WalletV2VisualTest {
         ThemeManager.setThemeMode(context, if (dark) AppThemeMode.DARK else AppThemeMode.LIGHT)
         SecurityLockManager.init(context)
         SyncCoordinator.initLocalData(context)
+        // MainActivity mounts MainScreen only after READY; the fixture uses the same gate.
+        compose.waitUntil(timeoutMillis = 10_000) {
+            SyncCoordinator.localDataState.value == com.example.creditcard.utils.LocalCardLoadState.READY
+        }
         compose.setContent {
             val density = LocalDensity.current
             CompositionLocalProvider(LocalDensity provides Density(density.density, fontScale)) {

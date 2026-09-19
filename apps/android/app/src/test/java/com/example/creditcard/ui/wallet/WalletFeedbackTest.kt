@@ -38,6 +38,10 @@ class WalletFeedbackTest {
         context.getSharedPreferences(WalletPreferences.FILE, Context.MODE_PRIVATE).edit().clear().commit()
         ThemeManager.setThemeMode(context, if (dark) AppThemeMode.DARK else AppThemeMode.LIGHT)
         SecurityLockManager.init(context); SyncCoordinator.initLocalData(context)
+        // MainActivity mounts MainScreen only after READY; the fixture uses the same gate.
+        compose.waitUntil(timeoutMillis = 10_000) {
+            SyncCoordinator.localDataState.value == com.example.creditcard.utils.LocalCardLoadState.READY
+        }
         compose.setContent { CreditCardTheme(dark) { MainScreen(onItemClick = { if (it is CardForm) addedCategory = it.cardCategory }) } }
     }
 

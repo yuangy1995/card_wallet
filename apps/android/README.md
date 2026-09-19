@@ -4,7 +4,7 @@ Kotlin + Jetpack Compose 的原生 Android 卡包客户端，用于本地管理�
 
 仓库总览见根目录 `README.md`；Android 在线更新与发布步骤见 [更新发布说明](UPDATE_RELEASES.md)。过期设计说明不再作为实现依据，实际行为以当前代码和 SyncV4 数据语义为准。
 
-正式发布使用私有仓库的 **Publish Android release** 工作流：一次触发后自动测试、打包、签名校验并上传公开产物仓库，与 Mac 共用受限的 `RELEASES_TOKEN`，不抢占 Mac 使用的 Latest 更新入口。
+正式发布使用当前公开仓库 `yuangy1995/card_wallet` 的 **Publish Android release** 工作流：手动触发后自动测试、打包、签名校验并发布到本仓库。签名来自现有 GitHub Secrets，发布使用临时 `GITHUB_TOKEN`，不使用独立产物仓库或 `RELEASES_TOKEN`；Android 不抢占 Mac 使用的 Latest 更新入口。
 
 ## 当前架构
 
@@ -69,3 +69,9 @@ Release 成功后，脚本会输出：
 本地卡片先交给界面，同步历史、凭证及云同步随后加载；历史或凭证损坏不会隐藏已成功读取的卡片。重复初始化共用一次加载，旧会话的结果不会在重新锁定后写回。每个数据库操作复用一个不可导出的 AndroidKeyStore 密钥句柄，仍逐块执行 AES-GCM 验证，不缓存明文、不改变数据库格式或发布签名。
 
 回归测试：`LocalCardLoaderTest` 覆盖慢读取、15 秒附属任务、重复加载、失败重试、空库及锁定竞态；`LocalCardsLoadingScreenTest` 覆盖加载与重试界面；`LocalVaultInstrumentedTest` 在 AndroidKeyStore 上验证句柄复用、撤销及取消读取后数据完整性。实际解锁耗时仍需在带有真实图片的设备上测量。
+
+## PIN 校验升级与回归
+
+数字 PIN 校验记录使用带版本的 PBKDF2-HMAC-SHA256、600000 次迭代及独立随机盐；卡片数据库继续使用原 Android Keystore 密钥，不将 PIN 变成卡片加密密钥。正确输入原 PIN 后自动原子升级，失败保留旧验证能力；只用生物识别时延后至下次 PIN 验证升级。派生与持久化在后台执行，锁定/离开页面会拒绝旧结果，错误次数和冷却机制保留。无需重设 PIN、卸载或删除卡片。
+
+迁移单元测试覆盖 Android API 23/34，设备测试覆盖真实密钥与 PIN 校验。`PinStorageRoundTripTest` 使用四端共享合成账本，确认升级前后数据库字节、删除记录、图片未来字段和同步偏好保持不变。参数并不表示已在维护者手机上取得固定耗时保证；设备与性能验收见 [四阶段执行记录](../../docs/implementation-stages-20260919.md)。

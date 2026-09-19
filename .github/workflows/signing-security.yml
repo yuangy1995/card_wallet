@@ -27,14 +27,3 @@ jobs:
         run: python3 -m unittest discover -s apps/android/scripts -p 'test_*.py'
       - name: Test public release channel configuration
         run: python3 -m unittest discover -s scripts -p 'test_public_release_migration.py'
-      # 只读导出本次已提交的公开源码供第四阶段复核；第四阶段删除这两个步骤。
-      - name: Export reviewed stage three source
-        if: github.event_name == 'push' && github.event.before == '5f40d2e7759883fa257a856038519ebcbc7e54dc' && github.repository == 'yuangy1995/card_wallet'
-        run: git archive --format=tar.gz HEAD > "$RUNNER_TEMP/stages-source.tar.gz"
-      - uses: actions/upload-artifact@v4
-        if: github.event_name == 'push' && github.event.before == '5f40d2e7759883fa257a856038519ebcbc7e54dc' && github.repository == 'yuangy1995/card_wallet'
-        with:
-          name: stage-three-reviewed-source
-          retention-days: 1
-          if-no-files-found: error
-          path: ${{ runner.temp }}/stages-source.tar.gz

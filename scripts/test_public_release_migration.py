@@ -58,6 +58,20 @@ class PublicReleaseMigrationTests(unittest.TestCase):
         self.assertNotEqual(value, 'e09a2af6d581dd247df0d4ae3ba08b957fee69cfbdd1b0b89dc37c958559a1cf')
         self.assertFalse((ROOT / 'apps/android/app/release.jks').exists())
 
+    def test_only_four_readonly_quality_and_manual_release_entries_remain(self):
+        workflows = ROOT / '.github/workflows'
+        self.assertEqual({p.name for p in workflows.iterdir() if p.is_file()}, {
+            'platform-quality.yml', 'signing-security.yml', 'android-release.yml', 'macos-release.yml'
+        })
+        for name in ('platform-quality.yml', 'signing-security.yml'):
+            text = (workflows / name).read_text()
+            self.assertNotIn('contents: write', text)
+            self.assertNotIn('actions: write', text)
+            self.assertNotRegex(text, r'\$\{\{[^}]*\bsecrets\s*[.\[]')
+        security = (workflows / 'signing-security.yml').read_text()
+        self.assertNotIn('verify-stage-', security)
+        self.assertNotIn('Export reviewed stage three source', security)
+
     def test_consolidated_quality_keeps_regressions_and_preview(self):
         text = (ROOT / '.github/workflows/platform-quality.yml').read_text()
         for required in ('workflow_dispatch:', 'workflow_call:', 'pnpm test:run',

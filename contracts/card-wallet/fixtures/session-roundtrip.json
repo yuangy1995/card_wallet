@@ -1,0 +1,50 @@
+[
+  {
+    "cardId": "session-active",
+    "mutationId": "fixture-active",
+    "changedAt": "2026-01-01T00:00:00.000Z",
+    "state": "active",
+    "card": {
+      "id": "session-active",
+      "cardCategory": "credit",
+      "country": "CN",
+      "bank": "Synthetic Session Bank",
+      "alias": "before",
+      "cardNumber": "4111111111111111",
+      "cvv": "123",
+      "valid": "12/30",
+      "type": "CNY",
+      "limit": 1000,
+      "isQualified": "3",
+      "lastModifyTime": 1767225600000,
+      "isSharedLimit": true,
+      "billingDaySpendingToNextBill": true,
+      "futureSession": {
+        "version": 7,
+        "flags": [
+          "keep",
+          true
+        ]
+      },
+      "cardImages": [
+        {
+          "id": "session-image",
+          "mimeType": "image/png",
+          "data": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jO1sAAAAASUVORK5CYII=",
+          "createdAt": 1767225600000,
+          "source": "synthetic-test",
+          "name": "fixture.png",
+          "futureAttachment": {
+            "rotation": 90
+          }
+        }
+      ]
+    }
+  },
+  {
+    "cardId": "session-deleted",
+    "mutationId": "fixture-tombstone",
+    "changedAt": "2026-01-02T00:00:00.000Z",
+    "state": "deleted"
+  }
+]
