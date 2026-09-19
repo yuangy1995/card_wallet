@@ -27,6 +27,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
@@ -160,6 +161,9 @@ object SyncCoordinator {
         !isSuspended && !SecurityLockManager.state.value.locked
     }
     val localDataState: StateFlow<LocalCardLoadState> = localCardLoad.state
+    // UI needs only readiness, never a second synchronous credential decryption on composition.
+    private val _syncConfigReady = MutableStateFlow(false)
+    val syncConfigReady: StateFlow<Boolean> = _syncConfigReady.asStateFlow()
     private val localDataReady: Boolean get() = localDataState.value == LocalCardLoadState.READY
 
     fun setSuspended(context: Context, locked: Boolean) {
@@ -171,6 +175,7 @@ object SyncCoordinator {
             localCardLoad.invalidate {
                 _cardsFlow.value = emptyList()
                 _syncHistory.value = emptyList()
+                _syncConfigReady.value = false
             }
         } else if (changed || !localDataReady) {
             syncScope.launch { initLocalData(context.applicationContext) }
@@ -187,6 +192,7 @@ object SyncCoordinator {
 
     fun initLocalData(context: Context) {
         val token = localCardLoad.begin() ?: return
+        if (!localCardLoad.publish(token) { _syncConfigReady.value = false }) return
         val appContext = context.applicationContext
         try {
             // Serialize with local writes so an older read cannot overwrite a just-edited card.
@@ -235,6 +241,7 @@ object SyncCoordinator {
             }
             return
         }
+        if (!localCardLoad.publish(token) { _syncConfigReady.value = config.isReadyForSync }) return
         try {
             localCardLoad.checkCurrent(token)
             registerNetworkCallback(appContext)
@@ -271,6 +278,7 @@ object SyncCoordinator {
         val editor = prefs.edit()
         values.forEach { (key, value) -> if (value.isNotEmpty() || key == KEY_URL || key == KEY_USER) editor.putString(key, value) }
         check(editor.putBoolean(KEY_ENABLED, true).putString(KEY_NETWORK_PREFERENCE, config.networkPreference.storedValue).commit()) { "未能保存同步配置，请重试" }
+        _syncConfigReady.value = config.isReadyForSync
         updateStatus("云同步配置已保存", "info", isPending(context))
     }
 
