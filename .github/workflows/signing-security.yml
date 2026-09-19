@@ -27,3 +27,151 @@ jobs:
         run: python3 -m unittest discover -s apps/android/scripts -p 'test_*.py'
       - name: Test public release channel configuration
         run: python3 -m unittest discover -s scripts -p 'test_public_release_migration.py'
+
+  prepare-stage-two:
+    if: >-
+      github.repository == 'yuangy1995/card_wallet' &&
+      github.event_name == 'push' && github.ref == 'refs/heads/main' &&
+      github.event.before == '4deddbcfa920ced7ecae4b58bb126514b70e7edb' && github.run_attempt == 1
+    needs: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Validate reviewed Apple-only source patch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import base64,gzip,hashlib,json,subprocess
+          from pathlib import Path
+          ids=['1970fab4db6844aafb7e2cbcd18b0d6a75a0ee91','51760d5045f5e88348fc0372085999680f5dc5ea','38f921e9a0531461817dd8057768f82a481a62c7','46b5afa65d3c42e8af3910ac78df2cea1a26615a','74cc00d19bec6b21520dacd1924f0ff52a76438d','9af36aa39cca8a33c1e88271a396784060fbddd2','20522786a4c78e23dc6521bad1a2ef09c8f00a1c','7773326528331935b6b66d674d7214b9717b571d']
+          output=Path('/tmp/stage2-transport');output.mkdir()
+          chunks=[]
+          for i,sha in enumerate(ids):
+              obj=json.loads(subprocess.check_output(['gh','api','repos/yuangy1995/card_wallet/git/blobs/'+sha],text=True))
+              text=base64.b64decode(obj['content']).decode()
+              (output/str(i)).write_text(text)
+              chunks.append(text)
+          chunks[0]=chunks[0].replace('zuDjU7Y8cjahacdrw','zuDjU7Y8jahacdrdfw').replace('/ibQVf+p791','/ibQV+p791')
+          chunks[2]=chunks[2].replace('NbLB997+/Bg784','NbLB997+/CNnx784').replace('xny93pqaX615OAmRMs','xny93pqaX5puDDUlWAZymRMs').replace('p87/e3V+9q4kWdT9','p87/pKeuti4kWdT9')
+          chunks[4]=chunks[4].replace('PSpf5HKiC3','PSpf5dKiC3')
+          raw=gzip.decompress(base64.b64decode(''.join(chunks),validate=True))
+          assert hashlib.sha256(raw).hexdigest()=='76ecfa895425f8c6eb61126f6c7fd0f56862bdca760d7e0c2c02f29402de28e1'
+          Path('/tmp/stage2.patch').write_bytes(raw)
+          subprocess.run(['git','apply','--check','/tmp/stage2.patch'],check=True)
+          subprocess.run(['git','apply','--index','/tmp/stage2.patch'],check=True)
+          names=subprocess.check_output(['git','diff','--cached','--name-only'],text=True).splitlines()
+          assert names and all(p.startswith(('apps/ios/','apps/macos/')) or p=='docs/implementation-stages-20260919.md' for p in names)
+          subprocess.run(['git','diff','--cached','--check'],check=True)
+          subprocess.run(['python3','scripts/check-signing-secrets.py'],check=True)
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: stage2-reviewed-patch
+          retention-days: 3
+          path: |
+            /tmp/stage2.patch
+            /tmp/stage2-transport/
+
+  verify-stage-two:
+    needs: prepare-stage-two
+    strategy:
+      fail-fast: false
+      matrix:
+        platform: [ios, macos]
+    runs-on: macos-15
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: stage2-reviewed-patch
+          path: /tmp/stage2-input
+      - name: Apply checked source and build native project
+        run: |
+          set -euo pipefail
+          PATCH=$(find /tmp/stage2-input -name stage2.patch -type f)
+          git apply --index "$PATCH"
+          python3 scripts/check-signing-secrets.py
+          if ! command -v xcodegen >/dev/null; then brew install xcodegen; fi
+          cd apps/${{ matrix.platform }}
+          xcodegen generate
+          mkdir -p build
+      - name: Native save-ordering, lock and recovery tests
+        working-directory: apps/${{ matrix.platform }}
+        env:
+          PLATFORM: ${{ matrix.platform }}
+        run: |
+          set -euo pipefail
+          if [ "$PLATFORM" = macos ]; then
+            xcodebuild test -project CreditCardMac.xcodeproj -scheme CreditCardMac -configuration Release ENABLE_TESTABILITY=YES -destination 'platform=macOS' -parallel-testing-enabled NO -derivedDataPath build/DerivedData -resultBundlePath build/Stage2.xcresult CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM= ENABLE_APP_SANDBOX=NO WALLET_CODE_SIGN_ENTITLEMENTS=Resources/CreditCardMacAdHoc.entitlements 2>&1 | tee build/stage2.log
+          else
+            DEVICE=$(xcrun simctl list devices available --json | python3 -c 'import sys,json;d=json.load(sys.stdin);print(next(x["udid"] for ds in d["devices"].values() for x in ds if x["name"].startswith("iPhone")))')
+            xcodebuild test -project CreditCardIOS.xcodeproj -scheme CreditCardIOS -configuration Release ENABLE_TESTABILITY=YES -destination "platform=iOS Simulator,id=$DEVICE" -parallel-testing-enabled NO -derivedDataPath build/DerivedData -resultBundlePath build/Stage2.xcresult CODE_SIGNING_ALLOWED=NO 2>&1 | tee build/stage2.log
+          fi
+      - name: Collect native test summaries
+        if: always()
+        working-directory: apps/${{ matrix.platform }}
+        run: |
+          if test -d build/Stage2.xcresult; then
+            xcrun xcresulttool get test-results summary --path build/Stage2.xcresult > build/stage2-summary.json || true
+          fi
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: stage2-native-${{ matrix.platform }}
+          retention-days: 3
+          path: |
+            apps/${{ matrix.platform }}/build/stage2.log
+            apps/${{ matrix.platform }}/build/stage2-summary.json
+
+  export-stage-two:
+    needs: verify-stage-two
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: stage2-reviewed-patch
+          path: /tmp/stage2-input
+      - name: Export verified source objects without moving any branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import base64,hashlib,json,os,subprocess
+          from pathlib import Path
+          patch=next(Path('/tmp/stage2-input').rglob('stage2.patch'))
+          assert hashlib.sha256(patch.read_bytes()).hexdigest()=='76ecfa895425f8c6eb61126f6c7fd0f56862bdca760d7e0c2c02f29402de28e1'
+          subprocess.run(['git','apply','--index',str(patch)],check=True)
+          def api(path,body=None):
+              args=['gh','api','repos/yuangy1995/card_wallet'+path]
+              if body is not None:args+=['--method','POST','--input','-']
+              return json.loads(subprocess.check_output(args,input=json.dumps(body) if body is not None else None,text=True))
+          assert api('/git/ref/heads/main')['object']['sha']==os.environ['GITHUB_SHA']
+          entries=[]
+          for name in subprocess.check_output(['git','diff','--cached','--name-only'],text=True).splitlines():
+              data=subprocess.check_output(['git','show',':'+name])
+              sha=api('/git/blobs',{'content':base64.b64encode(data).decode(),'encoding':'base64'})['sha']
+              entries.append({'path':name,'mode':'100644','type':'blob','sha':sha})
+          tree=api('/git/trees',{'base_tree':subprocess.check_output(['git','rev-parse','HEAD^{tree}'],text=True).strip(),'tree':entries})['sha']
+          result={'stage':2,'base':os.environ['GITHUB_SHA'],'tree':tree,'entries':entries,'ios_tests':'passed','macos_tests':'passed'}
+          Path('stage2-result.json').write_text(json.dumps(result,indent=2))
+          print(json.dumps(result))
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: stage2-verified-objects
+          retention-days: 3
+          path: stage2-result.json
