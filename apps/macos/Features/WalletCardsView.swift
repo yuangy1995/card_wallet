@@ -247,6 +247,7 @@ struct AllCardsView: View {
                     }
                 }
                 .padding(3)
+                .background(WalletScrollTrackAppearance())
             }
         }
     }
@@ -451,6 +452,7 @@ private struct WalletCardInspector: View {
                 Text("\(card.country) · \(card.type ?? "")").font(.caption2).foregroundStyle(.secondary)
             }
             .padding(21)
+            .background(WalletScrollTrackAppearance())
         }
         .onChange(of: card.id) { _, _ in copied = false }
         .onChange(of: card.cardNumber) { _, _ in copied = false }
