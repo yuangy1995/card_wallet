@@ -1035,7 +1035,7 @@ body.dark,
 .wallet-pagination {
   flex-shrink: 0; justify-content: center; padding: 12px 8px;
   border-top: 1px solid var(--el-border-color-lighter);
-  background: var(--el-bg-color);
+  background: transparent;
 }
 @media (prefers-reduced-motion: reduce) {
   .physics-card-wrapper, .card-item-wrapper, .card-flip-list-move, .shine-overlay, .radar-line {

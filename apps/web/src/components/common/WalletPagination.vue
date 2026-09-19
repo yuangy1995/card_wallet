@@ -39,7 +39,7 @@ const end = computed(() => Math.min(props.page * props.pageSize, props.total))
   gap: 8px 16px;
   padding: 10px 12px;
   border-top: 1px solid var(--el-border-color-lighter);
-  background: var(--el-bg-color);
+  background: transparent;
   color: var(--el-text-color-secondary);
   font-size: 12px;
 }
