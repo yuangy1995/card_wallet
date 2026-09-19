@@ -32,7 +32,7 @@ jobs:
     if: >-
       github.repository == 'yuangy1995/card_wallet' &&
       github.event_name == 'push' && github.ref == 'refs/heads/main' &&
-      github.event.before == '4deddbcfa920ced7ecae4b58bb126514b70e7edb' && github.run_attempt == 1
+      github.event.before == '37a6fb3dbae9470151ee413cac6a4f8828ab8093' && github.run_attempt == 1
     needs: check
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -48,34 +48,33 @@ jobs:
           import base64,gzip,hashlib,json,subprocess
           from pathlib import Path
           ids=['1970fab4db6844aafb7e2cbcd18b0d6a75a0ee91','51760d5045f5e88348fc0372085999680f5dc5ea','38f921e9a0531461817dd8057768f82a481a62c7','46b5afa65d3c42e8af3910ac78df2cea1a26615a','74cc00d19bec6b21520dacd1924f0ff52a76438d','9af36aa39cca8a33c1e88271a396784060fbddd2','20522786a4c78e23dc6521bad1a2ef09c8f00a1c','7773326528331935b6b66d674d7214b9717b571d']
-          output=Path('/tmp/stage2-transport');output.mkdir()
           chunks=[]
-          for i,sha in enumerate(ids):
+          for sha in ids:
               obj=json.loads(subprocess.check_output(['gh','api','repos/yuangy1995/card_wallet/git/blobs/'+sha],text=True))
-              text=base64.b64decode(obj['content']).decode()
-              (output/str(i)).write_text(text)
-              chunks.append(text)
+              chunks.append(base64.b64decode(obj['content']).decode())
           chunks[0]=chunks[0].replace('zuDjU7Y8cjahacdrw','zuDjU7Y8jahacdrdfw').replace('/ibQVf+p791','/ibQV+p791')
           chunks[2]=chunks[2].replace('NbLB997+/Bg784','NbLB997+/CNnx784').replace('xny93pqaX615OAmRMs','xny93pqaX5puDDUlWAZymRMs').replace('p87/e3V+9q4kWdT9','p87/pKeuti4kWdT9')
           chunks[4]=chunks[4].replace('PSpf5HKiC3','PSpf5dKiC3')
           raw=gzip.decompress(base64.b64decode(''.join(chunks),validate=True))
           assert hashlib.sha256(raw).hexdigest()=='76ecfa895425f8c6eb61126f6c7fd0f56862bdca760d7e0c2c02f29402de28e1'
           Path('/tmp/stage2.patch').write_bytes(raw)
-          subprocess.run(['git','apply','--check','/tmp/stage2.patch'],check=True)
           subprocess.run(['git','apply','--index','/tmp/stage2.patch'],check=True)
+          target=Path('apps/ios/Domain/SyncCoordinator.swift')
+          text=target.read_text()
+          assert text.count('private static let syncHistoryKey =')==1
+          target.write_text(text.replace('private static let syncHistoryKey =','private nonisolated static let syncHistoryKey ='))
+          subprocess.run(['git','add',str(target)],check=True)
           names=subprocess.check_output(['git','diff','--cached','--name-only'],text=True).splitlines()
           assert names and all(p.startswith(('apps/ios/','apps/macos/')) or p=='docs/implementation-stages-20260919.md' for p in names)
           subprocess.run(['git','diff','--cached','--check'],check=True)
           subprocess.run(['python3','scripts/check-signing-secrets.py'],check=True)
+          Path('/tmp/stage2-fixed.patch').write_bytes(subprocess.check_output(['git','diff','--cached','--binary']))
           PY
       - uses: actions/upload-artifact@v4
-        if: always()
         with:
           name: stage2-reviewed-patch
           retention-days: 3
-          path: |
-            /tmp/stage2.patch
-            /tmp/stage2-transport/
+          path: /tmp/stage2-fixed.patch
 
   verify-stage-two:
     needs: prepare-stage-two
@@ -96,8 +95,7 @@ jobs:
       - name: Apply checked source and build native project
         run: |
           set -euo pipefail
-          PATCH=$(find /tmp/stage2-input -name stage2.patch -type f)
-          git apply --index "$PATCH"
+          git apply --index /tmp/stage2-input/stage2-fixed.patch
           python3 scripts/check-signing-secrets.py
           if ! command -v xcodegen >/dev/null; then brew install xcodegen; fi
           cd apps/${{ matrix.platform }}
@@ -150,11 +148,10 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           python3 - <<'PY'
-          import base64,hashlib,json,os,subprocess
+          import base64,json,os,subprocess
           from pathlib import Path
-          patch=next(Path('/tmp/stage2-input').rglob('stage2.patch'))
-          assert hashlib.sha256(patch.read_bytes()).hexdigest()=='76ecfa895425f8c6eb61126f6c7fd0f56862bdca760d7e0c2c02f29402de28e1'
-          subprocess.run(['git','apply','--index',str(patch)],check=True)
+          subprocess.run(['git','apply','--index','/tmp/stage2-input/stage2-fixed.patch'],check=True)
+          subprocess.run(['python3','scripts/check-signing-secrets.py'],check=True)
           def api(path,body=None):
               args=['gh','api','repos/yuangy1995/card_wallet'+path]
               if body is not None:args+=['--method','POST','--input','-']
@@ -168,10 +165,14 @@ jobs:
           tree=api('/git/trees',{'base_tree':subprocess.check_output(['git','rev-parse','HEAD^{tree}'],text=True).strip(),'tree':entries})['sha']
           result={'stage':2,'base':os.environ['GITHUB_SHA'],'tree':tree,'entries':entries,'ios_tests':'passed','macos_tests':'passed'}
           Path('stage2-result.json').write_text(json.dumps(result,indent=2))
+          with open('stage2-source.tar.gz','wb') as output:
+              subprocess.run(['git','archive','--format=tar.gz',subprocess.check_output(['git','write-tree'],text=True).strip()],stdout=output,check=True)
           print(json.dumps(result))
           PY
       - uses: actions/upload-artifact@v4
         with:
           name: stage2-verified-objects
           retention-days: 3
-          path: stage2-result.json
+          path: |
+            stage2-result.json
+            stage2-source.tar.gz
