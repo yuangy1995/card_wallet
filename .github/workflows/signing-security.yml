@@ -33,7 +33,7 @@ jobs:
     if: >-
       github.repository == 'yuangy1995/card_wallet' &&
       github.event_name == 'push' && github.ref == 'refs/heads/main' &&
-      github.event.before == 'f2e5ad6bf83e85401ab9aa38c5b8a55cc65d7326' &&
+      github.event.before == '20ee5d444366143a2a43377ef5df462cc4239d9e' &&
       github.run_attempt == 1
     needs: check
     permissions:
@@ -50,6 +50,15 @@ jobs:
           echo '6bd15a8a7ef9ebc850a1c6b5c9d2dbfb2cff1042befad37c2d517eaebb94e921  .migration/web-controls.patch' | sha256sum --check
           git apply --check .migration/web-controls.patch
           git apply --index .migration/web-controls.patch
+          python3 - <<'PY'
+          from pathlib import Path
+          path = Path('apps/web/scripts/table-controls-regression.py')
+          text = path.read_text()
+          old, new = r"r'\s*条/页$'", r"r'\s*条\/页$'"
+          assert text.count(old) == 1
+          path.write_text(text.replace(old, new))
+          PY
+          git add apps/web/scripts/table-controls-regression.py
           git diff --cached --check
           python3 scripts/check-signing-secrets.py
       - uses: pnpm/action-setup@v4
