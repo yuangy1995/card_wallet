@@ -28,30 +28,115 @@ jobs:
       - name: Test public release channel configuration
         run: python3 -m unittest discover -s scripts -p 'test_public_release_migration.py'
 
-  review-source:
-    # 本次四端审查的只读源码快照；修复提交时移除此 job。
+  verify-unlock:
+    # 本次解锁修复验证；通过后导出源码对象，不改分支，不读取发布 Secrets。
     if: >-
       github.repository == 'yuangy1995/card_wallet' &&
       github.event_name == 'push' && github.ref == 'refs/heads/main' &&
-      github.event.before == '71b2c8143870ab57420be3c407bab47e2ae02a48' &&
+      github.event.before == '6029b726dc898e878b184e08732073a1c954f106' &&
       github.run_attempt == 1
     needs: check
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 40
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - name: Export scanned source without credentials or Git history
+      - name: Validate and apply reviewed source changes
         run: |
+          set -euo pipefail
+          echo '5f77bd73acbd8aefb1546f73dbce042bd826296817b2cc180bdd4344bbdfbdc7  .migration/unlock-review-1.patch' | sha256sum --check
+          echo 'f1738e23cdc74e7eabff6c156c7534877f3dbd2b9451d6d2179f5e8595ddfeca  .migration/unlock-review-2.patch' | sha256sum --check
+          echo 'b730e25ca3a0a5ac80a9057d3c4f39e89b5a78b725f7e88c1c634e0584d6fe33  .migration/unlock-review-3.patch' | sha256sum --check
+          echo 'a7c5f7c08863428c8d343b2de2640cf9b076a95f0dbaee0ec1893ffd2ccc4400  .migration/unlock-review-4.patch' | sha256sum --check
+          git apply --check .migration/unlock-review-*.patch
+          git apply --index .migration/unlock-review-*.patch
+          git diff --cached --check
           python3 scripts/check-signing-secrets.py
-          git archive --format=tar.gz HEAD > "$RUNNER_TEMP/review-source.tar.gz"
-          git rev-parse HEAD > "$RUNNER_TEMP/source-commit.txt"
-      - uses: actions/upload-artifact@v4
+      - uses: actions/setup-java@v4
         with:
-          name: unlock-audit-source
-          retention-days: 1
-          if-no-files-found: error
+          distribution: temurin
+          java-version: '17'
+          cache: gradle
+          cache-dependency-path: apps/android/**/*.gradle.kts
+      - name: Android tests, native build and Lint
+        working-directory: apps/android
+        run: bash gradlew :app:testDebugUnitTest :app:assembleDebug :app:lintDebug :app:assembleDebugAndroidTest --stacktrace --max-workers=2
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Web tests and production build
+        working-directory: apps/web
+        run: |
+          set -euo pipefail
+          pnpm install --frozen-lockfile
+          pnpm test:run
+          pnpm build
+      - name: Web browser regressions with current merged-cell design
+        working-directory: apps/web
+        run: |
+          set -euo pipefail
+          python3 -m pip install playwright==1.57.0
+          python3 -m playwright install --with-deps chromium
+          python3 scripts/browser-regression.py
+          python3 scripts/parity-browser-regression.py
+          python3 scripts/table-controls-regression.py
+      - name: Export tested source objects without moving refs
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import base64, json, os, subprocess
+          from pathlib import Path
+          repo = 'repos/yuangy1995/card_wallet'
+          def api(path, body=None):
+              args = ['gh', 'api', repo + path]
+              if body is not None: args += ['--method', 'POST', '--input', '-']
+              return json.loads(subprocess.check_output(args, input=json.dumps(body) if body is not None else None, text=True))
+          expected = {
+              'apps/android/README.md',
+              'apps/android/app/src/androidTest/java/com/example/creditcard/LocalVaultInstrumentedTest.kt',
+              'apps/android/app/src/main/java/com/example/creditcard/MainActivity.kt',
+              'apps/android/app/src/main/java/com/example/creditcard/data/DatabaseHelper.kt',
+              'apps/android/app/src/main/java/com/example/creditcard/ui/main/MainScreen.kt',
+              'apps/android/app/src/main/java/com/example/creditcard/ui/security/LocalCardsLoadingScreen.kt',
+              'apps/android/app/src/main/java/com/example/creditcard/utils/LocalCardLoader.kt',
+              'apps/android/app/src/main/java/com/example/creditcard/utils/LocalDataCipher.kt',
+              'apps/android/app/src/main/java/com/example/creditcard/utils/SyncCoordinator.kt',
+              'apps/android/app/src/main/res/values/strings.xml',
+              'apps/android/app/src/main/res/values-zh/strings.xml',
+              'apps/android/app/src/test/java/com/example/creditcard/ui/security/LocalCardsLoadingScreenTest.kt',
+              'apps/android/app/src/test/java/com/example/creditcard/utils/LocalCardLoaderTest.kt',
+              'apps/web/README.md', 'apps/web/scripts/table-controls-regression.py',
+              'docs/code-review-20260919.md'}
+          names = subprocess.check_output(['git', 'diff', '--cached', '--name-only'], text=True).splitlines()
+          assert set(names) == expected, 'Unexpected change scope'
+          assert api('/git/ref/heads/main')['object']['sha'] == os.environ['GITHUB_SHA'], 'Main changed'
+          entries = []
+          for name in sorted(names):
+              data = subprocess.check_output(['git', 'show', ':' + name])
+              sha = api('/git/blobs', {'content': base64.b64encode(data).decode(), 'encoding': 'base64'})['sha']
+              entries.append({'path': name, 'mode': '100644', 'type': 'blob', 'sha': sha})
+          base_tree = subprocess.check_output(['git', 'rev-parse', 'HEAD^{tree}'], text=True).strip()
+          tree = api('/git/trees', {'base_tree': base_tree, 'tree': entries})['sha']
+          result = {'base': os.environ['GITHUB_SHA'], 'tree': tree, 'entries': entries,
+                    'android_unit_compose_build_lint': 'passed', 'web_unit_build_browser': 'passed',
+                    'android_instrumented_execution': 'pending final Platform quality'}
+          Path('prepared-unlock-result.json').write_text(json.dumps(result, ensure_ascii=False, indent=2))
+          print(json.dumps(result, ensure_ascii=False))
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: unlock-review-verification
+          retention-days: 3
           path: |
-            ${{ runner.temp }}/review-source.tar.gz
-            ${{ runner.temp }}/source-commit.txt
+            prepared-unlock-result.json
+            apps/android/app/build/test-results/
+            apps/android/app/build/reports/
+            apps/web/browser-results/

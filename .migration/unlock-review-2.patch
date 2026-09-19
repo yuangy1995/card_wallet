@@ -1,0 +1,250 @@
+diff --git a/apps/android/app/src/main/java/com/example/creditcard/utils/LocalCardLoader.kt b/apps/android/app/src/main/java/com/example/creditcard/utils/LocalCardLoader.kt
+new file mode 100644
+index 0000000..6bba331
+--- /dev/null
++++ b/apps/android/app/src/main/java/com/example/creditcard/utils/LocalCardLoader.kt
+@@ -0,0 +1,73 @@
++package com.example.creditcard.utils
++
++import com.example.creditcard.data.SharedCard
++import kotlinx.coroutines.CancellationException
++import kotlinx.coroutines.CoroutineScope
++import kotlinx.coroutines.CoroutineStart
++import kotlinx.coroutines.Job
++import kotlinx.coroutines.ensureActive
++import kotlinx.coroutines.flow.MutableStateFlow
++import kotlinx.coroutines.flow.StateFlow
++import kotlinx.coroutines.launch
++
++/** Loading is not an empty wallet. READY is published only after the local cards are available. */
++enum class LocalCardLoadState { LOADING, READY, ERROR, LOCKED }
++
++internal class LocalCardLoader(
++    private val scope: CoroutineScope,
++    private val isLocked: () -> Boolean,
++    private val publishCards: (List<SharedCard>) -> Unit
++) {
++    private val guard = Any()
++    private var generation = 0L
++    private var job: Job? = null
++    private val _state = MutableStateFlow(LocalCardLoadState.LOADING)
++    val state: StateFlow<LocalCardLoadState> = _state
++
++    fun lock(clearPrivateState: () -> Unit) = synchronized(guard) {
++        generation++
++        job?.cancel()
++        job = null
++        _state.value = LocalCardLoadState.LOCKED
++        clearPrivateState()
++    }
++
++    fun load(
++        readCards: suspend () -> List<SharedCard>,
++        afterReady: suspend (Long, List<SharedCard>) -> Unit,
++        onReadError: () -> Unit
++    ) = synchronized(guard) {
++        if (isLocked() || job?.isActive == true) return@synchronized
++        val ticket = ++generation
++        _state.value = LocalCardLoadState.LOADING
++        job = scope.launch(start = CoroutineStart.LAZY) {
++            val cards = try {
++                readCards().also { ensureActive() }
++            } catch (cancelled: CancellationException) {
++                throw cancelled
++            } catch (_: Exception) {
++                withCurrent(ticket) {
++                    _state.value = LocalCardLoadState.ERROR
++                    onReadError()
++                }
++                return@launch
++            }
++            if (!withCurrent(ticket) {
++                    publishCards(cards)
++                    _state.value = LocalCardLoadState.READY
++                }) return@launch
++            // History, credentials and network work must never gate the first local render.
++            afterReady(ticket, cards)
++        }.also { it.start() }
++    }
++
++    fun withCurrent(ticket: Long, action: () -> Unit): Boolean = synchronized(guard) {
++        if (ticket != generation || isLocked()) return@synchronized false
++        action()
++        true
++    }
++
++    fun withUnlocked(action: () -> Unit) = synchronized(guard) {
++        if (!isLocked() && _state.value != LocalCardLoadState.LOCKED) action()
++    }
++}
+diff --git a/apps/android/app/src/main/java/com/example/creditcard/utils/LocalDataCipher.kt b/apps/android/app/src/main/java/com/example/creditcard/utils/LocalDataCipher.kt
+index 0f66214..50d16d0 100644
+--- a/apps/android/app/src/main/java/com/example/creditcard/utils/LocalDataCipher.kt
++++ b/apps/android/app/src/main/java/com/example/creditcard/utils/LocalDataCipher.kt
+@@ -38,2 +38,5 @@ class AndroidLocalDataCipher(context: Context, private val alias: String = "card
+     private val marker = File(context.filesDir, "$alias.marker")
++    // Cache only the non-exportable Keystore handle for this short-lived cipher instance.
++    // Resolving it again for every card/image chunk adds many service round trips at unlock.
++    private var keyHandle: SecretKey? = null
+     private val delegate = AesLocalRecordCipher { allowCreation -> loadKey(allowCreation) }
+@@ -43,4 +46,8 @@ class AndroidLocalDataCipher(context: Context, private val alias: String = "card
+     private fun loadKey(allowCreation: Boolean): SecretKey = synchronized(keyLock) {
++        keyHandle?.let { return@synchronized it }
+         val store = KeyStore.getInstance("AndroidKeyStore").apply { load(null) }
+-        (store.getKey(alias, null) as? SecretKey)?.let { return@synchronized it }
++        (store.getKey(alias, null) as? SecretKey)?.let {
++            keyHandle = it
++            return@synchronized it
++        }
+         check(allowCreation && !marker.exists()) { "未能读取本地加密密钥；请保留原数据并从备份恢复" }
+@@ -54,2 +61,3 @@ class AndroidLocalDataCipher(context: Context, private val alias: String = "card
+         marker.writeText("1")
++        keyHandle = key
+         key
+diff --git a/apps/android/app/src/main/java/com/example/creditcard/utils/SyncCoordinator.kt b/apps/android/app/src/main/java/com/example/creditcard/utils/SyncCoordinator.kt
+index 338f703..33959cc 100644
+--- a/apps/android/app/src/main/java/com/example/creditcard/utils/SyncCoordinator.kt
++++ b/apps/android/app/src/main/java/com/example/creditcard/utils/SyncCoordinator.kt
+@@ -22,2 +22,4 @@ import kotlinx.coroutines.awaitAll
+ import kotlinx.coroutines.coroutineScope
++import kotlinx.coroutines.currentCoroutineContext
++import kotlinx.coroutines.ensureActive
+ import kotlinx.coroutines.delay
+@@ -157,3 +159,11 @@ object SyncCoordinator {
+     @Volatile private var isSuspended = false
+-    @Volatile private var localDataReady = false
++    private val localLoader = LocalCardLoader(
++        syncScope,
++        isLocked = { isSuspended || SecurityLockManager.state.value.locked },
++        publishCards = { _cardsFlow.value = it }
++    )
++    val localDataState: StateFlow<LocalCardLoadState> = localLoader.state
++    private val localDataReady: Boolean get() = localDataState.value == LocalCardLoadState.READY
++    private val _syncConfigured = MutableStateFlow(false)
++    val syncConfigured: StateFlow<Boolean> = _syncConfigured
+ 
+@@ -163,9 +173,11 @@ object SyncCoordinator {
+         if (locked) {
++            localLoader.lock {
++                _needsCellularSyncConfirmation.value = false
++                _cardsFlow.value = emptyList()
++                _syncHistory.value = emptyList()
++                _syncConfigured.value = false
++            }
+             cancelCurrentSync(context)
+-            _needsCellularSyncConfirmation.value = false
+-            _cardsFlow.value = emptyList()
+-            _syncHistory.value = emptyList()
+-            localDataReady = false
+         } else if (changed || !localDataReady) {
+-            syncScope.launch { initLocalData(context.applicationContext) }
++            initLocalData(context)
+         }
+@@ -178,20 +190,46 @@ object SyncCoordinator {
+     fun initLocalData(context: Context) {
+-        if (isSuspended || SecurityLockManager.state.value.locked) return
+         val appContext = context.applicationContext
+-        try {
+-            val cards = DatabaseHelper(appContext).use { it.getAllCards() }
+-            val history = loadSyncHistory(appContext)
+-            val config = loadConfig(appContext)
+-            checkUnlocked()
+-            if (!isSuspended && !SecurityLockManager.state.value.locked) _cardsFlow.value = cards
+-            _syncHistory.value = history
+-            localDataReady = true
+-            retainFavorites(appContext, cards.map { it.id }.toSet())
+-            registerNetworkCallback(appContext)
+-            if (config.isReadyForSync) requestBackgroundSync(appContext, publishLocalChanges = false)
+-            else updateStatus(config.syncUnavailableMessage() ?: "未配置云同步，卡片数据将保存在本地", "info", isPending(appContext))
+-        } catch (_: Exception) {
+-            localDataReady = false
+-            updateStatus("未能读取本机数据；原数据和云端备份已保留，请解锁设备后重试", "error", isPending(appContext))
+-        }
++        localLoader.load(
++            readCards = {
++                val coroutine = currentCoroutineContext()
++                synchronized(dbWriteLock) {
++                    checkUnlocked()
++                    DatabaseHelper(appContext).use { db -> db.getAllCards { coroutine.ensureActive() } }
++                }
++            },
++            afterReady = { ticket, cards ->
++                try {
++                    if (localLoader.withCurrent(ticket) { retainFavorites(appContext, cards.map { it.id }.toSet()) }) {
++                        // A broken history or credential envelope must not hide valid local cards.
++                        try {
++                            val history = loadSyncHistory(appContext)
++                            currentCoroutineContext().ensureActive()
++                            localLoader.withCurrent(ticket) { _syncHistory.value = history }
++                        } catch (cancelled: CancellationException) {
++                            throw cancelled
++                        } catch (_: Exception) {
++                            localLoader.withCurrent(ticket) {
++                                updateStatus("同步记录暂时无法读取，本机卡片已载入；原记录已保留", "warning", isPending(appContext))
++                            }
++                        }
++                        val config = loadConfig(appContext)
++                        currentCoroutineContext().ensureActive()
++                        if (localLoader.withCurrent(ticket) { _syncConfigured.value = config.isReadyForSync }) {
++                            registerNetworkCallback(appContext)
++                            if (config.isReadyForSync) requestBackgroundSync(appContext, publishLocalChanges = false)
++                            else updateStatus(config.syncUnavailableMessage() ?: "未配置云同步，卡片数据将保存在本地", "info", isPending(appContext))
++                        }
++                    }
++                } catch (cancelled: CancellationException) {
++                    throw cancelled
++                } catch (_: Exception) {
++                    localLoader.withCurrent(ticket) {
++                        updateStatus("本机卡片已载入，同步配置暂时无法读取；原配置已保留", "error", isPending(appContext))
++                    }
++                }
++            },
++            onReadError = {
++                updateStatus("未能读取本机数据；原数据和云端备份已保留，请解锁设备后重试", "error", isPending(appContext))
++            }
++        )
+     }
+@@ -218,2 +256,3 @@ object SyncCoordinator {
+         check(editor.putBoolean(KEY_ENABLED, true).putString(KEY_NETWORK_PREFERENCE, config.networkPreference.storedValue).commit()) { "未能保存同步配置，请重试" }
++        localLoader.withUnlocked { _syncConfigured.value = config.isReadyForSync }
+         updateStatus("云同步配置已保存", "info", isPending(context))
+@@ -383,3 +422,3 @@ object SyncCoordinator {
+         writeLocalText(context, KEY_SYNC_HISTORY, AppJson.json.encodeToString(ListSerializer(SyncHistoryEntry.serializer()), trimmed))
+-        if (!isSuspended) _syncHistory.value = trimmed
++        localLoader.withUnlocked { _syncHistory.value = trimmed }
+     }
+@@ -630,3 +669,3 @@ object SyncCoordinator {
+         retainFavorites(appContext, latestCards.map { it.id }.toSet())
+-        if (!isSuspended) _cardsFlow.value = latestCards
++        localLoader.withUnlocked { _cardsFlow.value = latestCards }
+         requestBackgroundSync(context, publishLocalChanges = true)
+@@ -1043,3 +1082,3 @@ object SyncCoordinator {
+                     val durationMs = stopSyncElapsedTicker(syncDurationSince(startedAtMillis))
+-                    if (!isSuspended && !SecurityLockManager.state.value.locked) _cardsFlow.value = currentCards
++                    localLoader.withUnlocked { _cardsFlow.value = currentCards }
+                     if (needsFollowUpSync) {
+@@ -1144,3 +1183,3 @@ object SyncCoordinator {
+         if (isSuspended || SecurityLockManager.state.value.locked) return
+-        if (!localDataReady) { syncScope.launch { initLocalData(context) }; return }
++        if (!localDataReady) { initLocalData(context); return }
+         val appContext = context.applicationContext
+diff --git a/apps/android/app/src/main/res/values-zh/strings.xml b/apps/android/app/src/main/res/values-zh/strings.xml
+index 146ec92..13e6205 100644
+--- a/apps/android/app/src/main/res/values-zh/strings.xml
++++ b/apps/android/app/src/main/res/values-zh/strings.xml
+@@ -120,2 +120,5 @@
+     <string name="wallet_image_import_error">每张卡最多20张图片，单张原图不超过10MB；图片会压缩保存。原有图片不受影响。</string>
++    <string name="local_cards_loading">正在读取本机卡片…</string>
++    <string name="local_cards_load_error">暂时无法读取本机卡片，原数据已保留。请重试。</string>
++    <string name="local_cards_retry">重新读取</string>
+ </resources>
+diff --git a/apps/android/app/src/main/res/values/strings.xml b/apps/android/app/src/main/res/values/strings.xml
+index 4d00abc..7cd9870 100644
+--- a/apps/android/app/src/main/res/values/strings.xml
++++ b/apps/android/app/src/main/res/values/strings.xml
+@@ -119,2 +119,5 @@
+     <string name="wallet_image_import_error">Add up to 20 images per card, with each original up to 10 MB. New images are compressed; existing images are unchanged.</string>
++    <string name="local_cards_loading">Loading cards from this device…</string>
++    <string name="local_cards_load_error">Cards could not be loaded. Your saved data is unchanged. Please try again.</string>
++    <string name="local_cards_retry">Try again</string>
+ </resources>

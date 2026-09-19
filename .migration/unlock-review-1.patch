@@ -1,0 +1,193 @@
+diff --git a/apps/android/README.md b/apps/android/README.md
+index 07d4460..1722b83 100644
+--- a/apps/android/README.md
++++ b/apps/android/README.md
+@@ -63 +63,9 @@ Release 成功后，脚本会输出：
+ - Web、Android、macOS 三端共用 SyncV4 数据语义，字段变更需要同时检查三端。
++
++## 解锁与本地卡片加载
++
++启用安全锁后，锁定会清除内存卡片并取消本次本地加载。解锁时先在后台读取本地 SQLite；读取完成前显示载入状态，读取失败提供重试且保留原数据库，不显示“空卡包”。只有成功读取到零张卡片才显示新增入口。
++
++本地卡片先交给界面，同步历史、凭证及云同步随后加载；历史或凭证损坏不会隐藏已成功读取的卡片。重复初始化共用一次加载，旧会话的结果不会在重新锁定后写回。每个数据库操作复用一个不可导出的 AndroidKeyStore 密钥句柄，仍逐块执行 AES-GCM 验证，不缓存明文、不改变数据库格式或发布签名。
++
++回归测试：`LocalCardLoaderTest` 覆盖慢读取、15 秒附属任务、重复加载、失败重试、空库及锁定竞态；`LocalCardsLoadingScreenTest` 覆盖加载与重试界面；`LocalVaultInstrumentedTest` 在 AndroidKeyStore 上验证句柄复用、撤销及取消读取后数据完整性。实际解锁耗时仍需在带有真实图片的设备上测量。
+diff --git a/apps/android/app/src/androidTest/java/com/example/creditcard/LocalVaultInstrumentedTest.kt b/apps/android/app/src/androidTest/java/com/example/creditcard/LocalVaultInstrumentedTest.kt
+index 99acfe8..bdf8b9e 100644
+--- a/apps/android/app/src/androidTest/java/com/example/creditcard/LocalVaultInstrumentedTest.kt
++++ b/apps/android/app/src/androidTest/java/com/example/creditcard/LocalVaultInstrumentedTest.kt
+@@ -73,2 +73,44 @@ class LocalVaultInstrumentedTest {
+     }
++    @Test fun cachedHandleRemainsNonExportableAndCannotUseADeletedKey() {
++        val context = ApplicationProvider.getApplicationContext<Context>()
++        val alias = "wallet_cached_${UUID.randomUUID()}"
++        try {
++            val cipher = AndroidLocalDataCipher(context, alias)
++            val plain = "synthetic-unlock-fixture".toByteArray()
++            val sealed = cipher.seal(plain, "record")
++            repeat(115) { assertArrayEquals(plain, cipher.open(sealed, "record")) }
++            assertNull(keyStore().getKey(alias, null).encoded)
++            keyStore().deleteEntry(alias)
++            assertTrue(runCatching { cipher.open(sealed, "record") }.isFailure)
++            assertTrue(runCatching { cipher.seal(plain, "record") }.isFailure)
++            assertFalse(keyStore().containsAlias(alias))
++        } finally {
++            keyStore().deleteEntry(alias)
++            java.io.File(context.filesDir, "$alias.marker").delete()
++        }
++    }
++
++    @Test fun cancelledCardReadLeavesTheDatabaseIntact() {
++        val context = ApplicationProvider.getApplicationContext<Context>()
++        val alias = "wallet_cancel_read_${UUID.randomUUID()}"
++        val name = "$alias.db"
++        try {
++            val cards = (1..3).map { SharedCard(id = "read-$it", bank = "SyntheticBank") }
++            DatabaseHelper(context, AndroidLocalDataCipher(context, alias), name).use { db ->
++                db.saveCards(cards)
++                var checkpoints = 0
++                assertThrows(kotlinx.coroutines.CancellationException::class.java) {
++                    db.getAllCards {
++                        if (++checkpoints >= 2) throw kotlinx.coroutines.CancellationException("Locked")
++                    }
++                }
++                assertEquals(cards, db.getAllCards())
++            }
++        } finally {
++            context.deleteDatabase(name)
++            keyStore().deleteEntry(alias)
++            java.io.File(context.filesDir, "$alias.marker").delete()
++        }
++    }
++
+ }
+diff --git a/apps/android/app/src/main/java/com/example/creditcard/MainActivity.kt b/apps/android/app/src/main/java/com/example/creditcard/MainActivity.kt
+index e473204..96faa98 100644
+--- a/apps/android/app/src/main/java/com/example/creditcard/MainActivity.kt
++++ b/apps/android/app/src/main/java/com/example/creditcard/MainActivity.kt
+@@ -30,2 +30,4 @@ import com.example.creditcard.theme.CreditCardTheme
+ import com.example.creditcard.ui.security.SecurityLockScreen
++import com.example.creditcard.ui.security.LocalCardsLoadingScreen
++import com.example.creditcard.utils.LocalCardLoadState
+ import com.example.creditcard.utils.SecurityLockManager
+@@ -84,2 +86,3 @@ class MainActivity : FragmentActivity() {
+             val securityState by SecurityLockManager.state.collectAsState()
++            val localDataState by SyncCoordinator.localDataState.collectAsState()
+ 
+@@ -97,4 +100,10 @@ class MainActivity : FragmentActivity() {
+                         CompositionLocalProvider(LocalAppUpdater provides appUpdater) {
+-                            if (!securityState.locked) MainNavigation()
+-                            AppUpdateHost(locked = securityState.locked)
++                            if (!securityState.locked) {
++                                if (localDataState == LocalCardLoadState.READY) MainNavigation()
++                                else LocalCardsLoadingScreen(
++                                    state = localDataState,
++                                    onRetry = { SyncCoordinator.initLocalData(applicationContext) }
++                                )
++                            }
++                            AppUpdateHost(locked = securityState.locked || localDataState != LocalCardLoadState.READY)
+                         }
+@@ -190,2 +199,6 @@ class MainActivity : FragmentActivity() {
+                     runOnUiThread {
++                        if (!isActivityResumed || SecurityLockManager.state.value.locked) {
++                            NfcScannerManager.onReadingFinished(false)
++                            return@runOnUiThread
++                        }
+                         NfcScannerManager.onReadingFinished(cardInfo != null)
+diff --git a/apps/android/app/src/main/java/com/example/creditcard/data/DatabaseHelper.kt b/apps/android/app/src/main/java/com/example/creditcard/data/DatabaseHelper.kt
+index bef183e..8525211 100644
+--- a/apps/android/app/src/main/java/com/example/creditcard/data/DatabaseHelper.kt
++++ b/apps/android/app/src/main/java/com/example/creditcard/data/DatabaseHelper.kt
+@@ -92,3 +92,3 @@ class DatabaseHelper(
+ 
+-    fun getAllCards(): List<SharedCard> = readableDatabase.query(TABLE_CARDS, arrayOf(KEY_ID, KEY_FORMAT), null, null, null, null, null).use { cursor ->
++    fun getAllCards(checkCancelled: () -> Unit = {}): List<SharedCard> = readableDatabase.query(TABLE_CARDS, arrayOf(KEY_ID, KEY_FORMAT), null, null, null, null, null).use { cursor ->
+         buildList {
+@@ -96,3 +96,4 @@ class DatabaseHelper(
+                 val id = cursor.getString(0)
+-                val data = readPayload(readableDatabase, TABLE_CARDS, id, cursor.getString(1))
++                checkCancelled()
++                val data = readPayload(readableDatabase, TABLE_CARDS, id, cursor.getString(1), checkCancelled)
+                 add(AppJson.json.decodeFromString<SharedCard>(data).also { check(it.id == id) })
+@@ -169,3 +170,3 @@ class DatabaseHelper(
+     }
+-    private fun readPayload(db: SQLiteDatabase, table: String, id: String, format: String?): String {
++    private fun readPayload(db: SQLiteDatabase, table: String, id: String, format: String?, checkCancelled: () -> Unit = {}): String {
+         val header = format?.split(':') ?: error("本地加密数据缺少版本；原数据已保留")
+@@ -179,2 +180,3 @@ class DatabaseHelper(
+             while (cursor.moveToNext()) {
++                checkCancelled()
+                 check(cursor.getInt(0) == index)
+diff --git a/apps/android/app/src/main/java/com/example/creditcard/ui/main/MainScreen.kt b/apps/android/app/src/main/java/com/example/creditcard/ui/main/MainScreen.kt
+index 820d976..bd1a01d 100644
+--- a/apps/android/app/src/main/java/com/example/creditcard/ui/main/MainScreen.kt
++++ b/apps/android/app/src/main/java/com/example/creditcard/ui/main/MainScreen.kt
+@@ -208,2 +208,3 @@ fun MainScreen(
+     val syncStatus by SyncCoordinator.syncStatus.collectAsState()
++    val syncConfigured by SyncCoordinator.syncConfigured.collectAsState()
+     val needsCellularSyncConfirmation by SyncCoordinator.needsCellularSyncConfirmation.collectAsState()
+@@ -489,4 +490,2 @@ fun MainScreen(
+                 0 -> {
+-                    val syncConfig = remember(context) { SyncCoordinator.loadConfig(context) }
+-
+                     LazyColumn(
+@@ -515,6 +514,6 @@ fun MainScreen(
+                                 syncType = syncStatus.type,
+-                                syncReady = syncConfig.isReadyForSync,
++                                syncReady = syncConfigured,
+                                 onSync = {
+                                     if (syncStatus.isSyncing) { selectedTab = 1; toolsMode = ToolsMode.SYNC_LOG }
+-                                    else if (!syncConfig.isReadyForSync) { selectedTab = 2; settingsMode = SettingsMode.WEBDAV }
++                                    else if (!syncConfigured) { selectedTab = 2; settingsMode = SettingsMode.WEBDAV }
+                                     else SyncCoordinator.requestManualSync(context)
+diff --git a/apps/android/app/src/main/java/com/example/creditcard/ui/security/LocalCardsLoadingScreen.kt b/apps/android/app/src/main/java/com/example/creditcard/ui/security/LocalCardsLoadingScreen.kt
+new file mode 100644
+index 0000000..2efccf2
+--- /dev/null
++++ b/apps/android/app/src/main/java/com/example/creditcard/ui/security/LocalCardsLoadingScreen.kt
+@@ -0,0 +1,45 @@
++package com.example.creditcard.ui.security
++
++import androidx.compose.foundation.layout.Arrangement
++import androidx.compose.foundation.layout.Column
++import androidx.compose.foundation.layout.fillMaxSize
++import androidx.compose.foundation.layout.padding
++import androidx.compose.material3.CircularProgressIndicator
++import androidx.compose.material3.MaterialTheme
++import androidx.compose.material3.OutlinedButton
++import androidx.compose.material3.Text
++import androidx.compose.runtime.Composable
++import androidx.compose.ui.Alignment
++import androidx.compose.ui.Modifier
++import androidx.compose.ui.res.stringResource
++import androidx.compose.ui.text.style.TextAlign
++import androidx.compose.ui.unit.dp
++import com.example.creditcard.R
++import com.example.creditcard.utils.LocalCardLoadState
++
++/** Uses the current wallet theme; never offers an empty-wallet action before a successful read. */
++@Composable
++internal fun LocalCardsLoadingScreen(state: LocalCardLoadState, onRetry: () -> Unit) {
++    Column(
++        modifier = Modifier.fillMaxSize().padding(24.dp),
++        verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
++        horizontalAlignment = Alignment.CenterHorizontally
++    ) {
++        if (state == LocalCardLoadState.ERROR) {
++            Text(
++                stringResource(R.string.local_cards_load_error),
++                style = MaterialTheme.typography.bodyMedium,
++                color = MaterialTheme.colorScheme.onSurface,
++                textAlign = TextAlign.Center
++            )
++            OutlinedButton(onClick = onRetry) { Text(stringResource(R.string.local_cards_retry)) }
++        } else {
++            CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
++            Text(
++                stringResource(R.string.local_cards_loading),
++                style = MaterialTheme.typography.bodyMedium,
++                color = MaterialTheme.colorScheme.onSurfaceVariant
++            )
++        }
++    }
++}
