@@ -53,6 +53,7 @@ struct ContentView: View {
     @State private var alertQueue: [AppAlertType] = []
     @State private var activeAppAlert: AppAlertType? = nil
     @State private var notificationRefreshTask: Task<Void, Never>?
+    @State private var pendingEditTask: Task<Void, Never>?
     
     // 监听自动锁定状态
     @State private var lockManager = AutoLockManager.shared
@@ -165,29 +166,15 @@ struct ContentView: View {
                 .zIndex(999)
             }
         }
-        .animation(walletAnimation, value: lockManager.isLocked)
-        .onAppear {
-            syncCoordinator.onCardsChanged = { updatedCards in
-                self.cards = updatedCards
-                refreshSystemNotifications(for: updatedCards)
-            }
-            loadCards()
-            runInitialAnnualFeeCheckIfNeeded()
-        }
+        .animation(lockManager.isLocked ? nil : walletAnimation, value: lockManager.isLocked)
+        .transaction { if lockManager.isLocked { $0.disablesAnimations = true } }
+        .onAppear { openUnlockedSession() }
+        .onDisappear { clearPrivateViewState() }
         .onChange(of: lockManager.isLocked) { _, isLocked in
             if !isLocked {
-                SyncCoordinator.shared.setSuspended(isLocked: false)
-                runInitialAnnualFeeCheckIfNeeded()
-                refreshSystemNotifications(for: cards)
+                openUnlockedSession()
             } else {
-                notificationRefreshTask?.cancel()
-                cardEditRequest = nil
-                detailCard = nil
-                showingFilterPopover = false
-                selectedCardID = nil
-                activeAppAlert = nil
-                alertQueue.removeAll()
-                SyncCoordinator.shared.setSuspended(isLocked: true)
+                clearPrivateViewState()
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .walletNewCard)) { _ in
@@ -206,7 +193,7 @@ struct ContentView: View {
             guard let card = cards.first(where: { $0.id == id }) else { return }
             if detailCard != nil {
                 detailCard = nil
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) { cardEditRequest = CardEditRequest(mode: "edit", card: card) }
+                scheduleCardEdit(id: card.id)
             } else { cardEditRequest = CardEditRequest(mode: "edit", card: card) }
         }
         .onReceive(NotificationCenter.default.publisher(for: .walletSettings)) { _ in
@@ -215,12 +202,14 @@ struct ContentView: View {
         }
         // 请求存在后才创建完整表单，避免首次呈现产生空内容窗口
         .sheet(item: $cardEditRequest) { request in
+            let generation = syncCoordinator.currentSessionGeneration
             CardEditView(
                 mode: request.mode,
                 cardToEdit: request.card,
                 initialCardCategory: request.card?.cardCategory ?? request.cardCategory,
                 existingCards: cards,
                 onSubmit: { submittedCard in
+                    guard syncCoordinator.isCurrentSession(generation), hasLoadedCards else { return }
                     let updated = CardEditing.applySubmission(submittedCard, previous: request.mode == "add" ? nil : request.card, to: cards)
                     cards = syncCoordinator.commit(cards: updated)
                     if let previous = request.card, !selectedBank.isEmpty, BankNameNormalizer.namesReferToSameBank(selectedBank, previous.bank) {
@@ -234,9 +223,7 @@ struct ContentView: View {
                 card: card,
                 onEdit: {
                     detailCard = nil
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-                        cardEditRequest = CardEditRequest(mode: "edit", card: card)
-                    }
+                    scheduleCardEdit(id: card.id)
                 }
             )
         }
@@ -307,7 +294,51 @@ struct ContentView: View {
         }
     }
     
+    private func openUnlockedSession() {
+        guard !lockManager.isLocked else { clearPrivateViewState(); return }
+        syncCoordinator.setSuspended(isLocked: false)
+        syncCoordinator.onCardsChanged = { updatedCards in
+            guard !lockManager.isLocked else { clearPrivateViewState(); return }
+            cards = updatedCards
+            refreshSystemNotifications()
+        }
+        loadCards()
+        runInitialAnnualFeeCheckIfNeeded()
+    }
+
+    private func clearPrivateViewState() {
+        notificationRefreshTask?.cancel()
+        notificationRefreshTask = nil
+        pendingEditTask?.cancel()
+        pendingEditTask = nil
+        syncCoordinator.onCardsChanged = nil
+        cards.removeAll()
+        hasLoadedCards = false
+        loadingFailed = false
+        hasCheckedAnnualFeeStatus = false
+        cardEditRequest = nil
+        detailCard = nil
+        showingFilterPopover = false
+        selectedCardID = nil
+        selectedBank = ""
+        searchText = ""
+        activeAppAlert = nil
+        alertQueue.removeAll()
+    }
+
+    private func scheduleCardEdit(id: String) {
+        pendingEditTask?.cancel()
+        let generation = syncCoordinator.currentSessionGeneration
+        pendingEditTask = Task { @MainActor in
+            try? await Task.sleep(for: .milliseconds(150))
+            guard !Task.isCancelled, syncCoordinator.isCurrentSession(generation), hasLoadedCards,
+                  let card = cards.first(where: { $0.id == id }) else { return }
+            cardEditRequest = CardEditRequest(mode: "edit", card: card)
+        }
+    }
+
     private func loadCards() {
+        guard !lockManager.isLocked else { return }
         let result = LocalStorageManager.read()
         switch result {
         case .success(let loadedCards):
@@ -315,7 +346,7 @@ struct ContentView: View {
                 self.cards = try syncCoordinator.bootstrap(localCards: loadedCards)
                 loadingFailed = false
                 hasLoadedCards = true
-                refreshSystemNotifications(for: self.cards)
+                refreshSystemNotifications()
             } catch {
                 loadingFailed = true
                 hasLoadedCards = false
@@ -334,6 +365,7 @@ struct ContentView: View {
     }
 
     private func queueAlert(_ alert: AppAlertType) {
+        guard !lockManager.isLocked, hasLoadedCards else { return }
         guard !alertQueue.contains(where: { $0.id == alert.id }) && activeAppAlert?.id != alert.id else {
             return
         }
@@ -401,12 +433,13 @@ struct ContentView: View {
         }
     }
 
-    private func refreshSystemNotifications(for cards: [SharedCard]) {
+    private func refreshSystemNotifications() {
         notificationRefreshTask?.cancel()
+        let generation = syncCoordinator.currentSessionGeneration
         notificationRefreshTask = Task { @MainActor in
             try? await Task.sleep(nanoseconds: 400_000_000)
-            guard !Task.isCancelled else { return }
-            await CardSystemNotificationCenter.shared.refresh(cards: cards, locked: lockManager.isLocked)
+            guard !Task.isCancelled, syncCoordinator.isCurrentSession(generation), hasLoadedCards else { return }
+            CardSystemNotificationCenter.shared.refresh(cards: cards, locked: false)
         }
     }
 

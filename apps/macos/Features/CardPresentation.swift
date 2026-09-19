@@ -218,23 +218,39 @@ struct WalletSensitiveValue: View {
 final class CardImageCache {
     static let shared = CardImageCache()
     private let cache = NSCache<NSString, NSImage>()
-    private init() { cache.totalCostLimit = 32 * 1024 * 1024; cache.countLimit = 60 }
+    private var generation: UInt64 = 0
+    private var decoders: [UUID: Task<CGImage?, Never>] = [:]
+    private let readLock: () -> Bool
+    private let decode: @Sendable (String, Int) -> CGImage?
+    init(readLock: @escaping () -> Bool = { AutoLockManager.shared.isLocked },
+         decode: @escaping @Sendable (String, Int) -> CGImage? = { CardImageCache.decodeThumbnail($0, pixels: $1) }) {
+        self.readLock = readLock
+        self.decode = decode
+        cache.totalCostLimit = 32 * 1024 * 1024
+        cache.countLimit = 60
+    }
+    func suspendForLock() {
+        generation &+= 1
+        decoders.values.forEach { $0.cancel() }
+        decoders.removeAll()
+        cache.removeAllObjects()
+    }
     func image(for asset: CardImageAsset, pixels: Int) async -> NSImage? {
+        guard !readLock(), !Task.isCancelled else { return nil }
+        let ticket = generation
         let key = "\(asset.id)-\(asset.createdAt)-\(asset.data.utf8.count)-\(pixels)" as NSString
         if let image = cache.object(forKey: key) { return image }
         let encoded = asset.data
-        let cgImage = await Task.detached(priority: .utility) {
-            let payload = encoded.range(of: "base64,").map { String(encoded[$0.upperBound...]) } ?? encoded
-            guard let data = Data(base64Encoded: payload, options: .ignoreUnknownCharacters),
-                  let source = CGImageSourceCreateWithData(data as CFData, [kCGImageSourceShouldCache: false] as CFDictionary) else { return nil as CGImage? }
-            return CGImageSourceCreateThumbnailAtIndex(source, 0, [
-                kCGImageSourceCreateThumbnailFromImageAlways: true,
-                kCGImageSourceCreateThumbnailWithTransform: true,
-                kCGImageSourceThumbnailMaxPixelSize: pixels,
-                kCGImageSourceShouldCacheImmediately: true
-            ] as CFDictionary)
-        }.value
-        guard !Task.isCancelled else { return nil }
+        let decoderID = UUID()
+        let decode = self.decode
+        let decoder = Task.detached(priority: .utility) {
+            guard !Task.isCancelled else { return nil as CGImage? }
+            return decode(encoded, pixels)
+        }
+        decoders[decoderID] = decoder
+        defer { decoders.removeValue(forKey: decoderID) }
+        let cgImage = await withTaskCancellationHandler(operation: { await decoder.value }, onCancel: { decoder.cancel() })
+        guard !Task.isCancelled, ticket == generation, !readLock() else { return nil }
         guard let cgImage else {
             let payload = encoded.range(of: "base64,").map { String(encoded[$0.upperBound...]) } ?? encoded
             guard let data = Data(base64Encoded: payload, options: .ignoreUnknownCharacters), let fallback = NSImage(data: data) else { return nil }
@@ -245,6 +261,21 @@ final class CardImageCache {
         cache.setObject(image, forKey: key, cost: cgImage.bytesPerRow * cgImage.height)
         return image
     }
+
+    nonisolated static func decodeThumbnail(_ encoded: String, pixels: Int) -> CGImage? {
+        guard !Task.isCancelled else { return nil }
+        let payload = encoded.range(of: "base64,").map { String(encoded[$0.upperBound...]) } ?? encoded
+        guard let data = Data(base64Encoded: payload, options: .ignoreUnknownCharacters),
+              let source = CGImageSourceCreateWithData(data as CFData, [kCGImageSourceShouldCache: false] as CFDictionary),
+              !Task.isCancelled else { return nil }
+        return CGImageSourceCreateThumbnailAtIndex(source, 0, [
+            kCGImageSourceCreateThumbnailFromImageAlways: true,
+            kCGImageSourceCreateThumbnailWithTransform: true,
+            kCGImageSourceThumbnailMaxPixelSize: pixels,
+            kCGImageSourceShouldCacheImmediately: true
+        ] as CFDictionary)
+    }
+
 }
 
 struct CardImageView: View {
@@ -268,9 +299,12 @@ struct CardImageView: View {
         .task(id: "\(asset.id)-\(asset.createdAt)-\(pixels)") {
             image = nil
             finished = false
-            image = await CardImageCache.shared.image(for: asset, pixels: pixels)
+            let decoded = await CardImageCache.shared.image(for: asset, pixels: pixels)
+            guard !Task.isCancelled else { return }
+            image = decoded
             finished = true
         }
+        .onDisappear { image = nil; finished = false }
     }
 
     static func byteCount(_ asset: CardImageAsset) -> Int64 {

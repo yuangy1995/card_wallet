@@ -71,7 +71,7 @@ public final class WebDAVBridgeService: ObservableObject {
     @Published public private(set) var syncElapsedSeconds: TimeInterval = 0
     @Published public private(set) var lastSyncDurationSeconds: TimeInterval?
     @Published public private(set) var syncProgress = SyncFileProgress()
-    @Published public private(set) var syncHistory: [SyncHistoryEntry]
+    @Published public private(set) var syncHistory: [SyncHistoryEntry] = []
 
     private var timer: Timer?
     private var elapsedTimer: Timer?
@@ -85,30 +85,74 @@ public final class WebDAVBridgeService: ObservableObject {
     private static let progressUIUpdateInterval: TimeInterval = 0.25
 
     private struct PreparedWebDAVUpload {
-        let snapshot: WebDAVSyncSnapshotV4
+        let snapshotID: String
         let filename: String
         let cipherText: String
         let uploadSize: Int64
     }
 
     public var isEnabled: Bool {
-        UserDefaults.standard.object(forKey: "enable_webdav_bridge") as? Bool ?? true
+        bridgeEnabled()
     }
 
     private var historyAvailable = false
-    private init() {
-        do {
-            syncHistory = try LocalSyncHistory.read([SyncHistoryEntry].self, legacyKey: Self.syncHistoryKey) ?? []
-            historyAvailable = true
-        } catch { syncHistory = [] }
+    private var revokeSyncValues: [() -> Void] = []
+    private let readLock: () -> Bool
+    private let readHistory: () throws -> [SyncHistoryEntry]
+    private let bridgeEnabled: () -> Bool
+
+    init(readLock: @escaping () -> Bool = { AutoLockManager.shared.isLocked },
+         readHistory: @escaping () throws -> [SyncHistoryEntry] = {
+             try LocalSyncHistory.read([SyncHistoryEntry].self, legacyKey: "webdav_bridge_sync_history_v1") ?? []
+         },
+         bridgeEnabled: @escaping () -> Bool = {
+             UserDefaults.standard.object(forKey: "enable_webdav_bridge") as? Bool ?? true
+         }) {
+        self.readLock = readLock
+        self.readHistory = readHistory
+        self.bridgeEnabled = bridgeEnabled
+        // Do not decrypt history while constructing a singleton on the cold-start lock screen.
+    }
+
+    private func retainSyncValue<Value>(_ value: Value) -> LockScopedValue<Value> {
+        let box = LockScopedValue(value)
+        revokeSyncValues.append { box.invalidate() }
+        return box
+    }
+
+    private func clearSyncValues() {
+        revokeSyncValues.forEach { $0() }
+        revokeSyncValues.removeAll()
+    }
+
+    public func suspendForLock() {
+        stop()
+        recordsProvider = nil
+        onMergedRecords = nil
+        syncHistory.removeAll()
+        historyAvailable = false
+        syncProgress = SyncFileProgress()
+        statusDescription = "云同步还未设置"
+        lastConvergenceAt = nil
+        lastSyncDurationSeconds = nil
+        syncStartedAt = nil
+        syncElapsedSeconds = 0
+        // Deliberately do not save the empty in-memory history.
     }
 
     public func configure(
         recordsProvider: @escaping () -> [CardSyncRecord],
         onMergedRecords: @escaping ([CardSyncRecord]) -> Bool
     ) {
+        guard !readLock() else { return }
         self.recordsProvider = recordsProvider
         self.onMergedRecords = onMergedRecords
+        if !historyAvailable {
+            do {
+                syncHistory = try readHistory()
+                historyAvailable = true
+            } catch { syncHistory = [] }
+        }
         if isEnabled {
             start()
         }
@@ -126,7 +170,7 @@ public final class WebDAVBridgeService: ObservableObject {
 
     public func start() {
         stop()
-        guard isEnabled, !AutoLockManager.shared.isLocked else { return }
+        guard isEnabled, !readLock(), recordsProvider != nil, onMergedRecords != nil else { return }
         let configuredInterval = UserDefaults.standard.double(forKey: "auto_check_interval")
         let interval = configuredInterval > 0 ? configuredInterval : 300
         timer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
@@ -139,6 +183,7 @@ public final class WebDAVBridgeService: ObservableObject {
         timer?.invalidate()
         timer = nil
         syncGeneration &+= 1
+        clearSyncValues()
         WebDAVClient.shared.cancelRequests()
         queuedForceUpload = false
         if isSyncing { _ = finishSyncTiming() }
@@ -146,7 +191,7 @@ public final class WebDAVBridgeService: ObservableObject {
     }
 
     public func synchronize(forceUpload: Bool) {
-        guard isEnabled, !AutoLockManager.shared.isLocked else { return }
+        guard isEnabled, !readLock(), recordsProvider != nil, onMergedRecords != nil else { return }
         if isSyncing {
             if forceUpload {
                 queuedForceUpload = true
@@ -170,7 +215,7 @@ public final class WebDAVBridgeService: ObservableObject {
         statusDescription = "正在检查云端同步数据..."
         WebDAVClient.shared.getBackupList { [weak self] result in
             DispatchQueue.main.async {
-                guard let self, self.syncGeneration == generation, !AutoLockManager.shared.isLocked else { return }
+                guard let self, self.syncGeneration == generation, !self.readLock() else { return }
                 switch result {
                 case .failure(let error):
                     self.completeWithError("云端读取失败：\(error.localizedDescription)")
@@ -202,7 +247,7 @@ public final class WebDAVBridgeService: ObservableObject {
                 return $0.filename > $1.filename
             }
         let filesToRead = Array(automaticFiles.prefix(5))
-        guard var ledger = readLedger() else { return }
+        guard let ledger = readLedger() else { return }
         let hasPendingUpload = ledger.pendingWebDAVUpload
         let newestFilename = automaticFiles.first?.filename ?? ""
         let startedAt = syncStartedAt ?? Date()
@@ -268,7 +313,7 @@ public final class WebDAVBridgeService: ObservableObject {
             progressLock.unlock()
             guard shouldReport else { return }
             DispatchQueue.main.async {
-                guard let self, self.syncGeneration == generation, !AutoLockManager.shared.isLocked else { return }
+                guard let self, self.syncGeneration == generation, !self.readLock() else { return }
                 self.updateProgress(
                     "读取文件",
                     step: 2,
@@ -289,8 +334,8 @@ public final class WebDAVBridgeService: ObservableObject {
             transferredBytes: 0
         )
         let group = DispatchGroup()
-        let lock = NSLock()
-        var snapshots: [WebDAVSyncSnapshotV4] = []
+        let snapshotsBuffer = retainSyncValue([WebDAVSyncSnapshotV4]())
+        let passwordBuffer = retainSyncValue(syncPassword)
         for file in filesToRead {
             group.enter()
             let fileProgressBox = ProgressBox()
@@ -305,8 +350,9 @@ public final class WebDAVBridgeService: ObservableObject {
                 }
             ) { result in
                 defer { group.leave() }
-                guard case .success(let cipherText) = result,
-                      let json = try? CryptoManager.decryptSyncEnvelopeV4(envelopeText: cipherText, password: syncPassword),
+                guard let password = passwordBuffer.value,
+                      case .success(let cipherText) = result,
+                      let json = try? CryptoManager.decryptSyncEnvelopeV4(envelopeText: cipherText, password: password),
                       let data = json.data(using: .utf8),
                       let snapshot = try? JSONDecoder().decode(WebDAVSyncSnapshotV4.self, from: data),
                       snapshot.schemaVersion == WebDAVSyncSnapshotV4.schemaVersion else {
@@ -318,13 +364,12 @@ public final class WebDAVBridgeService: ObservableObject {
                 if remaining > 0 {
                     reportDownloadProgress(remaining, true)
                 }
-                lock.lock()
-                snapshots.append(snapshot)
-                lock.unlock()
+                snapshotsBuffer.update { $0.append(snapshot) }
             }
         }
         group.notify(queue: .main) {
-            guard self.syncGeneration == generation, !AutoLockManager.shared.isLocked else { return }
+            guard self.syncGeneration == generation, !self.readLock() else { return }
+            guard let snapshots = snapshotsBuffer.value else { return }
             if snapshots.count != filesToRead.count {
                 self.completeWithError("部分同步文件未能读取或解密；已保留本机数据和云端备份")
                 return
@@ -341,8 +386,7 @@ public final class WebDAVBridgeService: ObservableObject {
                     return
                 }
             }
-            guard let currentLedger = self.readLedger() else { return }
-            ledger = currentLedger
+            guard var ledger = self.readLedger() else { return }
             let hasPendingUpload = ledger.pendingWebDAVUpload
             let activeAfter = CardSyncMergeEngine.activeCards(from: mergedRecords)
             let remoteChanges = hasChange ? Self.diffCards(before: activeBefore, after: activeAfter) : []
@@ -384,6 +428,15 @@ public final class WebDAVBridgeService: ObservableObject {
         }
     }
 
+    private struct UploadContext {
+        let records: [CardSyncRecord]
+        let snapshotIDs: [String]
+        let listedFiles: [WebDAVBackupFile]
+        let downloadedFiles: [String]
+        let localChanges: [SyncCardChangeDetail]
+        let remoteChanges: [SyncCardChangeDetail]
+    }
+
     private func uploadConsolidatedSnapshot(
         records: [CardSyncRecord],
         downloadedSnapshots: [WebDAVSyncSnapshotV4],
@@ -399,115 +452,83 @@ public final class WebDAVBridgeService: ObservableObject {
             completeWithError("请先在 WebDAV 设置中填写同步密钥")
             return
         }
-
-        updateProgress(
-            "保存云端",
-            step: 4,
-            total: 5,
-            detail: "正在准备加密同步快照",
-            totalBytes: nil,
-            transferredBytes: 0
-        )
+        let context = retainSyncValue(UploadContext(
+            records: records, snapshotIDs: downloadedSnapshots.map(\.snapshotId),
+            listedFiles: listedFiles, downloadedFiles: downloadedFiles,
+            localChanges: localChanges, remoteChanges: remoteChanges
+        ))
+        let password = retainSyncValue(syncPassword)
+        updateProgress("保存云端", step: 4, total: 5, detail: "正在准备加密同步快照", transferredBytes: 0)
 
         DispatchQueue.global(qos: .utility).async { [weak self] in
+            // Only this bounded encoding operation holds a temporary copy; queued/network callbacks
+            // retain revocable boxes and cannot keep card records alive after locking.
             let preparedUpload: PreparedWebDAVUpload?
             do {
-                let snapshot = WebDAVSyncSnapshotV4(source: "macos", records: records)
+                guard let input = context.value, let secret = password.value else { return }
+                let snapshot = WebDAVSyncSnapshotV4(source: "macos", records: input.records)
                 let data = try JSONEncoder().encode(snapshot)
-                guard let json = String(data: data, encoding: .utf8) else {
-                    throw CryptoError.utf8DecodingFailed
-                }
-                let cipherText = try CryptoManager.encryptSyncEnvelopeV4(plainText: json, password: syncPassword)
+                guard context.value != nil, let json = String(data: data, encoding: .utf8) else { return }
+                let cipherText = try CryptoManager.encryptSyncEnvelopeV4(plainText: json, password: secret)
+                guard context.value != nil else { return }
                 let formatter = DateFormatter()
                 formatter.dateFormat = "yyyy-MM-dd-HH-mm-ss-SSS"
-                let filename = "\(formatter.string(from: Date()))---(\(CardSyncMergeEngine.activeCards(from: records).count))[SyncV4][Mac][自].json"
+                let filename = "\(formatter.string(from: Date()))---(\(CardSyncMergeEngine.activeCards(from: input.records).count))[SyncV4][Mac][自].json"
                 preparedUpload = PreparedWebDAVUpload(
-                    snapshot: snapshot,
-                    filename: filename,
-                    cipherText: cipherText,
-                    uploadSize: Int64(cipherText.data(using: .utf8)?.count ?? 0)
+                    snapshotID: snapshot.snapshotId, filename: filename,
+                    cipherText: cipherText, uploadSize: Int64(cipherText.utf8.count)
                 )
-            } catch {
-                preparedUpload = nil
-            }
+            } catch { preparedUpload = nil }
 
             DispatchQueue.main.async {
-                guard let self, self.syncGeneration == generation, !AutoLockManager.shared.isLocked else { return }
+                guard let self, self.syncGeneration == generation, !self.readLock(), context.value != nil else { return }
                 guard let prepared = preparedUpload else {
                     self.completeWithError("同步数据准备失败")
                     return
                 }
-                self.uploadPreparedSnapshot(
-                    prepared,
-                    records: records,
-                    downloadedSnapshots: downloadedSnapshots,
-                    listedFiles: listedFiles,
-                    startedAt: syncStarted,
-                    downloadedFiles: downloadedFiles,
-                    localChanges: localChanges,
-                    remoteChanges: remoteChanges
-                )
+                self.uploadPreparedSnapshot(prepared, context: context, startedAt: syncStarted)
             }
         }
     }
 
     private func uploadPreparedSnapshot(
         _ prepared: PreparedWebDAVUpload,
-        records: [CardSyncRecord],
-        downloadedSnapshots: [WebDAVSyncSnapshotV4],
-        listedFiles: [WebDAVBackupFile],
-        startedAt syncStarted: Date,
-        downloadedFiles: [String],
-        localChanges: [SyncCardChangeDetail],
-        remoteChanges: [SyncCardChangeDetail]
+        context: LockScopedValue<UploadContext>,
+        startedAt syncStarted: Date
     ) {
         let generation = syncGeneration
-        updateProgress(
-            "保存云端",
-            step: 4,
-            total: 5,
-            detail: "正在上传合并后的加密快照",
-            totalBytes: prepared.uploadSize,
-            transferredBytes: 0
-        )
-
+        let uploadSize = prepared.uploadSize
+        updateProgress("保存云端", step: 4, total: 5, detail: "正在上传合并后的加密快照",
+                       totalBytes: uploadSize, transferredBytes: 0)
         let uploadProgressTimeBox = ProgressTimeBox()
         WebDAVClient.shared.uploadBackup(
             filename: prepared.filename,
             cipherText: prepared.cipherText,
             onProgress: { [weak self] bytesSent in
-                let currentBytes = min(prepared.uploadSize, max(0, bytesSent))
+                let currentBytes = min(uploadSize, max(0, bytesSent))
                 let now = Date().timeIntervalSinceReferenceDate
-                guard currentBytes >= prepared.uploadSize || now - uploadProgressTimeBox.value >= Self.progressUIUpdateInterval else {
-                    return
-                }
+                guard currentBytes >= uploadSize || now - uploadProgressTimeBox.value >= Self.progressUIUpdateInterval else { return }
                 uploadProgressTimeBox.value = now
                 DispatchQueue.main.async {
-                    guard let self, self.syncGeneration == generation, !AutoLockManager.shared.isLocked else { return }
-                    self.updateProgress(
-                        "保存云端",
-                        step: 4,
-                        total: 5,
-                        detail: "正在上传合并后的加密快照",
-                        totalBytes: prepared.uploadSize,
-                        transferredBytes: currentBytes
-                    )
+                    guard let self, self.syncGeneration == generation, !self.readLock() else { return }
+                    self.updateProgress("保存云端", step: 4, total: 5, detail: "正在上传合并后的加密快照",
+                                        totalBytes: uploadSize, transferredBytes: currentBytes)
                 }
             }
         ) { [weak self] result in
             DispatchQueue.main.async {
-                guard let self, self.syncGeneration == generation, !AutoLockManager.shared.isLocked else { return }
+                guard let self, self.syncGeneration == generation, !self.readLock(), let input = context.value else { return }
                 switch result {
                 case .failure(let error):
                     self.completeWithError("云端写入失败，将重试：\(error.localizedDescription)")
                 case .success:
                     guard var ledger = self.readLedger() else { return }
-                    let latestRecords = CardSyncMergeEngine.merge([ledger.records, records])
+                    let latestRecords = CardSyncMergeEngine.merge([ledger.records, input.records])
                     ledger.records = latestRecords
-                    ledger.processedWebDAVSnapshotIDs.formUnion(downloadedSnapshots.map(\.snapshotId))
-                    ledger.processedWebDAVSnapshotIDs.insert(prepared.snapshot.snapshotId)
+                    ledger.processedWebDAVSnapshotIDs.formUnion(input.snapshotIDs)
+                    ledger.processedWebDAVSnapshotIDs.insert(prepared.snapshotID)
                     ledger.lastWebDAVSnapshotFilename = prepared.filename
-                    ledger.pendingWebDAVUpload = latestRecords != CardSyncMergeEngine.merge([records])
+                    ledger.pendingWebDAVUpload = latestRecords != CardSyncMergeEngine.merge([input.records])
                     guard SyncLedgerStore.shared.save(ledger) else {
                         self.completeWithError("未能保存同步状态，请重试")
                         return
@@ -515,27 +536,16 @@ public final class WebDAVBridgeService: ObservableObject {
                     self.lastConvergenceAt = Date()
                     let duration = self.finishSyncTiming()
                     self.statusDescription = ledger.pendingWebDAVUpload ? "本机有新修改，正在继续同步" : "云端与本机已同步"
-                    self.updateProgress(
-                        "同步完成",
-                        step: 5,
-                        total: 5,
-                        detail: self.statusDescription,
-                        totalBytes: prepared.uploadSize,
-                        transferredBytes: prepared.uploadSize
-                    )
+                    self.updateProgress("同步完成", step: 5, total: 5, detail: self.statusDescription,
+                                        totalBytes: uploadSize, transferredBytes: uploadSize)
                     self.isSyncing = false
                     self.appendSyncHistory(
-                        status: "success",
-                        message: self.statusDescription,
-                        startedAt: syncStarted,
-                        uploadedFile: prepared.filename,
-                        downloadedFiles: downloadedFiles,
-                        localChanges: localChanges,
-                        remoteChanges: remoteChanges,
-                        duration: duration
+                        status: "success", message: self.statusDescription, startedAt: syncStarted,
+                        uploadedFile: prepared.filename, downloadedFiles: input.downloadedFiles,
+                        localChanges: input.localChanges, remoteChanges: input.remoteChanges, duration: duration
                     )
                     NotificationCenter.default.post(name: Notification.Name("CloudBackupsDidChange"), object: nil)
-                    self.pruneAutomaticSnapshots(from: listedFiles.filter { downloadedFiles.contains($0.filename) } + [
+                    self.pruneAutomaticSnapshots(from: input.listedFiles.filter { input.downloadedFiles.contains($0.filename) } + [
                         WebDAVBackupFile(filename: prepared.filename, size: 0, lastModified: SyncTimestamp.now())
                     ])
                     self.runQueuedForceUploadIfNeeded()
@@ -866,6 +876,7 @@ public final class WebDAVBridgeService: ObservableObject {
 
     @discardableResult
     private func finishSyncTiming() -> TimeInterval {
+        clearSyncValues()
         let duration = syncStartedAt.map { max(0, Date().timeIntervalSince($0)) } ?? syncElapsedSeconds
         elapsedTimer?.invalidate()
         elapsedTimer = nil
@@ -878,8 +889,10 @@ public final class WebDAVBridgeService: ObservableObject {
     private func runQueuedForceUploadIfNeeded() {
         guard queuedForceUpload else { return }
         queuedForceUpload = false
+        let generation = syncGeneration
         DispatchQueue.main.async { [weak self] in
-            self?.synchronize(forceUpload: true)
+            guard let self, self.syncGeneration == generation, !self.readLock() else { return }
+            self.synchronize(forceUpload: true)
         }
     }
 }

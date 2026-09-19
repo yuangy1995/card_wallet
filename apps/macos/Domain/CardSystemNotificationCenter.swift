@@ -8,8 +8,18 @@ final class CardSystemNotificationCenter {
     private let center = UNUserNotificationCenter.current()
     private let defaultsKey = "card_system_notification_daily_v1"
     private static let scheduledPrefix = "card_scheduled_"
-    private var pendingRefresh: (cards: [SharedCard], locked: Bool)?
-    private var isRefreshing = false
+    private var pendingRefresh: LockScopedValue<[SharedCard]>?
+    private var activeRefresh: LockScopedValue<[SharedCard]>?
+    private var refreshTask: Task<Void, Never>?
+    private var preparationTask: Task<PreparedRefresh?, Never>?
+    private var generation: UInt64 = 0
+
+    private struct PreparedRefresh: Sendable {
+        let plans: [PlannedNotification]
+        let billingCount: Int
+        let annualCount: Int
+        let expiryCount: Int
+    }
 
     struct PlannedNotification: Sendable {
         let identifier: String
@@ -21,35 +31,75 @@ final class CardSystemNotificationCenter {
 
     private init() {}
 
-    func refresh(cards: [SharedCard], locked: Bool) async {
-        pendingRefresh = (cards, locked)
-        guard !isRefreshing else { return }
+    func suspendForLock() {
+        generation &+= 1
+        pendingRefresh?.invalidate()
+        pendingRefresh = nil
+        activeRefresh?.invalidate()
+        activeRefresh = nil
+        preparationTask?.cancel()
+        preparationTask = nil
+        refreshTask?.cancel()
+        refreshTask = nil
+        // Existing system reminders are generic and remain scheduled. Do not schedule an empty
+        // wallet on lock, which would remove reminders from disk/the notification service.
+    }
 
-        isRefreshing = true
-        defer { isRefreshing = false }
-        while let request = pendingRefresh {
-            pendingRefresh = nil
-            await performRefresh(cards: request.cards, locked: request.locked)
+    func refresh(cards: [SharedCard], locked: Bool) {
+        guard !locked else { suspendForLock(); return }
+        pendingRefresh?.invalidate()
+        pendingRefresh = LockScopedValue(cards)
+        guard refreshTask == nil else { return }
+        let ticket = generation
+        refreshTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            defer { if self.generation == ticket { self.refreshTask = nil } }
+            while self.isCurrent(ticket), let input = self.pendingRefresh {
+                self.pendingRefresh = nil
+                self.activeRefresh = input
+                let worker = Task.detached(priority: .utility) { () -> PreparedRefresh? in
+                    defer { input.invalidate() }
+                    guard !Task.isCancelled, let cards = input.value else { return nil }
+                    let plans = Self.buildPlans(cards: cards, now: Date())
+                    guard !Task.isCancelled else { return nil }
+                    return PreparedRefresh(
+                        plans: plans,
+                        billingCount: DateCalculator.billingCycleReminderItems(for: cards).count,
+                        annualCount: cards.filter { DateCalculator.annualFeeDetection(for: $0) != nil }.count,
+                        expiryCount: cards.filter {
+                            let status = DateCalculator.cardExpiryStatus(valid: $0.valid)
+                            return status == .expired || status == .soonExpiring
+                        }.count
+                    )
+                }
+                self.preparationTask = worker
+                let prepared = await worker.value
+                guard self.isCurrent(ticket), let prepared else { return }
+                self.activeRefresh = nil
+                self.preparationTask = nil
+                // Only dates, opaque IDs and reminder counts cross notification permission awaits;
+                // no card numbers, CVVs, attachment data or complete records are retained here.
+                await self.performRefresh(prepared, ticket: ticket)
+            }
         }
     }
 
-    private func performRefresh(cards: [SharedCard], locked: Bool) async {
-        if cards.isEmpty {
-            await replaceScheduledNotifications(cards: [])
+    private func isCurrent(_ ticket: UInt64) -> Bool {
+        generation == ticket && !Task.isCancelled
+    }
+
+    private func performRefresh(_ prepared: PreparedRefresh, ticket: UInt64) async {
+        guard isCurrent(ticket) else { return }
+        if prepared.plans.isEmpty && prepared.billingCount + prepared.annualCount + prepared.expiryCount == 0 {
+            await replaceScheduledNotifications(plans: [], ticket: ticket)
             return
         }
-        guard await requestAuthorizationIfNeeded() else { return }
-
-        await replaceScheduledNotifications(cards: cards)
-        if pendingRefresh != nil { return }
-        guard !locked else { return }
-
-        let billingCount = DateCalculator.billingCycleReminderItems(for: cards).count
-        let annualCount = cards.filter { DateCalculator.annualFeeDetection(for: $0) != nil }.count
-        let expiryCount = cards.filter { card in
-            guard let status = DateCalculator.cardExpiryStatus(valid: card.valid) else { return false }
-            return status == .expired || status == .soonExpiring
-        }.count
+        guard await requestAuthorizationIfNeeded(), isCurrent(ticket) else { return }
+        await replaceScheduledNotifications(plans: prepared.plans, ticket: ticket)
+        guard isCurrent(ticket), pendingRefresh == nil else { return }
+        let billingCount = prepared.billingCount
+        let annualCount = prepared.annualCount
+        let expiryCount = prepared.expiryCount
         let total = billingCount + annualCount + expiryCount
         guard total > 0 else { return }
 
@@ -74,27 +124,31 @@ final class CardSystemNotificationCenter {
         )
 
         do {
+            guard isCurrent(ticket) else { return }
             try await center.add(request)
+            guard isCurrent(ticket) else { return }
             UserDefaults.standard.set(fingerprint, forKey: defaultsKey)
         } catch {
             print("发送系统通知失败: \(error.localizedDescription)")
         }
     }
 
-    private func replaceScheduledNotifications(cards: [SharedCard]) async {
+    private func replaceScheduledNotifications(plans preparedPlans: [PlannedNotification], ticket: UInt64) async {
         let pending = await center.pendingNotificationRequests()
+        guard isCurrent(ticket) else { return }
         let staleIDs = pending.map(\.identifier).filter { $0.hasPrefix(Self.scheduledPrefix) }
         if !staleIDs.isEmpty {
             center.removePendingNotificationRequests(withIdentifiers: staleIDs)
         }
 
         let now = Date()
-        let plans = await buildPlansOffMain(cards: cards, now: now)
+        let plans = preparedPlans
             .filter { $0.fireDate.timeIntervalSince(now) > 30 }
             .sorted { $0.fireDate < $1.fireDate }
 
         // 控制排程数量，优先保证最近一年的最早提醒。
         for plan in plans.prefix(60) {
+            guard isCurrent(ticket) else { return }
             let content = UNMutableNotificationContent()
             content.title = plan.title
             content.body = plan.body
@@ -115,19 +169,12 @@ final class CardSystemNotificationCenter {
         }
     }
 
-    private func buildPlansOffMain(cards: [SharedCard], now: Date) async -> [PlannedNotification] {
-        await withCheckedContinuation { continuation in
-            DispatchQueue.global(qos: .utility).async {
-                continuation.resume(returning: Self.buildPlans(cards: cards, now: now))
-            }
-        }
-    }
-
     nonisolated static func buildPlans(cards: [SharedCard], now: Date) -> [PlannedNotification] {
         var plans: [PlannedNotification] = []
         let calendar = Calendar.current
 
         for card in cards where card.cardCategory != "debit" {
+            guard !Task.isCancelled else { return [] }
             if let billDay = Self.dayNumber(card.accountBillDate) {
                 for monthOffset in 0..<13 {
                     guard let target = Self.monthlyDate(day: billDay, monthOffset: monthOffset, from: now),

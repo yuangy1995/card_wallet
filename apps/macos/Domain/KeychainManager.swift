@@ -71,6 +71,12 @@ public class KeychainManager {
         }
     }
 
+    static func clearTransientReads() {
+        lock.lock()
+        defer { lock.unlock() }
+        legacyReads.removeAll()
+    }
+
     private static func readLegacyKeychain(key: String) -> Result<String?, Error> {
         legacyReads.read(key: key) {
             let query: [String: Any] = [

@@ -13,22 +13,84 @@ public final class SyncCoordinator: ObservableObject {
     private var pendingWebDAVUploadWorkItem: DispatchWorkItem?
     private let webDAVUploadDebounceInterval: TimeInterval = 0.8
 
-    private init() {}
+    private var suspended = false
+    private var sessionGeneration: UInt64 = 0
+    private let readLock: () -> Bool
+    private let loadLedger: ([SharedCard]) throws -> SyncLedger
+    private let saveLedger: (SyncLedger) -> Bool
+    private let persistCards: ([SharedCard]) -> Void
+    private let configureBridge: (@escaping () -> [CardSyncRecord], @escaping ([CardSyncRecord]) -> Bool) -> Void
+    private let suspendBridge: (Bool) -> Void
+
+    private convenience init() {
+        self.init(
+            readLock: { AutoLockManager.shared.isLocked },
+            loadLedger: { try SyncLedgerStore.shared.load(seeding: $0) },
+            saveLedger: { SyncLedgerStore.shared.save($0) },
+            persistCards: {
+                LocalStorageManager.write(cards: $0)
+                LocalCardPreferences.retain(Set($0.map(\.id)))
+            },
+            configureBridge: { WebDAVBridgeService.shared.configure(recordsProvider: $0, onMergedRecords: $1) },
+            suspendBridge: { locked in
+                WebDAVClient.shared.setSuspended(locked)
+                if locked {
+                    WebDAVBridgeService.shared.suspendForLock()
+                    KeychainManager.clearTransientReads()
+                    MainActor.assumeIsolated {
+                        CardImageCache.shared.suspendForLock()
+                        CardSystemNotificationCenter.shared.suspendForLock()
+                    }
+                }
+            }
+        )
+    }
+
+    // Storage and bridge seams keep lock regression tests away from the user's vault/network.
+    init(readLock: @escaping () -> Bool,
+         loadLedger: @escaping ([SharedCard]) throws -> SyncLedger,
+         saveLedger: @escaping (SyncLedger) -> Bool,
+         persistCards: @escaping ([SharedCard]) -> Void,
+         configureBridge: @escaping (@escaping () -> [CardSyncRecord], @escaping ([CardSyncRecord]) -> Bool) -> Void,
+         suspendBridge: @escaping (Bool) -> Void) {
+        self.readLock = readLock
+        self.loadLedger = loadLedger
+        self.saveLedger = saveLedger
+        self.persistCards = persistCards
+        self.configureBridge = configureBridge
+        self.suspendBridge = suspendBridge
+    }
+
+    private var canAccessCards: Bool { !suspended && !readLock() }
+    func isCurrentSession(_ generation: UInt64) -> Bool {
+        canAccessCards && hasBootstrapped && sessionGeneration == generation
+    }
+    var currentSessionGeneration: UInt64 { sessionGeneration }
 
     public func bootstrap(localCards: [SharedCard]) throws -> [SharedCard] {
+        guard canAccessCards else { throw CancellationError() }
         guard !hasBootstrapped else { return currentCards }
-        ledger = try SyncLedgerStore.shared.load(seeding: localCards)
+        let generation = sessionGeneration
+        var candidate = try loadLedger(localCards)
+        guard canAccessCards, generation == sessionGeneration else { throw CancellationError() }
+        // Publish only a successfully loaded ledger, never an empty replacement for a read failure.
+        ledger = candidate
         if ledger.records.isEmpty && !localCards.isEmpty {
-            ledger.records = localCards.map(CardSyncRecord.legacyActive)
-            SyncLedgerStore.shared.save(ledger)
+            candidate.records = localCards.map(CardSyncRecord.legacyActive)
+            guard saveLedger(candidate) else { throw CocoaError(.fileWriteUnknown) }
+            ledger = candidate
         }
         hasBootstrapped = true
         persistActiveView()
 
-        WebDAVBridgeService.shared.configure(
-            recordsProvider: { [weak self] in self?.ledger.records ?? [] },
-            onMergedRecords: { [weak self] records in
-                self?.mergeRemote(records) ?? false
+        configureBridge(
+            { [weak self] in
+                guard let self, self.isCurrentSession(generation) else { return [] }
+                return self.ledger.records
+            },
+            { [weak self] records in
+                guard let self, self.isCurrentSession(generation) else { return false }
+                return self.mergeRemote(records)
             }
         )
         pendingStatus = "同步准备完成"
@@ -36,11 +98,13 @@ public final class SyncCoordinator: ObservableObject {
     }
 
     public var currentCards: [SharedCard] {
-        CardSyncMergeEngine.activeCards(from: ledger.records)
+        guard canAccessCards, hasBootstrapped else { return [] }
+        return CardSyncMergeEngine.activeCards(from: ledger.records)
     }
 
     @discardableResult
     public func commit(cards: [SharedCard], deletedCardIDs: Set<String> = []) -> [SharedCard] {
+        guard canAccessCards, hasBootstrapped else { return [] }
         let normalizedCards = cards.map(normalizedCard)
         let existingByID = latestRecordsByID(ledger.records)
         var events: [CardSyncRecord] = []
@@ -60,6 +124,7 @@ public final class SyncCoordinator: ObservableObject {
 
     @discardableResult
     public func restore(cards: [SharedCard]) -> [SharedCard] {
+        guard canAccessCards, hasBootstrapped else { return [] }
         let normalizedCards = cards.map(normalizedCard)
         let restoredIDs = Set(normalizedCards.map(\.id))
         let existingActiveIDs = Set(ledger.records.filter { $0.state == .active }.map(\.cardId))
@@ -70,14 +135,23 @@ public final class SyncCoordinator: ObservableObject {
     }
 
     public func setSuspended(isLocked: Bool) {
-        WebDAVClient.shared.setSuspended(isLocked)
+        suspended = isLocked
         if isLocked {
+            sessionGeneration &+= 1
             pendingWebDAVUploadWorkItem?.cancel()
             pendingWebDAVUploadWorkItem = nil
-            WebDAVBridgeService.shared.stop()
+            ledger = SyncLedger()
+            hasBootstrapped = false
+            lastConvergenceAt = nil
+            pendingStatus = "同步尚未准备好"
+            let notify = onCardsChanged
+            onCardsChanged = nil
+            suspendBridge(true)
+            // This notification clears presentation state only. Never persist the empty lock state.
+            notify?([])
         } else {
-            guard hasBootstrapped else { return }
-            WebDAVBridgeService.shared.start()
+            // The next successful local bootstrap reconnects the bridge; never sync an empty session.
+            suspendBridge(false)
         }
     }
 
@@ -90,12 +164,12 @@ public final class SyncCoordinator: ObservableObject {
 
     @discardableResult
     private func mergeRemote(_ records: [CardSyncRecord]) -> Bool {
-        guard hasBootstrapped, !AutoLockManager.shared.isLocked else { return false }
+        guard hasBootstrapped, canAccessCards else { return false }
         let merged = CardSyncMergeEngine.merge([ledger.records, records])
         guard merged != ledger.records else { return true }
         var candidate = ledger
         candidate.records = merged
-        guard SyncLedgerStore.shared.save(candidate) else {
+        guard saveLedger(candidate) else {
             pendingStatus = "未能保存卡片，请重试；已有数据没有被更改"
             return false
         }
@@ -108,11 +182,11 @@ public final class SyncCoordinator: ObservableObject {
     }
 
     private func writeLocal(events: [CardSyncRecord]) -> [SharedCard] {
-        guard hasBootstrapped, !AutoLockManager.shared.isLocked, !events.isEmpty else { return currentCards }
+        guard hasBootstrapped, canAccessCards, !events.isEmpty else { return currentCards }
         var candidate = ledger
         candidate.records = CardSyncMergeEngine.merge([ledger.records, events])
         candidate.pendingWebDAVUpload = true
-        guard SyncLedgerStore.shared.save(candidate) else {
+        guard saveLedger(candidate) else {
             pendingStatus = "未能保存卡片，请重试；已有数据没有被更改"
             return currentCards
         }
@@ -124,8 +198,7 @@ public final class SyncCoordinator: ObservableObject {
     }
 
     private func persistActiveView() {
-        LocalStorageManager.write(cards: currentCards)
-        LocalCardPreferences.retain(Set(currentCards.map(\.id)))
+        persistCards(currentCards)
     }
 
     private func latestRecordsByID(_ records: [CardSyncRecord]) -> [String: CardSyncRecord] {
@@ -150,7 +223,9 @@ public final class SyncCoordinator: ObservableObject {
 
     private func scheduleWebDAVUpload() {
         pendingWebDAVUploadWorkItem?.cancel()
-        let workItem = DispatchWorkItem {
+        let generation = sessionGeneration
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self, self.isCurrentSession(generation) else { return }
             WebDAVBridgeService.shared.synchronize(forceUpload: true)
         }
         pendingWebDAVUploadWorkItem = workItem
