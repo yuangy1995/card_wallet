@@ -28,39 +28,100 @@ jobs:
       - name: Test public release channel configuration
         run: python3 -m unittest discover -s scripts -p 'test_public_release_migration.py'
 
-  recover-web-changes:
-    # 仅恢复上一轮保留的公开代码供检查；完成后删除，不执行其中代码，不读取 Secrets。
+  verify-web-controls:
+    # 单次验证已审阅的明文补丁；完成后移除，不改变 Release、签名或分支。
     if: >-
       github.repository == 'yuangy1995/card_wallet' &&
       github.event_name == 'push' && github.ref == 'refs/heads/main' &&
-      github.event.before == '12edcecef129d48a5fcfed4759979d8b03aa1517' &&
+      github.event.before == 'f2e5ad6bf83e85401ab9aa38c5b8a55cc65d7326' &&
       github.run_attempt == 1
     needs: check
+    permissions:
+      contents: write
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: e6ab2b11f2cc47fc78273edb014290f23f0a8538
           persist-credentials: false
-      - name: Save incomplete source payload for inspection only
-        run: cp scripts/web-controls-changes.b64 "$RUNNER_TEMP/web-controls-changes.b64"
+      - name: Verify and apply the reviewed Web-only patch
+        run: |
+          set -euo pipefail
+          echo '6bd15a8a7ef9ebc850a1c6b5c9d2dbfb2cff1042befad37c2d517eaebb94e921  .migration/web-controls.patch' | sha256sum --check
+          git apply --check .migration/web-controls.patch
+          git apply --index .migration/web-controls.patch
+          git diff --cached --check
+          python3 scripts/check-signing-secrets.py
       - uses: pnpm/action-setup@v4
         with:
           version: 10
       - uses: actions/setup-node@v4
         with:
           node-version: '22'
-      - name: Prepare locked dependencies for local verification
+      - name: Web unit tests and production build
         working-directory: apps/web
         run: |
-          pnpm install --frozen-lockfile --ignore-scripts
-          tar -czf "$RUNNER_TEMP/web-verification-deps.tar.gz" node_modules
+          set -euo pipefail
+          pnpm install --frozen-lockfile
+          pnpm test:run
+          pnpm build
+      - name: Install the browser regression runner
+        run: |
+          python3 -m pip install playwright==1.57.0
+          python3 -m playwright install --with-deps chromium
+      - name: Existing production browser regressions
+        working-directory: apps/web
+        run: |
+          set -euo pipefail
+          python3 scripts/browser-regression.py
+          python3 scripts/parity-browser-regression.py
+      - name: Favourites, page sizes and merged-bank hover regressions
+        working-directory: apps/web
+        run: python3 scripts/table-controls-regression.py
+      - name: Export verified Git objects without changing any branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import base64, json, os, subprocess
+          from pathlib import Path
+          repo = 'repos/yuangy1995/card_wallet'
+          def api(path, body=None):
+              args = ['gh', 'api', repo + path]
+              if body is not None:
+                  args += ['--method', 'POST', '--input', '-']
+              return json.loads(subprocess.check_output(args, input=json.dumps(body) if body is not None else None, text=True))
+          expected = {
+              'apps/web/README.md', 'apps/web/scripts/table-controls-regression.py',
+              'apps/web/src/App.vue', 'apps/web/src/assets/main.scss',
+              'apps/web/src/components/card/CreditCardCardList.vue',
+              'apps/web/src/components/common/WalletPagination.vue',
+              'apps/web/src/components/table/CreditCardTable.vue',
+              'apps/web/src/composables/usePagedCards.js',
+              'apps/web/src/composables/usePagedCards.test.js',
+              'apps/web/src/utils/tableBankHover.js',
+              'apps/web/src/utils/tableBankHover.test.js', 'docs/ci-and-releases.md'}
+          names = subprocess.check_output(['git', 'diff', '--cached', '--name-only'], text=True).splitlines()
+          assert set(names) == expected, 'Unexpected change scope'
+          assert api('/git/ref/heads/main')['object']['sha'] == os.environ['GITHUB_SHA'], 'Main changed during verification'
+          entries = []
+          for name in sorted(names):
+              data = subprocess.check_output(['git', 'show', ':' + name])
+              sha = api('/git/blobs', {'content': base64.b64encode(data).decode(), 'encoding': 'base64'})['sha']
+              entries.append({'path': name, 'mode': '100644', 'type': 'blob', 'sha': sha})
+          base_tree = subprocess.check_output(['git', 'rev-parse', 'HEAD^{tree}'], text=True).strip()
+          tree = api('/git/trees', {'base_tree': base_tree, 'tree': entries})['sha']
+          result = {'base': os.environ['GITHUB_SHA'], 'tree': tree, 'entries': entries,
+                    'unit_tests': 'passed', 'production_build': 'passed',
+                    'existing_browser_regressions': 'passed', 'table_controls_regressions': 'passed'}
+          Path('prepared-result.json').write_text(json.dumps(result, ensure_ascii=False, indent=2))
+          print(json.dumps(result, ensure_ascii=False))
+          PY
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
-          name: recovered-web-verification
-          retention-days: 1
-          if-no-files-found: error
+          name: web-controls-verification
+          retention-days: 3
           path: |
-            ${{ runner.temp }}/web-controls-changes.b64
-            ${{ runner.temp }}/web-verification-deps.tar.gz
+            prepared-result.json
+            apps/web/browser-results/
