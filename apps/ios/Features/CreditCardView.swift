@@ -249,6 +249,10 @@ struct CreditCardView: View {
                 .onChanged { _ in isPressed = true }
                 .onEnded { _ in isPressed = false }
         )
+        .onDisappear {
+            countdownTimer?.invalidate(); countdownTimer = nil
+            isShowingNumber = false
+        }
     }
 
     // MARK: - 子视图

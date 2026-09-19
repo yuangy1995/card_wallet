@@ -132,6 +132,21 @@ public final class SyncCoordinator: ObservableObject {
     @Published public private(set) var webDAVConfigReady = false
     @Published public private(set) var needsCellularSyncConfirmation = false
 
+    public enum LocalLoadState: Equatable { case locked, loading, ready, error }
+    @Published public private(set) var localLoadState: LocalLoadState = .locked
+    @Published public private(set) var sessionID = UUID()
+    private var session = WalletSession()
+    private var sessionTasks: [UUID: Task<Void, Never>] = [:]
+    private let readLock: () -> Bool
+    private let readCards: () -> Result<[SharedCard], Error>
+    private let readLedger: ([SharedCard]) throws -> SyncLedger
+    private let saveLedger: (SyncLedger) -> Bool
+    private let persistCards: ([SharedCard]) -> Void
+    private let readHistory: () throws -> [SyncHistoryEntry]
+    private let writeHistory: ([SyncHistoryEntry]) throws -> Void
+    private let configurationReady: () -> Bool
+    private let suspendClient: (Bool) -> Void
+    private let defaults: UserDefaults
     private var ledger = SyncLedger()
     private var hasBootstrapped = false
     private var isSuspended = true
@@ -188,43 +203,112 @@ public final class SyncCoordinator: ObservableObject {
         }
     }
 
-    private init() {}
+    private convenience init() {
+        self.init(
+            readLock: { AutoLockManager.shared.isLocked },
+            readCards: LocalStorageManager.read,
+            readLedger: { try SyncLedgerStore.shared.load(seeding: $0) },
+            saveLedger: { SyncLedgerStore.shared.save($0) },
+            persistCards: { LocalStorageManager.writeInBackground(cards: $0) },
+            readHistory: { try LocalSyncHistory.read([SyncHistoryEntry].self, legacyKey: Self.syncHistoryKey) ?? [] },
+            writeHistory: { try LocalSyncHistory.write($0) },
+            configurationReady: { WebDAVClient.shared.hasCompleteSyncConfig() },
+            suspendClient: { WebDAVClient.shared.setSuspended($0) }
+        )
+    }
+
+    // Injected storage keeps lifecycle tests independent of the user's files and credentials.
+    init(readLock: @escaping () -> Bool,
+         readCards: @escaping () -> Result<[SharedCard], Error>,
+         readLedger: @escaping ([SharedCard]) throws -> SyncLedger,
+         saveLedger: @escaping (SyncLedger) -> Bool,
+         persistCards: @escaping ([SharedCard]) -> Void,
+         readHistory: @escaping () throws -> [SyncHistoryEntry],
+         writeHistory: @escaping ([SyncHistoryEntry]) throws -> Void,
+         configurationReady: @escaping () -> Bool,
+         suspendClient: @escaping (Bool) -> Void,
+         defaults: UserDefaults = .standard) {
+        self.readLock = readLock
+        self.readCards = readCards
+        self.readLedger = readLedger
+        self.saveLedger = saveLedger
+        self.persistCards = persistCards
+        self.readHistory = readHistory
+        self.writeHistory = writeHistory
+        self.configurationReady = configurationReady
+        self.suspendClient = suspendClient
+        self.defaults = defaults
+    }
+
+    var retainedRecordCount: Int { ledger.records.count }
+    var retainedPendingUpload: Bool { ledger.pendingWebDAVUpload }
+    func accepts(_ token: WalletSession) -> Bool {
+        token === session && token.isValid && !isSuspended && !readLock()
+    }
+    var currentSession: WalletSession { session }
+
+    private func enqueueSync(forceUpload: Bool, trigger: SyncTrigger = .automatic) {
+        let token = session
+        guard accepts(token), localLoadState == .ready else { return }
+        let id = UUID()
+        sessionTasks[id] = Task { [weak self] in
+            guard let self, self.accepts(token), !Task.isCancelled else { return }
+            await WalletSession.$current.withValue(token) {
+                await self.synchronize(forceUpload: forceUpload, trigger: trigger)
+            }
+            self.sessionTasks.removeValue(forKey: id)
+        }
+    }
 
     public func bootstrap() {
-        guard !isSuspended, !AutoLockManager.shared.isLocked, !hasBootstrapped else { return }
-        hasBootstrapped = true
-        refreshWebDAVConfigurationState(disableAutoSyncWhenInvalid: true)
-        restoreLastSyncMetadata()
-        syncHistory = loadSyncHistory()
-        let localResult = LocalStorageManager.read()
+        guard !isSuspended, !readLock(), !hasBootstrapped else { return }
+        localLoadState = .loading
+        let token = session
+        let localResult = readCards()
         switch localResult {
         case .success(let localCards):
-            do { ledger = try SyncLedgerStore.shared.load(seeding: localCards) }
+            do {
+                var candidate = try readLedger(localCards)
+                guard accepts(token) else { return }
+                if candidate.records.isEmpty && !localCards.isEmpty {
+                    candidate.records = localCards.map(CardSyncRecord.activeUsingCardTimestamp)
+                    guard saveLedger(candidate) else { throw CocoaError(.fileWriteUnknown) }
+                }
+                ledger = candidate
+            }
             catch {
+                guard accepts(token) else { return }
                 hasBootstrapped = false
+                localLoadState = .error
                 syncStatus = .failure("未能读取本机同步记录；已有数据和云端备份已保留")
                 return
             }
-            if ledger.records.isEmpty && !localCards.isEmpty {
-                ledger.records = localCards.map(CardSyncRecord.activeUsingCardTimestamp)
-                SyncLedgerStore.shared.saveInBackground(ledger)
-            }
             cards = CardSyncMergeEngine.activeCards(from: ledger.records)
-            LocalCardPreferences.retain(Set(cards.map(\.id)))
+            LocalCardPreferences.retain(Set(cards.map(\.id)), defaults: defaults)
         case .failure:
+            guard accepts(token) else { return }
             hasBootstrapped = false
+            localLoadState = .error
             syncStatus = .failure("未能读取本机卡片，请重试；已有数据没有被更改")
             return
         }
+        guard accepts(token) else { return }
+        hasBootstrapped = true
+        localLoadState = .ready
+        // The local wallet is available before optional history/configuration work.
+        syncHistory = loadSyncHistory()
+        restoreLastSyncMetadata()
+        refreshWebDAVConfigurationState(disableAutoSyncWhenInvalid: true)
         repairPendingUploadStateIfNeeded()
 
-        if UserDefaults.standard.bool(forKey: "enable_webdav_sync"), webDAVConfigReady {
+        if defaults.bool(forKey: "enable_webdav_sync"), webDAVConfigReady {
             startAutoSync()
         }
     }
 
     @discardableResult
     public func commit(cards updatedCards: [SharedCard], deletedCardIDs: Set<String> = []) -> [SharedCard] {
+        guard localLoadState == .ready, accepts(session) else { return cards }
         let normalized = updatedCards.map(normalizedCard)
         let existingByID = latestRecordsByID(ledger.records)
         var events: [CardSyncRecord] = []
@@ -241,6 +325,7 @@ public final class SyncCoordinator: ObservableObject {
 
     @discardableResult
     public func restore(cards: [SharedCard]) -> [SharedCard] {
+        guard localLoadState == .ready, accepts(session) else { return self.cards }
         let normalized = cards.map(normalizedCard)
         let restoredIDs = Set(normalized.map(\.id))
         let existingActiveIDs = Set(ledger.records.filter { $0.state == .active }.map(\.cardId))
@@ -251,7 +336,7 @@ public final class SyncCoordinator: ObservableObject {
     }
 
     public func setWebDAVEnabled(_ enabled: Bool) {
-        UserDefaults.standard.set(enabled, forKey: "enable_webdav_sync")
+        defaults.set(enabled, forKey: "enable_webdav_sync")
         if enabled {
             guard refreshWebDAVConfigurationState(disableAutoSyncWhenInvalid: true) else { return }
             startAutoSync()
@@ -262,41 +347,68 @@ public final class SyncCoordinator: ObservableObject {
     }
 
     public func setSuspended(isLocked: Bool) {
-        isSuspended = isLocked
-        WebDAVClient.shared.setSuspended(isLocked)
         if isLocked {
+            isSuspended = true
+            session.revoke()
+            sessionTasks.values.forEach { $0.cancel() }
+            sessionTasks.removeAll()
             stopAutoSync()
+            elapsedTimer?.invalidate()
+            elapsedTimer = nil
+            suspendClient(true)
+            // A lock is NOT a user deletion or a new ledger transaction.
+            cards = []
+            ledger = SyncLedger()
+            syncHistory = []
+            historyAvailable = false
+            hasBootstrapped = false
+            localLoadState = .locked
             needsCellularSyncConfirmation = false
+            queuedForceUpload = false
             queuedCellularOverride = false
-            cancelCurrentSync()
-            WebDAVClient.shared.cancelRequests()
-        } else if !hasBootstrapped {
-            bootstrap()
+            activeCellularOverride = false
+            isSynchronizing = false
+            cancelRequested = true
+            webDAVConfigReady = false
+            syncStartedAt = nil
+            syncElapsedSeconds = 0
+            lastSyncAt = nil
+            lastSyncDurationSeconds = nil
+            syncProgress = SyncProgress()
+            syncStatus = .idle
+            sessionID = UUID()
         } else {
-            startAutoSync()
+            guard !readLock() else { return }
+            if isSuspended || !session.isValid { session = WalletSession() }
+            isSuspended = false
+            suspendClient(false)
+            if !hasBootstrapped { bootstrap() }
         }
     }
 
     public func startAutoSync() {
         stopAutoSync()
-        guard !isSuspended, hasBootstrapped, !AutoLockManager.shared.isLocked, UserDefaults.standard.bool(forKey: "enable_webdav_sync") else { return }
+        guard !isSuspended, hasBootstrapped, !readLock(), defaults.bool(forKey: "enable_webdav_sync") else { return }
         guard refreshWebDAVConfigurationState(disableAutoSyncWhenInvalid: true) else { return }
-        let configuredInterval = UserDefaults.standard.double(forKey: "auto_sync_interval")
+        let configuredInterval = defaults.double(forKey: "auto_sync_interval")
         let interval = configuredInterval > 0 ? configuredInterval : 300
+        let token = session
         syncTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { [weak self] _ in
             Task { @MainActor in
-                await self?.synchronize(forceUpload: false)
+                guard let self, self.accepts(token) else { return }
+                self.enqueueSync(forceUpload: false)
             }
         }
-        Task { await synchronize(forceUpload: false) }
+        enqueueSync(forceUpload: false)
     }
 
     @discardableResult
     public func refreshWebDAVConfigurationState(disableAutoSyncWhenInvalid: Bool = false) -> Bool {
-        let ready = WebDAVClient.shared.hasCompleteSyncConfig()
+        guard accepts(session) else { webDAVConfigReady = false; return false }
+        let ready = configurationReady()
         webDAVConfigReady = ready
         if !ready, disableAutoSyncWhenInvalid {
-            UserDefaults.standard.set(false, forKey: "enable_webdav_sync")
+            defaults.set(false, forKey: "enable_webdav_sync")
             stopAutoSync()
             if !isSynchronizing {
                 syncStatus = .idle
@@ -316,7 +428,7 @@ public final class SyncCoordinator: ObservableObject {
         WebDAVClient.shared.cancelRequests()
         queuedForceUpload = false
         ledger.pendingWebDAVUpload = true
-        SyncLedgerStore.shared.saveInBackground(ledger)
+        _ = saveLedger(ledger)
         syncStatus = .warning("正在终止同步，本机未同步修改已保留")
         updateProgress(
             "正在终止",
@@ -327,29 +439,21 @@ public final class SyncCoordinator: ObservableObject {
     }
 
     public func synchronize(forceUpload: Bool = false) async {
-        await synchronize(forceUpload: forceUpload, trigger: .automatic)
+        let token = WalletSession.current ?? session
+        await WalletSession.$current.withValue(token) {
+            await synchronize(forceUpload: forceUpload, trigger: .automatic)
+        }
     }
 
     public func requestManualSync() {
-        guard !isSuspended, !AutoLockManager.shared.isLocked else { return }
+        guard !isSuspended, !readLock() else { return }
         if !hasBootstrapped { bootstrap() }
-        Task {
-            guard refreshWebDAVConfigurationState() else {
-                await synchronize(forceUpload: true, trigger: .manual(cellularConfirmed: false))
-                return
-            }
-            if await SyncNetworkMonitor.shared.connection() == .cellular {
-                guard !isSuspended, !AutoLockManager.shared.isLocked else { return }
-                needsCellularSyncConfirmation = true
-                return
-            }
-            await synchronize(forceUpload: true, trigger: .manual(cellularConfirmed: false))
-        }
+        enqueueSync(forceUpload: true, trigger: .manual(cellularConfirmed: false))
     }
 
     public func confirmCellularSync() {
         needsCellularSyncConfirmation = false
-        Task { await synchronize(forceUpload: true, trigger: .manual(cellularConfirmed: true)) }
+        enqueueSync(forceUpload: true, trigger: .manual(cellularConfirmed: true))
     }
 
     public func cancelCellularSyncConfirmation() {
@@ -357,30 +461,32 @@ public final class SyncCoordinator: ObservableObject {
     }
 
     private func synchronize(forceUpload: Bool, trigger: SyncTrigger) async {
-        guard hasBootstrapped, !isSuspended, !AutoLockManager.shared.isLocked else { return }
-        guard UserDefaults.standard.bool(forKey: "enable_webdav_sync") || forceUpload else { return }
+        guard let token = WalletSession.current, accepts(token), hasBootstrapped else { return }
+        guard defaults.bool(forKey: "enable_webdav_sync") || forceUpload else { return }
         guard refreshWebDAVConfigurationState(disableAutoSyncWhenInvalid: true) else { return }
-        if await SyncNetworkMonitor.shared.connection() == .cellular {
+        let connection = await SyncNetworkMonitor.shared.connection()
+        guard accepts(token), !Task.isCancelled else { return }
+        if connection == .cellular {
             switch trigger {
             case .automatic where SyncNetworkPreference.saved == .wifiOnly:
                 syncStatus = .warning("已暂停自动同步：当前使用移动数据")
                 updateProgress("等待 Wi‑Fi", step: 0, total: 0, detail: "自动同步仅使用 Wi‑Fi，连接 Wi‑Fi 后将自动重试")
                 return
             case .manual(let confirmed) where !confirmed:
-                guard !isSuspended, !AutoLockManager.shared.isLocked else { return }
+                guard !isSuspended, !readLock() else { return }
                 needsCellularSyncConfirmation = true
                 return
             default:
                 break
             }
         }
-        guard !isSuspended, !AutoLockManager.shared.isLocked else { return }
+        guard !isSuspended, !readLock() else { return }
         if isSynchronizing {
             if forceUpload {
                 queuedForceUpload = true
                 queuedCellularOverride = queuedCellularOverride || trigger.cellularConfirmed
                 ledger.pendingWebDAVUpload = true
-                SyncLedgerStore.shared.save(ledger)
+                saveLedger(ledger)
             }
             return
         }
@@ -484,6 +590,7 @@ public final class SyncCoordinator: ObservableObject {
             ) { [weak self] delta in
                 guard let self else { return }
                 DispatchQueue.main.async {
+                    guard self.accepts(token) else { return }
                     progressBox.value += delta
                     self.updateProgress(
                         "读取同步文件",
@@ -518,10 +625,11 @@ public final class SyncCoordinator: ObservableObject {
             if mergeResult.changedByRemote {
                 var candidate = ledger
                 candidate.records = mergeResult.mergedRecords
-                guard SyncLedgerStore.shared.save(candidate) else { throw CocoaError(.fileWriteUnknown) }
+                guard saveLedger(candidate) else { throw CocoaError(.fileWriteUnknown) }
                 ledger = candidate
                 persistActiveCards()
                 let activeCardsAfterMerge = await Self.activeCards(from: mergeResult.mergedRecords)
+                try ensureSyncNotCancelled()
                 remoteChanges = Self.cardChanges(before: activeCardsBeforeSync, after: activeCardsAfterMerge, kind: "云端更新")
             }
 
@@ -580,10 +688,11 @@ public final class SyncCoordinator: ObservableObject {
                 finishSync(status: .success, markSuccess: true)
             }
         } catch is CancellationError {
+            guard accepts(token) else { return }
             let message = "同步已终止：本机未同步修改已保留"
             ledger.pendingWebDAVUpload = true
             queuedForceUpload = false
-            SyncLedgerStore.shared.saveInBackground(ledger)
+            _ = saveLedger(ledger)
             appendSyncHistory(
                 status: "warning",
                 message: message,
@@ -596,8 +705,9 @@ public final class SyncCoordinator: ObservableObject {
             updateProgress("已终止", step: 0, total: 0, detail: "本机修改已保留，可重新执行同步")
             finishSync(status: .warning("同步已终止，本机未同步修改已保留"), markSuccess: false, continueQueued: false)
         } catch {
+            guard accepts(token) else { return }
             ledger.pendingWebDAVUpload = true
-            SyncLedgerStore.shared.saveInBackground(ledger)
+            _ = saveLedger(ledger)
             print("[SyncCoordinator] 同步失败，已保留本机待上传状态: \(error.localizedDescription)")
             appendSyncHistory(
                 status: "failure",
@@ -614,19 +724,19 @@ public final class SyncCoordinator: ObservableObject {
     }
 
     private func writeLocal(events: [CardSyncRecord]) -> [SharedCard] {
-        guard hasBootstrapped, !isSuspended, !AutoLockManager.shared.isLocked, !events.isEmpty else { return cards }
+        guard hasBootstrapped, !isSuspended, !readLock(), !events.isEmpty else { return cards }
         var candidate = ledger
         candidate.records = CardSyncMergeEngine.merge([ledger.records, events])
         candidate.pendingWebDAVUpload = true
-        guard SyncLedgerStore.shared.save(candidate) else {
+        guard saveLedger(candidate) else {
             syncStatus = .failure("未能保存卡片，请重试；已有数据没有被更改")
             return cards
         }
         ledger = candidate
         localRevision += 1
         persistActiveCards()
-        if UserDefaults.standard.bool(forKey: "enable_webdav_sync") {
-            Task { await synchronize(forceUpload: true) }
+        if defaults.bool(forKey: "enable_webdav_sync") {
+            enqueueSync(forceUpload: true)
         }
         return cards
     }
@@ -634,8 +744,8 @@ public final class SyncCoordinator: ObservableObject {
     private func persistActiveCards() {
         let activeCards = CardSyncMergeEngine.activeCards(from: ledger.records)
         cards = activeCards
-        LocalCardPreferences.retain(Set(activeCards.map(\.id)))
-        LocalStorageManager.writeInBackground(cards: activeCards)
+        LocalCardPreferences.retain(Set(activeCards.map(\.id)), defaults: defaults)
+        persistCards(activeCards)
     }
 
     private func latestRecordsByID(_ records: [CardSyncRecord]) -> [String: CardSyncRecord] {
@@ -668,12 +778,13 @@ public final class SyncCoordinator: ObservableObject {
         }
         ledger.pendingWebDAVUpload = true
         queuedForceUpload = true
-        SyncLedgerStore.shared.saveInBackground(ledger)
+        _ = saveLedger(ledger)
         print("[SyncCoordinator] 检测到本机记录晚于上次云端快照，已恢复待上传状态")
     }
 
     private func ensureSyncNotCancelled() throws {
-        if cancelRequested || isSuspended || AutoLockManager.shared.isLocked || Task.isCancelled {
+        if cancelRequested || isSuspended || readLock() || Task.isCancelled ||
+            WalletSession.current.map({ !accepts($0) }) != false {
             throw CancellationError()
         }
     }
@@ -686,7 +797,7 @@ public final class SyncCoordinator: ObservableObject {
         totalBytes: Int64? = nil,
         downloadedBytes: Int64? = nil
     ) {
-        guard !isSuspended, !AutoLockManager.shared.isLocked else { return }
+        guard !isSuspended, !readLock() else { return }
         syncProgress = SyncProgress(
             phase: phase,
             step: step,
@@ -726,7 +837,7 @@ public final class SyncCoordinator: ObservableObject {
     private var historyAvailable = false
     private func loadSyncHistory() -> [SyncHistoryEntry] {
         do {
-            let entries = try LocalSyncHistory.read([SyncHistoryEntry].self, legacyKey: Self.syncHistoryKey) ?? []
+            let entries = try readHistory()
             historyAvailable = true
             return entries
         } catch { historyAvailable = false; return [] }
@@ -734,7 +845,7 @@ public final class SyncCoordinator: ObservableObject {
 
     private func saveSyncHistory() {
         guard historyAvailable else { return }
-        try? LocalSyncHistory.write(syncHistory)
+        try? writeHistory(syncHistory)
     }
 
     private nonisolated static func snapshotDate(fromFilename filename: String) -> Date? {
@@ -954,6 +1065,8 @@ public final class SyncCoordinator: ObservableObject {
                     continuation.resume(with: result)
                 }
             }
+            try WalletSession.current?.check()
+            try Task.checkCancellation()
             return try await Self.decodeSnapshot(cipherText: cipherText, syncPassword: syncPassword)
         } catch {
             return nil
@@ -968,6 +1081,7 @@ public final class SyncCoordinator: ObservableObject {
         snapshotRevision: Int,
         allowsCellularAccess: Bool
     ) async throws -> String {
+        guard let token = WalletSession.current, accepts(token) else { throw CancellationError() }
         let prepared = try await Self.prepareUploadSnapshot(records: records, syncPassword: syncPassword)
         try ensureSyncNotCancelled()
         let uploadSize = Int64(prepared.cipherText.data(using: .utf8)?.count ?? 0)
@@ -990,6 +1104,7 @@ public final class SyncCoordinator: ObservableObject {
                 onProgress: { [weak self] bytesSent in
                     guard let self else { return }
                     DispatchQueue.main.async {
+                        guard self.accepts(token) else { return }
                         progressBox.value = bytesSent
                         self.updateProgress(
                             "上传合并快照",
@@ -1021,7 +1136,7 @@ public final class SyncCoordinator: ObservableObject {
         ledger.processedWebDAVSnapshotIDs.insert(prepared.snapshot.snapshotId)
         ledger.lastWebDAVSnapshotFilename = prepared.filename
         ledger.pendingWebDAVUpload = CardSyncMergeEngine.merge([ledger.records]) != CardSyncMergeEngine.merge([records])
-        guard SyncLedgerStore.shared.save(ledger) else { throw CocoaError(.fileWriteUnknown) }
+        guard saveLedger(ledger) else { throw CocoaError(.fileWriteUnknown) }
         persistActiveCards()
         print("[SyncCoordinator] 已上传 WebDAV 快照: \(prepared.filename), pending=\(ledger.pendingWebDAVUpload)")
         return prepared.filename
@@ -1047,17 +1162,20 @@ public final class SyncCoordinator: ObservableObject {
             queuedForceUpload = true
             print("[SyncCoordinator] 同步期间检测到本机新修改，保留待上传状态")
         }
-        SyncLedgerStore.shared.saveInBackground(ledger)
+        _ = saveLedger(ledger)
     }
 
     private nonisolated static func decodeSnapshot(cipherText: String, syncPassword: String) async throws -> WebDAVSyncSnapshotV4? {
-        try await Task.detached(priority: .utility) {
+        let token = WalletSession.current
+        return try await Task.detached(priority: .utility) {
+            try token?.check()
             let json = try CryptoManager.decryptSyncEnvelopeV4(envelopeText: cipherText, password: syncPassword)
             guard let data = json.data(using: .utf8),
                   let snapshot = try? JSONDecoder().decode(WebDAVSyncSnapshotV4.self, from: data),
                   snapshot.schemaVersion == WebDAVSyncSnapshotV4.schemaVersion else {
                 return nil
             }
+            try token?.check()
             return snapshot
         }.value
     }
@@ -1083,11 +1201,14 @@ public final class SyncCoordinator: ObservableObject {
     }
 
     private nonisolated static func prepareUploadSnapshot(records: [CardSyncRecord], syncPassword: String) async throws -> PreparedWebDAVUpload {
-        try await Task.detached(priority: .utility) {
+        let token = WalletSession.current
+        return try await Task.detached(priority: .utility) {
+            try token?.check()
             let snapshot = WebDAVSyncSnapshotV4(source: "ios", records: records)
             let data = try JSONEncoder().encode(snapshot)
             guard let json = String(data: data, encoding: .utf8) else { throw WebDAVError.xmlParsingFailed }
             let cipherText = try CryptoManager.encryptSyncEnvelopeV4(plainText: json, password: syncPassword)
+            try token?.check()
             let filename = syncSnapshotFilename(recordCount: CardSyncMergeEngine.activeCards(from: records).count)
             return PreparedWebDAVUpload(snapshot: snapshot, cipherText: cipherText, filename: filename)
         }.value
@@ -1122,9 +1243,11 @@ public final class SyncCoordinator: ObservableObject {
         syncElapsedSeconds = 0
         lastSyncDurationSeconds = nil
         elapsedTimer?.invalidate()
+        let token = session
         elapsedTimer = Timer.scheduledTimer(withTimeInterval: 1, repeats: true) { [weak self] _ in
             Task { @MainActor in
-                guard let self, let startedAt = self.syncStartedAt else { return }
+                guard let self, self.accepts(token) else { return }
+                guard let startedAt = self.syncStartedAt else { return }
                 self.syncElapsedSeconds = max(0, Date().timeIntervalSince(startedAt))
             }
         }
@@ -1169,23 +1292,23 @@ public final class SyncCoordinator: ObservableObject {
             let trigger: SyncTrigger = shouldContinueOnCellular
                 ? .manual(cellularConfirmed: true)
                 : .automatic
-            Task { await synchronize(forceUpload: true, trigger: trigger) }
+            enqueueSync(forceUpload: true, trigger: trigger)
         }
     }
 
     private func restoreLastSyncMetadata() {
-        let timestamp = UserDefaults.standard.double(forKey: Self.lastSyncAtKey)
+        let timestamp = defaults.double(forKey: Self.lastSyncAtKey)
         if timestamp > 0 {
             lastSyncAt = Date(timeIntervalSince1970: timestamp / 1000)
         }
-        let duration = UserDefaults.standard.double(forKey: Self.lastSyncDurationKey)
+        let duration = defaults.double(forKey: Self.lastSyncDurationKey)
         if duration > 0 {
             lastSyncDurationSeconds = duration
         }
     }
 
     private func persistLastSyncMetadata(date: Date, duration: TimeInterval) {
-        UserDefaults.standard.set(date.timeIntervalSince1970 * 1000, forKey: Self.lastSyncAtKey)
-        UserDefaults.standard.set(duration, forKey: Self.lastSyncDurationKey)
+        defaults.set(date.timeIntervalSince1970 * 1000, forKey: Self.lastSyncAtKey)
+        defaults.set(duration, forKey: Self.lastSyncDurationKey)
     }
 }

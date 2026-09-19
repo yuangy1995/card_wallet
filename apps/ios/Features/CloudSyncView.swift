@@ -400,12 +400,14 @@ struct CloudSyncView: View {
         isSavingConfig = true
         connectionSuccess = false
         connectionMessage = "正在测试连接..."
+        let token = syncCoordinator.currentSession
         WebDAVClient.shared.testConnection(
             url: cleanWebDAVURL,
             username: cleanUsername,
             password: effectiveWebDAVPasswordForConnection
         ) { result in
             Task { @MainActor in
+                guard syncCoordinator.accepts(token) else { return }
                 isSavingConfig = false
                 switch result {
                 case .success:
@@ -476,12 +478,14 @@ struct CloudSyncView: View {
         }
         isTestingConnection = true
         connectionMessage = ""
+        let token = syncCoordinator.currentSession
         WebDAVClient.shared.testConnection(
             url: cleanWebDAVURL,
             username: cleanUsername,
             password: effectiveWebDAVPasswordForConnection
         ) { result in
             Task { @MainActor in
+                guard syncCoordinator.accepts(token) else { return }
                 isTestingConnection = false
                 switch result {
                 case .success:

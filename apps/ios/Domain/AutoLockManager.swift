@@ -34,6 +34,8 @@ public final class AutoLockManager: ObservableObject {
         lockTimer?.invalidate()
         lockTimer = nil
         isLocked = true
+        SyncCoordinator.shared.setSuspended(isLocked: true)
+        CardSystemNotificationCenter.shared.suspendForLock()
     }
 
     public func userInteracted() {

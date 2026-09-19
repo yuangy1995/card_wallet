@@ -117,6 +117,10 @@ struct CardDetailView: View {
         .sheet(item: $selectedPreviewImage) { asset in
             ImagePreviewView(asset: asset)
         }
+        .onDisappear {
+            countdownTimer?.invalidate(); countdownTimer = nil
+            isShowingNumber = false; isShowingCVV = false; selectedPreviewImage = nil
+        }
     }
 
     // MARK: - 大卡片

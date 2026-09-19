@@ -46,6 +46,8 @@ struct CardEditView: View {
     @State private var showCameraScanner = false
     @State private var isScanningImage = false
     @State private var photoImportTask: Task<Void, Never>?
+    @State private var scanTask: Task<Void, Never>?
+    @State private var viewSession: WalletSession?
     @State private var isActive = false
     @State private var feedbackTitle = ""
     @State private var feedbackMessage = ""
@@ -204,14 +206,19 @@ struct CardEditView: View {
                 }
             }
         }
-        .onAppear { isActive = true; setupInitialValues() }
-        .onDisappear { isActive = false; photoImportTask?.cancel() }
+        .onAppear { isActive = true; viewSession = SyncCoordinator.shared.currentSession; setupInitialValues() }
+        .onDisappear {
+            isActive = false
+            photoImportTask?.cancel(); scanTask?.cancel()
+            selectedPhotoItems = []; scanPhotoItem = nil; cardImages = []
+        }
         .onChange(of: selectedPhotoItems) { _, newItems in
             photoImportTask?.cancel()
             photoImportTask = Task { await importSelectedPhotos(newItems) }
         }
         .onChange(of: scanPhotoItem) { _, newItem in
-            Task { await scanSelectedPhoto(newItem) }
+            scanTask?.cancel()
+            scanTask = Task { await scanSelectedPhoto(newItem) }
         }
         .sheet(isPresented: $showCameraScanner) {
             CameraImagePicker { image in
@@ -1007,7 +1014,7 @@ struct CardEditView: View {
         for (index, item) in items.enumerated() {
             guard let data = try? await item.loadTransferable(type: Data.self),
                   let payload = normalizedImagePayload(from: data) else { continue }
-            guard !Task.isCancelled, isActive else { return }
+            guard !Task.isCancelled, isActive, viewSession?.isValid == true else { return }
             imported.append(CardImageAsset(
                 mimeType: payload.mimeType,
                 data: "data:\(payload.mimeType);base64,\(payload.data.base64EncodedString())",
@@ -1015,7 +1022,7 @@ struct CardEditView: View {
                 name: "card_image_\(cardImages.count + imported.count + index + 1).jpg"
             ))
         }
-        guard !Task.isCancelled, isActive else { return }
+        guard !Task.isCancelled, isActive, viewSession?.isValid == true else { return }
         if CardImagePolicy.canAppend(existing: cardImages.count, incoming: imported.count) {
             cardImages.append(contentsOf: imported)
         }
@@ -1066,19 +1073,22 @@ struct CardEditView: View {
             showFeedback(title: "识别失败", message: "无法读取这张图片，请换一张更清晰的卡面照片。")
             return
         }
+        guard isActive, viewSession?.isValid == true, !Task.isCancelled else { return }
         handleScannedImage(image, source: "ios_photo_scan")
     }
 
     private func handleScannedImage(_ image: UIImage, source: String) {
-        guard !isScanningImage else { return }
+        guard !isScanningImage, isActive, viewSession?.isValid == true else { return }
         isScanningImage = true
-        Task {
+        scanTask?.cancel()
+        scanTask = Task {
             let result = await CardImageTextScanner.recognize(
                 image: image,
                 countries: countryOptions,
                 banks: bankOptions,
                 levels: levelOptions
             )
+            guard isActive, viewSession?.isValid == true, !Task.isCancelled else { return }
             let imageAsset = makeImageAsset(from: image, source: source)
             await MainActor.run {
                 applyScanResult(result, imageAsset: imageAsset)
@@ -1101,7 +1111,7 @@ struct CardEditView: View {
     private func applyScanResult(_ result: CardScanResult, imageAsset: CardImageAsset?) {
         var changedFields: [String] = []
 
-        guard isActive else { return }
+        guard isActive, viewSession?.isValid == true, !Task.isCancelled else { return }
         if let imageAsset, CardImagePolicy.canAppend(existing: cardImages.count, incoming: 1) {
             cardImages.append(imageAsset)
         } else { showImageImportError() }

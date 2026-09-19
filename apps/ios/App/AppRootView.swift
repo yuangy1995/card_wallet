@@ -10,15 +10,28 @@ struct RootView: View {
 
     var body: some View {
         ZStack {
-            if !lockManager.isLocked { mainTabView }
+            if !lockManager.isLocked {
+                if syncCoordinator.localLoadState == .ready {
+                    mainTabView.id(syncCoordinator.sessionID)
+                } else {
+                    VStack(spacing: 16) {
+                        if syncCoordinator.localLoadState == .error {
+                            Text("未能读取本机卡片，请重试；已有数据没有被更改")
+                                .foregroundStyle(.secondary).multilineTextAlignment(.center)
+                            Button("重试") { syncCoordinator.bootstrap() }.buttonStyle(.borderedProminent)
+                        } else {
+                            ProgressView("正在读取本机卡片…")
+                        }
+                    }.padding(24)
+                }
+            }
 
             if lockManager.isLocked {
                 LockScreenView()
-                    .transition(.opacity)
                     .zIndex(100)
             }
         }
-        .animation(.easeInOut(duration: 0.3), value: lockManager.isLocked)
+        .transaction { if lockManager.isLocked { $0.disablesAnimations = true } }
         .onReceive(NotificationCenter.default.publisher(for: UIApplication.willResignActiveNotification)) { _ in
             lockManager.appWillResignActive()
         }
@@ -59,8 +72,12 @@ struct RootView: View {
 
     private func refreshNotifications() {
         notificationTask?.cancel()
-        guard !lockManager.isLocked else { return }
-        notificationTask = Task { await CardSystemNotificationCenter.shared.refresh(cards: syncCoordinator.cards, locked: false) }
+        guard !lockManager.isLocked, syncCoordinator.localLoadState == .ready else {
+            CardSystemNotificationCenter.shared.suspendForLock()
+            return
+        }
+        CardSystemNotificationCenter.shared.prepare(cards: syncCoordinator.cards, locked: false)
+        notificationTask = Task { await CardSystemNotificationCenter.shared.refresh() }
     }
 
     private var mainTabView: some View {
@@ -166,13 +183,15 @@ private struct WindowTapObserver: UIViewRepresentable {
 }
 
 @MainActor
-private final class CardSystemNotificationCenter {
+final class CardSystemNotificationCenter {
     static let shared = CardSystemNotificationCenter()
 
     private let center = UNUserNotificationCenter.current()
     private let notificationKey = "card_system_notification_daily_v1"
     private let scheduledPrefix = "card_scheduled_"
-    private var pendingRefresh: (cards: [SharedCard], locked: Bool)?
+    private typealias Summary = (repayment: Int, bill: Int, annual: Int, expiry: Int, total: Int)
+    private var pendingRefresh: (plans: [PlannedNotification], summary: Summary, session: WalletSession)?
+    private var session = WalletSession()
     private var isRefreshing = false
 
     private struct PlannedNotification {
@@ -185,31 +204,37 @@ private final class CardSystemNotificationCenter {
 
     private init() {}
 
-    func refresh(cards: [SharedCard], locked: Bool) async {
-        pendingRefresh = (cards, locked)
-        guard !isRefreshing else { return }
+    func suspendForLock() {
+        session.revoke()
+        pendingRefresh = nil
+    }
 
+    func prepare(cards: [SharedCard], locked: Bool) {
+        guard !locked else { suspendForLock(); return }
+        if !session.isValid { session = WalletSession() }
+        // This synchronous projection releases its card argument before any system await.
+        pendingRefresh = (buildPlans(cards: cards, now: Date()), reminderSummary(cards: cards), session)
+    }
+
+    func refresh() async {
+        guard !isRefreshing, !Task.isCancelled else { return }
         isRefreshing = true
         defer { isRefreshing = false }
         while let request = pendingRefresh {
             pendingRefresh = nil
-            await performRefresh(cards: request.cards, locked: request.locked)
+            await performRefresh(plans: request.plans, summary: request.summary, token: request.session)
         }
     }
 
-    private func performRefresh(cards: [SharedCard], locked: Bool) async {
-        if cards.isEmpty {
-            await replaceScheduledNotifications(cards: [])
+    private func performRefresh(plans: [PlannedNotification], summary: Summary, token: WalletSession) async {
+        guard token.isValid, !Task.isCancelled else { return }
+        if plans.isEmpty && summary.total == 0 {
+            await replaceScheduledNotifications(plans: [], token: token)
             return
         }
-        guard await requestAuthorizationIfNeeded() else { return }
-
-        // 日历通知由系统持久化；排程完成后，即使应用进入后台或被终止也可投递。
-        await replaceScheduledNotifications(cards: cards)
-        if pendingRefresh != nil { return }
-        guard !locked else { return }
-
-        let summary = reminderSummary(cards: cards)
+        guard await requestAuthorizationIfNeeded(), token.isValid, !Task.isCancelled else { return }
+        await replaceScheduledNotifications(plans: plans, token: token)
+        guard pendingRefresh == nil, token.isValid, !Task.isCancelled else { return }
         guard summary.total > 0 else { return }
 
         let today = ISO8601DateFormatter().string(from: Date()).prefix(10)
@@ -233,30 +258,33 @@ private final class CardSystemNotificationCenter {
         )
         do {
             try await addNotification(request)
+            guard token.isValid, !Task.isCancelled else { return }
             UserDefaults.standard.set(fingerprint, forKey: notificationKey)
         } catch {
             print("发送系统通知失败: \(error.localizedDescription)")
         }
     }
 
-    private func replaceScheduledNotifications(cards: [SharedCard]) async {
+    private func replaceScheduledNotifications(plans inputPlans: [PlannedNotification], token: WalletSession) async {
         let identifiers: [String] = await withCheckedContinuation { continuation in
             center.getPendingNotificationRequests { requests in
                 continuation.resume(returning: requests.map(\.identifier))
             }
         }
+        guard token.isValid, !Task.isCancelled else { return }
         let staleIDs = identifiers.filter { $0.hasPrefix(scheduledPrefix) }
         if !staleIDs.isEmpty {
             center.removePendingNotificationRequests(withIdentifiers: staleIDs)
         }
 
         let now = Date()
-        let plans = buildPlans(cards: cards, now: now)
+        let plans = inputPlans
             .filter { $0.fireDate.timeIntervalSince(now) > 30 }
             .sorted { $0.fireDate < $1.fireDate }
 
         // iOS 对单个应用的待处理本地通知数量有限，优先保留最近的 60 条。
         for plan in plans.prefix(60) {
+            guard token.isValid, !Task.isCancelled else { return }
             let content = UNMutableNotificationContent()
             content.title = plan.title
             content.body = plan.body
