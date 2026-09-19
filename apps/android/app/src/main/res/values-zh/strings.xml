@@ -118,4 +118,10 @@
     <string name="sort_modified">最近修改</string>
     <string name="sort_bank">银行名称</string>
     <string name="wallet_image_import_error">每张卡最多20张图片，单张原图不超过10MB；图片会压缩保存。原有图片不受影响。</string>
+    <string name="local_cards_loading">正在读取本机卡片…</string>
+    <string name="local_cards_load_failed">暂时无法读取本机卡片，已有数据已保留。</string>
+    <string name="local_cards_retry">重新读取</string>
+    <string name="local_cards_history_unavailable">同步历史暂时无法读取；本机卡片和原记录已保留</string>
+    <string name="local_cards_sync_config_unavailable">同步配置暂时无法读取；本机卡片和原配置已保留</string>
+    <string name="local_cards_sync_unavailable">暂时无法检查云端更新；本机卡片可正常使用</string>
 </resources>

@@ -90,11 +90,12 @@ class DatabaseHelper(
         }
     }
 
-    fun getAllCards(): List<SharedCard> = readableDatabase.query(TABLE_CARDS, arrayOf(KEY_ID, KEY_FORMAT), null, null, null, null, null).use { cursor ->
+    fun getAllCards(ensureCurrent: () -> Unit = {}): List<SharedCard> = readableDatabase.query(TABLE_CARDS, arrayOf(KEY_ID, KEY_FORMAT), null, null, null, null, null).use { cursor ->
         buildList {
             while (cursor.moveToNext()) {
+                ensureCurrent()
                 val id = cursor.getString(0)
-                val data = readPayload(readableDatabase, TABLE_CARDS, id, cursor.getString(1))
+                val data = readPayload(readableDatabase, TABLE_CARDS, id, cursor.getString(1), ensureCurrent)
                 add(AppJson.json.decodeFromString<SharedCard>(data).also { check(it.id == id) })
             }
         }.sortedWith(compareBy<SharedCard> { it.bank }.thenBy { it.alias }.thenBy { it.id })
@@ -167,7 +168,7 @@ class DatabaseHelper(
             check(db.insertWithOnConflict(table, null, values, SQLiteDatabase.CONFLICT_REPLACE) != -1L) { "保存本地数据失败" }
         } finally { bytes.fill(0) }
     }
-    private fun readPayload(db: SQLiteDatabase, table: String, id: String, format: String?): String {
+    private fun readPayload(db: SQLiteDatabase, table: String, id: String, format: String?, ensureCurrent: () -> Unit = {}): String {
         val header = format?.split(':') ?: error("本地加密数据缺少版本；原数据已保留")
         check(header.size == 3 && header[0] == "gcm-chunks-v1") { "本地加密版本不受支持；原数据已保留" }
         val expected = header[2].toIntOrNull() ?: error("本地加密记录不完整")
@@ -177,6 +178,7 @@ class DatabaseHelper(
             check(cursor.count == expected) { "本地加密记录不完整；原数据已保留" }
             var index = 0
             while (cursor.moveToNext()) {
+                ensureCurrent()
                 check(cursor.getInt(0) == index)
                 val plain = cipher.open(cursor.getBlob(1), "$table/$id/$format/$index")
                 try { output.write(plain) } finally { plain.fill(0) }
