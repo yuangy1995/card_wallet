@@ -67,7 +67,7 @@
     </div>
 
     <!-- 粒子渐变过渡的卡片网格 -->
-    <div class="card-grid-scroll-wrapper">
+    <div ref="cardScrollRef" class="card-grid-scroll-wrapper">
       <div v-if="tableData.length === 0" class="empty-state">
         <div class="radar-scan">
           <div class="radar-line"></div>
@@ -154,7 +154,7 @@
       </div>
     </div>
 
-    <el-pagination v-if="tableData.length > 24" v-model:current-page="page" :page-size="24" :total="tableData.length" layout="total, prev, pager, next" class="wallet-pagination" />
+    <WalletPagination v-model:page="page" v-model:page-size="pageSize" :page-sizes="pageSizes" :total="tableData.length" />
 
     <!-- 右键快捷菜单 (太空舱半透明磨砂) -->
     <div
@@ -190,7 +190,7 @@
 
 <script setup>
 import { Star, StarFilled } from '@element-plus/icons-vue'
-import { ref, computed, watch, toRef, onUnmounted, inject } from 'vue'
+import { ref, computed, watch, toRef, onUnmounted, inject, nextTick } from 'vue'
 import { sortCards } from '@/utils/cardCatalog'
 import { normalizeBankNameForMatch } from '@/utils/bankName'
 import { creditLimitMetrics, formatCreditAmount } from '@/utils/cardMetrics'
@@ -198,6 +198,7 @@ import { cardOrganization, cardOrganizationName } from '@/utils/cardBrand'
 import { calculateCurrentInterestFreeDays } from '@/utils/dateCalculator'
 import { pageGroups } from '@/utils/cardPagination'
 import { usePagedCards } from '@/composables/usePagedCards'
+import WalletPagination from '../common/WalletPagination.vue'
 import { StorageManager } from '@/utils/storage'
 import { Edit, Delete, View, Check, Refresh, OfficeBuilding, Location, CreditCard, ArrowDown, ArrowUp } from '@element-plus/icons-vue'
 import CreditCardPhysicsCard from './CreditCardPhysicsCard.vue'
@@ -350,9 +351,14 @@ const groupedCards = computed(() => {
   return groupList
 })
 
-const { page } = usePagedCards(toRef(props, 'tableData'), 24)
-const visibleGroups = computed(() => pageGroups(groupedCards.value, page.value, 24))
+const cardScrollRef = ref(null)
+const { page, pageSize, pageSizes } = usePagedCards(toRef(props, 'tableData'), 24, 'walletCardsPageSize')
+const visibleGroups = computed(() => pageGroups(groupedCards.value, page.value, pageSize.value))
 watch([groupBy, sortBy], () => { page.value = 1 })
+watch([page, pageSize], async () => {
+  await nextTick()
+  if (cardScrollRef.value) cardScrollRef.value.scrollTop = 0
+})
 
 // 动态收集子卡片组件实例以支持联动操作
 const cardRefs = ref({})

@@ -1,5 +1,5 @@
 <template>
-  <div class="table-container credit-card-table">
+  <div class="table-container credit-card-table" @mouseleave="clearTableRowHover" @scroll.capture="clearTableRowHover">
     <el-table
       :data="pageRows"
       row-key="id"
@@ -25,7 +25,7 @@
           </el-button>
         </template>
       </el-table-column>
-      <el-table-column type="index" :index="index => (page - 1) * 50 + index + 1" label="序号" width="60" align="center" fixed />
+      <el-table-column type="index" :index="index => (page - 1) * pageSize + index + 1" label="序号" width="60" align="center" fixed />
       <template v-for="column in columns" :key="column.value">
         <el-table-column
           v-if="isColumnVisible(column.value)"
@@ -109,7 +109,7 @@
         </el-table-column>
       </template>
     </el-table>
-    <el-pagination v-if="tableData.length > 50" v-model:current-page="page" :page-size="50" :total="tableData.length" layout="total, prev, pager, next" class="wallet-pagination" />
+    <WalletPagination v-model:page="page" v-model:page-size="pageSize" :page-sizes="pageSizes" :total="tableData.length" />
     <div class="table-row-hover-overlay" :style="rowHoverOverlayStyle"></div>
 
     <!-- 右键菜单 -->
@@ -142,6 +142,8 @@
 
 <script>
 import SecureField from '../common/SecureField.vue'
+import WalletPagination from '../common/WalletPagination.vue'
+import { bankHoverRange } from '@/utils/tableBankHover'
 import WalletBrandMark from '../common/WalletBrandMark.vue'
 import { ElMessageBox } from 'element-plus'
 import { Edit, View, Delete, Check, Star, StarFilled } from '@element-plus/icons-vue'
@@ -169,7 +171,7 @@ const calculateInterestFreePeriod = (...args) => {
 export default {
   name: 'CreditCardTable',
   components: {
-    Star, StarFilled,
+    Star, StarFilled, WalletPagination,
     SecureField,
     WalletBrandMark,
     Edit,
@@ -210,7 +212,7 @@ export default {
       order: localStorage.getItem('creditCardTableSortOrder') || ''
     })
 
-    const { page, rows } = usePagedCards(toRef(props, 'tableData'), 50)
+    const { page, pageSize, pageSizes, rows } = usePagedCards(toRef(props, 'tableData'), 50, 'walletTablePageSize')
     const day = inject('calendarDay', ref(Date.now()))
     const pageRows = computed(() => { day.value; return prepareTableRows(rows.value) })
     const columns = creditCardOptions.tableCustomData
@@ -459,39 +461,44 @@ export default {
       }
     }
 
-    const syncTableRowHover = (cell) => {
+    const syncTableRowHover = (row) => {
       const tableElement = getTableElement()
-      const tableContainer = tableElement?.closest?.('.credit-card-table')
-      const rowElement = cell?.closest?.('tr.el-table__row')
-      if (!tableElement || !tableContainer || !rowElement) return
-
-      const tableRect = tableElement.getBoundingClientRect()
-      const containerRect = tableContainer.getBoundingClientRect()
-      const rowRect = rowElement.getBoundingClientRect()
-
+      const container = tableElement?.closest('.credit-card-table')
+      const viewport = tableElement?.querySelector('.el-table__body-wrapper .el-scrollbar__wrap')
+      const range = bankHoverRange(pageRows.value, row.id)
+      if (!container || !viewport || !range) { clearTableRowHover(); return }
+      const elements = tableElement.querySelectorAll('.el-table__body-wrapper .el-table__body > tbody > tr.el-table__row')
+      const first = elements[range.start]
+      const last = elements[range.end - 1]
+      if (!first || !last) { clearTableRowHover(); return }
+      const containerRect = container.getBoundingClientRect()
+      const viewRect = viewport.getBoundingClientRect()
+      // 光带覆盖同银行的整个连续分组，并裁剪到可滚动区域，不能盖住表头和分页。
+      const top = Math.max(first.getBoundingClientRect().top, viewRect.top)
+      const bottom = Math.min(last.getBoundingClientRect().bottom, viewRect.top + viewport.clientHeight)
+      if (bottom <= top) { clearTableRowHover(); return }
       tableElement.classList.add('is-table-row-hovered')
-      tableElement.style.setProperty('--table-row-hover-top', `${rowRect.top - tableRect.top}px`)
-      tableElement.style.setProperty('--table-row-hover-left', `${rowRect.left - tableRect.left}px`)
-      tableElement.style.setProperty('--table-row-hover-width', `${rowRect.width}px`)
-      tableElement.style.setProperty('--table-row-hover-height', `${rowRect.height}px`)
       rowHoverOverlayStyle.value = {
         display: 'block',
-        top: `${rowRect.top - containerRect.top}px`,
-        left: `${rowRect.left - containerRect.left}px`,
-        width: `${rowRect.width}px`,
-        height: `${rowRect.height}px`
+        top: `${top - containerRect.top}px`,
+        left: `${viewRect.left - containerRect.left}px`,
+        width: `${viewport.clientWidth}px`,
+        height: `${bottom - top}px`
       }
     }
 
-    const handleCellMouseEnter = (row, column, cell) => {
-      syncTableRowHover(cell)
-    }
-
+    const handleCellMouseEnter = row => syncTableRowHover(row)
     const handleCellMouseLeave = (row, column, cell, event) => {
       const nextRow = event?.relatedTarget?.closest?.('tr.el-table__row')
-      if (nextRow) return
+      if (nextRow && getTableElement()?.contains(nextRow)) return
       clearTableRowHover()
     }
+    watch(pageRows, clearTableRowHover, { flush: 'post' })
+    watch([page, pageSize], async () => {
+      clearTableRowHover()
+      await nextTick()
+      tableRef.value?.setScrollTop(0)
+    })
 
     // 行样式类名
     const rowClassName = ({ row }) => {
@@ -598,10 +605,14 @@ export default {
       }
     }
 
-    onUnmounted(() => { cleanupClickListener?.(); selectedRow.value = null })
+    onUnmounted(() => {
+      cleanupClickListener?.(); selectedRow.value = null
+      window.removeEventListener('resize', clearTableRowHover)
+    })
 
     // 初始化时恢复排序状态
     onMounted(() => {
+      window.addEventListener('resize', clearTableRowHover, { passive: true })
       if (sortState.value.key && sortState.value.order) {
         // 这里需要获取表格实例并设置排序
         // 如果使用 el-table ref，可以调用 sort 方法
@@ -610,7 +621,7 @@ export default {
 
     return {
       tableData: toRef(props, 'tableData'),
-      pageRows, page,
+      pageRows, page, pageSize, pageSizes, clearTableRowHover,
       visibleColumns: toRef(props, 'visibleColumns'),
       handleEdit: (row) => emit('edit', row),
       handleDelete: (row) => emit('delete', row),

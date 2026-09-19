@@ -95,16 +95,51 @@ a,
   }
 }
 
-.wallet-table-sort {
+.wallet-list-controls {
   display: flex;
+  flex: 0 0 auto;
   flex-wrap: wrap;
   align-items: center;
-  justify-content: flex-end;
+  justify-content: space-between;
+  gap: 8px 16px;
+  padding: 4px 0 10px;
+}
+.wallet-favorites-filter {
+  display: inline-flex;
+  align-items: center;
   gap: 8px;
-  margin: 10px 0;
+  padding: 0 10px;
+  border: 1px solid var(--el-border-color-lighter);
+  border-radius: 8px;
+  background: var(--el-fill-color-blank);
   color: var(--el-text-color-secondary);
-  font-size: 13px;
+  font-size: 12px;
+}
+.wallet-favorites-filter.is-active { border-color: var(--el-color-primary); }
+.wallet-favorite-count { font-variant-numeric: tabular-nums; color: var(--el-color-primary); }
+.wallet-favorite-help {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  padding: 4px;
+  background: transparent;
+  color: inherit;
+  cursor: help;
+}
+.wallet-favorite-help:focus-visible { outline: 2px solid var(--el-color-primary); border-radius: 4px; }
+.wallet-table-sort {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--el-text-color-secondary);
+  font-size: 12px;
+}
+.wallet-table-sort .el-select { width: 190px; }
+@media (max-width: 520px) {
+  .wallet-list-controls { gap: 8px; }
+  .wallet-table-sort { margin-left: auto; }
+  .wallet-table-sort .el-select { width: 150px; }
 }
 
-.wallet-favorites-filter { display: flex; align-items: center; gap: 12px; padding: 8px 0; color: var(--el-text-color-secondary); font-size: 12px; }
 .card-item-wrapper .card-favorite-control { position: absolute; right: 10px; top: 10px; z-index: 3; color: var(--el-color-primary); background: var(--el-bg-color); }

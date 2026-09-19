@@ -201,9 +201,22 @@
         </el-collapse-transition>
       </div>
 
-      <div class="wallet-favorites-filter">
-        <el-checkbox v-model="onlyFavorites">只看收藏</el-checkbox>
-        <span>收藏仅保存在本机</span>
+      <div class="wallet-list-controls">
+        <div class="wallet-favorites-filter" :class="{ 'is-active': onlyFavorites }">
+          <el-checkbox v-model="onlyFavorites">只看收藏</el-checkbox>
+          <span class="wallet-favorite-count" aria-label="已收藏卡片数量">{{ favoriteIDs.size }}</span>
+          <el-tooltip content="收藏仅保存在本机，不会同步到其他设备" placement="top">
+            <button type="button" class="wallet-favorite-help" aria-label="收藏仅保存在本机，不会同步到其他设备">
+              <el-icon><QuestionFilled /></el-icon>
+            </button>
+          </el-tooltip>
+        </div>
+        <div v-if="viewMode === 'table'" class="wallet-table-sort">
+          <span>排序：</span>
+          <el-select v-model="cardSortMode" size="small" aria-label="卡片排序">
+            <el-option v-for="[key, label] in sortOptions" :key="key" :label="label" :value="key" />
+          </el-select>
+        </div>
       </div>
       <!-- 批量操作工具栏 -->
       <BatchOperationToolbar
@@ -218,12 +231,6 @@
         @toggle-select-all="toggleSelectAll"
       />
 
-      <div v-if="viewMode === 'table' && tableData.length" class="wallet-table-sort">
-        <span>排序：</span>
-        <el-select v-model="cardSortMode" size="small" aria-label="卡片排序" style="width: 190px">
-          <el-option v-for="[key, label] in sortOptions" :key="key" :label="label" :value="key" />
-        </el-select>
-      </div>
       <Transition name="view-fade" mode="out-in">
         <CreditCardTable
           v-if="viewMode === 'table'"

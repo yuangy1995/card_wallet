@@ -48,6 +48,7 @@ jobs:
           python3 -m playwright install --with-deps chromium
           python3 scripts/browser-regression.py
           python3 scripts/parity-browser-regression.py
+          python3 scripts/table-controls-regression.py
       - uses: actions/upload-artifact@v4
         if: always()
         with:
