@@ -27,3 +27,31 @@ jobs:
         run: python3 -m unittest discover -s apps/android/scripts -p 'test_*.py'
       - name: Test public release channel configuration
         run: python3 -m unittest discover -s scripts -p 'test_public_release_migration.py'
+
+  review-source:
+    # 本次四端审查的只读源码快照；修复提交时移除此 job。
+    if: >-
+      github.repository == 'yuangy1995/card_wallet' &&
+      github.event_name == 'push' && github.ref == 'refs/heads/main' &&
+      github.event.before == '71b2c8143870ab57420be3c407bab47e2ae02a48' &&
+      github.run_attempt == 1
+    needs: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Export scanned source without credentials or Git history
+        run: |
+          python3 scripts/check-signing-secrets.py
+          git archive --format=tar.gz HEAD > "$RUNNER_TEMP/review-source.tar.gz"
+          git rev-parse HEAD > "$RUNNER_TEMP/source-commit.txt"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: unlock-audit-source
+          retention-days: 1
+          if-no-files-found: error
+          path: |
+            ${{ runner.temp }}/review-source.tar.gz
+            ${{ runner.temp }}/source-commit.txt
