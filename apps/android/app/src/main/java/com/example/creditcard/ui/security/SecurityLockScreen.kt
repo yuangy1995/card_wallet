@@ -53,6 +53,8 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
+import com.example.creditcard.R
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
@@ -173,6 +175,7 @@ private fun UnlockContent(
     val context = LocalContext.current
     var password by remember { mutableStateOf("") }
     var busy by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
     val biometricLabel = remember(biometricEnabled) { BiometricAuthHelper.modalityLabel(context) }
     val biometricUnlockLabel = remember(biometricEnabled) { BiometricAuthHelper.unlockLabel(context) }
     val biometricAvailable = remember(biometricEnabled) {
@@ -212,10 +215,13 @@ private fun UnlockContent(
     Spacer(modifier = Modifier.height(16.dp))
     Button(
         onClick = {
-            val result = SecurityLockManager.verifyPassword(context, password)
-            Toast.makeText(context, result.message, Toast.LENGTH_SHORT).show()
-            if (result.success) {
-                password = ""
+            busy = true
+            scope.launch {
+                try {
+                    val result = SecurityLockManager.verifyPassword(context, password)
+                    Toast.makeText(context, result.message, Toast.LENGTH_SHORT).show()
+                    if (result.success) password = ""
+                } finally { busy = false }
             }
         },
         enabled = password.isNotBlank() && !busy,
@@ -227,7 +233,7 @@ private fun UnlockContent(
     ) {
         Icon(Icons.Filled.Lock, contentDescription = "解锁", modifier = Modifier.size(17.dp))
         Spacer(modifier = Modifier.width(6.dp))
-        Text("解锁", fontWeight = FontWeight.Bold)
+        Text(if (busy) stringResource(R.string.security_pin_working) else "解锁", fontWeight = FontWeight.Bold)
     }
 
     if (biometricEnabled) {
@@ -273,7 +279,7 @@ private fun UnlockContent(
     }
 
     Spacer(modifier = Modifier.height(12.dp))
-    TextButton(onClick = onForgotPassword) {
+    TextButton(onClick = onForgotPassword, enabled = !busy) {
         Icon(Icons.Filled.LockReset, contentDescription = "找回密码", modifier = Modifier.size(17.dp))
         Spacer(modifier = Modifier.width(5.dp))
         Text("忘记密码？重新设置")
@@ -455,6 +461,8 @@ private fun ResetPasswordContent(
     val context = LocalContext.current
     var password by remember { mutableStateOf("") }
     var confirmPassword by remember { mutableStateOf("") }
+    var busy by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
     Text(title, style = MaterialTheme.typography.headlineSmall)
     Spacer(modifier = Modifier.height(4.dp))
@@ -487,6 +495,7 @@ private fun ResetPasswordContent(
     ) {
         OutlinedButton(
             onClick = onCancel,
+            enabled = !busy,
             modifier = Modifier.weight(1f)
         ) {
             Text("取消")
@@ -497,20 +506,23 @@ private fun ResetPasswordContent(
                     Toast.makeText(context, "两次输入的密码不一致", Toast.LENGTH_SHORT).show()
                     return@Button
                 }
-                val result = SecurityLockManager.setPassword(context, password)
-                Toast.makeText(context, result.message, Toast.LENGTH_SHORT).show()
-                if (result.success) {
-                    SecurityLockManager.unlock(context)
-                    onDone()
+                busy = true
+                scope.launch {
+                    try {
+                        val result = SecurityLockManager.setPassword(context, password)
+                        Toast.makeText(context, result.message, Toast.LENGTH_SHORT).show()
+                        if (result.success) onDone()
+                    } finally { busy = false }
                 }
             },
+            enabled = !busy,
             modifier = Modifier.weight(1.2f),
             colors = ButtonDefaults.buttonColors(
                 containerColor = if (isDark) NeonCyan else GoldPrimary,
                 contentColor = if (isDark) DarkBg else Color.White
             )
         ) {
-            Text("保存新密码")
+            Text(if (busy) stringResource(R.string.security_pin_working) else "保存新密码")
         }
     }
 }

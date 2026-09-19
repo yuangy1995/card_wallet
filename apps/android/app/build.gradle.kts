@@ -152,6 +152,9 @@ dependencies {
   implementation(libs.androidx.navigation3.runtime)
   implementation(libs.androidx.lifecycle.viewmodel.navigation3)
 
+  // PIN PBKDF2-SHA256 on every supported Android API (including 23-25). No global provider.
+  implementation("org.bouncycastle:bcprov-jdk18on:1.86")
+
   // OkHttp 网络连接与 JSON 序列化支持
   implementation("com.squareup.okhttp3:okhttp:4.12.0")
   implementation("org.jetbrains.kotlinx:kotlinx-serialization-json:1.6.3")

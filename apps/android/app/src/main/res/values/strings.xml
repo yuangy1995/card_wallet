@@ -120,4 +120,7 @@
     <string name="local_cards_loading">Loading cards from this device…</string>
     <string name="local_cards_load_error">Cards could not be loaded. Your saved data is unchanged. Please try again.</string>
     <string name="local_cards_retry">Try again</string>
+    <string name="security_pin_working">Please wait…</string>
+    <string name="security_pin_retry">The lock state changed. Please try again.</string>
+    <string name="security_pin_storage_error">The security settings could not be saved or read. Your cards are unchanged. Please try again.</string>
 </resources>

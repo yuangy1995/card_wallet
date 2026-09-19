@@ -27,102 +27,14 @@ jobs:
         run: python3 -m unittest discover -s apps/android/scripts -p 'test_*.py'
       - name: Test public release channel configuration
         run: python3 -m unittest discover -s scripts -p 'test_public_release_migration.py'
-
-  verify-stage-three:
-    if: >-
-      github.repository == 'yuangy1995/card_wallet' &&
-      github.event_name == 'push' && github.ref == 'refs/heads/main' &&
-      github.event.before == '1209d1cb4a8842dc34befe8f34f465ca87d8d3d9' && github.run_attempt == 1
-    needs: check
-    runs-on: ubuntu-latest
-    timeout-minutes: 40
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-      - name: Restore reviewed Android source and verify exact patch
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          python3 - <<'PY'
-          import base64,gzip,hashlib,json,subprocess
-          from pathlib import Path
-          parts=['2088f8e1c9020063324e23f88ba62c578e6e38f9','aef42e1d102ee929edb7442c3eced577f451948c','682c00bc7b21787d54d727663fad355071b14888','b7fa78f439b715e4d183e2afbe33d433e134e273']
-          chunks=[]
-          for sha in parts:
-              obj=json.loads(subprocess.check_output(['gh','api','repos/yuangy1995/card_wallet/git/blobs/'+sha],text=True))
-              chunks.append(base64.b64decode(obj['content']).decode())
-          raw=gzip.decompress(base64.b64decode(''.join(chunks),validate=True))
-          assert hashlib.sha256(raw).hexdigest()=='b70a9b7a1bd281db23f7c5fd4499ba80fb7123b1fec197e47d395670920ee48e'
-          patch=Path('/tmp/stage3.patch');patch.write_bytes(raw)
-          subprocess.run(['git','apply','--check',str(patch)],check=True)
-          subprocess.run(['git','apply','--index',str(patch)],check=True)
-          names=subprocess.check_output(['git','diff','--cached','--name-only'],text=True).splitlines()
-          assert len(names)==10 and all(p.startswith('apps/android/') for p in names)
-          subprocess.run(['git','diff','--cached','--check'],check=True)
-          subprocess.run(['python3','scripts/check-signing-secrets.py'],check=True)
-          PY
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '17'
-          cache: gradle
-          cache-dependency-path: apps/android/**/*.gradle.kts
-      - name: Android migration tests, build and lint
-        working-directory: apps/android
-        run: bash gradlew :app:testDebugUnitTest :app:assembleDebug :app:lintDebug :app:assembleDebugAndroidTest --stacktrace --max-workers=2
-      - name: Enable emulator acceleration
-        run: |
-          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
-          sudo udevadm control --reload-rules
-          sudo udevadm trigger --name-match=kvm
-      - name: Real Android PIN derivation and local vault regressions
-        uses: reactivecircus/android-emulator-runner@v2
-        with:
-          api-level: 34
-          arch: x86_64
-          target: google_apis
-          disk-size: 4096M
-          disable-animations: true
-          working-directory: apps/android
-          script: bash gradlew :app:connectedDebugAndroidTest --stacktrace --max-workers=2
-      - name: Export tested source objects without moving any ref
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          python3 - <<'PY'
-          import base64,json,os,subprocess,xml.etree.ElementTree as ET
-          from pathlib import Path
-          def api(path,body=None):
-              args=['gh','api','repos/yuangy1995/card_wallet'+path]
-              if body is not None:args+=['--method','POST','--input','-']
-              return json.loads(subprocess.check_output(args,input=json.dumps(body) if body is not None else None,text=True))
-          assert api('/git/ref/heads/main')['object']['sha']==os.environ['GITHUB_SHA']
-          names=subprocess.check_output(['git','diff','--cached','--name-only'],text=True).splitlines()
-          assert len(names)==10 and all(p.startswith('apps/android/') for p in names)
-          entries=[]
-          for name in names:
-              data=subprocess.check_output(['git','show',':'+name])
-              sha=api('/git/blobs',{'content':base64.b64encode(data).decode(),'encoding':'base64'})['sha']
-              entries.append({'path':name,'mode':'100644','type':'blob','sha':sha})
-          tree=api('/git/trees',{'base_tree':subprocess.check_output(['git','rev-parse','HEAD^{tree}'],text=True).strip(),'tree':entries})['sha']
-          totals={}
-          for label,folder in [('unit','app/build/test-results/testDebugUnitTest'),('device','app/build/outputs/androidTest-results/connected')]:
-              roots=[ET.parse(p).getroot() for p in (Path('apps/android')/folder).rglob('TEST-*.xml')]
-              totals[label]={k:sum(int(r.get(k,'0')) for r in roots) for k in ['tests','failures','errors','skipped']}
-          result={'stage':3,'base':os.environ['GITHUB_SHA'],'tree':tree,'entries':entries,'tests':totals}
-          Path('stage3-result.json').write_text(json.dumps(result,indent=2))
-          print(json.dumps(result))
-          PY
+      # 只读导出本次已提交的公开源码供第四阶段复核；第四阶段删除这两个步骤。
+      - name: Export reviewed stage three source
+        if: github.event_name == 'push' && github.event.before == '5f40d2e7759883fa257a856038519ebcbc7e54dc' && github.repository == 'yuangy1995/card_wallet'
+        run: git archive --format=tar.gz HEAD > "$RUNNER_TEMP/stages-source.tar.gz"
       - uses: actions/upload-artifact@v4
-        if: always()
+        if: github.event_name == 'push' && github.event.before == '5f40d2e7759883fa257a856038519ebcbc7e54dc' && github.repository == 'yuangy1995/card_wallet'
         with:
-          name: stage3-pin-verification
-          retention-days: 3
-          path: |
-            stage3-result.json
-            apps/android/app/build/test-results/
-            apps/android/app/build/outputs/androidTest-results/
-            apps/android/app/build/reports/
+          name: stage-three-reviewed-source
+          retention-days: 1
+          if-no-files-found: error
+          path: ${{ runner.temp }}/stages-source.tar.gz

@@ -121,4 +121,7 @@
     <string name="local_cards_loading">正在读取本机卡片…</string>
     <string name="local_cards_load_error">暂时无法读取本机卡片，原数据已保留。请重试。</string>
     <string name="local_cards_retry">重新读取</string>
+    <string name="security_pin_working">正在处理…</string>
+    <string name="security_pin_retry">锁定状态已改变，请重新操作。</string>
+    <string name="security_pin_storage_error">未能读取或保存安全设置，卡片数据没有改变，请重试。</string>
 </resources>

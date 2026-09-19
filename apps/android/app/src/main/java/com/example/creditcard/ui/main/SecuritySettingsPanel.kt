@@ -39,6 +39,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.rememberCoroutineScope
+import kotlinx.coroutines.launch
+import androidx.compose.ui.res.stringResource
+import com.example.creditcard.R
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -87,6 +91,8 @@ fun SettingsSecurityPanel(
     var confirmPassword by remember { mutableStateOf("") }
     var disableDialogVisible by remember { mutableStateOf(false) }
     var disablePassword by remember { mutableStateOf("") }
+    var pinBusy by remember { mutableStateOf(false) }
+    val scope = rememberCoroutineScope()
 
     Column(
         modifier = Modifier
@@ -187,13 +193,16 @@ fun SettingsSecurityPanel(
                             Toast.makeText(context, "两次输入的密码不一致", Toast.LENGTH_SHORT).show()
                             return@Button
                         }
-                        val result = SecurityLockManager.setPassword(context, newPassword)
-                        Toast.makeText(context, result.message, Toast.LENGTH_SHORT).show()
-                        if (result.success) {
-                            newPassword = ""
-                            confirmPassword = ""
+                        pinBusy = true
+                        scope.launch {
+                            try {
+                                val result = SecurityLockManager.setPassword(context, newPassword)
+                                Toast.makeText(context, result.message, Toast.LENGTH_SHORT).show()
+                                if (result.success) { newPassword = ""; confirmPassword = "" }
+                            } finally { pinBusy = false }
                         }
                     },
+                    enabled = !pinBusy,
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = accent,
@@ -202,7 +211,7 @@ fun SettingsSecurityPanel(
                 ) {
                     Icon(Icons.Filled.Security, contentDescription = "开启安全锁", modifier = Modifier.size(17.dp))
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("开启安全锁", fontWeight = FontWeight.Bold)
+                    Text(if (pinBusy) stringResource(R.string.security_pin_working) else "开启安全锁", fontWeight = FontWeight.Bold)
                 }
             }
         } else {
@@ -227,13 +236,16 @@ fun SettingsSecurityPanel(
                             Toast.makeText(context, "两次输入的密码不一致", Toast.LENGTH_SHORT).show()
                             return@Button
                         }
-                        val result = SecurityLockManager.setPassword(context, newPassword)
-                        Toast.makeText(context, if (result.success) "密码已更新" else result.message, Toast.LENGTH_SHORT).show()
-                        if (result.success) {
-                            newPassword = ""
-                            confirmPassword = ""
+                        pinBusy = true
+                        scope.launch {
+                            try {
+                                val result = SecurityLockManager.setPassword(context, newPassword)
+                                Toast.makeText(context, if (result.success) "密码已更新" else result.message, Toast.LENGTH_SHORT).show()
+                                if (result.success) { newPassword = ""; confirmPassword = "" }
+                            } finally { pinBusy = false }
                         }
                     },
+                    enabled = !pinBusy,
                     modifier = Modifier.fillMaxWidth(),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = accent,
@@ -242,7 +254,7 @@ fun SettingsSecurityPanel(
                 ) {
                     Icon(Icons.Filled.Password, contentDescription = "修改密码", modifier = Modifier.size(17.dp))
                     Spacer(modifier = Modifier.width(6.dp))
-                    Text("保存新密码", fontWeight = FontWeight.Bold)
+                    Text(if (pinBusy) stringResource(R.string.security_pin_working) else "保存新密码", fontWeight = FontWeight.Bold)
                 }
             }
 
@@ -353,8 +365,7 @@ fun SettingsSecurityPanel(
     if (disableDialogVisible) {
         AlertDialog(
             onDismissRequest = {
-                disableDialogVisible = false
-                disablePassword = ""
+                if (!pinBusy) { disableDialogVisible = false; disablePassword = "" }
             },
             title = { Text("关闭安全锁") },
             text = {
@@ -371,23 +382,24 @@ fun SettingsSecurityPanel(
             },
             confirmButton = {
                 TextButton(
+                    enabled = !pinBusy,
                     onClick = {
-                        val result = SecurityLockManager.verifyPassword(context, disablePassword)
-                        if (!result.success) {
-                            Toast.makeText(context, result.message, Toast.LENGTH_SHORT).show()
-                            return@TextButton
+                        pinBusy = true
+                        scope.launch {
+                            try {
+                                val result = SecurityLockManager.disableWithPassword(context, disablePassword)
+                                Toast.makeText(context, result.message, Toast.LENGTH_SHORT).show()
+                                if (result.success) { disablePassword = ""; disableDialogVisible = false }
+                            } finally { pinBusy = false }
                         }
-                        SecurityLockManager.clearSecurityData(context)
-                        Toast.makeText(context, "安全锁已关闭", Toast.LENGTH_SHORT).show()
-                        disablePassword = ""
-                        disableDialogVisible = false
                     }
                 ) {
-                    Text("确认关闭", color = if (isDark) NeonRed else Color(0xFFD32F2F))
+                    Text(if (pinBusy) stringResource(R.string.security_pin_working) else "确认关闭", color = if (isDark) NeonRed else Color(0xFFD32F2F))
                 }
             },
             dismissButton = {
                 TextButton(
+                    enabled = !pinBusy,
                     onClick = {
                         disableDialogVisible = false
                         disablePassword = ""
