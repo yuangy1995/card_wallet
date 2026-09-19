@@ -6,6 +6,12 @@
 
 Android 已移除当前代码中的旧 keystore 和明文配置，拒绝旧证书。新公钥证书指纹在 `apps/android/signing-certificate.sha256`。macOS 新更新公钥在 `apps/macos/Resources/Info.plist`，CI 在构建前验证新私钥与其一致；保留原 Ad-Hoc 构建，不增加 Apple 证书或公证要求。
 
+### macOS 应用本地存储不是发布密钥整改项
+
+维护者于 2026-09-19 明确：macOS 默认保留现有本地加密文件存储卡片、同步账本和本机凭证，不使用系统钥匙串作为正常存储后端，不安排 Keychain 或密码派生保险库迁移。本地密钥与密文按现有目录保存是已接受的设计边界，不列为待修复事项；只有维护者另行明确改变决定时才重新设计。详见根目录 [开发约定](../AGENTS.md)、[macOS 说明](../apps/macos/README.md) 和 [复审修复计划](code-review-20260919.md)。
+
+这不允许提交本地密钥或数据到公开仓库，也不允许关闭加密或删除旧密钥。真实泄漏、错误覆盖、锁定后的内存管理及读写性能问题仍分别处理。应用本地数据密钥与 Android/Sparkle 发布签名私钥是不同用途；本约定不更改 CI Secrets、签名校验、iOS 既有存储或 Android Keystore。
+
 ## 配置新密钥
 
 私有备份必须保存在本仓库之外的加密磁盘或密码管理器中，不得上传到源码、Release、Actions 附件或聊天。备份内包含 `release.p12`、`signing.json` 和 `sparkle-private-key.txt`。公钥和证书指纹可公开，私钥与密码不可公开。
