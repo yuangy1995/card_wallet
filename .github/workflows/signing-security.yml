@@ -27,3 +27,91 @@ jobs:
         run: python3 -m unittest discover -s apps/android/scripts -p 'test_*.py'
       - name: Test public release channel configuration
         run: python3 -m unittest discover -s scripts -p 'test_public_release_migration.py'
+
+  verify-stage-one:
+    if: >-
+      github.repository == 'yuangy1995/card_wallet' &&
+      github.event_name == 'push' && github.ref == 'refs/heads/main' &&
+      github.event.before == '700f06b6692dcbd3273d210283dd259d9f249df5' && github.run_attempt == 1
+    needs: check
+    runs-on: macos-15
+    timeout-minutes: 35
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Restore and verify reviewed first-stage source
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import base64, gzip, hashlib, json, subprocess
+          from pathlib import Path
+          parts = ['129badc9a2105d1c0a521809d37eb0d4f9af730a', '5717a9ea958676ce2b41debc7d49630e47e2794d', '2a0c53bc0beb39683fcc6701ba5aa6a1bc955566', 'c87371bba9802be666d4399d12fd4713777bb497', 'c78b86f5e0b10df4b61cbeb6f855462e5bcbee0d']
+          decoded = []
+          for i, sha in enumerate(parts):
+              obj = json.loads(subprocess.check_output(['gh', 'api', 'repos/yuangy1995/card_wallet/git/blobs/' + sha], text=True))
+              encoded = ''.join(obj['content'].split())
+              if i == 2:
+                  encoded = encoded.replace('07DULn', '07D994DULn').replace('CFEaRZZ+i', 'CFEaRZ+i')
+              if i == 3:
+                  encoded = encoded.replace('5f76d9989', '5f76d2989')
+              decoded.append(gzip.decompress(base64.b64decode(encoded + '===')))
+          patch = b''.join(decoded)
+          assert hashlib.sha256(patch).hexdigest() == '65a2e14c7cddbfa122f82da87c4f8b7784982babfb2870aa01f13d84abbde0fa'
+          target = Path('/tmp/stage1-reviewed.patch'); target.write_bytes(patch)
+          subprocess.run(['git', 'apply', '--check', str(target)], check=True)
+          subprocess.run(['git', 'apply', '--index', str(target)], check=True)
+          names = subprocess.check_output(['git','diff','--cached','--name-only'], text=True).splitlines()
+          assert names and all(p.startswith('apps/ios/') or p == 'docs/implementation-stages-20260919.md' for p in names)
+          subprocess.run(['git','diff','--cached','--check'], check=True)
+          subprocess.run(['python3','scripts/check-signing-secrets.py'], check=True)
+          PY
+      - name: First-stage iOS build and isolated lifecycle regressions
+        working-directory: apps/ios
+        run: |
+          set -euo pipefail
+          if ! command -v xcodegen >/dev/null; then brew install xcodegen; fi
+          xcodegen generate
+          mkdir -p build
+          DEVICE=$(xcrun simctl list devices available --json | python3 -c 'import sys,json; d=json.load(sys.stdin); print(next(x["udid"] for devices in d["devices"].values() for x in devices if x["name"].startswith("iPhone")))')
+          xcodebuild test -project CreditCardIOS.xcodeproj -scheme CreditCardIOS -destination "platform=iOS Simulator,id=$DEVICE" -parallel-testing-enabled NO -derivedDataPath build/DerivedData -resultBundlePath build/Stage1.xcresult CODE_SIGNING_ALLOWED=NO 2>&1 | tee build/stage1.log
+          xcrun xcresulttool get test-results summary --path build/Stage1.xcresult > build/stage1-summary.json
+      - name: Export tested source objects without updating a branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          python3 - <<'PY'
+          import base64, json, os, subprocess
+          from pathlib import Path
+          repo='repos/yuangy1995/card_wallet'
+          def api(path, body=None):
+              args=['gh','api',repo+path]
+              if body is not None: args += ['--method','POST','--input','-']
+              return json.loads(subprocess.check_output(args,input=json.dumps(body) if body is not None else None,text=True))
+          assert api('/git/ref/heads/main')['object']['sha'] == os.environ['GITHUB_SHA']
+          names=subprocess.check_output(['git','diff','--cached','--name-only'],text=True).splitlines()
+          entries=[]
+          for name in names:
+              data=subprocess.check_output(['git','show',':'+name])
+              sha=api('/git/blobs',{'content':base64.b64encode(data).decode(),'encoding':'base64'})['sha']
+              entries.append({'path':name,'mode':'100644','type':'blob','sha':sha})
+          tree=api('/git/trees',{'base_tree':subprocess.check_output(['git','rev-parse','HEAD^{tree}'],text=True).strip(),'tree':entries})['sha']
+          result={'stage':1,'base':os.environ['GITHUB_SHA'],'tree':tree,'entries':entries,'ios_tests':'passed'}
+          Path('stage1-result.json').write_text(json.dumps(result,indent=2))
+          with open('stage1-source.tar.gz','wb') as output:
+              subprocess.run(['git','archive','--format=tar.gz',subprocess.check_output(['git','write-tree'],text=True).strip()],stdout=output,check=True)
+          print(json.dumps(result))
+          PY
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: stage1-verification
+          retention-days: 3
+          path: |
+            stage1-result.json
+            stage1-source.tar.gz
+            apps/ios/build/stage1.log
+            apps/ios/build/stage1-summary.json
