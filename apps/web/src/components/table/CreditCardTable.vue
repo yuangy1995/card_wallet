@@ -110,7 +110,12 @@
       </template>
     </el-table>
     <WalletPagination v-model:page="page" v-model:page-size="pageSize" :page-sizes="pageSizes" :total="tableData.length" />
-    <div class="table-row-hover-overlay" :style="rowHoverOverlayStyle"></div>
+    <div
+      v-for="(overlay, index) in rowHoverOverlayStyles"
+      :key="index"
+      :class="['table-row-hover-overlay', { 'table-row-hover-overlay--cell': overlay.isCell }]"
+      :style="overlay.style"
+    ></div>
 
     <!-- 右键菜单 -->
     <div
@@ -143,7 +148,6 @@
 <script>
 import SecureField from '../common/SecureField.vue'
 import WalletPagination from '../common/WalletPagination.vue'
-import { bankHoverRange } from '@/utils/tableBankHover'
 import WalletBrandMark from '../common/WalletBrandMark.vue'
 import { ElMessageBox } from 'element-plus'
 import { Edit, View, Delete, Check, Star, StarFilled } from '@element-plus/icons-vue'
@@ -201,9 +205,7 @@ export default {
     const contextMenuX = ref(0)
     const contextMenuY = ref(0)
     const selectedRow = ref(null)
-    const rowHoverOverlayStyle = ref({
-      display: 'none'
-    })
+    const rowHoverOverlayStyles = ref([])
 
     let cleanupClickListener = null
 
@@ -456,35 +458,55 @@ export default {
       tableElement.style.removeProperty('--table-row-hover-left')
       tableElement.style.removeProperty('--table-row-hover-width')
       tableElement.style.removeProperty('--table-row-hover-height')
-      rowHoverOverlayStyle.value = {
-        display: 'none'
-      }
+      rowHoverOverlayStyles.value = []
     }
 
     const syncTableRowHover = (row) => {
       const tableElement = getTableElement()
       const container = tableElement?.closest('.credit-card-table')
       const viewport = tableElement?.querySelector('.el-table__body-wrapper .el-scrollbar__wrap')
-      const range = bankHoverRange(pageRows.value, row.id)
-      if (!container || !viewport || !range) { clearTableRowHover(); return }
+      if (!container || !viewport) { clearTableRowHover(); return }
+      const rowIndex = pageRows.value.findIndex(item => item.id === row.id)
       const elements = tableElement.querySelectorAll('.el-table__body-wrapper .el-table__body > tbody > tr.el-table__row')
-      const first = elements[range.start]
-      const last = elements[range.end - 1]
-      if (!first || !last) { clearTableRowHover(); return }
+      const hovered = rowIndex >= 0 ? elements[rowIndex] : null
+      if (!hovered) { clearTableRowHover(); return }
       const containerRect = container.getBoundingClientRect()
       const viewRect = viewport.getBoundingClientRect()
-      // 光带覆盖同银行的整个连续分组，并裁剪到可滚动区域，不能盖住表头和分页。
-      const top = Math.max(first.getBoundingClientRect().top, viewRect.top)
-      const bottom = Math.min(last.getBoundingClientRect().bottom, viewRect.top + viewport.clientHeight)
-      if (bottom <= top) { clearTableRowHover(); return }
+      const viewBottom = viewRect.top + viewport.clientHeight
+      const viewRight = viewRect.left + viewport.clientWidth
+      // 光带只覆盖悬停行本身，并裁剪到可滚动区域，不能盖住表头和分页。
+      const rowTop = Math.max(hovered.getBoundingClientRect().top, viewRect.top)
+      const rowBottom = Math.min(hovered.getBoundingClientRect().bottom, viewBottom)
+      if (rowBottom <= rowTop) { clearTableRowHover(); return }
+      const toOverlay = (top, bottom, left, right) => ({
+        style: {
+          display: 'block',
+          top: `${top - containerRect.top}px`,
+          left: `${left - containerRect.left}px`,
+          width: `${right - left}px`,
+          height: `${bottom - top}px`
+        }
+      })
+      const overlays = [toOverlay(rowTop, rowBottom, viewRect.left, viewRight)]
+      // 跨行合并的单元格是同组卡片的共同数据，需要整块点亮；
+      // 与悬停行重叠的部分已由整行光带覆盖，跳开以免颜色叠加变深。
+      const lastFixed = tableElement.querySelector('.el-table__body-wrapper .el-table__body td.el-table-fixed-column--left.is-last-column')
+      const fixedRight = lastFixed ? lastFixed.getBoundingClientRect().right : viewRect.left
+      tableElement.querySelectorAll('.el-table__body-wrapper .el-table__body td.credit-card-merged-cell').forEach(cell => {
+        const start = Array.prototype.indexOf.call(elements, cell.parentElement)
+        const end = start + (Number(cell.getAttribute('rowspan')) || 1)
+        if (start < 0 || rowIndex < start || rowIndex >= end) return
+        const rect = cell.getBoundingClientRect()
+        // 非固定列横向滚动后会藏到固定列下面，补光块不能盖住固定列。
+        const minLeft = cell.classList.contains('el-table-fixed-column--left') ? viewRect.left : fixedRight
+        const left = Math.max(rect.left, minLeft)
+        const right = Math.min(rect.right, viewRight)
+        if (right <= left) return
+        if (rowTop > rect.top) overlays.push({ ...toOverlay(Math.max(rect.top, viewRect.top), rowTop, left, right), isCell: true })
+        if (rowBottom < rect.bottom) overlays.push({ ...toOverlay(rowBottom, Math.min(rect.bottom, viewBottom), left, right), isCell: true })
+      })
       tableElement.classList.add('is-table-row-hovered')
-      rowHoverOverlayStyle.value = {
-        display: 'block',
-        top: `${top - containerRect.top}px`,
-        left: `${viewRect.left - containerRect.left}px`,
-        width: `${viewport.clientWidth}px`,
-        height: `${bottom - top}px`
-      }
+      rowHoverOverlayStyles.value = overlays
     }
 
     const handleCellMouseEnter = row => syncTableRowHover(row)
@@ -665,7 +687,7 @@ export default {
       showAnnualFeeOption,
       tableRef,
       selectedRows: toRef(props, 'selectedRows'),
-      rowHoverOverlayStyle,
+      rowHoverOverlayStyles,
       handleSelectionChange,
       toggleSelectAll,
       clearSelection,
