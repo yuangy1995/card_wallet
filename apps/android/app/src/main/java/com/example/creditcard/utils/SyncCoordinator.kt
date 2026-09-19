@@ -1,6 +1,7 @@
 package com.example.creditcard.utils
 
 import android.content.Context
+import com.example.creditcard.R
 import android.net.ConnectivityManager
 import android.net.Network
 import android.net.NetworkCapabilities
@@ -26,6 +27,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.withContext
 import java.io.File
 import java.io.IOException
@@ -155,7 +157,14 @@ object SyncCoordinator {
      * 加载本地缓存好的卡包数据，作为应用启动的主入口数据源
      */
     @Volatile private var isSuspended = false
-    @Volatile private var localDataReady = false
+    private val localCardLoad = LocalCardLoadSession {
+        !isSuspended && !SecurityLockManager.state.value.locked
+    }
+    val localDataState: StateFlow<LocalCardLoadState> = localCardLoad.state
+    // UI needs only readiness, never a second synchronous credential decryption on composition.
+    private val _syncConfigReady = MutableStateFlow(false)
+    val syncConfigReady: StateFlow<Boolean> = _syncConfigReady.asStateFlow()
+    private val localDataReady: Boolean get() = localDataState.value == LocalCardLoadState.READY
 
     fun setSuspended(context: Context, locked: Boolean) {
         val changed = isSuspended != locked
@@ -163,9 +172,11 @@ object SyncCoordinator {
         if (locked) {
             cancelCurrentSync(context)
             _needsCellularSyncConfirmation.value = false
-            _cardsFlow.value = emptyList()
-            _syncHistory.value = emptyList()
-            localDataReady = false
+            localCardLoad.invalidate {
+                _cardsFlow.value = emptyList()
+                _syncHistory.value = emptyList()
+                _syncConfigReady.value = false
+            }
         } else if (changed || !localDataReady) {
             syncScope.launch { initLocalData(context.applicationContext) }
         }
@@ -175,24 +186,75 @@ object SyncCoordinator {
         check(!isSuspended && !SecurityLockManager.state.value.locked) { "应用已锁定，请解锁后重试" }
     }
 
+    fun retryLocalData(context: Context) {
+        syncScope.launch { initLocalData(context.applicationContext) }
+    }
+
     fun initLocalData(context: Context) {
-        if (isSuspended || SecurityLockManager.state.value.locked) return
+        val token = localCardLoad.begin() ?: return
+        if (!localCardLoad.publish(token) { _syncConfigReady.value = false }) return
         val appContext = context.applicationContext
         try {
-            val cards = DatabaseHelper(appContext).use { it.getAllCards() }
+            // Serialize with local writes so an older read cannot overwrite a just-edited card.
+            synchronized(dbWriteLock) {
+                localCardLoad.checkCurrent(token)
+                val cards = DatabaseHelper(appContext).use { db ->
+                    db.getAllCards { localCardLoad.checkCurrent(token) }
+                }
+                if (!localCardLoad.publish(token, LocalCardLoadState.READY) {
+                    _cardsFlow.value = cards
+                }) return
+            }
+        } catch (_: CancellationException) {
+            return
+        } catch (_: Exception) {
+            localCardLoad.publish(token, LocalCardLoadState.FAILED) {
+                updateStatus("未能读取本机数据；原数据和云端备份已保留，请解锁设备后重试", "error", isPending(appContext))
+            }
+            return
+        }
+
+        // History/config/network must never hold back an already readable local wallet.
+        // Failure here keeps READY and does not turn valid cards into an empty/error screen.
+        try {
+            localCardLoad.checkCurrent(token)
+            if (!localCardLoad.publish(token) {
+                retainFavorites(appContext, _cardsFlow.value.map { it.id }.toSet())
+            }) return
             val history = loadSyncHistory(appContext)
-            val config = loadConfig(appContext)
-            checkUnlocked()
-            if (!isSuspended && !SecurityLockManager.state.value.locked) _cardsFlow.value = cards
-            _syncHistory.value = history
-            localDataReady = true
-            retainFavorites(appContext, cards.map { it.id }.toSet())
+            if (!localCardLoad.publish(token) { _syncHistory.value = history }) return
+        } catch (_: CancellationException) {
+            return
+        } catch (_: Exception) {
+            localCardLoad.publish(token) {
+                updateStatus(appContext.getString(R.string.local_cards_history_unavailable), "warning", isPending(appContext))
+            }
+        }
+        val config = try {
+            localCardLoad.checkCurrent(token)
+            loadConfig(appContext)
+        } catch (_: CancellationException) {
+            return
+        } catch (_: Exception) {
+            localCardLoad.publish(token) {
+                updateStatus(appContext.getString(R.string.local_cards_sync_config_unavailable), "warning", isPending(appContext))
+            }
+            return
+        }
+        if (!localCardLoad.publish(token) { _syncConfigReady.value = config.isReadyForSync }) return
+        try {
+            localCardLoad.checkCurrent(token)
             registerNetworkCallback(appContext)
             if (config.isReadyForSync) requestBackgroundSync(appContext, publishLocalChanges = false)
-            else updateStatus(config.syncUnavailableMessage() ?: "未配置云同步，卡片数据将保存在本地", "info", isPending(appContext))
+            else localCardLoad.publish(token) {
+                updateStatus(config.syncUnavailableMessage() ?: "未配置云同步，卡片数据将保存在本地", "info", isPending(appContext))
+            }
+        } catch (_: CancellationException) {
+            // A later lock/unlock owns the UI now.
         } catch (_: Exception) {
-            localDataReady = false
-            updateStatus("未能读取本机数据；原数据和云端备份已保留，请解锁设备后重试", "error", isPending(appContext))
+            localCardLoad.publish(token) {
+                updateStatus(appContext.getString(R.string.local_cards_sync_unavailable), "warning", isPending(appContext))
+            }
         }
     }
 
@@ -216,6 +278,7 @@ object SyncCoordinator {
         val editor = prefs.edit()
         values.forEach { (key, value) -> if (value.isNotEmpty() || key == KEY_URL || key == KEY_USER) editor.putString(key, value) }
         check(editor.putBoolean(KEY_ENABLED, true).putString(KEY_NETWORK_PREFERENCE, config.networkPreference.storedValue).commit()) { "未能保存同步配置，请重试" }
+        _syncConfigReady.value = config.isReadyForSync
         updateStatus("云同步配置已保存", "info", isPending(context))
     }
 
@@ -1210,13 +1273,18 @@ object SyncCoordinator {
                     }
                 }
             }
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
-            connectivityManager.registerDefaultNetworkCallback(callback)
-        } else {
-            connectivityManager.registerNetworkCallback(
-                android.net.NetworkRequest.Builder()
-                    .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET).build(), callback
-            )
+        try {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.N) {
+                connectivityManager.registerDefaultNetworkCallback(callback)
+            } else {
+                connectivityManager.registerNetworkCallback(
+                    android.net.NetworkRequest.Builder()
+                        .addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET).build(), callback
+                )
+            }
+        } catch (failure: Exception) {
+            synchronized(backgroundSyncLock) { networkCallbackRegistered = false }
+            throw failure
         }
     }
 

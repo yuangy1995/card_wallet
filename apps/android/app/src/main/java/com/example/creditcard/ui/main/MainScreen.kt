@@ -487,7 +487,7 @@ fun MainScreen(
             tabStateHolder.SaveableStateProvider(selectedTab) {
             when (selectedTab) {
                 0 -> {
-                    val syncConfig = remember(context) { SyncCoordinator.loadConfig(context) }
+                    val syncReady by SyncCoordinator.syncConfigReady.collectAsState()
 
                     LazyColumn(
                         state = walletListState,
@@ -513,10 +513,10 @@ fun MainScreen(
                                 onFavoritesChange = walletPreferences::setFavoritesOnly,
                                 isSyncing = syncStatus.isSyncing,
                                 syncType = syncStatus.type,
-                                syncReady = syncConfig.isReadyForSync,
+                                syncReady = syncReady,
                                 onSync = {
                                     if (syncStatus.isSyncing) { selectedTab = 1; toolsMode = ToolsMode.SYNC_LOG }
-                                    else if (!syncConfig.isReadyForSync) { selectedTab = 2; settingsMode = SettingsMode.WEBDAV }
+                                    else if (!syncReady) { selectedTab = 2; settingsMode = SettingsMode.WEBDAV }
                                     else SyncCoordinator.requestManualSync(context)
                                 },
                                 onManage = { showCardManagement = !showCardManagement },
@@ -3612,8 +3612,7 @@ fun SettingsMainPanel(
     onOpenStorage: () -> Unit,
     onOpenUpdates: () -> Unit
 ) {
-    val context = LocalContext.current
-    val config = remember { SyncCoordinator.loadConfig(context) }
+    val syncReady by SyncCoordinator.syncConfigReady.collectAsState()
     val sync by SyncCoordinator.syncStatus.collectAsState()
     val security by SecurityLockManager.state.collectAsState()
     val accent = MaterialTheme.colorScheme.primary
@@ -3633,7 +3632,7 @@ fun SettingsMainPanel(
             WalletSection(stringResource(R.string.settings_data)) {
                 ToolActionTile(Icons.Default.CloudQueue, stringResource(R.string.settings_sync),
                     stringResource(when {
-                        !config.isReadyForSync -> R.string.settings_sync_off
+                        !syncReady -> R.string.settings_sync_off
                         sync.isSyncing -> R.string.settings_sync_busy
                         sync.type == "error" -> R.string.settings_sync_error
                         else -> R.string.settings_sync_ready

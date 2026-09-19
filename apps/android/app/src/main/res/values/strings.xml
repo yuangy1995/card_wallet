@@ -117,4 +117,10 @@
     <string name="sort_modified">Recently modified</string>
     <string name="sort_bank">Bank name</string>
     <string name="wallet_image_import_error">Add up to 20 images per card, with each original up to 10 MB. New images are compressed; existing images are unchanged.</string>
+    <string name="local_cards_loading">Loading saved cards…</string>
+    <string name="local_cards_load_failed">Saved cards could not be read. Your existing data has been kept.</string>
+    <string name="local_cards_retry">Retry</string>
+    <string name="local_cards_history_unavailable">Sync history could not be read. Saved cards and history have been kept.</string>
+    <string name="local_cards_sync_config_unavailable">Sync settings could not be read. Saved cards and settings have been kept.</string>
+    <string name="local_cards_sync_unavailable">Cloud updates could not be checked. Your saved cards are still available.</string>
 </resources>

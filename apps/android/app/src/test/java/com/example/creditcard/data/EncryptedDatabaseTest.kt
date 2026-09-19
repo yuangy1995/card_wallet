@@ -72,6 +72,32 @@ class EncryptedDatabaseTest {
         DatabaseHelper(context,actual,name).use { assertEquals(card.cardImages,it.getAllCards().single().cardImages) }
         context.deleteDatabase(name)
     }
+    @Test fun invalidatedUnlockStopsReadingChunksWithoutChangingStoredCards() {
+        val name = "cancel-read-${UUID.randomUUID()}.db"
+        val actual = cipher()
+        var reads = 0
+        val counting = object : LocalRecordCipher {
+            override fun seal(plaintext: ByteArray, purpose: String) = actual.seal(plaintext, purpose)
+            override fun open(envelope: ByteArray, purpose: String): ByteArray {
+                reads++
+                return actual.open(envelope, purpose)
+            }
+        }
+        try {
+            DatabaseHelper(context, counting, name).use { db ->
+                val expected = card()
+                db.saveCard(expected)
+                assertThrows(kotlinx.coroutines.CancellationException::class.java) {
+                    db.getAllCards {
+                        if (reads == 2) throw kotlinx.coroutines.CancellationException("relocked")
+                    }
+                }
+                assertEquals(2, reads)
+                assertEquals(expected, db.getAllCards().single())
+            }
+        } finally { context.deleteDatabase(name) }
+    }
+
     @Test fun incompleteOrTamperedCiphertextNeverBecomesAnEmptyWallet() {
         val name="tamper-${UUID.randomUUID()}.db";val cipher=cipher()
         DatabaseHelper(context,cipher,name).use { db ->

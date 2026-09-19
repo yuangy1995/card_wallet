@@ -55,6 +55,26 @@ class LocalVaultInstrumentedTest {
         }
     }
 
+    @Test fun reusedKeyHandleStillEnforcesDeletionAndPurpose() {
+        val context = ApplicationProvider.getApplicationContext<Context>()
+        val alias = "wallet_cached_handle_${UUID.randomUUID()}"
+        try {
+            val cipher = AndroidLocalDataCipher(context, alias)
+            val plaintext = "synthetic".toByteArray()
+            val encrypted = cipher.seal(plaintext, "record")
+            repeat(115) { assertArrayEquals(plaintext, cipher.open(encrypted, "record")) }
+            assertNull(keyStore().getKey(alias, null).encoded)
+            assertTrue(runCatching { cipher.open(encrypted, "different-record") }.isFailure)
+            keyStore().deleteEntry(alias)
+            assertTrue(runCatching { cipher.open(encrypted, "record") }.isFailure)
+            assertTrue(runCatching { cipher.seal(plaintext, "record") }.isFailure)
+            assertFalse(keyStore().containsAlias(alias))
+        } finally {
+            keyStore().deleteEntry(alias)
+            java.io.File(context.filesDir, "$alias.marker").delete()
+        }
+    }
+
     @Test fun missingExistingKeyNeverSilentlyCreatesReplacement() {
         val context = ApplicationProvider.getApplicationContext<Context>()
         val alias = "wallet_missing_key_${UUID.randomUUID()}"

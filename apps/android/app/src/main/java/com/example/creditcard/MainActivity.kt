@@ -28,6 +28,8 @@ import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.lifecycleScope
 import com.example.creditcard.theme.CreditCardTheme
 import com.example.creditcard.ui.security.SecurityLockScreen
+import com.example.creditcard.ui.security.LocalDataGate
+import com.example.creditcard.utils.LocalCardLoadState
 import com.example.creditcard.utils.SecurityLockManager
 import com.example.creditcard.utils.SyncCoordinator
 import com.example.creditcard.utils.ThemeManager
@@ -76,12 +78,17 @@ class MainActivity : FragmentActivity() {
             }
         }
 
+        lifecycleScope.launch {
+            SyncCoordinator.localDataState.collect { updateNfcForegroundDispatch() }
+        }
+
         enableEdgeToEdge()
         val appUpdater = ViewModelProvider(this)[AppUpdater::class.java]
         setContent {
             // 监听全局主题状态，动态响应热切换
             val isDark by ThemeManager.isDarkTheme.collectAsState()
             val securityState by SecurityLockManager.state.collectAsState()
+            val localDataState by SyncCoordinator.localDataState.collectAsState()
 
             // 系统栏图标跟随应用主题，确保深浅色模式均清晰可见。
             SideEffect {
@@ -95,8 +102,13 @@ class MainActivity : FragmentActivity() {
                 Surface(modifier = Modifier.fillMaxSize(), color = MaterialTheme.colorScheme.background) { 
                     Box(modifier = Modifier.fillMaxSize()) {
                         CompositionLocalProvider(LocalAppUpdater provides appUpdater) {
-                            if (!securityState.locked) MainNavigation()
-                            AppUpdateHost(locked = securityState.locked)
+                            if (!securityState.locked) {
+                                LocalDataGate(
+                                    state = localDataState,
+                                    onRetry = { SyncCoordinator.retryLocalData(applicationContext) }
+                                ) { MainNavigation() }
+                            }
+                            AppUpdateHost(locked = securityState.locked || localDataState != LocalCardLoadState.READY)
                         }
                         if (securityState.locked) {
                             SecurityLockScreen(
@@ -127,7 +139,8 @@ class MainActivity : FragmentActivity() {
     private fun updateNfcForegroundDispatch() {
         val shouldEnable = isActivityResumed &&
             NfcScannerManager.isReaderEnabled &&
-            !SecurityLockManager.state.value.locked
+            !SecurityLockManager.state.value.locked &&
+            SyncCoordinator.localDataState.value == LocalCardLoadState.READY
 
         if (shouldEnable) {
             enableNfcForegroundDispatch()
@@ -188,6 +201,11 @@ class MainActivity : FragmentActivity() {
                 Thread {
                     val cardInfo = EmvCardReader.readCard(tag)
                     runOnUiThread {
+                        if (SecurityLockManager.state.value.locked ||
+                            SyncCoordinator.localDataState.value != LocalCardLoadState.READY) {
+                            NfcScannerManager.onReadingFinished(false)
+                            return@runOnUiThread
+                        }
                         NfcScannerManager.onReadingFinished(cardInfo != null)
                         if (cardInfo != null) {
                             val (scannedNo, scannedVal) = cardInfo
